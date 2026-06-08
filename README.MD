@@ -1,54 +1,8 @@
-# MyTools
+# MyTools v3.0.0
 
 Suite de ferramentas de auditoria e reconhecimento web/network para ambientes de laboratório e alvos autorizados.
 
 > **AVISO:** Este projeto é destinado exclusivamente para fins educacionais e de teste em ambientes autorizados. O uso irresponsável pode ser ilegal. Use com responsabilidade.
-
----
-
-## Módulos
-
-### 1. Painel Central (`main.py`)
-Orquestrador do ecossistema com menu interativo colorido para alternar entre todas as subferramentas.
-
-```bash
-python main.py
-```
-
-### 2. Network PortScanner (`portscanner.py`)
-Scanner de portas TCP com suporte a CIDR, banner grabbing e exportação JSON/CSV.
-
-```bash
-python portscanner.py 192.168.0.0/24 -p 22,80,443 -b
-python portscanner.py scanme.nmap.org -p top100 -o resultado.json
-```
-
-### 3. Web Directory Scanner (`dirscanner.py`)
-Fuzzing e descoberta de caminhos ocultos em servidores web com filtros de status code e extensões.
-
-```bash
-python dirscanner.py http://target.local -x php,txt,bak -s 200,403
-python dirscanner.py http://127.0.0.1:8000 -w wordlist.txt
-python dirscanner.py http://target.local --proxy http://proxy:8080 --delay 10
-```
-
-### 4. Web Passive Recon (`webrecon.py`)
-Reconhecimento passivo: headers de segurança, fingerprinting, robots.txt e sitemap.xml.
-
-```bash
-python webrecon.py https://example.com
-python webrecon.py https://example.com -o recon.json
-python webrecon.py https://example.com --proxy http://proxy:8080
-```
-
-### 5. Deep Attack & Vulnerability Audit (`attackaudit.py`)
-Auditoria red/blue com verificação de CORS, TLS, cookies, métodos HTTP perigosos e deep scan de arquivos sensíveis.
-
-```bash
-python attackaudit.py https://example.com --deep
-python attackaudit.py https://example.com --deep -o audit.json
-python attackaudit.py https://example.com --deep --proxy http://proxy:8080 --delay 5
-```
 
 ---
 
@@ -59,18 +13,133 @@ python attackaudit.py https://example.com --deep --proxy http://proxy:8080 --del
 
 ### Instalação (desenvolvimento)
 ```bash
-git clone https://github.com/nxt/MyTools.git
-cd MyTools
+git clone https://github.com/nxxtt/ferramentas_osint.git
+cd MyTools-main
 python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # Linux/Mac
 pip install -e ".[dev]"
 ```
 
-### Execução direta
+Isso instala os comandos CLI globalmente:
+
+| Comando | Módulo |
+|---------|--------|
+| `mytools` | Painel interativo central |
+| `mytools-audit` | Auditoria ofensiva/defensiva |
+| `mytools-recon` | Reconhecimento passivo |
+| `mytools-port` | Scanner de portas TCP |
+| `mytools-dir` | Scanner de diretórios HTTP |
+
+> **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
+
+### Execução direta (sem instalar)
 ```bash
 python main.py               # Painel unificado
-python portscanner.py --help # Ajuda individual
+python attackaudit.py --help # Ajuda individual
+```
+
+---
+
+## Módulos
+
+### 1. Painel Central (`mytools`)
+Orquestrador do ecossistema com menu interativo colorido para alternar entre todas as subferramentas.
+
+```bash
+mytools
+mytools --version
+```
+
+### 2. Network PortScanner (`mytools-port`)
+Scanner de portas TCP com suporte a CIDR, banner grabbing e exportação JSON/CSV.
+
+```bash
+mytools-port 192.168.0.0/24 -p 22,80,443 -b
+mytools-port scanme.nmap.org -p top100 -o resultado.json
+mytools-port -l targets.txt -o results.json
+mytools-port 10.0.0.0/30 -p 80 -w 100 --banner -o scan.csv
+```
+
+### 3. Web Directory Scanner (`mytools-dir`)
+Fuzzing e descoberta de caminhos ocultos em servidores web com filtros de status code e extensões.
+
+```bash
+mytools-dir http://target.local -x php,txt,bak -s 200,403
+mytools-dir http://127.0.0.1:8000 -w wordlist.txt
+mytools-dir http://target.local --proxy http://proxy:8080 --delay 10
+mytools-dir -l urls.txt --output-dir results/
+```
+
+### 4. Web Passive Recon (`mytools-recon`)
+Reconhecimento passivo: headers de segurança, fingerprinting, robots.txt e sitemap.xml.
+
+```bash
+mytools-recon https://example.com
+mytools-recon https://example.com -o recon.json
+mytools-recon https://example.com --proxy http://proxy:8080
+mytools-recon -l targets.txt --output-dir results/
+```
+
+### 5. Deep Attack & Vulnerability Audit (`mytools-audit`)
+Auditoria red/blue com verificação de CORS, TLS, cookies, métodos HTTP perigosos e deep scan de arquivos sensíveis.
+
+```bash
+mytools-audit https://example.com --deep
+mytools-audit https://example.com --deep -o audit.json
+mytools-audit https://example.com --deep --proxy http://proxy:8080 --delay 5
+mytools-audit -l targets.txt --output-dir results/
+```
+
+---
+
+## Features v3.0.0
+
+### Multi-target
+Execute qualquer ferramenta em múltiplos alvos a partir de um arquivo:
+
+```bash
+# Arquivo com um URL por linha (linhas com # são ignoradas)
+mytools-recon -l targets.txt --output-dir results/
+mytools-audit -l targets.txt --output-dir results/
+mytools-dir -l urls.txt --output-dir results/
+mytools-port -l hosts.txt -p 80,443
+```
+
+Cada alvo gera um arquivo individual (`hostname.json`) no `--output-dir`. Com `-o`, gera saída consolidada.
+
+### Quiet Mode
+Sem banner, sem mensagens de progresso — apenas erros no stderr. Requer `-o`:
+
+```bash
+mytools-recon https://example.com -q -o recon.json
+mytools-audit https://example.com --deep -q -o audit.json
+```
+
+### Autenticação
+Suporte a Basic Auth, Bearer Token, Cookies e Headers customizados:
+
+```bash
+# Basic Auth
+mytools-audit https://internal.app --auth admin:senha123
+
+# Bearer Token
+mytools-recon https://api.target.com --bearer-token eyJhbGc...
+
+# Cookie
+mytools-dir http://app.local --cookie "session=abc123; token=xyz"
+
+# Header customizado (pode usar mais de um)
+mytools-recon https://target.com --header "X-Token: abc" --header "Authorization: Bearer xyz"
+```
+
+### Versão
+```bash
+mytools --version
+mytools-recon --version
+mytools-audit --version
+mytools-port --version
+mytools-dir --version
 ```
 
 ---
@@ -79,7 +148,7 @@ python portscanner.py --help # Ajuda individual
 
 ### Painel unificado
 ```bash
-python main.py
+mytools
 ```
 O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`.
 
@@ -93,23 +162,30 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 ### Exemplos rápidos
 | Comando | Descrição |
 |---------|-----------|
-| `python portscanner.py 127.0.0.1 -p 1-1024` | Scan TCP nas primeiras 1024 portas |
-| `python dirscanner.py http://testphp.vulnweb.com -x php` | Busca por arquivos .php |
-| `python webrecon.py https://google.com` | Recon passivo rápido |
-| `python attackaudit.py https://example.com --deep` | Auditoria completa com deep scan |
+| `mytools-port 127.0.0.1 -p 1-1024` | Scan TCP nas primeiras 1024 portas |
+| `mytools-dir http://testphp.vulnweb.com -x php` | Busca por arquivos .php |
+| `mytools-recon https://google.com` | Recon passivo rápido |
+| `mytools-audit https://example.com --deep` | Auditoria completa com deep scan |
+| `mytools-audit https://example.com -q -o audit.json` | Audit silencioso com saída em arquivo |
 
 ### Proxy e Rate Limiting
 Todos os módulos HTTP suportam proxy e rate limiting:
 
 ```bash
 # Usar proxy
-python dirscanner.py http://target.local --proxy http://proxy:8080
+mytools-dir http://target.local --proxy http://proxy:8080
 
 # Rate limiting (requests por segundo)
-python dirscanner.py http://target.local --delay 10
+mytools-dir http://target.local --delay 10
 
 # Proxy + rate limiting
-python attackaudit.py https://target.local --deep --proxy http://proxy:8080 --delay 5
+mytools-audit https://target.local --deep --proxy http://proxy:8080 --delay 5
+```
+
+### PortScanner — Workers
+```bash
+mytools-port 10.0.0.0/24 -w 500          # 500 threads
+mytools-port 10.0.0.0/24 --threads 500   # alias deprecated
 ```
 
 ---
@@ -117,14 +193,15 @@ python attackaudit.py https://target.local --deep --proxy http://proxy:8080 --de
 ## Estrutura do Projeto
 
 ```
-MyTools/
+MyTools-main/
 ├── main.py            # Painel central
 ├── portscanner.py     # Scanner de portas TCP
 ├── dirscanner.py      # Scanner de diretórios HTTP
 ├── webrecon.py        # Reconhecimento passivo
 ├── attackaudit.py     # Auditoria ofensiva/defensiva
 ├── utils.py           # Código compartilhado (cores, helpers, sessões HTTP)
-├── tests/             # Testes unitários
+├── KNOW_ISSUES.txt    # Problemas conhecidos
+├── tests/             # Testes unitários (341 testes)
 ├── pyproject.toml     # Configuração do projeto
 └── README.MD
 ```
@@ -148,8 +225,8 @@ pip install -e ".[dev]"
 ## Dependências
 
 ### Runtime
-- `requests>=2.31.0` — HTTP client com sessions, proxy, retry
-- `beautifulsoup4>=4.12.0` — Parser HTML avançado
+- `requests>=2.34.2` — HTTP client com sessions, proxy, retry
+- `beautifulsoup4>=4.15.0` — Parser HTML avançado
 
 ### Dev
 - `pytest>=8.0` — Framework de testes
@@ -159,7 +236,7 @@ pip install -e ".[dev]"
 
 ## Aviso Legal
 
-Este software é fornecido "como está", sem garantia de qualquer tipo. O autor não se responsabiliza pelo uso indevido destas ferramentas. Execute apenas em ambimentos que você tenha autorização expressa para testar.
+Este software é fornecido "como está", sem garantia de qualquer tipo. O autor não se responsabiliza pelo uso indevido destas ferramentas. Execute apenas em ambientes que você tenha autorização expressa para testar.
 
 ---
 

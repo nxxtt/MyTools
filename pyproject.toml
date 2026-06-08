@@ -37,6 +37,9 @@ mytools-dir = "dirscanner:main"
 mytools-recon = "webrecon:main"
 mytools-audit = "attackaudit:main"
 
+[tool.setuptools]
+py-modules = ["main", "attackaudit", "dirscanner", "portscanner", "webrecon", "utils"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
