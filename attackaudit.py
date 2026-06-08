@@ -11,6 +11,7 @@ import shlex
 import socket
 import ssl
 import sys
+import warnings
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -322,8 +323,10 @@ def check_tls_versions(url: str, timeout: float) -> list[TLSVersionResult]:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            ctx.minimum_version = tls_version
-            ctx.maximum_version = tls_version
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=DeprecationWarning)
+                ctx.minimum_version = tls_version
+                ctx.maximum_version = tls_version
             with socket.create_connection((hostname, port), timeout=timeout) as sock:
                 with ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock:
                     _ = tls_sock.version()
