@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import os
+import shlex
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
+from urllib.error import HTTPError, URLError
+from urllib.request import Request
+from urllib.parse import urljoin, urlparse
+
+from utils import (
+    Cyber,
+    NoRedirectHandler,
+    NO_REDIRECT_OPENER,
+    clear_console,
+    color,
+    extract_title,
+    status_color,
+)
+
+
+DEFAULT_PATHS = [
+    "admin", "login", "dashboard", "wp-admin", "administrator", "backup",
+    "backups", "config", "config.php", ".env", "phpinfo.php", "images",
+    "uploads", "files", "assets", "static", "robots.txt", "sitemap.xml",
+    ".git", ".htaccess", "server-status", "api", "api/v1", "v1", "admin.php",
+    "panel", "phpmyadmin", "dev", "test", "staging", "old", "tmp", "private",
+    "db", "database", "dump.sql", "backup.zip",
+]
+
+DEFAULT_STATUSES = {200, 204, 301, 302, 307, 308, 401, 403}
+
+
+@dataclass(frozen=True)
+class Finding:
+    url: str
+    path: str
+    status: int
+    size: int
+    words: int
+    title: str
+    location: str = ""
+
+
+def banner() -> None:
+    art = r"""
+    ____  _      _____
+   / __ \(_)____/ ___/_________ _____  ____  ___  _____
+  / / / / / ___/\__ \/ ___/ __ `/ __ \/ __ \/ _ \/ ___/
+ / /_/ / / /  ___/ / /__/ /_/ / / / / / / /  __/ /
+/_____/_/_/  /____/\___/\__,_/_/ /_/_/ /_/\___/_/
+"""
+    print(color(art.rstrip(), Cyber.CYAN, Cyber.BOLD))
+    print(color("   HTTP directory scanner | use apenas em alvos autorizados\n", Cyber.MAGENTA))
+
+
+def normalize_base_url(url: str) -> str:
+    parsed = urlparse(url)
+    if not parsed.scheme:
+        url = "http://" + url
+        parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"URL invalida: {url}")
+    return url.rstrip("/") + "/"
+
+
+def parse_statuses(value: str) -> set[int]:
+    if value == "default":
+        return set(DEFAULT_STATUSES)
+    if value == "all":
+        return set(range(100, 600))
+
+    statuses: set[int] = set()
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start_raw, end_raw = part.split("-", 1)
+            start, end = int(start_raw), int(end_raw)
+            if start > end:
+                start, end = end, start
+            statuses.update(range(start, end + 1))
+        else:
+            statuses.add(int(part))
+
+    invalid = [status for status in statuses if status < 100 or status > 599]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"status invalidos: {', '.join(map(str, sorted(invalid)))}"
+        )
+    if not statuses:
+        raise argparse.ArgumentTypeError("informe pelo menos um status")
+    return statuses
+
+
+def parse_extensions(value: str) -> list[str]:
+    if not value:
+        return []
+    extensions = []
+    for extension in value.split(","):
+        extension = extension.strip().lstrip(".")
+        if extension:
+            extensions.append(extension)
+    return extensions
+
+
+def load_paths(wordlist: str | None, extensions: list[str]) -> list[str]:
+    if wordlist:
+        with open(wordlist, "r", encoding="utf-8", errors="replace") as file_handle:
+            raw_paths = [
+                line.strip()
+                for line in file_handle
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+    else:
+        raw_paths = list(DEFAULT_PATHS)
+
+    paths: set[str] = set()
+    for raw_path in raw_paths:
+        path = raw_path.strip().lstrip("/")
+        if not path:
+            continue
+        paths.add(path)
+        if extensions and "." not in os.path.basename(path):
+            for extension in extensions:
+                paths.add(f"{path}.{extension}")
+
+    if not paths:
+        raise ValueError("nenhum path valido para testar")
+    return sorted(paths)
+
+
+def scan_path(
+    base_url: str,
+    path: str,
+    timeout: float,
+    statuses: set[int],
+    user_agent: str,
+) -> Finding | None:
+    full_url = urljoin(base_url, path)
+    request = Request(full_url, headers={"User-Agent": user_agent}, method="GET")
+
+    try:
+        response = NO_REDIRECT_OPENER.open(request, timeout=timeout)
+        status = response.status
+        headers = response.headers
+        content = response.read()
+    except HTTPError as error:
+        status = error.code
+        headers = error.headers
+        content = error.read()
+    except (URLError, TimeoutError, OSError):
+        return None
+
+    if status not in statuses:
+        return None
+
+    content_type = headers.get("content-type", "")
+    text = content.decode("utf-8", errors="replace") if "text/" in content_type.lower() else ""
+    return Finding(
+        url=full_url,
+        path="/" + path,
+        status=status,
+        size=len(content),
+        words=len(text.split()),
+        title=extract_title(text),
+        location=headers.get("location", ""),
+    )
+
+
+def scan_target(
+    base_url: str,
+    paths: list[str],
+    timeout: float,
+    workers: int,
+    statuses: set[int],
+    user_agent: str,
+) -> list[Finding]:
+    started = time.monotonic()
+    findings: list[Finding] = []
+
+    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+    print(
+        color("[*]", Cyber.CYAN, Cyber.BOLD),
+        f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | "
+        f"Status: {color(','.join(map(str, sorted(statuses))), Cyber.YELLOW)} | "
+        f"Threads: {color(str(workers), Cyber.YELLOW)}",
+    )
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = [
+            executor.submit(scan_path, base_url, path, timeout, statuses, user_agent)
+            for path in paths
+        ]
+
+        for future in as_completed(futures):
+            try:
+                finding = future.result()
+            except Exception:
+                continue
+            if not finding:
+                continue
+
+            findings.append(finding)
+            details = []
+            if finding.location:
+                details.append(f"-> {finding.location}")
+            if finding.title:
+                details.append(f"title={finding.title}")
+            suffix = f" | {' | '.join(details)}" if details else ""
+
+            print(
+                f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
+                f"{color(str(finding.status).ljust(3), status_color(finding.status), Cyber.BOLD)} "
+                f"{color(str(finding.size).rjust(7), Cyber.YELLOW)}B "
+                f"{color(finding.url, Cyber.CYAN)}"
+                f"{color(suffix, Cyber.GRAY)}"
+            )
+
+    elapsed = time.monotonic() - started
+    findings.sort(key=lambda item: (item.status, item.url))
+    print(
+        color("[*]", Cyber.CYAN, Cyber.BOLD),
+        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Achados: {color(str(len(findings)), Cyber.GREEN, Cyber.BOLD)}",
+    )
+    return findings
+
+
+def print_table(findings: list[Finding]) -> None:
+    if not findings:
+        print(color("Nenhum diretorio/arquivo encontrado com os filtros atuais.", Cyber.RED))
+        return
+
+    headers = ("STATUS", "SIZE", "WORDS", "PATH", "TITLE/LOCATION")
+    rows = []
+    for item in findings:
+        extra = item.location or item.title
+        rows.append((str(item.status), str(item.size), str(item.words), item.path, extra))
+
+    widths = [
+        max(len(headers[index]), *(len(row[index]) for row in rows))
+        for index in range(len(headers))
+    ]
+
+    print()
+    print(color("  ".join(header.ljust(widths[index]) for index, header in enumerate(headers)), Cyber.CYAN, Cyber.BOLD))
+    print(color("  ".join("-" * width for width in widths), Cyber.BLUE))
+    for row in rows:
+        status, size, words, path, extra = row
+        print(
+            "  ".join(
+                (
+                    color(status.ljust(widths[0]), status_color(int(status)), Cyber.BOLD),
+                    color(size.rjust(widths[1]), Cyber.YELLOW),
+                    color(words.rjust(widths[2]), Cyber.WHITE),
+                    color(path.ljust(widths[3]), Cyber.CYAN),
+                    color(extra.ljust(widths[4]), Cyber.GRAY),
+                )
+            )
+        )
+
+
+def write_output(path: str, findings: list[Finding]) -> None:
+    extension = os.path.splitext(path)[1].lower()
+    with open(path, "w", encoding="utf-8", newline="") as file_handle:
+        if extension == ".json":
+            json.dump([asdict(item) for item in findings], file_handle, indent=2)
+            file_handle.write("\n")
+        else:
+            writer = csv.DictWriter(
+                file_handle,
+                fieldnames=["url", "path", "status", "size", "words", "title", "location"],
+            )
+            writer.writeheader()
+            for item in findings:
+                writer.writerow(asdict(item))
+    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado salvo em {color(path, Cyber.GREEN)}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Directory/file scanner HTTP rapido para laboratorios e hosts autorizados."
+    )
+    parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
+    parser.add_argument("-w", "--wordlist", help="Wordlist customizada, um path por linha.")
+    parser.add_argument(
+        "-x",
+        "--extensions",
+        type=parse_extensions,
+        default=[],
+        help="Extensoes para testar em paths sem extensao. Ex: php,txt,bak",
+    )
+    parser.add_argument(
+        "-s",
+        "--status",
+        type=parse_statuses,
+        default=DEFAULT_STATUSES,
+        help="Status aceitos: default, all, 200,403 ou 200-399. Padrao: default",
+    )
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        default=5.0,
+        help="Timeout por request em segundos. Padrao: 5",
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=40,
+        help="Numero de threads. Padrao: 40",
+    )
+    parser.add_argument(
+        "-A",
+        "--user-agent",
+        default="Mozilla/5.0 (X11; Linux x86_64) DirScanner/2.0",
+        help="User-Agent usado nas requests.",
+    )
+    parser.add_argument("-o", "--output", help="Salva resultado em .json ou .csv.")
+    return parser
+
+
+def run_once(args: argparse.Namespace) -> int:
+    if not args.url:
+        raise ValueError("informe uma URL alvo")
+    if args.timeout <= 0:
+        raise ValueError("timeout precisa ser maior que zero")
+    if args.threads < 1:
+        raise ValueError("threads precisa ser maior que zero")
+
+    base_url = normalize_base_url(args.url)
+    paths = load_paths(args.wordlist, args.extensions)
+    findings = scan_target(
+        base_url=base_url,
+        paths=paths,
+        timeout=args.timeout,
+        workers=args.threads,
+        statuses=args.status,
+        user_agent=args.user_agent,
+    )
+    print_table(findings)
+    if args.output:
+        write_output(args.output, findings)
+    return 0
+
+
+def interactive_shell(parser: argparse.ArgumentParser) -> int:
+    banner()
+    print(color("DirScanner interativo.", Cyber.WHITE, Cyber.BOLD), "Digite 'help', 'clear' ou 'exit'.")
+    print(color("Ex:", Cyber.CYAN), "http://localhost:8000 -x php,txt,bak -s 200,301,403")
+
+    while True:
+        try:
+            raw = input(color("dirscan> ", Cyber.GREEN, Cyber.BOLD)).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+
+        if not raw:
+            continue
+        if raw in {"exit", "quit"}:
+            return 0
+        if raw == "clear":
+            clear_console()
+            continue
+        if raw == "help":
+            parser.print_help()
+            continue
+
+        try:
+            args = parser.parse_args(shlex.split(raw))
+            run_once(args)
+        except SystemExit:
+            continue
+        except Exception as error:
+            print(color(f"Erro: {error}", Cyber.RED))
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    if not args.url:
+        return interactive_shell(parser)
+
+    try:
+        banner()
+        return run_once(args)
+    except Exception as error:
+        print(color(f"Erro: {error}", Cyber.RED), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

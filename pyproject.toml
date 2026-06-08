@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mytools"
+version = "1.0.0"
+description = "Suite de ferramentas de auditoria e reconhecimento web/network"
+requires-python = ">=3.10"
+readme = "README.MD"
+authors = [{ name = "nxt" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: System :: Networking",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+mytools = "main:main"
+mytools-port = "portscanner:main"
+mytools-dir = "dirscanner:main"
+mytools-recon = "webrecon:main"
+mytools-audit = "attackaudit:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
