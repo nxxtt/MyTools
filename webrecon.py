@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import sys
 import time
@@ -223,7 +224,6 @@ def detect_technologies(
 
     server_header = lower_headers.get("server", "")
     if server_header:
-        import re
         for name, pattern in SERVER_PATTERNS.items():
             if re.search(pattern, server_header, re.IGNORECASE):
                 result["server"].append(name)
@@ -320,7 +320,7 @@ def run_recon(
         raise ValueError(errors[0])
 
     content_type = header_get(headers, "content-type")
-    text = body.decode("utf-8", errors="replace") if "text" in content_type.lower() else ""
+    text = body.decode("utf-8", errors="replace") if "text/html" in content_type.lower() else ""
 
     lower_headers = {key.lower(): value for key, value in headers.items()}
     present = [header for header in SECURITY_HEADERS if header in lower_headers]

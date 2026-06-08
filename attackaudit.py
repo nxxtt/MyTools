@@ -327,9 +327,9 @@ def check_tls_versions(url: str, timeout: float) -> list[TLSVersionResult]:
                 warnings.filterwarnings("ignore", category=DeprecationWarning)
                 ctx.minimum_version = tls_version
                 ctx.maximum_version = tls_version
-            with socket.create_connection((hostname, port), timeout=timeout) as sock:
-                with ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock:
-                    _ = tls_sock.version()
+                with socket.create_connection((hostname, port), timeout=timeout) as sock:
+                    with ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock:
+                        _ = tls_sock.version()
             results.append(TLSVersionResult(protocol=protocol_name, supported=True))
         except (ssl.SSLError, OSError, TimeoutError) as e:
             results.append(TLSVersionResult(protocol=protocol_name, supported=False, reason=str(e)[:80]))
@@ -340,14 +340,8 @@ def check_tls_versions(url: str, timeout: float) -> list[TLSVersionResult]:
 def check_xss_reflection(session, base_url: str, timeout: float) -> tuple[bool, str]:
     """Testa se a URL reflete entrada sem sanitizacao basica de XSS."""
     marker = "xss" + secrets.token_hex(4)
-    test_url = base_url
-    parsed = urlparse(base_url)
-
-    if parsed.query:
-        test_url = base_url + marker
-    else:
-        separator = "&" if "?" in base_url else "?"
-        test_url = base_url + separator + "q=" + marker
+    separator = "&" if "?" in base_url else "?"
+    test_url = base_url + separator + "q=" + marker
 
     try:
         _, headers, body = fetch(session, test_url, timeout=timeout)

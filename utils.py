@@ -87,10 +87,13 @@ class RateLimiter:
             return
         with self._lock:
             now = time.monotonic()
-            elapsed = now - self._last_request_time
-            if elapsed < self._min_interval:
-                time.sleep(self._min_interval - elapsed)
-            self._last_request_time = time.monotonic()
+            next_slot = self._last_request_time + self._min_interval
+            if now >= next_slot:
+                self._last_request_time = now
+                return
+            sleep_time = next_slot - now
+            self._last_request_time = next_slot
+        time.sleep(sleep_time)
 
 
 def create_session(
@@ -137,7 +140,7 @@ def fetch(
             allow_redirects=allow_redirects,
         )
         logger.debug("response %d %s (%d bytes)", response.status_code, url, len(response.content))
-        return response.status_code, dict(response.headers), response.content
+        return response.status_code, response.headers, response.content
     except requests.exceptions.RequestException as error:
         logger.debug("error %s: %s", url, error)
         raise ValueError(f"falha ao acessar {url}: {error}") from error
