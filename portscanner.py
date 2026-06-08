@@ -203,29 +203,39 @@ def scan_targets(
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Timeout: {color(f'{timeout:.2f}s', Cyber.YELLOW)} | Threads: {color(str(workers), Cyber.YELLOW)}")
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = [
-            executor.submit(scan_port, host, address, port, timeout, with_banner)
+        batch_size = workers * 2
+        pending = []
+        targets_ports = [
+            (host, address, port)
             for host, address in targets
             for port in ports
         ]
 
-        for future in as_completed(futures):
-            try:
-                finding = future.result()
-            except Exception:
-                continue
-            if finding:
-                findings.append(finding)
-                banner_text = f" | {finding.banner}" if finding.banner else ""
-                port_text = str(finding.port).ljust(5)
-                print(
-                    f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(finding.address, Cyber.CYAN)}:"
-                    f"{color(port_text, Cyber.YELLOW)} "
-                    f"{color('open', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(finding.service, Cyber.MAGENTA)}"
-                    f"{color(banner_text, Cyber.GRAY)}"
-                )
+        def _process_completed(futures_list: list) -> None:
+            for future in as_completed(futures_list):
+                try:
+                    finding = future.result()
+                except Exception:
+                    continue
+                if finding:
+                    findings.append(finding)
+                    banner_text = f" | {finding.banner}" if finding.banner else ""
+                    port_text = str(finding.port).ljust(5)
+                    print(
+                        f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
+                        f"{color(finding.address, Cyber.CYAN)}:"
+                        f"{color(port_text, Cyber.YELLOW)} "
+                        f"{color('open', Cyber.GREEN, Cyber.BOLD)} "
+                        f"{color(finding.service, Cyber.MAGENTA)}"
+                        f"{color(banner_text, Cyber.GRAY)}"
+                    )
+
+        for host, address, port in targets_ports:
+            pending.append(executor.submit(scan_port, host, address, port, timeout, with_banner))
+            if len(pending) >= batch_size:
+                _process_completed(pending)
+                pending.clear()
+        _process_completed(pending)
 
     elapsed = time.monotonic() - started
     findings.sort(key=lambda item: (ip_sort_key(item.address), item.port))

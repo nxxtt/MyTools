@@ -13,6 +13,7 @@ from urllib.parse import urljoin, urlparse
 from utils import (
     Cyber,
     RateLimiter,
+    SECURITY_HEADERS,
     color,
     create_session,
     extract_title,
@@ -29,15 +30,6 @@ import logging
 logger = logging.getLogger("mytools.webrecon")
 
 """Ferramenta de reconhecimento HTTP para laboratórios e hosts autorizados."""
-
-SECURITY_HEADERS = [
-    "strict-transport-security",
-    "content-security-policy",
-    "x-frame-options",
-    "x-content-type-options",
-    "referrer-policy",
-    "permissions-policy",
-]
 
 INTERESTING_HEADERS = [
     "server",
@@ -154,6 +146,29 @@ SERVER_PATTERNS: dict[str, str] = {
 }
 
 
+def _match_signature(
+    sigs: dict,
+    header_blob: str,
+    body_lower: str,
+    cookie_blob: str,
+    url_lower: str,
+) -> bool:
+    """Verifica se uma assinatura corresponde aos dados coletados."""
+    for h in sigs.get("headers", []):
+        if h.lower() in header_blob:
+            return True
+    for b in sigs.get("body", []):
+        if b.lower() in body_lower:
+            return True
+    for c in sigs.get("cookies", []):
+        if c.lower() in cookie_blob:
+            return True
+    for u in sigs.get("urls", []):
+        if u.lower() in url_lower:
+            return True
+    return False
+
+
 def detect_technologies(
     headers: dict[str, str],
     body: str,
@@ -163,57 +178,17 @@ def detect_technologies(
     """Detecta tecnologias (CMS, frameworks, libs) a partir de headers, body e cookies."""
     result: dict[str, list[str]] = {"cms": [], "frameworks": [], "libraries": [], "server": []}
     lower_headers = {k.lower(): v for k, v in headers.items()}
-    header_blob = " ".join(f"{k}: {v}" for k, v in lower_headers.items())
+    header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
     body_lower = body.lower()
-    cookie_blob = " ".join(cookies or [])
+    cookie_blob = " ".join((cookies or [])).lower()
     url_lower = url.lower()
 
     for name, sigs in CMS_SIGNATURES.items():
-        match = False
-        for h in sigs.get("headers", []):
-            if h.lower() in header_blob.lower():
-                match = True
-                break
-        if not match:
-            for b in sigs.get("body", []):
-                if b.lower() in body_lower:
-                    match = True
-                    break
-        if not match:
-            for c in sigs.get("cookies", []):
-                if c.lower() in cookie_blob.lower():
-                    match = True
-                    break
-        if not match:
-            for u in sigs.get("urls", []):
-                if u.lower() in url_lower:
-                    match = True
-                    break
-        if match:
+        if _match_signature(sigs, header_blob, body_lower, cookie_blob, url_lower):
             result["cms"].append(name)
 
     for name, sigs in FRAMEWORK_SIGNATURES.items():
-        match = False
-        for h in sigs.get("headers", []):
-            if h.lower() in header_blob.lower():
-                match = True
-                break
-        if not match:
-            for b in sigs.get("body", []):
-                if b.lower() in body_lower:
-                    match = True
-                    break
-        if not match:
-            for c in sigs.get("cookies", []):
-                if c.lower() in cookie_blob.lower():
-                    match = True
-                    break
-        if not match:
-            for u in sigs.get("urls", []):
-                if u.lower() in url_lower:
-                    match = True
-                    break
-        if match:
+        if _match_signature(sigs, header_blob, body_lower, cookie_blob, url_lower):
             result["frameworks"].append(name)
 
     for name, sigs in LIBRARY_SIGNATURES.items():
@@ -415,17 +390,7 @@ def status_text(status: int | None) -> str:
     """Retorna representação colorida do código de status HTTP."""
     if status is None:
         return color("sem resposta", Cyber.RED)
-    if 200 <= status < 300:
-        style = Cyber.GREEN
-    elif 300 <= status < 400:
-        style = Cyber.YELLOW
-    elif status in {401, 403}:
-        style = Cyber.MAGENTA
-    elif 400 <= status < 500:
-        style = Cyber.RED
-    else:
-        style = Cyber.GRAY
-    return color(str(status), style, Cyber.BOLD)
+    return color(str(status), status_color(status), Cyber.BOLD)
 
 
 def write_output(path: str, result: ReconResult) -> None:

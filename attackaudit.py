@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import json
 import os
 import re
 import secrets
@@ -20,6 +18,7 @@ from urllib.parse import urljoin, urlparse
 from utils import (
     Cyber,
     RateLimiter,
+    SECURITY_HEADERS,
     color,
     create_session,
     fetch,
@@ -28,6 +27,7 @@ from utils import (
     setup_logging,
     show_banner,
     status_color,
+    write_output,
 )
 
 import logging
@@ -36,7 +36,7 @@ logger = logging.getLogger("mytools.attackaudit")
 
 """Ferramenta de auditoria web para alvos autorizados, combinando red team e hardening defensivo."""
 
-SECURITY_HEADERS = {
+SECURITY_HEADERS_RECS = {
     "strict-transport-security": "Ative HSTS com max-age alto e includeSubDomains quando fizer sentido.",
     "content-security-policy": "Defina CSP para reduzir XSS e carregamento de recursos nao confiaveis.",
     "x-frame-options": "Use DENY/SAMEORIGIN ou frame-ancestors via CSP contra clickjacking.",
@@ -475,7 +475,7 @@ def build_findings(
                 f"Desabilite {tv.protocol} e use no minimo TLS 1.2.",
             ))
 
-    for header, recommendation in SECURITY_HEADERS.items():
+    for header, recommendation in SECURITY_HEADERS_RECS.items():
         if header not in lower_headers:
             findings.append(Finding(
                 "medium", "headers", f"Header ausente: {header}",
@@ -715,23 +715,15 @@ def print_result(result: AuditResult) -> None:
         print(f"         defesa:    {color(finding.recommendation, Cyber.GREEN)}")
 
 
-def write_output(path: str, result: AuditResult) -> None:
+def _save_audit_output(path: str, result: AuditResult) -> None:
     """Salva resultado da auditoria em arquivo JSON ou CSV."""
-    extension = os.path.splitext(path)[1].lower()
     data = asdict(result)
-    with open(path, "w", encoding="utf-8", newline="") as file_handle:
-        if extension == ".csv":
-            writer = csv.DictWriter(
-                file_handle,
-                fieldnames=["severity", "category", "item", "evidence", "recommendation"],
-            )
-            writer.writeheader()
-            for finding in data["findings"]:
-                writer.writerow(finding)
-        else:
-            json.dump(data, file_handle, indent=2)
-            file_handle.write("\n")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado salvo em {color(path, Cyber.GREEN)}")
+    write_output(
+        path,
+        data,
+        fieldnames=["severity", "category", "item", "evidence", "recommendation"],
+        csv_rows=data["findings"],
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -787,7 +779,7 @@ def run_once(args: argparse.Namespace) -> int:
     )
     print_result(result)
     if args.output:
-        write_output(args.output, result)
+        _save_audit_output(args.output, result)
     return 0
 
 

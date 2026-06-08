@@ -12,12 +12,22 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
+from typing import Any
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger("mytools")
+
+SECURITY_HEADERS = [
+    "strict-transport-security",
+    "content-security-policy",
+    "x-frame-options",
+    "x-content-type-options",
+    "referrer-policy",
+    "permissions-policy",
+]
 
 
 def setup_logging(verbose: bool = False, log_file: str | None = None) -> None:
@@ -192,7 +202,12 @@ def show_banner(art: str, subtitle: str) -> None:
     print(color(subtitle, Cyber.MAGENTA))
 
 
-def write_output(path: str, data: list[dict], fieldnames: list[str]) -> None:
+def write_output(
+    path: str,
+    data: Any,
+    fieldnames: list[str] | None = None,
+    csv_rows: list[dict] | None = None,
+) -> None:
     """Salva dados em arquivo JSON ou CSV."""
     extension = os.path.splitext(path)[1].lower()
     with open(path, "w", encoding="utf-8", newline="") as file_handle:
@@ -200,9 +215,12 @@ def write_output(path: str, data: list[dict], fieldnames: list[str]) -> None:
             json.dump(data, file_handle, indent=2)
             file_handle.write("\n")
         else:
+            rows = csv_rows if csv_rows is not None else data
+            if fieldnames is None:
+                fieldnames = list(rows[0].keys()) if rows else []
             writer = csv.DictWriter(file_handle, fieldnames=fieldnames)
             writer.writeheader()
-            for item in data:
+            for item in rows:
                 writer.writerow(item)
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado salvo em {color(path, Cyber.GREEN)}")
 

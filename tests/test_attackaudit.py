@@ -14,7 +14,7 @@ from attackaudit import (
     PageParser,
     Probe,
     RISK_WEIGHTS,
-    SECURITY_HEADERS,
+    SECURITY_HEADERS_RECS,
     TLSVersionResult,
     build_findings,
     build_parser,
@@ -245,7 +245,7 @@ class TestBuildFindings:
         parser = PageParser()
         findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com")
         headers_findings = [f for f in findings if f.category == "headers"]
-        assert len(headers_findings) == len(SECURITY_HEADERS)
+        assert len(headers_findings) == len(SECURITY_HEADERS_RECS)
 
     def test_cors_wildcard(self):
         parser = PageParser()
@@ -544,10 +544,10 @@ class TestSecurityHeadersConstant:
     def test_has_all_expected(self):
         expected = {"strict-transport-security", "content-security-policy", "x-frame-options",
                     "x-content-type-options", "referrer-policy", "permissions-policy"}
-        assert set(SECURITY_HEADERS.keys()) == expected
+        assert set(SECURITY_HEADERS_RECS.keys()) == expected
 
     def test_values_are_strings(self):
-        for header, rec in SECURITY_HEADERS.items():
+        for header, rec in SECURITY_HEADERS_RECS.items():
             assert isinstance(rec, str)
             assert len(rec) > 0
 
