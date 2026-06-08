@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 import argparse
+import re
 
 import responses
 
 from attackaudit import (
+    CSRF_FIELD_NAMES,
+    SQL_ERROR_PATTERNS,
+    SQLI_PAYLOADS,
     AuditResult,
     Finding,
     PageParser,
     Probe,
     RISK_WEIGHTS,
     SECURITY_HEADERS,
+    TLSVersionResult,
     build_findings,
     build_parser,
+    check_sqli_errors,
+    check_tls_versions,
+    check_xss_reflection,
     normalize_url,
     risk_score,
     severity_color,
@@ -126,6 +134,33 @@ class TestPageParser:
         assert parser.title == ""
 
 
+class TestPageParserCSRF:
+    def test_form_with_csrf_token(self):
+        parser = PageParser()
+        parser.feed('<form method="POST"><input type="hidden" name="csrf_token" value="abc123"><input type="text" name="user"></form>')
+        assert parser.forms == 1
+        assert parser.forms_missing_csrf == 0
+
+    def test_form_without_csrf_token(self):
+        parser = PageParser()
+        parser.feed('<form method="POST"><input type="text" name="user"></form>')
+        assert parser.forms == 1
+        assert parser.forms_missing_csrf == 1
+
+    def test_multiple_forms_mixed(self):
+        parser = PageParser()
+        parser.feed('<form method="POST"><input type="hidden" name="_token" value="x"></form>')
+        parser.feed('<form method="POST"><input type="text" name="data"></form>')
+        assert parser.forms == 2
+        assert parser.forms_missing_csrf == 1
+
+    def test_csrf_field_names_detected(self):
+        for field_name in ["csrf_token", "_csrf", "_token", "authenticity_token", "csrfmiddlewaretoken"]:
+            parser = PageParser()
+            parser.feed(f'<form><input type="hidden" name="{field_name}" value="x"></form>')
+            assert parser.forms_missing_csrf == 0, f"Failed for {field_name}"
+
+
 class TestProbeDataclass:
     def test_creation(self):
         p = Probe(url="http://x.com/.env", status=200, size=50, location="")
@@ -154,6 +189,27 @@ class TestFindingDataclass:
             pass
 
 
+class TestTLSVersionResult:
+    def test_creation(self):
+        r = TLSVersionResult(protocol="TLS 1.2", supported=True)
+        assert r.protocol == "TLS 1.2"
+        assert r.supported is True
+        assert r.reason == ""
+
+    def test_unsupported(self):
+        r = TLSVersionResult(protocol="SSLv3", supported=False, reason="disabled")
+        assert r.supported is False
+        assert r.reason == "disabled"
+
+    def test_frozen(self):
+        r = TLSVersionResult(protocol="TLS 1.3", supported=True)
+        try:
+            r.supported = False
+            assert False, "Should be frozen"
+        except AttributeError:
+            pass
+
+
 class TestAuditResultDataclass:
     def test_creation(self):
         r = AuditResult(
@@ -164,6 +220,18 @@ class TestAuditResultDataclass:
         )
         assert r.status == 200
         assert r.risk_score == 0
+
+    def test_optional_tls_versions(self):
+        r = AuditResult(
+            target="https://example.com", final_url="https://example.com", status=200,
+            title="", ip="", tls_subject="", tls_issuer="",
+            tls_not_after="", allowed_methods=[], forms=0, password_inputs=0,
+            probes=[], findings=[], risk_score=0, elapsed=1.0,
+        )
+        assert r.tls_versions is None
+        assert r.xss_reflected is False
+        assert r.sqli_errors is None
+        assert r.csrf_missing == 0
 
 
 class TestBuildFindings:
@@ -259,6 +327,204 @@ class TestBuildFindings:
         assert "comentario" in content[0].item.lower()
 
 
+class TestBuildFindingsPhase7:
+    def test_weak_tls_version(self):
+        parser = PageParser()
+        tls_versions = [
+            TLSVersionResult(protocol="TLS 1.2", supported=True),
+            TLSVersionResult(protocol="TLS 1.1", supported=True),
+        ]
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", tls_versions=tls_versions)
+        transport = [f for f in findings if f.category == "transport"]
+        assert any("TLS 1.1" in f.item for f in transport)
+
+    def test_all_strong_tls(self):
+        parser = PageParser()
+        tls_versions = [
+            TLSVersionResult(protocol="TLS 1.2", supported=True),
+            TLSVersionResult(protocol="TLS 1.3", supported=True),
+        ]
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", tls_versions=tls_versions)
+        transport = [f for f in findings if f.category == "transport" and "obsoleta" in f.item]
+        assert len(transport) == 0
+
+    def test_xss_reflected_finding(self):
+        parser = PageParser()
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
+                                  xss_reflected=True, xss_evidence="refletido em html_body")
+        xss = [f for f in findings if f.category == "xss"]
+        assert len(xss) == 1
+        assert xss[0].severity == "high"
+
+    def test_no_xss_no_finding(self):
+        parser = PageParser()
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
+                                  xss_reflected=False)
+        xss = [f for f in findings if f.category == "xss"]
+        assert len(xss) == 0
+
+    def test_sqli_error_finding(self):
+        parser = PageParser()
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
+                                  sqli_databases=["mysql"])
+        sqli = [f for f in findings if f.category == "sqli"]
+        assert len(sqli) == 1
+        assert sqli[0].severity == "critical"
+        assert "mysql" in sqli[0].evidence
+
+    def test_sqli_multiple_databases(self):
+        parser = PageParser()
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
+                                  sqli_databases=["mysql", "postgresql"])
+        sqli = [f for f in findings if f.category == "sqli"]
+        assert len(sqli) == 1
+        assert "mysql" in sqli[0].evidence
+        assert "postgresql" in sqli[0].evidence
+
+    def test_csrf_missing_finding(self):
+        parser = PageParser()
+        parser.feed('<form method="POST"><input type="text" name="data"></form>')
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com")
+        csrf = [f for f in findings if f.category == "csrf"]
+        assert len(csrf) == 1
+        assert "1" in csrf[0].evidence
+
+
+class TestSQLiPatterns:
+    def test_mysql_patterns_exist(self):
+        assert "mysql" in SQL_ERROR_PATTERNS
+        assert len(SQL_ERROR_PATTERNS["mysql"]) > 0
+
+    def test_postgresql_patterns_exist(self):
+        assert "postgresql" in SQL_ERROR_PATTERNS
+
+    def test_mssql_patterns_exist(self):
+        assert "mssql" in SQL_ERROR_PATTERNS
+
+    def test_oracle_patterns_exist(self):
+        assert "oracle" in SQL_ERROR_PATTERNS
+
+    def test_sqlite_patterns_exist(self):
+        assert "sqlite" in SQL_ERROR_PATTERNS
+
+    def test_patterns_are_regex(self):
+        for db, patterns in SQL_ERROR_PATTERNS.items():
+            for pattern in patterns:
+                re.compile(pattern)
+
+
+class TestSQLIPayloads:
+    def test_not_empty(self):
+        assert len(SQLI_PAYLOADS) > 0
+
+    def test_contains_single_quote(self):
+        assert "'" in SQLI_PAYLOADS
+
+
+class TestCSIFFieldNames:
+    def test_not_empty(self):
+        assert len(CSRF_FIELD_NAMES) > 0
+
+    def test_contains_common_names(self):
+        for name in ["csrf_token", "_csrf", "_token", "authenticity_token", "csrfmiddlewaretoken"]:
+            assert name in CSRF_FIELD_NAMES
+
+
+class TestCheckTLSVersions:
+    @responses.activate
+    def test_http_url_returns_empty(self):
+        result = check_tls_versions("http://example.com", 5.0)
+        assert result == []
+
+    def test_https_returns_list(self):
+        result = check_tls_versions("https://example.com", 2.0)
+        assert isinstance(result, list)
+        for item in result:
+            assert isinstance(item, TLSVersionResult)
+
+
+class TestCheckXSSReflection:
+    @responses.activate
+    def test_marker_reflected(self):
+        def request_callback(request):
+            # Extract marker from URL query string and reflect it in the response
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(request.url)
+            params = parse_qs(parsed.query)
+            marker = params.get("q", [""])[0]
+            return (200, {}, f"<html><body>Search results for: {marker}</body></html>".encode())
+
+        responses.add_callback(responses.GET, "https://example.com/search", callback=request_callback)
+        session = create_session(user_agent="TestAgent/1.0")
+        reflected, evidence = check_xss_reflection(session, "https://example.com/search", 5.0)
+        assert reflected is True
+        assert "refletido" in evidence
+
+    @responses.activate
+    def test_marker_not_reflected(self):
+        responses.add(responses.GET, re.compile(r"https://example\.com.*"), body=b"<html><body>Hello World</body></html>", status=200)
+        session = create_session(user_agent="TestAgent/1.0")
+        reflected, evidence = check_xss_reflection(session, "https://example.com/search", 5.0)
+        assert reflected is False
+
+
+class TestCheckSQLiErrors:
+    @responses.activate
+    def test_mysql_error_detected(self):
+        responses.add(responses.GET, re.compile(r"https://example\.com.*"), body=b"You have an error in your SQL syntax near ''", status=200)
+        session = create_session(user_agent="TestAgent/1.0")
+        result = check_sqli_errors(session, "https://example.com/page?id=1", 5.0)
+        assert "mysql" in result
+
+    @responses.activate
+    def test_no_error_detected(self):
+        responses.add(responses.GET, re.compile(r"https://example\.com.*"), body=b"<html>Normal page</html>", status=200)
+        session = create_session(user_agent="TestAgent/1.0")
+        result = check_sqli_errors(session, "https://example.com/page?id=1", 5.0)
+        assert result == []
+
+
+class TestBuildParser:
+    def test_returns_argparse(self):
+        parser = build_parser()
+        assert isinstance(parser, argparse.ArgumentParser)
+
+    def test_has_url_argument(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        assert args.url == "https://example.com"
+
+    def test_has_deep_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--deep"])
+        assert args.deep is True
+
+    def test_has_test_vulns_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--test-vulns"])
+        assert args.test_vulns is True
+
+    def test_default_test_vulns_false(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        assert args.test_vulns is False
+
+    def test_default_threads(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        assert args.threads == 20
+
+    def test_has_proxy_argument(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--proxy", "http://proxy:8080"])
+        assert args.proxy == "http://proxy:8080"
+
+    def test_has_delay_argument(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--delay", "5"])
+        assert args.delay == 5.0
+
+
 class TestSecurityHeadersConstant:
     def test_has_all_expected(self):
         expected = {"strict-transport-security", "content-security-policy", "x-frame-options",
@@ -278,34 +544,3 @@ class TestRiskWeightsConstant:
 
     def test_ordering(self):
         assert RISK_WEIGHTS["critical"] > RISK_WEIGHTS["high"] > RISK_WEIGHTS["medium"] > RISK_WEIGHTS["low"] > RISK_WEIGHTS["info"]
-
-
-class TestBuildParser:
-    def test_returns_argparse(self):
-        parser = build_parser()
-        assert isinstance(parser, argparse.ArgumentParser)
-
-    def test_has_url_argument(self):
-        parser = build_parser()
-        args = parser.parse_args(["https://example.com"])
-        assert args.url == "https://example.com"
-
-    def test_has_deep_flag(self):
-        parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--deep"])
-        assert args.deep is True
-
-    def test_default_threads(self):
-        parser = build_parser()
-        args = parser.parse_args(["https://example.com"])
-        assert args.threads == 20
-
-    def test_has_proxy_argument(self):
-        parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--proxy", "http://proxy:8080"])
-        assert args.proxy == "http://proxy:8080"
-
-    def test_has_delay_argument(self):
-        parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--delay", "5"])
-        assert args.delay == 5.0
