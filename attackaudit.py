@@ -27,6 +27,7 @@ from utils import (
     status_color,
 )
 
+"""Ferramenta de auditoria web para alvos autorizados, combinando red team e hardening defensivo."""
 
 SECURITY_HEADERS = {
     "strict-transport-security": "Ative HSTS com max-age alto e includeSubDomains quando fizer sentido.",
@@ -54,6 +55,8 @@ RISK_WEIGHTS = {
 
 
 class PageParser(HTMLParser):
+    """Analisa HTML para extrair forms, scripts externos, comentarios e titulo."""
+
     def __init__(self) -> None:
         super().__init__()
         self.forms = 0
@@ -94,6 +97,8 @@ class PageParser(HTMLParser):
 
 @dataclass(frozen=True)
 class Probe:
+    """Resultado de probing de um path na aplicacao."""
+
     url: str
     status: int
     size: int
@@ -102,6 +107,8 @@ class Probe:
 
 @dataclass(frozen=True)
 class Finding:
+    """Finding de seguranca identificado durante a auditoria."""
+
     severity: str
     category: str
     item: str
@@ -111,6 +118,8 @@ class Finding:
 
 @dataclass(frozen=True)
 class AuditResult:
+    """Resultado completo de uma auditoria web."""
+
     target: str
     final_url: str
     status: int
@@ -129,6 +138,7 @@ class AuditResult:
 
 
 def banner() -> None:
+    """Exibe banner ASCII art do AttackAudit."""
     art = r"""
     ___   __  __             __      ___             ___ __ 
    /   | / /_/ /_____ ______/ /__   /   | __  ______/ (_) /_
@@ -141,6 +151,7 @@ def banner() -> None:
 
 
 def normalize_url(url: str) -> str:
+    """Normaliza e valida a URL alvo, adicionando https:// se necessario."""
     url = url.strip()
     if not url:
         raise ValueError("informe uma URL alvo")
@@ -154,6 +165,7 @@ def normalize_url(url: str) -> str:
 
 
 def fetch(url: str, timeout: float, user_agent: str, method: str = "GET") -> tuple[int, dict[str, str], bytes]:
+    """Realiza requisicao HTTP sem seguir redirects, retornando status, headers e corpo."""
     request = Request(url, headers={"User-Agent": user_agent}, method=method)
     try:
         response = NO_REDIRECT_OPENER.open(request, timeout=timeout)
@@ -165,6 +177,7 @@ def fetch(url: str, timeout: float, user_agent: str, method: str = "GET") -> tup
 
 
 def resolve_ip(hostname: str) -> str:
+    """Resolve hostname para endereco IP, retornando string vazia em caso de erro."""
     try:
         return socket.gethostbyname(hostname)
     except OSError:
@@ -172,6 +185,7 @@ def resolve_ip(hostname: str) -> str:
 
 
 def tls_info(url: str, timeout: float) -> tuple[str, str, str]:
+    """Coleta subject, issuer e data de expiracao do certificado TLS."""
     parsed = urlparse(url)
     if parsed.scheme != "https":
         return "", "", ""
@@ -200,6 +214,7 @@ def tls_info(url: str, timeout: float) -> tuple[str, str, str]:
 
 
 def parse_allowed_methods(url: str, timeout: float, user_agent: str) -> list[str]:
+    """Obtem metodos HTTP permitidos via requisicao OPTIONS."""
     try:
         _, headers, _ = fetch(url, timeout, user_agent, method="OPTIONS")
     except ValueError:
@@ -209,6 +224,7 @@ def parse_allowed_methods(url: str, timeout: float, user_agent: str) -> list[str
 
 
 def probe_path(base_url: str, path: str, timeout: float, user_agent: str) -> Probe | None:
+    """Faz probing de um path especifico, retornando Probe se acessivel."""
     url = urljoin(base_url.rstrip("/") + "/", path)
     try:
         status, headers, body = fetch(url, timeout, user_agent)
@@ -220,6 +236,7 @@ def probe_path(base_url: str, path: str, timeout: float, user_agent: str) -> Pro
 
 
 def scan_paths(base_url: str, timeout: float, user_agent: str, threads: int) -> list[Probe]:
+    """Escaneia paths interessantes em paralelo usando ThreadPoolExecutor."""
     probes: list[Probe] = []
     with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = [
@@ -251,6 +268,7 @@ def build_findings(
     probes: list[Probe],
     tls_subject: str,
 ) -> list[Finding]:
+    """Gera lista de findings de seguranca baseado nos dados coletados."""
     findings: list[Finding] = []
     parsed = urlparse(url)
     lower_headers = {key.lower(): value for key, value in headers.items()}
@@ -353,10 +371,12 @@ def build_findings(
 
 
 def risk_score(findings: list[Finding]) -> int:
+    """Calcula score de risco somando pesos das severidades."""
     return sum(RISK_WEIGHTS.get(finding.severity, 0) for finding in findings)
 
 
 def severity_color(severity: str) -> str:
+    """Retorna cor ANSI correspondente a severidade do finding."""
     return {
         "critical": Cyber.RED,
         "high": Cyber.RED,
@@ -367,6 +387,7 @@ def severity_color(severity: str) -> str:
 
 
 def run_audit(url: str, timeout: float, user_agent: str, threads: int, deep: bool) -> AuditResult:
+    """Executa auditoria completa em uma URL alvo."""
     started = time.monotonic()
     target = normalize_url(url)
     parsed = urlparse(target)
@@ -408,6 +429,7 @@ def run_audit(url: str, timeout: float, user_agent: str, threads: int, deep: boo
 
 
 def print_result(result: AuditResult) -> None:
+    """Exibe resultado da auditoria formatado no terminal."""
     print()
     print(color("Resumo", Cyber.CYAN, Cyber.BOLD))
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} URL: {color(result.final_url, Cyber.WHITE, Cyber.BOLD)}")
@@ -433,6 +455,7 @@ def print_result(result: AuditResult) -> None:
 
 
 def write_output(path: str, result: AuditResult) -> None:
+    """Salva resultado da auditoria em arquivo JSON ou CSV."""
     extension = os.path.splitext(path)[1].lower()
     data = asdict(result)
     with open(path, "w", encoding="utf-8", newline="") as file_handle:
@@ -451,6 +474,7 @@ def write_output(path: str, result: AuditResult) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Constroi parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Auditoria web red/blue para laboratorios e alvos autorizados."
     )
@@ -469,6 +493,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
+    """Executa uma unica auditoria com os argumentos fornecidos."""
     if not args.url:
         raise ValueError("informe uma URL alvo")
     if args.timeout <= 0:
@@ -484,6 +509,7 @@ def run_once(args: argparse.Namespace) -> int:
 
 
 def interactive_shell(parser: argparse.ArgumentParser) -> int:
+    """Inicia shell interativo para execucao de auditorias."""
     banner()
     print(color("AttackAudit interativo.", Cyber.WHITE, Cyber.BOLD), "Digite 'help', 'clear' ou 'exit'.")
     print(color("Ex:", Cyber.CYAN), "https://example.com --deep -o audit.json")
@@ -516,6 +542,7 @@ def interactive_shell(parser: argparse.ArgumentParser) -> int:
 
 
 def main() -> int:
+    """Ponto de entrada principal do AttackAudit."""
     parser = build_parser()
     args = parser.parse_args()
     if not args.url:

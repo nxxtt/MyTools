@@ -23,6 +23,7 @@ from utils import (
     header_get,
 )
 
+"""Ferramenta de reconhecimento HTTP para laboratórios e hosts autorizados."""
 
 SECURITY_HEADERS = [
     "strict-transport-security",
@@ -45,6 +46,8 @@ INTERESTING_HEADERS = [
 
 @dataclass(frozen=True)
 class ReconResult:
+    """Resultado de uma operação de reconhecimento HTTP."""
+
     url: str
     status: int
     final_url: str
@@ -62,6 +65,7 @@ class ReconResult:
 
 
 def banner() -> None:
+    """Exibe o banner ASCII art da ferramenta."""
     art = r"""
  _       __     __    ____                      
 | |     / /__  / /_  / __ \___  _________  ____ 
@@ -74,6 +78,7 @@ def banner() -> None:
 
 
 def normalize_url(url: str) -> str:
+    """Valida e retorna a URL se for HTTP/HTTPS válida."""
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"URL invalida: {url}")
@@ -81,6 +86,7 @@ def normalize_url(url: str) -> str:
 
 
 def candidate_urls(url: str) -> list[str]:
+    """Gera lista de URLs candidatas (https e http) para reconhecimento."""
     url = url.strip()
     if not url:
         raise ValueError("informe uma URL alvo")
@@ -93,6 +99,7 @@ def candidate_urls(url: str) -> list[str]:
 
 
 def fetch(url: str, timeout: float, user_agent: str) -> tuple[int, dict[str, str], bytes]:
+    """Realiza uma requisição GET sem seguir redirects e retorna status, headers e corpo."""
     request = Request(url, headers={"User-Agent": user_agent}, method="GET")
     try:
         response = NO_REDIRECT_OPENER.open(request, timeout=timeout)
@@ -104,6 +111,7 @@ def fetch(url: str, timeout: float, user_agent: str) -> tuple[int, dict[str, str
 
 
 def probe_status(url: str, timeout: float, user_agent: str) -> int | None:
+    """Verifica o status HTTP de uma URL, retornando None em caso de falha."""
     try:
         status, _, _ = fetch(url, timeout, user_agent)
         return status
@@ -112,6 +120,7 @@ def probe_status(url: str, timeout: float, user_agent: str) -> int | None:
 
 
 def run_recon(url: str, timeout: float, user_agent: str) -> ReconResult:
+    """Executa reconhecimento completo da URL alvo e retorna o resultado."""
     started = time.monotonic()
     errors = []
 
@@ -155,6 +164,7 @@ def run_recon(url: str, timeout: float, user_agent: str) -> ReconResult:
 
 
 def print_result(result: ReconResult) -> None:
+    """Exibe o resultado do reconhecimento formatado no terminal."""
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"URL: {color(result.url, Cyber.WHITE, Cyber.BOLD)}")
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {status_text(result.status)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}")
 
@@ -186,6 +196,7 @@ def print_result(result: ReconResult) -> None:
 
 
 def status_text(status: int | None) -> str:
+    """Retorna representação colorida do código de status HTTP."""
     if status is None:
         return color("sem resposta", Cyber.RED)
     if 200 <= status < 300:
@@ -202,6 +213,7 @@ def status_text(status: int | None) -> str:
 
 
 def write_output(path: str, result: ReconResult) -> None:
+    """Salva o resultado do reconhecimento em formato JSON."""
     with open(path, "w", encoding="utf-8") as file_handle:
         json.dump(asdict(result), file_handle, indent=2)
         file_handle.write("\n")
@@ -209,6 +221,7 @@ def write_output(path: str, result: ReconResult) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="HTTP recon rapido para laboratorios e hosts autorizados."
     )
@@ -225,6 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
+    """Executa uma única operação de reconhecimento com os argumentos fornecidos."""
     if not args.url:
         raise ValueError("informe uma URL alvo")
     if args.timeout <= 0:
@@ -238,6 +252,7 @@ def run_once(args: argparse.Namespace) -> int:
 
 
 def interactive_shell(parser: argparse.ArgumentParser) -> int:
+    """Inicia o shell interativo para múltiplas operações de reconhecimento."""
     banner()
     print(color("WebRecon interativo.", Cyber.WHITE, Cyber.BOLD), "Digite 'help', 'clear' ou 'exit'.")
     print(color("Ex:", Cyber.CYAN), "https://example.com -o recon.json")
@@ -270,6 +285,7 @@ def interactive_shell(parser: argparse.ArgumentParser) -> int:
 
 
 def main() -> int:
+    """Ponto de entrada principal da ferramenta."""
     parser = build_parser()
     args = parser.parse_args()
     if not args.url:

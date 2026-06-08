@@ -84,6 +84,12 @@ class TestSeverityColor:
     def test_unknown_is_white(self):
         assert severity_color("unknown") == Cyber.WHITE
 
+    def test_all_severities_return_strings(self):
+        for sev in ("critical", "high", "medium", "low", "info", "unknown"):
+            result = severity_color(sev)
+            assert isinstance(result, str)
+            assert len(result) > 0
+
 
 class TestPageParser:
     def test_title(self):
@@ -220,6 +226,35 @@ class TestBuildFindings:
         findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com")
         fp = [f for f in findings if f.category == "fingerprint"]
         assert any("Server" in f.item for f in fp)
+
+    def test_cookie_missing_flags(self):
+        parser = PageParser()
+        headers = {"Set-Cookie": "session=abc123"}
+        findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com")
+        cookie_findings = [f for f in findings if f.category == "cookies"]
+        assert len(cookie_findings) == 1
+        assert "httponly" in cookie_findings[0].evidence.lower()
+
+    def test_cookie_all_flags_present(self):
+        parser = PageParser()
+        headers = {"Set-Cookie": "session=abc123; Secure; HttpOnly; SameSite=Strict"}
+        findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com")
+        cookie_findings = [f for f in findings if f.category == "cookies"]
+        assert len(cookie_findings) == 0
+
+    def test_no_tls_subject(self):
+        parser = PageParser()
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "")
+        transport = [f for f in findings if f.category == "transport"]
+        assert any("TLS nao validado" in f.item for f in transport)
+
+    def test_html_comments(self):
+        parser = PageParser()
+        parser.feed("<!-- secret config -->")
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com")
+        content = [f for f in findings if f.category == "content"]
+        assert len(content) == 1
+        assert "comentario" in content[0].item.lower()
 
 
 class TestSecurityHeadersConstant:

@@ -64,6 +64,18 @@ class TestCandidateUrls:
         result = candidate_urls("  example.com  ")
         assert len(result) == 2
 
+    def test_with_port_no_scheme(self):
+        try:
+            candidate_urls("example.com:8080")
+            assert False, "Should have raised"
+        except ValueError:
+            pass
+
+    def test_with_path_no_scheme(self):
+        result = candidate_urls("example.com/app")
+        assert len(result) == 2
+        assert "/app" in result[0]
+
 
 class TestStatusText:
     def test_none_returns_no_response(self):

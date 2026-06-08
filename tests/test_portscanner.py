@@ -57,6 +57,43 @@ class TestParsePorts:
         except argparse.ArgumentTypeError:
             pass
 
+    def test_non_numeric_raises(self):
+        try:
+            parse_ports("abc")
+            assert False, "Should have raised"
+        except argparse.ArgumentTypeError as e:
+            assert "abc" in str(e)
+
+    def test_non_numeric_in_range_raises(self):
+        try:
+            parse_ports("abc-100")
+            assert False, "Should have raised"
+        except argparse.ArgumentTypeError as e:
+            assert "abc-100" in str(e)
+
+    def test_mixed_valid_invalid_raises(self):
+        try:
+            parse_ports("80,abc,443")
+            assert False, "Should have raised"
+        except argparse.ArgumentTypeError:
+            pass
+
+    def test_trailing_comma(self):
+        assert parse_ports("80,443,") == [80, 443]
+
+    def test_whitespace_parts(self):
+        assert parse_ports(" 80 , 443 ") == [80, 443]
+
+    def test_large_port(self):
+        assert parse_ports("65535") == [65535]
+
+    def test_port_boundary_one(self):
+        assert parse_ports("1") == [1]
+
+    def test_overlapping_ranges(self):
+        result = parse_ports("80-82,81-83")
+        assert result == [80, 81, 82, 83]
+
 
 class TestIpSortKey:
     def test_ipv4_returns_zero_version(self):

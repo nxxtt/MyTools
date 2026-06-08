@@ -7,8 +7,11 @@ import portscanner
 import webrecon
 from utils import Cyber, clear_console, color
 
+"""Módulo principal que integra as ferramentas de segurança: port scanner, dir scanner, web recon e attack audit."""
+
 
 def banner() -> None:
+    """Exibe o banner artístico e informações do projeto."""
     art = r"""
     __  ___        ______            __    
    /  |/  /_  __  /_  __/___  ____  / /____
@@ -23,6 +26,7 @@ def banner() -> None:
 
 
 def menu() -> None:
+    """Exibe o menu interativo com opções de ferramentas."""
     print(color("Escolha uma tool:", Cyber.WHITE, Cyber.BOLD))
     print(f"  {color('1', Cyber.GREEN, Cyber.BOLD)} {color('PortScanner', Cyber.CYAN)}  TCP ports, CIDR, banners, JSON/CSV")
     print(f"  {color('2', Cyber.GREEN, Cyber.BOLD)} {color('DirScanner', Cyber.CYAN)}   HTTP dirs/files, status filters, wordlist")
@@ -34,6 +38,7 @@ def menu() -> None:
 
 
 def help_screen() -> None:
+    """Exibe exemplos de uso rápido para cada ferramenta."""
     print(color("\nExemplos:", Cyber.WHITE, Cyber.BOLD))
     print(color("PortScanner:", Cyber.CYAN))
     print("  python3 portscanner.py 127.0.0.1 -p 22,80,443")
@@ -53,26 +58,31 @@ def help_screen() -> None:
 
 
 def launch_portscanner() -> None:
+    """Inicia o módulo PortScanner em modo interativo."""
     parser = portscanner.build_parser()
     portscanner.interactive_shell(parser)
 
 
 def launch_dirscanner() -> None:
+    """Inicia o módulo DirScanner em modo interativo."""
     parser = dirscanner.build_parser()
     dirscanner.interactive_shell(parser)
 
 
 def launch_webrecon() -> None:
+    """Inicia o módulo WebRecon em modo interativo."""
     parser = webrecon.build_parser()
     webrecon.interactive_shell(parser)
 
 
 def launch_attackaudit() -> None:
+    """Inicia o módulo AttackAudit em modo interativo."""
     parser = attackaudit.build_parser()
     attackaudit.interactive_shell(parser)
 
 
 def main() -> int:
+    """Loop principal do menu interativo. Retorna 0 ao sair."""
     while True:
         banner()
         menu()

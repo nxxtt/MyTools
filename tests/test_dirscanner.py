@@ -70,6 +70,30 @@ class TestParseStatuses:
         except argparse.ArgumentTypeError:
             pass
 
+    def test_non_numeric_raises(self):
+        try:
+            parse_statuses("abc")
+            assert False, "Should have raised"
+        except argparse.ArgumentTypeError as e:
+            assert "abc" in str(e)
+
+    def test_non_numeric_in_range_raises(self):
+        try:
+            parse_statuses("abc-200")
+            assert False, "Should have raised"
+        except argparse.ArgumentTypeError as e:
+            assert "abc-200" in str(e)
+
+    def test_trailing_comma(self):
+        assert parse_statuses("200,403,") == {200, 403}
+
+    def test_whitespace_parts(self):
+        assert parse_statuses(" 200 , 403 ") == {200, 403}
+
+    def test_overlapping_ranges(self):
+        result = parse_statuses("200-202,201-203")
+        assert result == {200, 201, 202, 203}
+
 
 class TestParseExtensions:
     def test_simple(self):
@@ -119,6 +143,13 @@ class TestLoadPaths:
     def test_sorted_output(self):
         paths = load_paths(None, [])
         assert paths == sorted(paths)
+
+    def test_missing_wordlist_raises(self):
+        try:
+            load_paths("/nonexistent/wordlist.txt", [])
+            assert False, "Should have raised"
+        except ValueError as e:
+            assert "nao encontrada" in str(e)
 
 
 class TestDefaultPaths:

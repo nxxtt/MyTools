@@ -36,9 +36,12 @@ DEFAULT_PATHS = [
 
 DEFAULT_STATUSES = {200, 204, 301, 302, 307, 308, 401, 403}
 
+"""Scanner HTTP de diretórios e arquivos para alvos autorizados."""
 
 @dataclass(frozen=True)
 class Finding:
+    """Representa um caminho encontrado durante o scan."""
+
     url: str
     path: str
     status: int
@@ -49,6 +52,7 @@ class Finding:
 
 
 def banner() -> None:
+    """Exibe o banner ASCII do DirScanner."""
     art = r"""
     ____  _      _____
    / __ \(_)____/ ___/_________ _____  ____  ___  _____
@@ -61,6 +65,7 @@ def banner() -> None:
 
 
 def normalize_base_url(url: str) -> str:
+    """Normaliza a URL alvo garantindo esquema e barra final."""
     parsed = urlparse(url)
     if not parsed.scheme:
         url = "http://" + url
@@ -71,6 +76,7 @@ def normalize_base_url(url: str) -> str:
 
 
 def parse_statuses(value: str) -> set[int]:
+    """Converte string de status HTTP para conjunto de inteiros."""
     if value == "default":
         return set(DEFAULT_STATUSES)
     if value == "all":
@@ -81,14 +87,17 @@ def parse_statuses(value: str) -> set[int]:
         part = part.strip()
         if not part:
             continue
-        if "-" in part:
-            start_raw, end_raw = part.split("-", 1)
-            start, end = int(start_raw), int(end_raw)
-            if start > end:
-                start, end = end, start
-            statuses.update(range(start, end + 1))
-        else:
-            statuses.add(int(part))
+        try:
+            if "-" in part:
+                start_raw, end_raw = part.split("-", 1)
+                start, end = int(start_raw), int(end_raw)
+                if start > end:
+                    start, end = end, start
+                statuses.update(range(start, end + 1))
+            else:
+                statuses.add(int(part))
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"status invalido: {part!r}")
 
     invalid = [status for status in statuses if status < 100 or status > 599]
     if invalid:
@@ -101,6 +110,7 @@ def parse_statuses(value: str) -> set[int]:
 
 
 def parse_extensions(value: str) -> list[str]:
+    """Converte lista de extensões separadas por vírgula."""
     if not value:
         return []
     extensions = []
@@ -112,13 +122,17 @@ def parse_extensions(value: str) -> list[str]:
 
 
 def load_paths(wordlist: str | None, extensions: list[str]) -> list[str]:
+    """Carrega caminhos da wordlist ou lista padrão e aplica extensões."""
     if wordlist:
-        with open(wordlist, "r", encoding="utf-8", errors="replace") as file_handle:
-            raw_paths = [
-                line.strip()
-                for line in file_handle
-                if line.strip() and not line.lstrip().startswith("#")
-            ]
+        try:
+            with open(wordlist, "r", encoding="utf-8", errors="replace") as file_handle:
+                raw_paths = [
+                    line.strip()
+                    for line in file_handle
+                    if line.strip() and not line.lstrip().startswith("#")
+                ]
+        except FileNotFoundError:
+            raise ValueError(f"wordlist nao encontrada: {wordlist}")
     else:
         raw_paths = list(DEFAULT_PATHS)
 
@@ -144,6 +158,7 @@ def scan_path(
     statuses: set[int],
     user_agent: str,
 ) -> Finding | None:
+    """Realiza request HTTP para um caminho específico e retorna Finding."""
     full_url = urljoin(base_url, path)
     request = Request(full_url, headers={"User-Agent": user_agent}, method="GET")
 
@@ -183,6 +198,7 @@ def scan_target(
     statuses: set[int],
     user_agent: str,
 ) -> list[Finding]:
+    """Executa scan paralelo de todos os caminhos contra o alvo."""
     started = time.monotonic()
     findings: list[Finding] = []
 
@@ -235,6 +251,7 @@ def scan_target(
 
 
 def print_table(findings: list[Finding]) -> None:
+    """Imprime tabela formatada dos achados do scan."""
     if not findings:
         print(color("Nenhum diretorio/arquivo encontrado com os filtros atuais.", Cyber.RED))
         return
@@ -269,6 +286,7 @@ def print_table(findings: list[Finding]) -> None:
 
 
 def write_output(path: str, findings: list[Finding]) -> None:
+    """Salva os achados em formato JSON ou CSV."""
     extension = os.path.splitext(path)[1].lower()
     with open(path, "w", encoding="utf-8", newline="") as file_handle:
         if extension == ".json":
@@ -286,6 +304,7 @@ def write_output(path: str, findings: list[Finding]) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Directory/file scanner HTTP rapido para laboratorios e hosts autorizados."
     )
@@ -329,6 +348,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
+    """Executa um único scan com os argumentos fornecidos."""
     if not args.url:
         raise ValueError("informe uma URL alvo")
     if args.timeout <= 0:
@@ -353,6 +373,7 @@ def run_once(args: argparse.Namespace) -> int:
 
 
 def interactive_shell(parser: argparse.ArgumentParser) -> int:
+    """Modo interativo com loop de comandos até exit."""
     banner()
     print(color("DirScanner interativo.", Cyber.WHITE, Cyber.BOLD), "Digite 'help', 'clear' ou 'exit'.")
     print(color("Ex:", Cyber.CYAN), "http://localhost:8000 -x php,txt,bak -s 200,301,403")
@@ -385,6 +406,7 @@ def interactive_shell(parser: argparse.ArgumentParser) -> int:
 
 
 def main() -> int:
+    """Ponto de entrada principal do DirScanner."""
     parser = build_parser()
     args = parser.parse_args()
     if not args.url:

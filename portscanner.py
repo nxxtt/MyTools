@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Scanner de portas TCP rápido para laboratórios e hosts autorizados."""
 from __future__ import annotations
 
 import argparse
@@ -37,6 +38,7 @@ TOP_100_PORTS = [
 
 
 def banner() -> None:
+    """Exibe o banner ASCII do scanner na tela."""
     art = r"""
     ____             __  _____
    / __ \____  _____/ /_/ ___/_________ _____  ____  ___  _____
@@ -50,6 +52,7 @@ def banner() -> None:
 
 @dataclass(frozen=True)
 class Finding:
+    """Representa uma porta aberta encontrada durante a varredura."""
     host: str
     address: str
     port: int
@@ -59,6 +62,7 @@ class Finding:
 
 
 def parse_ports(value: str) -> list[int]:
+    """Converte string de portas em lista ordenada de inteiros."""
     if value == "default":
         return DEFAULT_PORTS
     if value == "top100":
@@ -71,14 +75,17 @@ def parse_ports(value: str) -> list[int]:
         part = part.strip()
         if not part:
             continue
-        if "-" in part:
-            start_raw, end_raw = part.split("-", 1)
-            start, end = int(start_raw), int(end_raw)
-            if start > end:
-                start, end = end, start
-            ports.update(range(start, end + 1))
-        else:
-            ports.add(int(part))
+        try:
+            if "-" in part:
+                start_raw, end_raw = part.split("-", 1)
+                start, end = int(start_raw), int(end_raw)
+                if start > end:
+                    start, end = end, start
+                ports.update(range(start, end + 1))
+            else:
+                ports.add(int(part))
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"porta invalida: {part!r}")
 
     invalid = [port for port in ports if port < 1 or port > 65535]
     if invalid:
@@ -91,6 +98,7 @@ def parse_ports(value: str) -> list[int]:
 
 
 def resolve_targets(values: Iterable[str]) -> list[tuple[str, str]]:
+    """Resolve nomes, IPs e CIDRs em lista de pares (host, endereço IP)."""
     targets: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
 
@@ -125,6 +133,7 @@ def resolve_targets(values: Iterable[str]) -> list[tuple[str, str]]:
 
 
 def service_name(port: int) -> str:
+    """Retorna o nome do serviço associado à porta TCP."""
     try:
         return socket.getservbyport(port, "tcp")
     except OSError:
@@ -140,6 +149,7 @@ BANNER_PROBES = {
 
 
 def grab_banner(sock: socket.socket, port: int, timeout: float) -> str:
+    """Tenta capturar o banner de um socket conectado na porta informada."""
     sock.settimeout(timeout)
 
     try:
@@ -158,16 +168,17 @@ def scan_port(
     timeout: float,
     with_banner: bool,
 ) -> Finding | None:
+    """Tenta conectar a uma porta e retorna um Finding se estiver aberta."""
     try:
         with socket.create_connection((address, port), timeout=timeout) as sock:
-            banner = grab_banner(sock, port, timeout) if with_banner else ""
+            banner_text = grab_banner(sock, port, timeout) if with_banner else ""
             return Finding(
                 host=host,
                 address=address,
                 port=port,
                 state="open",
                 service=service_name(port),
-                banner=banner,
+                banner=banner_text,
             )
     except (ConnectionRefusedError, TimeoutError, OSError, socket.timeout):
         return None
@@ -180,6 +191,7 @@ def scan_targets(
     workers: int,
     with_banner: bool,
 ) -> list[Finding]:
+    """Executa a varredura multi-threaded em todos os alvos e portas."""
     findings: list[Finding] = []
     total = len(targets) * len(ports)
     started = time.monotonic()
@@ -223,6 +235,7 @@ def scan_targets(
 
 
 def ip_sort_key(address: str) -> tuple[int, int, str]:
+    """Gera chave de ordenação numérica para endereços IP."""
     try:
         ip = ipaddress.ip_address(address)
         version = 0 if ip.version == 4 else 1
@@ -232,6 +245,7 @@ def ip_sort_key(address: str) -> tuple[int, int, str]:
 
 
 def print_table(findings: list[Finding]) -> None:
+    """Exibe os findings em formato de tabela colorida no terminal."""
     if not findings:
         print(color("Nenhuma porta aberta encontrada.", Cyber.RED))
         return
@@ -265,6 +279,7 @@ def print_table(findings: list[Finding]) -> None:
 
 
 def write_output(path: str, findings: list[Finding]) -> None:
+    """Salva os findings em arquivo JSON ou CSV."""
     extension = os.path.splitext(path)[1].lower()
     with open(path, "w", encoding="utf-8", newline="") as file_handle:
         if extension == ".json":
@@ -282,6 +297,7 @@ def write_output(path: str, findings: list[Finding]) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Constrói e retorna o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Port scanner TCP rapido para laboratorios e hosts autorizados."
     )
@@ -326,6 +342,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
+    """Executa uma única varredura com os argumentos fornecidos."""
     if args.timeout <= 0:
         raise ValueError("timeout precisa ser maior que zero")
     if args.workers < 1:
@@ -346,6 +363,7 @@ def run_once(args: argparse.Namespace) -> int:
 
 
 def interactive_shell(parser: argparse.ArgumentParser) -> int:
+    """Inicia o modo interativo com loop de comandos."""
     banner()
     print(color("PortScanner interativo.", Cyber.WHITE, Cyber.BOLD), "Digite 'help', 'clear' ou 'exit'.")
     print(color("Ex:", Cyber.CYAN), "192.168.0.10 -p 1-1024 -b")
@@ -381,6 +399,7 @@ def interactive_shell(parser: argparse.ArgumentParser) -> int:
 
 
 def main() -> int:
+    """Ponto de entrada principal do scanner."""
     parser = build_parser()
     args = parser.parse_args()
     if not args.targets:

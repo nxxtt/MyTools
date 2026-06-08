@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Utilitários gerais para formatação, cores e manipulação de dados."""
 from __future__ import annotations
 
 import os
@@ -10,6 +11,8 @@ USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
 
 
 class Cyber:
+    """Constantes de cores ANSI para formatação de terminal."""
+
     RESET = "\033[0m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
@@ -24,16 +27,20 @@ class Cyber:
 
 
 def color(text: str, *styles: str) -> str:
+    """Aplica estilos de cor ANSI ao texto."""
     if not USE_COLOR:
         return text
     return "".join(styles) + text + Cyber.RESET
 
 
 def clear_console() -> None:
+    """Limpa a tela do console."""
     os.system("cls" if os.name == "nt" else "clear")
 
 
 class NoRedirectHandler(HTTPRedirectHandler):
+    """Handler que impede redirecionamento automático em requisições HTTP."""
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
@@ -42,6 +49,7 @@ NO_REDIRECT_OPENER = build_opener(NoRedirectHandler)
 
 
 def status_color(status: int) -> str:
+    """Retorna a cor ANSI correspondente ao código de status HTTP."""
     if 200 <= status < 300:
         return Cyber.GREEN
     if 300 <= status < 400:
@@ -54,6 +62,7 @@ def status_color(status: int) -> str:
 
 
 def header_get(headers: dict[str, str], name: str) -> str:
+    """Obtém o valor de um header HTTP, ignorando maiúsculas/minúsculas."""
     for key, value in headers.items():
         if key.lower() == name.lower():
             return value
@@ -61,6 +70,7 @@ def header_get(headers: dict[str, str], name: str) -> str:
 
 
 def extract_title(text: str) -> str:
+    """Extrai o conteúdo da tag <title> de um HTML."""
     lower = text.lower()
     start = lower.find("<title>")
     end = lower.find("</title>", start + 7)
