@@ -6,9 +6,14 @@ import responses
 
 from utils import Cyber, create_session
 from webrecon import (
+    CMS_SIGNATURES,
+    FRAMEWORK_SIGNATURES,
+    LIBRARY_SIGNATURES,
+    SERVER_PATTERNS,
     ReconResult,
     build_parser,
     candidate_urls,
+    detect_technologies,
     normalize_url,
     probe_status,
     status_text,
@@ -139,6 +144,123 @@ class TestReconResultDataclass:
             assert False, "Should be frozen"
         except AttributeError:
             pass
+
+
+class TestDetectTechnologies:
+    def test_wordpress_by_body(self):
+        tech = detect_technologies({}, '<html><link href="/wp-content/style.css">', "https://example.com")
+        assert "WordPress" in tech["cms"]
+
+    def test_wordpress_by_header(self):
+        tech = detect_technologies({"X-Pingback": "https://example.com/xmlrpc.php"}, "", "https://example.com")
+        assert "WordPress" in tech["cms"]
+
+    def test_wordpress_by_cookie(self):
+        tech = detect_technologies({}, "", "https://example.com", cookies=["wordpress_logged_in_abc=123"])
+        assert "WordPress" in tech["cms"]
+
+    def test_django_by_cookie(self):
+        tech = detect_technologies({}, "", "https://example.com", cookies=["csrftoken=xyz"])
+        assert "Django" in tech["frameworks"]
+
+    def test_django_by_body(self):
+        tech = detect_technologies({}, '<input type="hidden" name="csrfmiddlewaretoken">', "https://example.com")
+        assert "Django" in tech["frameworks"]
+
+    def test_express_by_header(self):
+        tech = detect_technologies({"X-Powered-By": "Express"}, "", "https://example.com")
+        assert "Express" in tech["frameworks"]
+
+    def test_laravel_by_cookie(self):
+        tech = detect_technologies({}, "", "https://example.com", cookies=["laravel_session=eyJ"])
+        assert "Laravel" in tech["frameworks"]
+
+    def test_jquery_by_body(self):
+        tech = detect_technologies({}, '<script src="jquery-3.6.0.min.js">', "https://example.com")
+        assert "jQuery" in tech["libraries"]
+
+    def test_bootstrap_by_body(self):
+        tech = detect_technologies({}, '<link rel="stylesheet" href="bootstrap.min.css">', "https://example.com")
+        assert "Bootstrap" in tech["libraries"]
+
+    def test_react_by_body(self):
+        tech = detect_technologies({}, '<script>__REACT_DEVTOOLS_GLOBAL_HOOK__</script>', "https://example.com")
+        assert "React" in tech["libraries"]
+
+    def test_vue_by_body(self):
+        tech = detect_technologies({}, '<script>Vue.__vue__</script>', "https://example.com")
+        assert "Vue.js" in tech["libraries"]
+
+    def test_angular_by_body(self):
+        tech = detect_technologies({}, '<app-root ng-version="14.0.0">', "https://example.com")
+        assert "Angular" in tech["libraries"]
+
+    def test_server_nginx(self):
+        tech = detect_technologies({"Server": "nginx/1.24.0"}, "", "https://example.com")
+        assert "Nginx" in tech["server"]
+
+    def test_server_apache(self):
+        tech = detect_technologies({"Server": "Apache/2.4.57"}, "", "https://example.com")
+        assert "Apache" in tech["server"]
+
+    def test_server_iis(self):
+        tech = detect_technologies({"Server": "Microsoft-IIS/10.0"}, "", "https://example.com")
+        assert "IIS" in tech["server"]
+
+    def test_multiple_cms(self):
+        body = '<html><link href="/wp-content/style.css"><title>Joomla!</title>'
+        tech = detect_technologies({}, body, "https://example.com")
+        assert "WordPress" in tech["cms"]
+        assert "Joomla" in tech["cms"]
+
+    def test_empty_headers_body(self):
+        tech = detect_technologies({}, "", "https://example.com")
+        assert tech["cms"] == []
+        assert tech["frameworks"] == []
+        assert tech["libraries"] == []
+
+    def test_no_false_positives(self):
+        tech = detect_technologies({"Server": "nginx"}, "<html><body>Hello</body></html>", "https://example.com")
+        assert tech["cms"] == []
+        assert tech["frameworks"] == []
+        assert tech["libraries"] == []
+
+    def test_shopify_by_body(self):
+        tech = detect_technologies({}, '<script>Shopify.theme</script>', "https://example.com")
+        assert "Shopify" in tech["cms"]
+
+    def test_aspnet_by_header(self):
+        tech = detect_technologies({"X-AspNet-Version": "4.0.30319"}, "", "https://example.com")
+        assert "ASP.NET" in tech["frameworks"]
+
+    def test_flask_by_cookie(self):
+        tech = detect_technologies({}, "", "https://example.com", cookies=["session=eyJhbGciOiJIUzI1NiJ9"])
+        assert "Flask" in tech["frameworks"]
+
+
+class TestSignatureDictionaries:
+    def test_cms_signatures_have_required_keys(self):
+        for name, sigs in CMS_SIGNATURES.items():
+            assert isinstance(name, str)
+            assert isinstance(sigs, dict)
+            assert any(k in sigs for k in ("headers", "body", "cookies", "urls"))
+
+    def test_framework_signatures_have_required_keys(self):
+        for name, sigs in FRAMEWORK_SIGNATURES.items():
+            assert isinstance(name, str)
+            assert isinstance(sigs, dict)
+            assert any(k in sigs for k in ("headers", "body", "cookies", "urls"))
+
+    def test_library_signatures_have_body(self):
+        for name, sigs in LIBRARY_SIGNATURES.items():
+            assert isinstance(name, str)
+            assert "body" in sigs
+            assert len(sigs["body"]) > 0
+
+    def test_server_patterns_are_strings(self):
+        for name, pattern in SERVER_PATTERNS.items():
+            assert isinstance(name, str)
+            assert isinstance(pattern, str)
 
 
 class TestBuildParser:

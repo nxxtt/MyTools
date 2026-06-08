@@ -42,6 +42,189 @@ INTERESTING_HEADERS = [
     "content-type",
 ]
 
+# ---------------------------------------------------------------------------
+# Fingerprinting signatures
+# ---------------------------------------------------------------------------
+
+CMS_SIGNATURES: dict[str, dict[str, list[str]]] = {
+    "WordPress": {
+        "headers": ["x-pingback"],
+        "body": ["wp-content", "wp-includes", "wp-json", "wp-api", "wordpress"],
+        "cookies": ["wordpress_", "wp-settings-"],
+        "urls": ["/wp-admin", "/wp-login.php", "/xmlrpc.php"],
+    },
+    "Joomla": {
+        "headers": ["x-content-encoded-by"],
+        "body": ["/media/jui/", "Joomla!", "com_content", "joomla"],
+        "cookies": ["joomla_"],
+        "urls": ["/administrator/"],
+    },
+    "Drupal": {
+        "headers": ["x-generator: Drupal", "x-drupal-cache"],
+        "body": ["drupal.js", "Drupal.settings", "/sites/default/files/"],
+        "cookies": ["SESS", "Drupal.toolbar"],
+        "urls": ["/node/", "/user/login"],
+    },
+    "Shopify": {
+        "headers": ["x-shopify-stage"],
+        "body": ["Shopify.theme", "cdn.shopify.com"],
+        "cookies": ["_shopify_"],
+        "urls": [],
+    },
+    "Magento": {
+        "headers": [],
+        "body": ["Mage.Cookies", "magento", "skin/frontend/"],
+        "cookies": ["frontend", "guest_view"],
+        "urls": ["/admin/"],
+    },
+}
+
+FRAMEWORK_SIGNATURES: dict[str, dict[str, list[str]]] = {
+    "Laravel": {
+        "headers": [],
+        "body": ["csrf-token", "laravel"],
+        "cookies": ["laravel_session", "XSRF-TOKEN"],
+        "urls": [],
+    },
+    "Django": {
+        "headers": [],
+        "body": ["csrfmiddlewaretoken", "__admin_media_prefix__"],
+        "cookies": ["csrftoken", "sessionid"],
+        "urls": ["/admin/"],
+    },
+    "Express": {
+        "headers": ["x-powered-by: Express"],
+        "body": [],
+        "cookies": ["connect.sid"],
+        "urls": [],
+    },
+    "Flask": {
+        "headers": ["x-powered-by: Flask"],
+        "body": [],
+        "cookies": ["session=ey"],
+        "urls": [],
+    },
+    "ASP.NET": {
+        "headers": ["x-aspnet-version", "x-powered-by: ASP.NET"],
+        "body": ["__VIEWSTATE", "__VIEWSTATEENCRYPTED"],
+        "cookies": ["ASP.NET_SessionId", ".ASPXAUTH"],
+        "urls": [],
+    },
+    "Spring": {
+        "headers": [],
+        "body": [],
+        "cookies": ["JSESSIONID"],
+        "urls": [],
+    },
+}
+
+LIBRARY_SIGNATURES: dict[str, dict[str, list[str]]] = {
+    "jQuery": {
+        "body": ["jquery", "jQuery("],
+    },
+    "Bootstrap": {
+        "body": ["bootstrap.min.css", "bootstrap.min.js", "bootstrap/"],
+    },
+    "React": {
+        "body": ["__REACT_DEVTOOLS_GLOBAL_HOOK__", "react.production", "react-dom"],
+    },
+    "Vue.js": {
+        "body": ["Vue.__vue__", "vue.min.js", "__vue__"],
+    },
+    "Angular": {
+        "body": ["ng-version", "angular.min.js", "ng-app"],
+    },
+}
+
+SERVER_PATTERNS: dict[str, str] = {
+    "Apache": r"Apache",
+    "Nginx": r"nginx",
+    "IIS": r"Microsoft-IIS",
+    "LiteSpeed": r"LiteSpeed",
+    "Caddy": r"Caddy",
+    "PHP": r"PHP/[\d.]+",
+    "Python": r"Python|WSGI|Gunicorn|uWSGI",
+    "Node.js": r"Express|Node\.js",
+}
+
+
+def detect_technologies(
+    headers: dict[str, str],
+    body: str,
+    url: str,
+    cookies: list[str] | None = None,
+) -> dict[str, list[str]]:
+    """Detecta tecnologias (CMS, frameworks, libs) a partir de headers, body e cookies."""
+    result: dict[str, list[str]] = {"cms": [], "frameworks": [], "libraries": [], "server": []}
+    lower_headers = {k.lower(): v for k, v in headers.items()}
+    header_blob = " ".join(f"{k}: {v}" for k, v in lower_headers.items())
+    body_lower = body.lower()
+    cookie_blob = " ".join(cookies or [])
+    url_lower = url.lower()
+
+    for name, sigs in CMS_SIGNATURES.items():
+        match = False
+        for h in sigs.get("headers", []):
+            if h.lower() in header_blob.lower():
+                match = True
+                break
+        if not match:
+            for b in sigs.get("body", []):
+                if b.lower() in body_lower:
+                    match = True
+                    break
+        if not match:
+            for c in sigs.get("cookies", []):
+                if c.lower() in cookie_blob.lower():
+                    match = True
+                    break
+        if not match:
+            for u in sigs.get("urls", []):
+                if u.lower() in url_lower:
+                    match = True
+                    break
+        if match:
+            result["cms"].append(name)
+
+    for name, sigs in FRAMEWORK_SIGNATURES.items():
+        match = False
+        for h in sigs.get("headers", []):
+            if h.lower() in header_blob.lower():
+                match = True
+                break
+        if not match:
+            for b in sigs.get("body", []):
+                if b.lower() in body_lower:
+                    match = True
+                    break
+        if not match:
+            for c in sigs.get("cookies", []):
+                if c.lower() in cookie_blob.lower():
+                    match = True
+                    break
+        if not match:
+            for u in sigs.get("urls", []):
+                if u.lower() in url_lower:
+                    match = True
+                    break
+        if match:
+            result["frameworks"].append(name)
+
+    for name, sigs in LIBRARY_SIGNATURES.items():
+        for b in sigs.get("body", []):
+            if b.lower() in body_lower:
+                result["libraries"].append(name)
+                break
+
+    server_header = lower_headers.get("server", "")
+    if server_header:
+        import re
+        for name, pattern in SERVER_PATTERNS.items():
+            if re.search(pattern, server_header, re.IGNORECASE):
+                result["server"].append(name)
+
+    return result
+
 
 @dataclass(frozen=True)
 class ReconResult:
@@ -61,6 +244,7 @@ class ReconResult:
     robots_status: int | None
     sitemap_status: int | None
     elapsed: float
+    technologies: dict[str, list[str]] | None = None
 
 
 def banner() -> None:
@@ -138,6 +322,16 @@ def run_recon(
     robots_url = urljoin(target.rstrip("/") + "/", "robots.txt")
     sitemap_url = urljoin(target.rstrip("/") + "/", "sitemap.xml")
 
+    cookie_header = header_get(headers, "set-cookie")
+    cookie_list = [cookie_header] if cookie_header else []
+
+    technologies = detect_technologies(
+        headers=headers,
+        body=text,
+        url=target,
+        cookies=cookie_list,
+    )
+
     return ReconResult(
         url=target,
         status=status,
@@ -153,6 +347,7 @@ def run_recon(
         robots_status=probe_status(session, robots_url, timeout),
         sitemap_status=probe_status(session, sitemap_url, timeout),
         elapsed=time.monotonic() - started,
+        technologies=technologies,
     )
 
 
@@ -183,9 +378,31 @@ def print_result(result: ReconResult) -> None:
     for header in result.security_headers_missing:
         print(f"{color('[-]', Cyber.RED, Cyber.BOLD)} {color(header, Cyber.RED)}")
 
+    if result.technologies:
+        _print_technologies(result.technologies)
+
     print(color("\nArquivos comuns", Cyber.CYAN, Cyber.BOLD))
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} robots.txt  {status_text(result.robots_status)}")
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} sitemap.xml  {status_text(result.sitemap_status)}")
+
+
+def _print_technologies(tech: dict[str, list[str]]) -> None:
+    """Exibe as tecnologias detectadas no terminal."""
+    labels = {
+        "cms": ("CMS", Cyber.MAGENTA),
+        "frameworks": ("Framework", Cyber.CYAN),
+        "libraries": ("Bibliotecas", Cyber.YELLOW),
+        "server": ("Servidor", Cyber.GREEN),
+    }
+    has_any = any(tech.get(k) for k in labels)
+    if not has_any:
+        return
+
+    print(color("\nTecnologias detectadas", Cyber.CYAN, Cyber.BOLD))
+    for key, (label, style) in labels.items():
+        items = tech.get(key, [])
+        if items:
+            print(f"  {color('[+]', style, Cyber.BOLD)} {label}: {', '.join(items)}")
 
 
 def status_text(status: int | None) -> str:
