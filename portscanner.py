@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
-import os
 import socket
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
+from types import MappingProxyType
 from typing import Iterable
 
-from utils import Cyber, color, print_table, set_color, setup_logging, show_banner, write_output, run_interactive_shell, extract_hostname, __version__
+from utils import Cyber, color, print_table, set_color, setup_logging, show_banner, write_output, run_interactive_shell, __version__
 
 import logging
 
@@ -139,8 +139,6 @@ def service_name(port: int) -> str:
     except OSError:
         return "unknown"
 
-
-from types import MappingProxyType
 
 BANNER_PROBES = MappingProxyType({
     80: b"HEAD / HTTP/1.0\r\n\r\n",

@@ -11,7 +11,6 @@ from urllib.parse import urljoin, urlparse
 
 from utils import (
     Cyber,
-    RateLimiter,
     SECURITY_HEADERS,
     add_common_args,
     apply_session_auth,
@@ -391,11 +390,11 @@ class ReconResult:
 def banner() -> None:
     """Exibe o banner ASCII art da ferramenta."""
     art = r"""
- _       __     __    ____                      
-| |     / /__  / /_  / __ \___  _________  ____ 
+ _       __     __    ____
+| |     / /__  / /_  / __ \___  _________  ____
 | | /| / / _ \/ __ \/ /_/ / _ \/ ___/ __ \/ __ \
 | |/ |/ /  __/ /_/ / _, _/  __/ /__/ /_/ / / / /
-|__/|__/\___/_.___/_/ |_|\___/\___/\____/_/ /_/ 
+|__/|__/\___/_.___/_/ |_|\___/\___/\____/_/ /_/
 """
     show_banner(art, "   HTTP recon | headers + robots + security checks")
 

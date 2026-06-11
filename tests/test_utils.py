@@ -18,7 +18,6 @@ from utils import (
     create_session,
     extract_hostname,
     extract_title,
-    fetch,
     header_get,
     normalize_url,
     parse_auth,

@@ -13,7 +13,6 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
-from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlparse
 

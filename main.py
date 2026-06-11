@@ -15,12 +15,12 @@ from utils import Cyber, clear_console, color, run_interactive_shell, show_banne
 def banner() -> None:
     """Exibe o banner artístico e informações do projeto."""
     art = r"""
-    __  ___        ______            __    
+    __  ___        ______            __
    /  |/  /_  __  /_  __/___  ____  / /____
   / /|_/ / / / /   / / / __ \/ __ \/ / ___/
- / /  / / /_/ /   / / / /_/ / /_/ / (__  ) 
-/_/  /_/\__, /   /_/  \____/\____/_/____/  
-       /____/                               
+ / /  / / /_/ /   / / / /_/ / /_/ / (__  )
+/_/  /_/\__, /   /_/  \____/\____/_/____/
+       /____/
 """
     show_banner(art, "   port scanner + dir scanner + web recon + attack audit")
     print(color("   by Default\n", Cyber.GRAY))

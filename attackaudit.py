@@ -19,7 +19,6 @@ from urllib.parse import urljoin, urlparse
 from utils import (
     Cyber,
     RateLimiter,
-    SECURITY_HEADERS,
     add_common_args,
     apply_session_auth,
     color,
@@ -242,11 +241,11 @@ class AuditResult:
 def banner() -> None:
     """Exibe banner ASCII art do AttackAudit."""
     art = r"""
-    ___   __  __             __      ___             ___ __ 
+    ___   __  __             __      ___             ___ __
    /   | / /_/ /_____ ______/ /__   /   | __  ______/ (_) /_
   / /| |/ __/ __/ __ `/ ___/ //_/  / /| |/ / / / __  / / __/
- / ___ / /_/ /_/ /_/ / /__/ ,<    / ___ / /_/ / /_/ / / /_  
-/_/  |_\__/\__/\__,_/\___/_/|_|  /_/  |_\__,_/\__,_/_/\__/  
+ / ___ / /_/ /_/ /_/ / /__/ ,<    / ___ / /_/ / /_/ / / /_
+/_/  |_\__/\__/\__,_/\___/_/|_|  /_/  |_\__,_/\__,_/_/\__/
 """
     show_banner(art, "   red/blue web audit | ofensivo autorizado + hardening defensivo")
 
