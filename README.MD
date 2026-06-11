@@ -1,4 +1,4 @@
-# MyTools v3.0.0
+# MyTools v3.1.5
 
 Suite de ferramentas de auditoria e reconhecimento web/network para ambientes de laboratório e alvos autorizados.
 
@@ -72,13 +72,15 @@ mytools-dir -l urls.txt --output-dir results/
 ```
 
 ### 4. Web Passive Recon (`mytools-recon`)
-Reconhecimento passivo: headers de segurança, fingerprinting, robots.txt e sitemap.xml.
+Reconhecimento passivo: headers de segurança, fingerprinting, robots.txt, sitemap.xml e lookup de CVEs.
 
 ```bash
 mytools-recon https://example.com
 mytools-recon https://example.com -o recon.json
 mytools-recon https://example.com --proxy http://proxy:8080
 mytools-recon -l targets.txt --output-dir results/
+mytools-recon https://example.com --cve                    # Lookup de CVEs
+mytools-recon https://example.com --cve --nvd-api-key KEY  # Com API key (mais requests)
 ```
 
 ### 5. Deep Attack & Vulnerability Audit (`mytools-audit`)
@@ -89,11 +91,12 @@ mytools-audit https://example.com --deep
 mytools-audit https://example.com --deep -o audit.json
 mytools-audit https://example.com --deep --proxy http://proxy:8080 --delay 5
 mytools-audit -l targets.txt --output-dir results/
+mytools-audit https://example.com --paths-file sensitive.txt  # Paths customizados
 ```
 
 ---
 
-## Features v3.0.0
+## Features v3.1.5
 
 ### Multi-target
 Execute qualquer ferramenta em múltiplos alvos a partir de um arquivo:
@@ -133,6 +136,34 @@ mytools-dir http://app.local --cookie "session=abc123; token=xyz"
 mytools-recon https://target.com --header "X-Token: abc" --header "Authorization: Bearer xyz"
 ```
 
+### CVE Lookup (NIST NVD)
+Detecta versões de frameworks/servidores e busca CVEs associadas:
+
+```bash
+mytools-recon https://example.com --cve
+mytools-recon https://example.com --cve --nvd-api-key YOUR_KEY
+```
+
+- Sem API key: 5 requests/30s
+- Com API key: 50 requests/30s (solicite em https://nvd.nist.gov/developers/request-an-api-key)
+- Fonte: NIST NVD API v2.0
+
+### Paths Customizados (attackaudit)
+Carregue seus próprios paths para deep scan:
+
+```bash
+# Arquivo com um path por linha
+mytools-audit https://example.com --paths-file sensitive.txt --deep
+```
+
+O argumento `--paths-file` ativa `--deep` automaticamente.
+
+### Controle de Cores
+```bash
+mytools-recon https://example.com --no-color     # Sem cores
+mytools-port 10.0.0.1 -p 80 --color              # Forçar cores (útil em pipes)
+```
+
 ### Versão
 ```bash
 mytools --version
@@ -165,6 +196,7 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-port 127.0.0.1 -p 1-1024` | Scan TCP nas primeiras 1024 portas |
 | `mytools-dir http://testphp.vulnweb.com -x php` | Busca por arquivos .php |
 | `mytools-recon https://google.com` | Recon passivo rápido |
+| `mytools-recon https://example.com --cve` | Recon com lookup de CVEs |
 | `mytools-audit https://example.com --deep` | Auditoria completa com deep scan |
 | `mytools-audit https://example.com -q -o audit.json` | Audit silencioso com saída em arquivo |
 
@@ -197,11 +229,12 @@ MyTools-main/
 ├── main.py            # Painel central
 ├── portscanner.py     # Scanner de portas TCP
 ├── dirscanner.py      # Scanner de diretórios HTTP
-├── webrecon.py        # Reconhecimento passivo
+├── webrecon.py        # Reconhecimento passivo + CVE
 ├── attackaudit.py     # Auditoria ofensiva/defensiva
 ├── utils.py           # Código compartilhado (cores, helpers, sessões HTTP)
 ├── KNOW_ISSUES.txt    # Problemas conhecidos
-├── tests/             # Testes unitários (341 testes)
+├── ROADMAP.txt        # Roadmap de otimizações
+├── tests/             # Testes unitários (380 testes)
 ├── pyproject.toml     # Configuração do projeto
 └── README.MD
 ```
