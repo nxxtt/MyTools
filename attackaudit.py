@@ -27,7 +27,9 @@ from utils import (
     extract_hostname,
     fetch,
     header_get,
+    normalize_url,
     run_interactive_shell,
+    set_color,
     setup_logging,
     show_banner,
     status_color,
@@ -112,13 +114,13 @@ SQL_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
 
 SQLI_PAYLOADS = ["'", "\"", "`", "' OR '1'='1", "\" OR \"1\"=\"1"]
 
-CSRF_FIELD_NAMES = {
+CSRF_FIELD_NAMES = frozenset({
     "csrf_token", "_csrf", "csrf", "csrftoken", "_token",
     "authenticity_token", "xsrf-token", "_xsrf", "XSRF-TOKEN",
     "_csrf_token", "csrfmiddlewaretoken", "__RequestVerificationToken",
-}
+})
 
-CSRF_FIELD_NAMES_LOWER = {name.lower() for name in CSRF_FIELD_NAMES}
+CSRF_FIELD_NAMES_LOWER = frozenset(name.lower() for name in CSRF_FIELD_NAMES)
 
 
 class PageParser(HTMLParser):
@@ -249,18 +251,16 @@ def banner() -> None:
     show_banner(art, "   red/blue web audit | ofensivo autorizado + hardening defensivo")
 
 
-def normalize_url(url: str) -> str:
-    """Normaliza e valida a URL alvo, adicionando https:// se necessario."""
-    url = url.strip()
-    if not url:
-        raise ValueError("informe uma URL alvo")
-    parsed = urlparse(url)
-    if not parsed.scheme:
-        url = "https://" + url
-        parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(f"URL invalida: {url}")
-    return url.rstrip("/")
+def load_paths_from_file(paths_file: str) -> list[str]:
+    """Carrega paths customizados de arquivo (um por linha)."""
+    try:
+        with open(paths_file, "r", encoding="utf-8", errors="replace") as fh:
+            paths = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+    except FileNotFoundError:
+        raise ValueError(f"arquivo de paths nao encontrado: {paths_file}")
+    if not paths:
+        raise ValueError(f"nenhum path valido em {paths_file}")
+    return sorted(set(paths))
 
 
 def resolve_ip(hostname: str) -> str:
@@ -417,13 +417,15 @@ def scan_paths(
     base_url: str,
     timeout: float,
     threads: int,
+    paths: list[str] | None = None,
 ) -> list[Probe]:
     """Escaneia paths interessantes em paralelo usando ThreadPoolExecutor."""
     probes: list[Probe] = []
+    target_paths = paths if paths is not None else INTERESTING_PATHS
     with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = [
             executor.submit(probe_path, session, rate_limiter, base_url, path, timeout)
-            for path in INTERESTING_PATHS
+            for path in target_paths
         ]
         for future in as_completed(futures):
             try:
@@ -617,6 +619,7 @@ def run_audit(
     bearer_token: str | None = None,
     cookie: str | None = None,
     extra_headers: list[str] | None = None,
+    paths: list[str] | None = None,
 ) -> AuditResult:
     """Executa auditoria completa em uma URL alvo."""
     started = time.monotonic()
@@ -644,7 +647,7 @@ def run_audit(
     tls_subject, tls_issuer, tls_not_after = tls_info(target, timeout)
     tls_versions = check_tls_versions(target, timeout) if parsed.scheme == "https" else None
     methods = parse_allowed_methods(session, target, timeout)
-    probes = scan_paths(session, rate_limiter, target, timeout, threads) if deep else []
+    probes = scan_paths(session, rate_limiter, target, timeout, threads, paths=paths) if deep else []
 
     xss_reflected, xss_evidence = False, ""
     sqli_databases: list[str] | None = None
@@ -750,18 +753,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
     parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
     parser.add_argument("--threads", type=int, default=20, help="Threads para probes de paths. Padrao: 20")
+    parser.add_argument("--paths-file", dest="paths_file", help="Arquivo com paths customizados (um por linha). Ativa --deep automaticamente.")
     parser.add_argument("--deep", action="store_true", help="Ativa probes de arquivos/endpoints comuns.")
     parser.add_argument(
         "--test-vulns",
         action="store_true",
         help="Ativa testes de vulnerabilidade (XSS reflection, SQLi error-based).",
     )
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) AttackAudit/3.1")
+    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) AttackAudit/3.1.5")
     return parser
 
 
 def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -> AuditResult:
     """Executa auditoria em uma unica URL."""
+    custom_paths = None
+    if getattr(args, "paths_file", None):
+        custom_paths = load_paths_from_file(args.paths_file)
     result = run_audit(
         url, args.timeout, args.user_agent, args.threads, args.deep,
         proxy=args.proxy, requests_per_second=args.delay,
@@ -770,6 +777,7 @@ def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -> Audi
         bearer_token=getattr(args, "bearer_token", None),
         cookie=getattr(args, "cookie", None),
         extra_headers=getattr(args, "header", None),
+        paths=custom_paths,
     )
     if not quiet:
         print_result(result)
@@ -780,6 +788,10 @@ def run_once(args: argparse.Namespace) -> int:
     """Executa uma unica auditoria com os argumentos fornecidos."""
     setup_logging(verbose=args.verbose, log_file=args.log_file)
     quiet = getattr(args, "quiet", False)
+    if getattr(args, "color", None) is not None:
+        set_color(args.color)
+    if getattr(args, "paths_file", None):
+        args.deep = True
     if args.threads < 1:
         raise ValueError("threads precisa ser maior que zero")
 

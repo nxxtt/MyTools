@@ -21,8 +21,10 @@ from utils import (
     extract_title,
     fetch,
     header_get,
+    normalize_url,
     query_nvd,
     run_interactive_shell,
+    set_color,
     setup_logging,
     show_banner,
     status_color,
@@ -398,14 +400,6 @@ def banner() -> None:
     show_banner(art, "   HTTP recon | headers + robots + security checks")
 
 
-def normalize_url(url: str) -> str:
-    """Valida e retorna a URL se for HTTP/HTTPS válida."""
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(f"URL invalida: {url}")
-    return url
-
-
 def candidate_urls(url: str) -> list[str]:
     """Gera lista de URLs candidatas (https e http) para reconhecimento."""
     url = url.strip()
@@ -413,7 +407,7 @@ def candidate_urls(url: str) -> list[str]:
         raise ValueError("informe uma URL alvo")
 
     parsed = urlparse(url)
-    if parsed.scheme:
+    if parsed.scheme in {"http", "https"}:
         return [normalize_url(url)]
 
     return [normalize_url("https://" + url), normalize_url("http://" + url)]
@@ -605,7 +599,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
     parser.add_argument("--cve", action="store_true", help="Busca CVEs para versoes detectadas (via NIST NVD).")
     parser.add_argument("--nvd-api-key", dest="nvd_api_key", help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).")
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) WebRecon/3.1")
+    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) WebRecon/3.1.5")
     return parser
 
 
@@ -629,6 +623,8 @@ def run_once(args: argparse.Namespace) -> int:
     """Executa uma única operação de reconhecimento com os argumentos fornecidos."""
     setup_logging(verbose=args.verbose, log_file=args.log_file)
     quiet = getattr(args, "quiet", False)
+    if getattr(args, "color", None) is not None:
+        set_color(args.color)
 
     urls: list[str] = []
     if getattr(args, "target_list", None):

@@ -32,12 +32,8 @@ class TestNormalizeUrl:
     def test_valid_http(self):
         assert normalize_url("http://example.com") == "http://example.com"
 
-    def test_no_scheme_raises(self):
-        try:
-            normalize_url("example.com")
-            assert False, "Should have raised"
-        except ValueError:
-            pass
+    def test_no_scheme_adds_https(self):
+        assert normalize_url("example.com") == "https://example.com"
 
     def test_ftp_scheme_raises(self):
         try:
@@ -52,6 +48,12 @@ class TestNormalizeUrl:
             assert False, "Should have raised"
         except ValueError:
             pass
+
+    def test_strips_trailing_slash(self):
+        assert normalize_url("https://example.com/") == "https://example.com"
+
+    def test_strips_whitespace(self):
+        assert normalize_url("  https://example.com  ") == "https://example.com"
 
 
 class TestCandidateUrls:
@@ -78,11 +80,9 @@ class TestCandidateUrls:
         assert len(result) == 2
 
     def test_with_port_no_scheme(self):
-        try:
-            candidate_urls("example.com:8080")
-            assert False, "Should have raised"
-        except ValueError:
-            pass
+        result = candidate_urls("example.com:8080")
+        assert len(result) == 2
+        assert "example.com:8080" in result[0]
 
     def test_with_path_no_scheme(self):
         result = candidate_urls("example.com/app")
@@ -364,7 +364,7 @@ class TestBuildParserV3:
     def test_default_user_agent(self):
         parser = build_parser()
         args = parser.parse_args(["https://example.com"])
-        assert "WebRecon/3.1" in args.user_agent
+        assert "WebRecon/3.1.5" in args.user_agent
 
 
 class TestExtractVersions:

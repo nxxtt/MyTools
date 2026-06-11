@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlparse
 
@@ -22,7 +23,7 @@ from urllib3.util.retry import Retry
 
 logger = logging.getLogger("mytools")
 
-__version__ = "3.1.0"
+__version__ = "3.1.5"
 
 SECURITY_HEADERS = [
     "strict-transport-security",
@@ -61,7 +62,13 @@ def setup_logging(verbose: bool = False, log_file: str | None = None) -> None:
         log.addHandler(file_handler)
 
 
-USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+_USE_COLOR: bool = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+
+
+def set_color(enabled: bool) -> None:
+    """Habilita ou desabilita cores ANSI no terminal."""
+    global _USE_COLOR
+    _USE_COLOR = enabled
 
 
 class Cyber:
@@ -82,7 +89,7 @@ class Cyber:
 
 def color(text: str, *styles: str) -> str:
     """Aplica estilos de cor ANSI ao texto."""
-    if not USE_COLOR:
+    if not _USE_COLOR:
         return text
     return "".join(styles) + text + Cyber.RESET
 
@@ -116,7 +123,7 @@ class RateLimiter:
 
 
 def create_session(
-    user_agent: str = "MyTools/3.1",
+    user_agent: str = "MyTools/3.1.5",
     proxy: str | None = None,
     max_retries: int = 3,
     backoff_factor: float = 0.5,
@@ -215,6 +222,37 @@ def show_banner(art: str, subtitle: str) -> None:
     print(color(subtitle, Cyber.MAGENTA))
 
 
+def print_table(
+    headers: tuple[str, ...],
+    rows: list[tuple[str, ...]],
+    column_styles: list[tuple[str, ...]],
+    empty_message: str = "Nenhum resultado encontrado.",
+    alignments: list[str] | None = None,
+) -> None:
+    """Exibe tabela formatada no terminal com cores por coluna."""
+    if not rows:
+        print(color(empty_message, Cyber.RED))
+        return
+
+    if alignments is None:
+        alignments = ["left"] * len(headers)
+
+    widths = [
+        max(len(headers[i]), *(len(row[i]) for row in rows))
+        for i in range(len(headers))
+    ]
+
+    print()
+    print(color("  ".join(header.ljust(widths[i]) for i, header in enumerate(headers)), Cyber.CYAN, Cyber.BOLD))
+    print(color("  ".join("-" * width for width in widths), Cyber.BLUE))
+    for row in rows:
+        cells = []
+        for i, value in enumerate(row):
+            aligned = value.ljust(widths[i]) if alignments[i] == "left" else value.rjust(widths[i])
+            cells.append(color(aligned, *column_styles[i]))
+        print("  ".join(cells))
+
+
 def write_output(
     path: str,
     data: Any,
@@ -260,6 +298,20 @@ def parse_extra_headers(raw_headers: list[str]) -> dict[str, str]:
     return headers
 
 
+def normalize_url(url: str) -> str:
+    """Normaliza e valida uma URL, adicionando https:// se necessario."""
+    url = url.strip()
+    if not url:
+        raise ValueError("informe uma URL alvo")
+    parsed = urlparse(url)
+    if not parsed.scheme:
+        url = "https://" + url
+        parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"URL invalida: {url}")
+    return url.rstrip("/")
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     """Adiciona argumentos compartilhados a um parser."""
     parser.add_argument("-t", "--timeout", type=float, default=5.0, help="Timeout em segundos. Padrao: 5")
@@ -278,6 +330,8 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bearer-token", dest="bearer_token", help="Token Bearer para autenticacao.")
     parser.add_argument("--cookie", help="Cookie para as requests. Ex: 'session=abc123; token=xyz'")
     parser.add_argument("--header", action="append", default=[], help="Header customizado (pode usar mais de um). Ex: 'X-Token: abc'")
+    parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
+    parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
 

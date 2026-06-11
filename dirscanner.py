@@ -21,7 +21,9 @@ from utils import (
     fetch,
     parse_auth,
     parse_extra_headers,
+    print_table,
     run_interactive_shell,
+    set_color,
     setup_logging,
     show_banner,
     status_color,
@@ -42,7 +44,7 @@ DEFAULT_PATHS = [
     "db", "database", "dump.sql", "backup.zip",
 ]
 
-DEFAULT_STATUSES = {200, 204, 301, 302, 307, 308, 401, 403}
+DEFAULT_STATUSES = frozenset({200, 204, 301, 302, 307, 308, 401, 403})
 
 """Scanner HTTP de diretórios e arquivos para alvos autorizados."""
 
@@ -306,7 +308,7 @@ def scan_target(
     return findings
 
 
-def print_table(findings: list[Finding]) -> None:
+def print_dir_table(findings: list[Finding]) -> None:
     """Imprime tabela formatada dos achados do scan."""
     if not findings:
         print(color("Nenhum diretorio/arquivo encontrado com os filtros atuais.", Cyber.RED))
@@ -390,7 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=parse_range,
         help="Filtrar por numero de palavras. Ex: 10-100",
     )
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) DirScanner/3.1")
+    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) DirScanner/3.1.5")
     return parser
 
 
@@ -416,7 +418,7 @@ def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -> list
         words_range=args.filter_words,
     )
     if not quiet:
-        print_table(findings)
+        print_dir_table(findings)
     return findings
 
 
@@ -424,6 +426,8 @@ def run_once(args: argparse.Namespace) -> int:
     """Executa um único scan com os argumentos fornecidos."""
     setup_logging(verbose=args.verbose, log_file=args.log_file)
     quiet = getattr(args, "quiet", False)
+    if getattr(args, "color", None) is not None:
+        set_color(args.color)
     if args.threads < 1:
         raise ValueError("threads precisa ser maior que zero")
 

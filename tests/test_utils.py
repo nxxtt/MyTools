@@ -20,9 +20,12 @@ from utils import (
     extract_title,
     fetch,
     header_get,
+    normalize_url,
     parse_auth,
     parse_extra_headers,
+    print_table,
     query_nvd,
+    set_color,
     setup_logging,
     status_color,
 )
@@ -41,21 +44,21 @@ class TestCyberConstants:
 
 class TestColor:
     def test_returns_plain_text_when_no_color(self, monkeypatch):
-        monkeypatch.setattr("utils.USE_COLOR", False)
+        monkeypatch.setattr("utils._USE_COLOR", False)
         assert color("hello", Cyber.RED) == "hello"
 
     def test_wraps_with_ansi_when_color(self, monkeypatch):
-        monkeypatch.setattr("utils.USE_COLOR", True)
+        monkeypatch.setattr("utils._USE_COLOR", True)
         result = color("hello", Cyber.RED)
         assert result == f"{Cyber.RED}hello{Cyber.RESET}"
 
     def test_multiple_styles(self, monkeypatch):
-        monkeypatch.setattr("utils.USE_COLOR", True)
+        monkeypatch.setattr("utils._USE_COLOR", True)
         result = color("hello", Cyber.RED, Cyber.BOLD)
         assert result == f"{Cyber.RED}{Cyber.BOLD}hello{Cyber.RESET}"
 
     def test_no_styles(self, monkeypatch):
-        monkeypatch.setattr("utils.USE_COLOR", True)
+        monkeypatch.setattr("utils._USE_COLOR", True)
         result = color("hello")
         assert result == f"hello{Cyber.RESET}"
 
@@ -211,8 +214,8 @@ class TestVersion:
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
 
-    def test_version_is_3_1_0(self):
-        assert __version__ == "3.1.0"
+    def test_version_is_3_1_5(self):
+        assert __version__ == "3.1.5"
 
 
 class TestParseAuthUtils:
@@ -389,7 +392,7 @@ class TestExtractHostname:
 class TestCreateSessionDefaultUA:
     def test_default_user_agent(self):
         session = create_session()
-        assert session.headers["User-Agent"] == "MyTools/3.1"
+        assert session.headers["User-Agent"] == "MyTools/3.1.5"
 
 
 class TestQueryNvd:
@@ -431,3 +434,85 @@ class TestQueryNvd:
         responses.add(responses.GET, "https://services.nvd.nist.gov/rest/json/cves/2.0", status=500)
         results = query_nvd("test")
         assert results == []
+
+
+class TestNormalizeUrl:
+    def test_with_scheme(self):
+        assert normalize_url("https://example.com") == "https://example.com"
+
+    def test_without_scheme_adds_https(self):
+        assert normalize_url("example.com") == "https://example.com"
+
+    def test_strips_trailing_slash(self):
+        assert normalize_url("https://example.com/") == "https://example.com"
+
+    def test_strips_whitespace(self):
+        assert normalize_url("  https://example.com  ") == "https://example.com"
+
+    def test_empty_raises(self):
+        try:
+            normalize_url("")
+            assert False, "Should have raised"
+        except ValueError:
+            pass
+
+    def test_invalid_scheme_raises(self):
+        try:
+            normalize_url("ftp://example.com")
+            assert False, "Should have raised"
+        except ValueError:
+            pass
+
+    def test_no_netloc_raises(self):
+        try:
+            normalize_url("http://")
+            assert False, "Should have raised"
+        except ValueError:
+            pass
+
+
+class TestSetColor:
+    def test_disables_color(self, monkeypatch):
+        monkeypatch.setattr("utils._USE_COLOR", True)
+        set_color(False)
+        import utils
+        assert utils._USE_COLOR is False
+        set_color(True)
+
+    def test_enables_color(self, monkeypatch):
+        monkeypatch.setattr("utils._USE_COLOR", False)
+        set_color(True)
+        import utils
+        assert utils._USE_COLOR is True
+        set_color(False)
+
+
+class TestPrintTable:
+    def test_empty_rows(self, capsys):
+        print_table(("A", "B"), [], [(Cyber.WHITE,)], empty_message="nothing")
+        captured = capsys.readouterr()
+        assert "nothing" in captured.out
+
+    def test_prints_header_and_rows(self, capsys, monkeypatch):
+        monkeypatch.setattr("utils._USE_COLOR", False)
+        print_table(
+            ("NAME", "VALUE"),
+            [("foo", "bar"), ("baz", "qux")],
+            [(Cyber.WHITE,), (Cyber.CYAN,)],
+        )
+        captured = capsys.readouterr()
+        assert "NAME" in captured.out
+        assert "foo" in captured.out
+        assert "bar" in captured.out
+
+    def test_alignments(self, capsys, monkeypatch):
+        monkeypatch.setattr("utils._USE_COLOR", False)
+        print_table(
+            ("LEFT", "RIGHT"),
+            [("a", "1")],
+            [(Cyber.WHITE,), (Cyber.WHITE,)],
+            alignments=["left", "right"],
+        )
+        captured = capsys.readouterr()
+        assert "a" in captured.out
+        assert "1" in captured.out

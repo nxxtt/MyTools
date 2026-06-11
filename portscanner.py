@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from typing import Iterable
 
-from utils import Cyber, color, setup_logging, show_banner, write_output, run_interactive_shell, extract_hostname, __version__
+from utils import Cyber, color, print_table, set_color, setup_logging, show_banner, write_output, run_interactive_shell, extract_hostname, __version__
 
 import logging
 
@@ -140,12 +140,14 @@ def service_name(port: int) -> str:
         return "unknown"
 
 
-BANNER_PROBES = {
+from types import MappingProxyType
+
+BANNER_PROBES = MappingProxyType({
     80: b"HEAD / HTTP/1.0\r\n\r\n",
     8080: b"HEAD / HTTP/1.0\r\n\r\n",
     8000: b"HEAD / HTTP/1.0\r\n\r\n",
     8443: b"HEAD / HTTP/1.0\r\n\r\n",
-}
+})
 
 
 def grab_banner(sock: socket.socket, port: int, timeout: float) -> str:
@@ -257,38 +259,25 @@ def ip_sort_key(address: str) -> tuple[int, int, str]:
         return (2, 0, address)
 
 
-def print_table(findings: list[Finding]) -> None:
+def print_port_table(findings: list[Finding]) -> None:
     """Exibe os findings em formato de tabela colorida no terminal."""
-    if not findings:
-        print(color("Nenhuma porta aberta encontrada.", Cyber.RED))
-        return
-
     headers = ("HOST", "IP", "PORT", "SERVICE", "BANNER")
     rows = [
         (item.host, item.address, str(item.port), item.service, item.banner)
         for item in findings
     ]
-    widths = [
-        max(len(headers[index]), *(len(row[index]) for row in rows))
-        for index in range(len(headers))
-    ]
-
-    print()
-    print(color("  ".join(header.ljust(widths[index]) for index, header in enumerate(headers)), Cyber.CYAN, Cyber.BOLD))
-    print(color("  ".join("-" * width for width in widths), Cyber.BLUE))
-    for row in rows:
-        host, address, port, service, row_banner = row
-        print(
-            "  ".join(
-                (
-                    color(host.ljust(widths[0]), Cyber.WHITE),
-                    color(address.ljust(widths[1]), Cyber.CYAN),
-                    color(port.ljust(widths[2]), Cyber.YELLOW),
-                    color(service.ljust(widths[3]), Cyber.MAGENTA),
-                    color(row_banner.ljust(widths[4]), Cyber.GRAY),
-                )
-            )
-        )
+    print_table(
+        headers=headers,
+        rows=rows,
+        column_styles=[
+            (Cyber.WHITE,),
+            (Cyber.CYAN,),
+            (Cyber.YELLOW,),
+            (Cyber.MAGENTA,),
+            (Cyber.GRAY,),
+        ],
+        empty_message="Nenhuma porta aberta encontrada.",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -343,6 +332,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="Mostra mensagens de debug no terminal.")
     parser.add_argument("--log-file", help="Salva logs em arquivo.")
     parser.add_argument("-q", "--quiet", action="store_true", help="Modo silencioso: sem banner/progresso. Requer -o.")
+    parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
+    parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
@@ -351,6 +342,8 @@ def run_once(args: argparse.Namespace) -> int:
     """Executa uma única varredura com os argumentos fornecidos."""
     setup_logging(verbose=args.verbose, log_file=args.log_file)
     quiet = getattr(args, "quiet", False)
+    if getattr(args, "color", None) is not None:
+        set_color(args.color)
 
     if args.threads is not None:
         import warnings
@@ -385,7 +378,7 @@ def run_once(args: argparse.Namespace) -> int:
         with_banner=args.banner,
     )
     if not quiet:
-        print_table(findings)
+        print_port_table(findings)
     if args.output:
         write_output(
             args.output,
