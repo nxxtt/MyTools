@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 
 import responses
 
@@ -261,10 +262,10 @@ class TestSignatureDictionaries:
             assert "body" in sigs
             assert len(sigs["body"]) > 0
 
-    def test_server_patterns_are_strings(self):
+    def test_server_patterns_are_compiled(self):
         for name, pattern in SERVER_PATTERNS.items():
             assert isinstance(name, str)
-            assert isinstance(pattern, str)
+            assert isinstance(pattern, re.Pattern)
 
 
 class TestBuildParser:
@@ -363,7 +364,7 @@ class TestBuildParserV3:
     def test_default_user_agent(self):
         parser = build_parser()
         args = parser.parse_args(["https://example.com"])
-        assert "WebRecon/3.0" in args.user_agent
+        assert "WebRecon/3.1" in args.user_agent
 
 
 class TestExtractVersions:

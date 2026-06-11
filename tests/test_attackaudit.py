@@ -248,8 +248,9 @@ class TestBuildFindings:
         assert len(headers_findings) == len(SECURITY_HEADERS_RECS)
 
     def test_cors_wildcard(self):
+        from requests.structures import CaseInsensitiveDict
         parser = PageParser()
-        headers = {"Access-Control-Allow-Origin": "*"}
+        headers = CaseInsensitiveDict({"Access-Control-Allow-Origin": "*"})
         findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com")
         cors_findings = [f for f in findings if f.category == "cors"]
         assert len(cors_findings) == 1
@@ -291,8 +292,9 @@ class TestBuildFindings:
         assert exposure[0].severity == "medium"
 
     def test_server_exposed(self):
+        from requests.structures import CaseInsensitiveDict
         parser = PageParser()
-        headers = {"Server": "nginx/1.20"}
+        headers = CaseInsensitiveDict({"Server": "nginx/1.20"})
         findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com")
         fp = [f for f in findings if f.category == "fingerprint"]
         assert any("Server" in f.item for f in fp)
@@ -420,7 +422,7 @@ class TestSQLiPatterns:
     def test_patterns_are_regex(self):
         for db, patterns in SQL_ERROR_PATTERNS.items():
             for pattern in patterns:
-                re.compile(pattern)
+                assert isinstance(pattern, re.Pattern)
 
 
 class TestSQLIPayloads:

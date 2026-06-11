@@ -88,7 +88,8 @@ class TestHeaderGet:
         assert header_get({"Content-Type": "text/html"}, "Content-Type") == "text/html"
 
     def test_case_insensitive(self):
-        assert header_get({"CONTENT-TYPE": "text/html"}, "content-type") == "text/html"
+        from requests.structures import CaseInsensitiveDict
+        assert header_get(CaseInsensitiveDict({"Content-Type": "text/html"}), "content-type") == "text/html"
 
     def test_missing_returns_empty(self):
         assert header_get({"Content-Type": "text/html"}, "X-Custom") == ""
@@ -210,8 +211,8 @@ class TestVersion:
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
 
-    def test_version_is_3_0_0(self):
-        assert __version__ == "3.0.0"
+    def test_version_is_3_1_0(self):
+        assert __version__ == "3.1.0"
 
 
 class TestParseAuthUtils:
@@ -388,7 +389,7 @@ class TestExtractHostname:
 class TestCreateSessionDefaultUA:
     def test_default_user_agent(self):
         session = create_session()
-        assert session.headers["User-Agent"] == "MyTools/3.0"
+        assert session.headers["User-Agent"] == "MyTools/3.1"
 
 
 class TestQueryNvd:

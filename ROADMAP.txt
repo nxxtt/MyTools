@@ -1,0 +1,21 @@
+# MyTools Roadmap
+# Itens futuros identificados na auditoria de otimizacoes
+
+## 1. INTERESTING_PATHS configuravel via CLI (Original #13)
+# Atualmente INTERESTING_PATHS em webrecon.py e hardcodeado.
+# Adicionar --paths-file/--paths para carregar paths customizados de arquivo.
+# Ex: mytools-recon http://target -p meus_paths.txt
+
+## 2. print_table() DRY entre portscanner e dirscanner (Original #5)
+# Colunas sao levemente diferentes (~8 linhas de diferenca).
+# Poderia extrair uma funcao generica com columns como parametro.
+
+## 3. normalize_url() inconsistente (Original #6)
+# Cada modulo tem sua propria normalizacao de URL.
+# Extrair para utils.py com protocolo padrao.
+
+## 4. BANNER_PROBES como frozenset (Original #10)
+# Melhoria menor, ja e frozenset mas pode ser refinado.
+
+## 5. USE_COLOR em import time (Original #14)
+# Por design, mas pode ser tornavel dinamico com --color/--no-color.

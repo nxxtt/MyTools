@@ -138,43 +138,43 @@ LIBRARY_SIGNATURES: dict[str, dict[str, list[str]]] = {
     },
 }
 
-SERVER_PATTERNS: dict[str, str] = {
-    "Apache": r"Apache",
-    "Nginx": r"nginx",
-    "IIS": r"Microsoft-IIS",
-    "LiteSpeed": r"LiteSpeed",
-    "Caddy": r"Caddy",
-    "PHP": r"PHP/[\d.]+",
-    "Python": r"Python|WSGI|Gunicorn|uWSGI",
-    "Node.js": r"Express|Node\.js",
+SERVER_PATTERNS: dict[str, re.Pattern[str]] = {
+    "Apache": re.compile(r"Apache", re.IGNORECASE),
+    "Nginx": re.compile(r"nginx", re.IGNORECASE),
+    "IIS": re.compile(r"Microsoft-IIS", re.IGNORECASE),
+    "LiteSpeed": re.compile(r"LiteSpeed", re.IGNORECASE),
+    "Caddy": re.compile(r"Caddy", re.IGNORECASE),
+    "PHP": re.compile(r"PHP/[\d.]+", re.IGNORECASE),
+    "Python": re.compile(r"Python|WSGI|Gunicorn|uWSGI", re.IGNORECASE),
+    "Node.js": re.compile(r"Express|Node\.js", re.IGNORECASE),
 }
 
 # ---------------------------------------------------------------------------
 # Version extraction patterns (headers + body)
 # ---------------------------------------------------------------------------
 
-VERSION_PATTERNS: dict[str, list[tuple[str, str]]] = {
-    "Apache": [(r"Apache/([\d.]+)", "header")],
-    "Nginx": [(r"nginx/([\d.]+)", "header")],
-    "PHP": [(r"PHP/([\d.]+)", "header")],
-    "IIS": [(r"Microsoft-IIS/([\d.]+)", "header")],
-    "LiteSpeed": [(r"LiteSpeed/([\d.]+)", "header")],
-    "Caddy": [(r"Caddy", "header")],
+VERSION_PATTERNS: dict[str, list[tuple[re.Pattern[str], str]]] = {
+    "Apache": [(re.compile(r"Apache/([\d.]+)", re.IGNORECASE), "header")],
+    "Nginx": [(re.compile(r"nginx/([\d.]+)", re.IGNORECASE), "header")],
+    "PHP": [(re.compile(r"PHP/([\d.]+)", re.IGNORECASE), "header")],
+    "IIS": [(re.compile(r"Microsoft-IIS/([\d.]+)", re.IGNORECASE), "header")],
+    "LiteSpeed": [(re.compile(r"LiteSpeed/([\d.]+)", re.IGNORECASE), "header")],
+    "Caddy": [(re.compile(r"Caddy", re.IGNORECASE), "header")],
     "ASP.NET": [
-        (r"X-AspNet-Version:\s*([\d.]+)", "header"),
-        (r"X-AspNetMvc-Version:\s*([\d.]+)", "header"),
+        (re.compile(r"X-AspNet-Version:\s*([\d.]+)", re.IGNORECASE), "header"),
+        (re.compile(r"X-AspNetMvc-Version:\s*([\d.]+)", re.IGNORECASE), "header"),
     ],
-    "WordPress": [(r'content="WordPress\s+([\d.]+)"', "body")],
-    "Joomla": [(r'content="Joomla!\s*([\d.]+)"', "body")],
-    "Drupal": [(r'content="Drupal\s+([\d.]+)"', "body")],
-    "Angular": [(r'ng-version="([\d.]+)"', "body")],
+    "WordPress": [(re.compile(r'content="WordPress\s+([\d.]+)"', re.IGNORECASE), "body")],
+    "Joomla": [(re.compile(r'content="Joomla!\s*([\d.]+)"', re.IGNORECASE), "body")],
+    "Drupal": [(re.compile(r'content="Drupal\s+([\d.]+)"', re.IGNORECASE), "body")],
+    "Angular": [(re.compile(r'ng-version="([\d.]+)"', re.IGNORECASE), "body")],
     "jQuery": [
-        (r"jquery[.-]([\d]+(?:\.[\d]+)*)", "body"),
-        (r"jquery\.min\.js\?v=([\d]+(?:\.[\d]+)*)", "body"),
+        (re.compile(r"jquery[.-]([\d]+(?:\.[\d]+)*)", re.IGNORECASE), "body"),
+        (re.compile(r"jquery\.min\.js\?v=([\d]+(?:\.[\d]+)*)", re.IGNORECASE), "body"),
     ],
     "Bootstrap": [
-        (r"bootstrap[.-]([\d]+(?:\.[\d]+)*)", "body"),
-        (r"bootstrap\.min\.css\?v=([\d]+(?:\.[\d]+)*)", "body"),
+        (re.compile(r"bootstrap[.-]([\d]+(?:\.[\d]+)*)", re.IGNORECASE), "body"),
+        (re.compile(r"bootstrap\.min\.css\?v=([\d]+(?:\.[\d]+)*)", re.IGNORECASE), "body"),
     ],
 }
 
@@ -224,10 +224,12 @@ def detect_technologies(
     body: str,
     url: str,
     cookies: list[str] | None = None,
+    lower_headers: dict[str, str] | None = None,
 ) -> dict[str, list[str]]:
     """Detecta tecnologias (CMS, frameworks, libs) a partir de headers, body e cookies."""
     result: dict[str, list[str]] = {"cms": [], "frameworks": [], "libraries": [], "server": []}
-    lower_headers = {k.lower(): v for k, v in headers.items()}
+    if lower_headers is None:
+        lower_headers = {k.lower(): v for k, v in headers.items()}
     header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
     body_lower = body.lower()
     cookie_blob = " ".join((cookies or [])).lower()
@@ -250,7 +252,7 @@ def detect_technologies(
     server_header = lower_headers.get("server", "")
     if server_header:
         for name, pattern in SERVER_PATTERNS.items():
-            if re.search(pattern, server_header, re.IGNORECASE):
+            if pattern.search(server_header):
                 result["server"].append(name)
 
     return result
@@ -259,6 +261,7 @@ def detect_technologies(
 def extract_versions(
     headers: dict[str, str],
     body: str,
+    lower_headers: dict[str, str] | None = None,
 ) -> list[tuple[str, str]]:
     """Extrai nomes e versoes de tecnologias a partir de headers e body.
 
@@ -267,7 +270,8 @@ def extract_versions(
     """
     found: list[tuple[str, str]] = []
     seen: set[str] = set()
-    lower_headers = {k.lower(): v for k, v in headers.items()}
+    if lower_headers is None:
+        lower_headers = {k.lower(): v for k, v in headers.items()}
     header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
     body_lower = body.lower()
 
@@ -276,7 +280,7 @@ def extract_versions(
             continue
         for pattern, source in patterns:
             blob = header_blob if source == "header" else body_lower
-            match = re.search(pattern, blob, re.IGNORECASE)
+            match = pattern.search(blob)
             if match:
                 version = match.group(1) if match.lastindex else ""
                 if version:
@@ -472,11 +476,12 @@ def run_recon(
         body=text,
         url=target,
         cookies=cookie_list,
+        lower_headers=lower_headers,
     )
 
     cve_findings: list[CVEFinding] | None = None
     if cve:
-        versions = extract_versions(headers=headers, body=text)
+        versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers)
         if versions:
             cve_findings = lookup_cves(versions, api_key=nvd_api_key)
         else:
@@ -600,7 +605,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
     parser.add_argument("--cve", action="store_true", help="Busca CVEs para versoes detectadas (via NIST NVD).")
     parser.add_argument("--nvd-api-key", dest="nvd_api_key", help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).")
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) WebRecon/3.0")
+    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) WebRecon/3.1")
     return parser
 
 

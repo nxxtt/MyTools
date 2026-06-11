@@ -213,7 +213,7 @@ def scan_path(
         return None
 
     content_type = headers.get("content-type", "")
-    text = content.decode("utf-8", errors="replace") if "text/" in content_type.lower() else ""
+    text = content.decode("utf-8", errors="replace") if "text/html" in content_type.lower() else ""
     return Finding(
         url=full_url,
         path="/" + path,
@@ -390,7 +390,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=parse_range,
         help="Filtrar por numero de palavras. Ex: 10-100",
     )
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) DirScanner/3.0")
+    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) DirScanner/3.1")
     return parser
 
 

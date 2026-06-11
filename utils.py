@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import json
 import logging
@@ -13,6 +14,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -20,7 +22,7 @@ from urllib3.util.retry import Retry
 
 logger = logging.getLogger("mytools")
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 SECURITY_HEADERS = [
     "strict-transport-security",
@@ -114,7 +116,7 @@ class RateLimiter:
 
 
 def create_session(
-    user_agent: str = "MyTools/3.0",
+    user_agent: str = "MyTools/3.1",
     proxy: str | None = None,
     max_retries: int = 3,
     backoff_factor: float = 0.5,
@@ -194,14 +196,7 @@ def status_color(status: int) -> str:
 
 def header_get(headers: Mapping[str, str], name: str) -> str:
     """Obtém o valor de um header HTTP, ignorando maiúsculas/minúsculas."""
-    value = headers.get(name)
-    if value is not None:
-        return value
-    lower_name = name.lower()
-    for key, value in headers.items():
-        if key.lower() == lower_name:
-            return value
-    return ""
+    return headers.get(name, "")
 
 
 def extract_title(text: str) -> str:
@@ -250,7 +245,6 @@ def parse_auth(value: str) -> dict[str, str]:
     if ":" not in value:
         raise argparse.ArgumentTypeError(f"formato invalido: {value!r} (use user:pass)")
     user, password = value.split(":", 1)
-    import base64
     token = base64.b64encode(f"{user}:{password}".encode()).decode()
     return {"Authorization": f"Basic {token}"}
 
@@ -307,7 +301,6 @@ def apply_session_auth(
 
 def extract_hostname(url: str) -> str:
     """Extrai hostname de uma URL para uso em nomes de arquivo."""
-    from urllib.parse import urlparse
     parsed = urlparse(url)
     host = parsed.hostname or url
     return host.replace("/", "_").replace(":", "_")

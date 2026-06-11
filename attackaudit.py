@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import secrets
@@ -63,49 +64,49 @@ RISK_WEIGHTS = {
     "info": 0,
 }
 
-SQL_ERROR_PATTERNS: dict[str, list[str]] = {
+SQL_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "mysql": [
-        r"You have an error in your SQL syntax",
-        r"Warning.*mysql_",
-        r"MySqlException",
-        r"valid MySQL result",
-        r"check the manual that corresponds to your MySQL",
-        r"MySqlClient\.",
-        r"com\.mysql\.jdbc",
+        re.compile(r"You have an error in your SQL syntax", re.IGNORECASE),
+        re.compile(r"Warning.*mysql_", re.IGNORECASE),
+        re.compile(r"MySqlException", re.IGNORECASE),
+        re.compile(r"valid MySQL result", re.IGNORECASE),
+        re.compile(r"check the manual that corresponds to your MySQL", re.IGNORECASE),
+        re.compile(r"MySqlClient\.", re.IGNORECASE),
+        re.compile(r"com\.mysql\.jdbc", re.IGNORECASE),
     ],
     "postgresql": [
-        r"PostgreSQL.*ERROR",
-        r"Warning.*\Wpg_",
-        r"valid PostgreSQL result",
-        r"Npgsql\.",
-        r"PG::SyntaxError",
-        r"org\.postgresql\.util\.PSQLException",
-        r"ERROR:\s+syntax error at or near",
+        re.compile(r"PostgreSQL.*ERROR", re.IGNORECASE),
+        re.compile(r"Warning.*\Wpg_", re.IGNORECASE),
+        re.compile(r"valid PostgreSQL result", re.IGNORECASE),
+        re.compile(r"Npgsql\.", re.IGNORECASE),
+        re.compile(r"PG::SyntaxError", re.IGNORECASE),
+        re.compile(r"org\.postgresql\.util\.PSQLException", re.IGNORECASE),
+        re.compile(r"ERROR:\s+syntax error at or near", re.IGNORECASE),
     ],
     "mssql": [
-        r"Driver.* SQL[\-\_\ ]*Server",
-        r"OLE DB.* SQL Server",
-        r"(\W|\A)SQL Server[^a-zA-Z0-9]",
-        r"ODBC SQL Server Driver",
-        r"SQLJDBC",
-        r"com\.microsoft\.sqlserver\.jdbc",
-        r"Unclosed quotation mark after the character string",
+        re.compile(r"Driver.* SQL[\-\_\ ]*Server", re.IGNORECASE),
+        re.compile(r"OLE DB.* SQL Server", re.IGNORECASE),
+        re.compile(r"(\W|\A)SQL Server[^a-zA-Z0-9]", re.IGNORECASE),
+        re.compile(r"ODBC SQL Server Driver", re.IGNORECASE),
+        re.compile(r"SQLJDBC", re.IGNORECASE),
+        re.compile(r"com\.microsoft\.sqlserver\.jdbc", re.IGNORECASE),
+        re.compile(r"Unclosed quotation mark after the character string", re.IGNORECASE),
     ],
     "oracle": [
-        r"(\W|\A)ORA-[0-9][0-9][0-9][0-9]",
-        r"Oracle error",
-        r"Oracle.*Driver",
-        r"Warning.*\Woci_",
-        r"Warning.*\Wora_",
+        re.compile(r"(\W|\A)ORA-[0-9][0-9][0-9][0-9]", re.IGNORECASE),
+        re.compile(r"Oracle error", re.IGNORECASE),
+        re.compile(r"Oracle.*Driver", re.IGNORECASE),
+        re.compile(r"Warning.*\Woci_", re.IGNORECASE),
+        re.compile(r"Warning.*\Wora_", re.IGNORECASE),
     ],
     "sqlite": [
-        r"SQLite/JDBCDriver",
-        r"SQLite\.Exception",
-        r"System\.Data\.SQLite\.SQLiteException",
-        r"Warning.*sqlite_",
-        r"Warning.*SQLite3::",
-        r"(\W|\A)SQLITE_ERROR",
-        r"SQLite error",
+        re.compile(r"SQLite/JDBCDriver", re.IGNORECASE),
+        re.compile(r"SQLite\.Exception", re.IGNORECASE),
+        re.compile(r"System\.Data\.SQLite\.SQLiteException", re.IGNORECASE),
+        re.compile(r"Warning.*sqlite_", re.IGNORECASE),
+        re.compile(r"Warning.*SQLite3::", re.IGNORECASE),
+        re.compile(r"(\W|\A)SQLITE_ERROR", re.IGNORECASE),
+        re.compile(r"SQLite error", re.IGNORECASE),
     ],
 }
 
@@ -116,6 +117,8 @@ CSRF_FIELD_NAMES = {
     "authenticity_token", "xsrf-token", "_xsrf", "XSRF-TOKEN",
     "_csrf_token", "csrfmiddlewaretoken", "__RequestVerificationToken",
 }
+
+CSRF_FIELD_NAMES_LOWER = {name.lower() for name in CSRF_FIELD_NAMES}
 
 
 class PageParser(HTMLParser):
@@ -145,7 +148,7 @@ class PageParser(HTMLParser):
             input_name = attrs_dict.get("name", "").lower()
             if input_type == "password":
                 self.password_inputs += 1
-            if input_type == "hidden" and input_name in {f.lower() for f in CSRF_FIELD_NAMES}:
+            if input_type == "hidden" and input_name in CSRF_FIELD_NAMES_LOWER:
                 self._current_form_has_csrf = True
             if input_type == "hidden" and input_name:
                 self._hidden_inputs.append((input_name, attrs_dict.get("value", "")))
@@ -377,7 +380,7 @@ def check_sqli_errors(session, base_url: str, timeout: float) -> list[str]:
         text = body.decode("utf-8", errors="replace")
         for db_name, patterns in SQL_ERROR_PATTERNS.items():
             for pattern in patterns:
-                if re.search(pattern, text, re.IGNORECASE):
+                if pattern.search(text):
                     if db_name not in detected_databases:
                         detected_databases.append(db_name)
                     break
@@ -753,7 +756,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Ativa testes de vulnerabilidade (XSS reflection, SQLi error-based).",
     )
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) AttackAudit/3.0")
+    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) AttackAudit/3.1")
     return parser
 
 
@@ -809,11 +812,10 @@ def run_once(args: argparse.Namespace) -> int:
         if len(all_results) == 1:
             _save_audit_output(args.output, all_results[0], quiet=quiet)
         else:
-            import json as _json
             consolidated = [asdict(r) for r in all_results]
             _path = args.output
             with open(_path, "w", encoding="utf-8") as fh:
-                _json.dump(consolidated, fh, indent=2)
+                json.dump(consolidated, fh, indent=2)
                 fh.write("\n")
             if not quiet:
                 print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado consolidado salvo em {color(_path, Cyber.GREEN)}")
