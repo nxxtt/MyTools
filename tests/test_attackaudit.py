@@ -6,7 +6,7 @@ import re
 import responses
 
 from attackaudit import (
-    CSRF_FIELD_NAMES,
+    CSRF_FIELD_NAMES_LOWER,
     SQL_ERROR_PATTERNS,
     SQLI_PAYLOADS,
     AuditResult,
@@ -435,11 +435,11 @@ class TestSQLIPayloads:
 
 class TestCSIFFieldNames:
     def test_not_empty(self):
-        assert len(CSRF_FIELD_NAMES) > 0
+        assert len(CSRF_FIELD_NAMES_LOWER) > 0
 
     def test_contains_common_names(self):
         for name in ["csrf_token", "_csrf", "_token", "authenticity_token", "csrfmiddlewaretoken"]:
-            assert name in CSRF_FIELD_NAMES
+            assert name in CSRF_FIELD_NAMES_LOWER
 
 
 class TestCheckTLSVersions:

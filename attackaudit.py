@@ -33,6 +33,7 @@ from utils import (
     show_banner,
     status_color,
     write_output,
+    __version__,
 )
 
 import logging
@@ -113,13 +114,11 @@ SQL_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
 
 SQLI_PAYLOADS = ["'", "\"", "`", "' OR '1'='1", "\" OR \"1\"=\"1"]
 
-CSRF_FIELD_NAMES = frozenset({
+CSRF_FIELD_NAMES_LOWER = frozenset({
     "csrf_token", "_csrf", "csrf", "csrftoken", "_token",
-    "authenticity_token", "xsrf-token", "_xsrf", "XSRF-TOKEN",
-    "_csrf_token", "csrfmiddlewaretoken", "__RequestVerificationToken",
+    "authenticity_token", "xsrf-token", "_xsrf", "xsrf-token",
+    "_csrf_token", "csrfmiddlewaretoken", "__requestverificationtoken",
 })
-
-CSRF_FIELD_NAMES_LOWER = frozenset(name.lower() for name in CSRF_FIELD_NAMES)
 
 
 class PageParser(HTMLParser):
@@ -419,11 +418,26 @@ def scan_paths(
     probes: list[Probe] = []
     target_paths = paths if paths is not None else INTERESTING_PATHS
     with ThreadPoolExecutor(max_workers=threads) as executor:
-        futures = [
-            executor.submit(probe_path, session, rate_limiter, base_url, path, timeout)
-            for path in target_paths
-        ]
-        for future in as_completed(futures):
+        batch_size = threads * 2
+        pending = []
+        for path in target_paths:
+            pending.append(executor.submit(probe_path, session, rate_limiter, base_url, path, timeout))
+            if len(pending) >= batch_size:
+                for future in as_completed(pending):
+                    try:
+                        probe = future.result()
+                    except Exception:
+                        continue
+                    if probe:
+                        probes.append(probe)
+                        print(
+                            f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
+                            f"{color(str(probe.status).ljust(3), status_color(probe.status), Cyber.BOLD)} "
+                            f"{color(str(probe.size).rjust(7), Cyber.YELLOW)}B "
+                            f"{color(probe.url, Cyber.CYAN)}"
+                        )
+                pending.clear()
+        for future in as_completed(pending):
             try:
                 probe = future.result()
             except Exception:
@@ -756,7 +770,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Ativa testes de vulnerabilidade (XSS reflection, SQLi error-based).",
     )
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) AttackAudit/3.1.5")
+    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) AttackAudit/{__version__}")
     return parser
 
 

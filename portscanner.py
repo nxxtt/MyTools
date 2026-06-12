@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from types import MappingProxyType
 from typing import Iterable
 
-from utils import Cyber, color, print_table, set_color, setup_logging, show_banner, write_output, run_interactive_shell, __version__
+from utils import Cyber, color, parse_int_range, print_table, set_color, setup_logging, show_banner, write_output, run_interactive_shell, __version__
 
 import logging
 
@@ -63,38 +63,12 @@ class Finding:
 
 def parse_ports(value: str) -> list[int]:
     """Converte string de portas em lista ordenada de inteiros."""
-    if value == "default":
-        return DEFAULT_PORTS
-    if value == "top100":
-        return TOP_100_PORTS
-    if value == "all":
-        return list(range(1, 65536))
-
-    ports: set[int] = set()
-    for part in value.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        try:
-            if "-" in part:
-                start_raw, end_raw = part.split("-", 1)
-                start, end = int(start_raw), int(end_raw)
-                if start > end:
-                    start, end = end, start
-                ports.update(range(start, end + 1))
-            else:
-                ports.add(int(part))
-        except ValueError:
-            raise argparse.ArgumentTypeError(f"porta invalida: {part!r}")
-
-    invalid = [port for port in ports if port < 1 or port > 65535]
-    if invalid:
-        raise argparse.ArgumentTypeError(
-            f"portas invalidas: {', '.join(map(str, sorted(invalid)))}"
-        )
-    if not ports:
-        raise argparse.ArgumentTypeError("informe pelo menos uma porta")
-    return sorted(ports)
+    aliases = {
+        "default": DEFAULT_PORTS,
+        "top100": TOP_100_PORTS,
+        "all": list(range(1, 65536)),
+    }
+    return parse_int_range(value, 1, 65535, "porta", aliases)
 
 
 def resolve_targets(values: Iterable[str]) -> list[tuple[str, str]]:

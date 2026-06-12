@@ -122,7 +122,7 @@ class RateLimiter:
 
 
 def create_session(
-    user_agent: str = "MyTools/3.1.5",
+    user_agent: str = f"MyTools/{__version__}",
     proxy: str | None = None,
     max_retries: int = 3,
     backoff_factor: float = 0.5,
@@ -203,6 +203,44 @@ def status_color(status: int) -> str:
 def header_get(headers: Mapping[str, str], name: str) -> str:
     """Obtém o valor de um header HTTP, ignorando maiúsculas/minúsculas."""
     return headers.get(name, "")
+
+
+def parse_int_range(
+    value: str,
+    min_val: int,
+    max_val: int,
+    error_label: str,
+    aliases: dict[str, list[int]] | None = None,
+) -> list[int]:
+    """Converte string de inteiros/ranges em lista ordenada. Ex: '80,443,8000-9000'."""
+    if aliases and value in aliases:
+        return aliases[value]
+
+    result: set[int] = set()
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            if "-" in part:
+                start_raw, end_raw = part.split("-", 1)
+                start, end = int(start_raw), int(end_raw)
+                if start > end:
+                    start, end = end, start
+                result.update(range(start, end + 1))
+            else:
+                result.add(int(part))
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{error_label} invalido: {part!r}")
+
+    invalid = [v for v in result if v < min_val or v > max_val]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"{error_label}s invalidos: {', '.join(map(str, sorted(invalid)))}"
+        )
+    if not result:
+        raise argparse.ArgumentTypeError(f"informe pelo menos um {error_label}")
+    return sorted(result)
 
 
 def extract_title(text: str) -> str:

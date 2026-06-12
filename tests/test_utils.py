@@ -6,6 +6,7 @@ import os
 import threading
 import time
 
+import pytest
 import responses
 
 from utils import (
@@ -22,6 +23,7 @@ from utils import (
     normalize_url,
     parse_auth,
     parse_extra_headers,
+    parse_int_range,
     print_table,
     query_nvd,
     set_color,
@@ -515,3 +517,43 @@ class TestPrintTable:
         captured = capsys.readouterr()
         assert "a" in captured.out
         assert "1" in captured.out
+
+
+class TestParseIntRange:
+    def test_single_value(self):
+        assert parse_int_range("80", 1, 65535, "porta") == [80]
+
+    def test_comma_separated(self):
+        assert parse_int_range("80,443", 1, 65535, "porta") == [80, 443]
+
+    def test_range(self):
+        result = parse_int_range("80-83", 1, 65535, "porta")
+        assert result == [80, 81, 82, 83]
+
+    def test_reversed_range(self):
+        result = parse_int_range("83-80", 1, 65535, "porta")
+        assert result == [80, 81, 82, 83]
+
+    def test_mixed(self):
+        result = parse_int_range("22,80-82,443", 1, 65535, "porta")
+        assert result == [22, 80, 81, 82, 443]
+
+    def test_aliases(self):
+        aliases = {"default": [80, 443]}
+        assert parse_int_range("default", 1, 65535, "porta", aliases) == [80, 443]
+
+    def test_out_of_range_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="invalidos"):
+            parse_int_range("0", 1, 65535, "porta")
+
+    def test_invalid_value_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="invalido"):
+            parse_int_range("abc", 1, 65535, "porta")
+
+    def test_empty_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="pelo menos um"):
+            parse_int_range("", 1, 65535, "porta")
+
+    def test_deduplication(self):
+        result = parse_int_range("80,80,80", 1, 65535, "porta")
+        assert result == [80]

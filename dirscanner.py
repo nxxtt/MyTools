@@ -19,12 +19,14 @@ from utils import (
     extract_title,
     fetch,
     parse_extra_headers,
+    parse_int_range,
     run_interactive_shell,
     set_color,
     setup_logging,
     show_banner,
     status_color,
     write_output,
+    __version__,
 )
 
 import logging
@@ -85,36 +87,11 @@ def normalize_base_url(url: str) -> str:
 
 def parse_statuses(value: str) -> set[int]:
     """Converte string de status HTTP para conjunto de inteiros."""
-    if value == "default":
-        return set(DEFAULT_STATUSES)
-    if value == "all":
-        return set(range(100, 600))
-
-    statuses: set[int] = set()
-    for part in value.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        try:
-            if "-" in part:
-                start_raw, end_raw = part.split("-", 1)
-                start, end = int(start_raw), int(end_raw)
-                if start > end:
-                    start, end = end, start
-                statuses.update(range(start, end + 1))
-            else:
-                statuses.add(int(part))
-        except ValueError:
-            raise argparse.ArgumentTypeError(f"status invalido: {part!r}")
-
-    invalid = [status for status in statuses if status < 100 or status > 599]
-    if invalid:
-        raise argparse.ArgumentTypeError(
-            f"status invalidos: {', '.join(map(str, sorted(invalid)))}"
-        )
-    if not statuses:
-        raise argparse.ArgumentTypeError("informe pelo menos um status")
-    return statuses
+    aliases = {
+        "default": sorted(DEFAULT_STATUSES),
+        "all": list(range(100, 600)),
+    }
+    return set(parse_int_range(value, 100, 599, "status", aliases))
 
 
 def parse_extensions(value: str) -> list[str]:
@@ -264,12 +241,36 @@ def scan_target(
     )
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = [
-            executor.submit(scan_path, session, rate_limiter, base_url, path, timeout, statuses, method)
-            for path in paths
-        ]
-
-        for future in as_completed(futures):
+        batch_size = workers * 2
+        pending = []
+        for path in paths:
+            pending.append(executor.submit(scan_path, session, rate_limiter, base_url, path, timeout, statuses, method))
+            if len(pending) >= batch_size:
+                for future in as_completed(pending):
+                    try:
+                        finding = future.result()
+                    except Exception:
+                        continue
+                    if not finding:
+                        continue
+                    if not matches_filter(finding, size_range, words_range):
+                        continue
+                    findings.append(finding)
+                    details = []
+                    if finding.location:
+                        details.append(f"-> {finding.location}")
+                    if finding.title:
+                        details.append(f"title={finding.title}")
+                    suffix = f" | {' | '.join(details)}" if details else ""
+                    print(
+                        f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
+                        f"{color(str(finding.status).ljust(3), status_color(finding.status), Cyber.BOLD)} "
+                        f"{color(str(finding.size).rjust(7), Cyber.YELLOW)}B "
+                        f"{color(finding.url, Cyber.CYAN)}"
+                        f"{color(suffix, Cyber.GRAY)}"
+                    )
+                pending.clear()
+        for future in as_completed(pending):
             try:
                 finding = future.result()
             except Exception:
@@ -278,7 +279,6 @@ def scan_target(
                 continue
             if not matches_filter(finding, size_range, words_range):
                 continue
-
             findings.append(finding)
             details = []
             if finding.location:
@@ -286,7 +286,6 @@ def scan_target(
             if finding.title:
                 details.append(f"title={finding.title}")
             suffix = f" | {' | '.join(details)}" if details else ""
-
             print(
                 f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
                 f"{color(str(finding.status).ljust(3), status_color(finding.status), Cyber.BOLD)} "
@@ -389,7 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=parse_range,
         help="Filtrar por numero de palavras. Ex: 10-100",
     )
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) DirScanner/3.1.5")
+    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) DirScanner/{__version__}")
     return parser
 
 

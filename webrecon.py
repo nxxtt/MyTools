@@ -28,6 +28,7 @@ from utils import (
     show_banner,
     status_color,
     write_output,
+    __version__,
 )
 
 import logging
@@ -49,7 +50,15 @@ INTERESTING_HEADERS = [
 # Fingerprinting signatures
 # ---------------------------------------------------------------------------
 
-CMS_SIGNATURES: dict[str, dict[str, list[str]]] = {
+
+def _lower_signatures(sigs: dict[str, dict[str, list[str]]]) -> dict[str, dict[str, list[str]]]:
+    """Pré-computa valores lowercase de todas as assinaturas."""
+    return {
+        name: {k: [v.lower() for v in vals] for k, vals in sigs_dict.items()}
+        for name, sigs_dict in sigs.items()
+    }
+
+CMS_SIGNATURES = _lower_signatures({
     "WordPress": {
         "headers": ["x-pingback"],
         "body": ["wp-content", "wp-includes", "wp-json", "wp-api", "wordpress"],
@@ -80,9 +89,9 @@ CMS_SIGNATURES: dict[str, dict[str, list[str]]] = {
         "cookies": ["frontend", "guest_view"],
         "urls": ["/admin/"],
     },
-}
+})
 
-FRAMEWORK_SIGNATURES: dict[str, dict[str, list[str]]] = {
+FRAMEWORK_SIGNATURES = _lower_signatures({
     "Laravel": {
         "headers": [],
         "body": ["csrf-token", "laravel"],
@@ -119,9 +128,9 @@ FRAMEWORK_SIGNATURES: dict[str, dict[str, list[str]]] = {
         "cookies": ["JSESSIONID"],
         "urls": [],
     },
-}
+})
 
-LIBRARY_SIGNATURES: dict[str, dict[str, list[str]]] = {
+LIBRARY_SIGNATURES = _lower_signatures({
     "jQuery": {
         "body": ["jquery", "jQuery("],
     },
@@ -137,7 +146,7 @@ LIBRARY_SIGNATURES: dict[str, dict[str, list[str]]] = {
     "Angular": {
         "body": ["ng-version", "angular.min.js", "ng-app"],
     },
-}
+})
 
 SERVER_PATTERNS: dict[str, re.Pattern[str]] = {
     "Apache": re.compile(r"Apache", re.IGNORECASE),
@@ -206,16 +215,16 @@ def _match_signature(
 ) -> bool:
     """Verifica se uma assinatura corresponde aos dados coletados."""
     for h in sigs.get("headers", []):
-        if h.lower() in header_blob:
+        if h in header_blob:
             return True
     for b in sigs.get("body", []):
-        if b.lower() in body_lower:
+        if b in body_lower:
             return True
     for c in sigs.get("cookies", []):
-        if c.lower() in cookie_blob:
+        if c in cookie_blob:
             return True
     for u in sigs.get("urls", []):
-        if u.lower() in url_lower:
+        if u in url_lower:
             return True
     return False
 
@@ -598,7 +607,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
     parser.add_argument("--cve", action="store_true", help="Busca CVEs para versoes detectadas (via NIST NVD).")
     parser.add_argument("--nvd-api-key", dest="nvd_api_key", help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).")
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) WebRecon/3.1.5")
+    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) WebRecon/{__version__}")
     return parser
 
 

@@ -364,7 +364,7 @@ class TestBuildParserV3:
     def test_default_user_agent(self):
         parser = build_parser()
         args = parser.parse_args(["https://example.com"])
-        assert "WebRecon/3.1.5" in args.user_agent
+        assert "WebRecon/" in args.user_agent
 
 
 class TestExtractVersions:
