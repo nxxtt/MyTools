@@ -6,12 +6,14 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-*.egg
 
 # Virtual environment
 venv/
 .venv/
 env/
+
+# Poetry
+poetry.toml
 
 # IDE
 .vscode/
@@ -31,4 +33,3 @@ Desktop.ini
 # Output files (gerados pelo scanner)
 *.json
 *.csv
-!pyproject.toml
