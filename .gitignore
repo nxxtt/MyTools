@@ -18,6 +18,7 @@ poetry.toml
 # IDE
 .vscode/
 .idea/
+.opencode/
 *.swp
 *.swo
 *~
