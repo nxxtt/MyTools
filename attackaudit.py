@@ -660,7 +660,7 @@ def build_findings(
     if method_results:
         high_methods = [mr for mr in method_results if mr.status in {200, 201, 204} and mr.method in {"PUT", "DELETE", "TRACE"}]
         for mr in high_methods:
-            severity = "high" if mr.method in {"PUT", "DELETE"} else "high"
+            severity = "high" if mr.method in {"PUT", "DELETE"} else "medium"
             recommendation = (
                 "Restrinja metodos HTTP nao utilizados via servidor/proxy/WAF."
                 if mr.method == "TRACE"
