@@ -160,6 +160,85 @@ SERVER_PATTERNS: dict[str, re.Pattern[str]] = {
 }
 
 # ---------------------------------------------------------------------------
+# WAF detection signatures
+# ---------------------------------------------------------------------------
+
+WAF_SIGNATURES: dict[str, dict[str, list[str]]] = _lower_signatures({
+    "Cloudflare": {
+        "headers": ["cf-ray", "cf-cache-status", "server: cloudflare"],
+        "body": ["_cf_chl_opt", "cf_chl_opt"],
+        "cookies": ["__cfduid", "cf_clearance"],
+        "urls": [],
+    },
+    "Akamai": {
+        "headers": ["x-akamai-transformed", "server: akamai"],
+        "body": ["akamai"],
+        "cookies": ["akamai_"],
+        "urls": [],
+    },
+    "Sucuri": {
+        "headers": ["x-sucuri-id", "x-sucuri-cache"],
+        "body": [],
+        "cookies": ["sucuri_"],
+        "urls": [],
+    },
+    "Imperva": {
+        "headers": ["x-iinfo", "server: incapsula"],
+        "body": ["_incap_"],
+        "cookies": ["incap_ses", "visid_incap_"],
+        "urls": [],
+    },
+    "F5 BIG-IP": {
+        "headers": ["server: bigip", "x-cnection"],
+        "body": [],
+        "cookies": ["bigipserver"],
+        "urls": [],
+    },
+    "AWS WAF": {
+        "headers": ["x-amzn-requestid", "server: awselb"],
+        "body": [],
+        "cookies": ["aws-waf-token"],
+        "urls": [],
+    },
+    "ModSecurity": {
+        "headers": ["server: mod_security", "server: mod_security_v2"],
+        "body": ["mod_security"],
+        "cookies": [],
+        "urls": [],
+    },
+    "Fortinet": {
+        "headers": ["server: fortigate", "x-fortinet"],
+        "body": [],
+        "cookies": ["svpncookie"],
+        "urls": [],
+    },
+    "Barracuda": {
+        "headers": ["server: barracuda"],
+        "body": [],
+        "cookies": ["barra_counter_session_"],
+        "urls": [],
+    },
+    "Radware": {
+        "headers": ["server: radware"],
+        "body": [],
+        "cookies": ["rdwr_"],
+        "urls": [],
+    },
+    "Varnish": {
+        "headers": ["server: varnish", "x-varnish"],
+        "body": [],
+        "cookies": [],
+        "urls": [],
+    },
+    "NAXSI": {
+        "headers": [],
+        "body": ["naxsi_"],
+        "cookies": [],
+        "urls": [],
+    },
+})
+
+# ---------------------------------------------------------------------------
 # Version extraction patterns (headers + body)
 # ---------------------------------------------------------------------------
 
@@ -266,6 +345,28 @@ def detect_technologies(
                 result["server"].append(name)
 
     return result
+
+
+def detect_waf(
+    headers: dict[str, str],
+    body: str,
+    url: str,
+    cookies: list[str] | None = None,
+    lower_headers: dict[str, str] | None = None,
+) -> list[str]:
+    """Detecta WAF/CDN a partir de headers, body e cookies."""
+    if lower_headers is None:
+        lower_headers = {k.lower(): v for k, v in headers.items()}
+    header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
+    body_lower = body.lower()
+    cookie_blob = " ".join((cookies or [])).lower()
+    url_lower = url.lower()
+
+    detected: list[str] = []
+    for name, sigs in WAF_SIGNATURES.items():
+        if _match_signature(sigs, header_blob, body_lower, cookie_blob, url_lower):
+            detected.append(name)
+    return detected
 
 
 def extract_versions(
@@ -394,6 +495,7 @@ class ReconResult:
     elapsed: float
     technologies: dict[str, list[str]] | None = None
     cve_findings: list[CVEFinding] | None = None
+    waf_detected: list[str] | None = None
 
 
 def banner() -> None:
@@ -481,6 +583,14 @@ def run_recon(
         lower_headers=lower_headers,
     )
 
+    waf_detected = detect_waf(
+        headers=headers,
+        body=text,
+        url=target,
+        cookies=cookie_list,
+        lower_headers=lower_headers,
+    )
+
     cve_findings: list[CVEFinding] | None = None
     if cve:
         versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers)
@@ -506,6 +616,7 @@ def run_recon(
         elapsed=time.monotonic() - started,
         technologies=technologies,
         cve_findings=cve_findings,
+        waf_detected=waf_detected,
     )
 
 
@@ -541,6 +652,10 @@ def print_result(result: ReconResult) -> None:
 
     if result.cve_findings is not None:
         _print_cve_findings(result.cve_findings)
+
+    if result.waf_detected:
+        print(color("\nWAF detectado", Cyber.CYAN, Cyber.BOLD))
+        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {', '.join(result.waf_detected)}")
 
     print(color("\nArquivos comuns", Cyber.CYAN, Cyber.BOLD))
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} robots.txt  {status_text(result.robots_status)}")

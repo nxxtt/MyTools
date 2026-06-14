@@ -11,10 +11,9 @@
 # Lib: dns.resolver (dnspython) + wordlist de subdominios.
 # Pode ser modulo novo ou extensao do webrecon.
 
-## 3. WAF detection
-# Detectar Web Application Firewall (Cloudflare, Akamai, AWS WAF, etc.).
-# Analise de headers (cf-ray, x-sucuri-id, server: cloudflare) e respostas 403/503.
-# Integrar no webrecon.
+## 3. WAF detection -- RESOLVIDO
+# webrecon.py: WAF_SIGNATURES (12 WAFs), detect_waf(), ReconResult.waf_detected, print_result() secao WAF.
+# Cloudflare, Akamai, Sucuri, Imperva, F5 BIG-IP, AWS WAF, ModSecurity, Fortinet, Barracuda, Radware, Varnish, NAXSI.
 
 ## 4. Email harvesting
 # Coletar emails expostos no site: robots.txt, HTML source, contact pages, meta tags.

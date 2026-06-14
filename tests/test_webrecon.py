@@ -12,11 +12,13 @@ from webrecon import (
     FRAMEWORK_SIGNATURES,
     LIBRARY_SIGNATURES,
     SERVER_PATTERNS,
+    WAF_SIGNATURES,
     ReconResult,
     _severity_color,
     build_parser,
     candidate_urls,
     detect_technologies,
+    detect_waf,
     extract_versions,
     lookup_cves,
     normalize_url,
@@ -521,3 +523,78 @@ class TestBuildParserCVE:
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--nvd-api-key", "mykey123"])
         assert args.nvd_api_key == "mykey123"
+
+
+class TestDetectWaf:
+    def test_cloudflare_by_header(self):
+        waf = detect_waf({"Server": "cloudflare"}, "", "https://example.com")
+        assert "Cloudflare" in waf
+
+    def test_cloudflare_by_cf_ray(self):
+        waf = detect_waf({"Cf-Ray": "12345-abc"}, "", "https://example.com")
+        assert "Cloudflare" in waf
+
+    def test_cloudflare_by_cookie(self):
+        waf = detect_waf({}, "", "https://example.com", cookies=["__cfduid=abc123"])
+        assert "Cloudflare" in waf
+
+    def test_akamai_by_header(self):
+        waf = detect_waf({"X-Akamai-Transformed": "9 - 0 pmb=mRUM"}, "", "https://example.com")
+        assert "Akamai" in waf
+
+    def test_sucuri_by_header(self):
+        waf = detect_waf({"X-Sucuri-ID": "12345"}, "", "https://example.com")
+        assert "Sucuri" in waf
+
+    def test_imperva_by_header(self):
+        waf = detect_waf({"X-Iinfo": "12345"}, "", "https://example.com")
+        assert "Imperva" in waf
+
+    def test_imperva_by_cookie(self):
+        waf = detect_waf({}, "", "https://example.com", cookies=["incap_ses_123=abc"])
+        assert "Imperva" in waf
+
+    def test_modsecurity_by_header(self):
+        waf = detect_waf({"Server": "mod_security/2.9"}, "", "https://example.com")
+        assert "ModSecurity" in waf
+
+    def test_modsecurity_by_body(self):
+        waf = detect_waf({}, '<html><body>mod_security error</body></html>', "https://example.com")
+        assert "ModSecurity" in waf
+
+    def test_fortinet_by_header(self):
+        waf = detect_waf({"Server": "Fortigate"}, "", "https://example.com")
+        assert "Fortinet" in waf
+
+    def test_aws_waf_by_cookie(self):
+        waf = detect_waf({}, "", "https://example.com", cookies=["aws-waf-token=abc123"])
+        assert "AWS WAF" in waf
+
+    def test_varnish_by_header(self):
+        waf = detect_waf({"X-Varnish": "12345"}, "", "https://example.com")
+        assert "Varnish" in waf
+
+    def test_multiple_wafs(self):
+        waf = detect_waf(
+            {"Server": "cloudflare", "X-Sucuri-ID": "123"},
+            "",
+            "https://example.com",
+        )
+        assert "Cloudflare" in waf
+        assert "Sucuri" in waf
+
+    def test_no_waf(self):
+        waf = detect_waf({"Server": "nginx"}, "", "https://example.com")
+        assert waf == []
+
+    def test_empty_input(self):
+        waf = detect_waf({}, "", "https://example.com")
+        assert waf == []
+
+
+class TestWafSignatures:
+    def test_waf_signatures_have_required_keys(self):
+        for name, sigs in WAF_SIGNATURES.items():
+            assert isinstance(name, str)
+            assert isinstance(sigs, dict)
+            assert any(k in sigs for k in ("headers", "body", "cookies", "urls"))
