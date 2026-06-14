@@ -33,6 +33,8 @@ from utils import (
 
 import logging
 
+import whois
+
 logger = logging.getLogger("mytools.webrecon")
 
 """Ferramenta de reconhecimento HTTP para laboratórios e hosts autorizados."""
@@ -544,6 +546,93 @@ def lookup_cves(
 
 
 @dataclass(frozen=True)
+class WhoisResult:
+    """Resultado de uma consulta WHOIS de dominio."""
+
+    domain: str
+    registrar: str | None = None
+    registrant_name: str | None = None
+    registrant_organization: str | None = None
+    registrant_country: str | None = None
+    creation_date: str | None = None
+    expiration_date: str | None = None
+    updated_date: str | None = None
+    name_servers: list[str] | None = None
+    emails: list[str] | None = None
+    status: list[str] | None = None
+
+
+def _format_date(value) -> str | None:
+    """Converte valor de data WHOIS para string ISO."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _ensure_list(value) -> list[str] | None:
+    """Normaliza valor para lista de strings."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [value] if value.strip() else None
+    if isinstance(value, list):
+        result = [str(v) for v in value if v]
+        return result if result else None
+    return None
+
+
+def run_whois(domain: str) -> WhoisResult | None:
+    """Executa consulta WHOIS para o dominio informado.
+
+    Returns:
+        WhoisResult ou None se a consulta falhar ou dominio for IP.
+    """
+    parsed = urlparse(domain)
+    hostname = parsed.netloc or parsed.path
+    hostname = hostname.split(":")[0].strip()
+
+    import ipaddress
+    try:
+        ipaddress.ip_address(hostname)
+        return None
+    except ValueError:
+        pass
+
+    try:
+        w = whois.whois(hostname)
+    except Exception as error:
+        logger.debug("WHOIS lookup failed for %s: %s", hostname, error)
+        return None
+
+    if w is None:
+        return None
+
+    name_servers = _ensure_list(getattr(w, "name_servers", None))
+    whois_emails = _ensure_list(getattr(w, "emails", None))
+    status = _ensure_list(getattr(w, "status", None))
+
+    return WhoisResult(
+        domain=hostname,
+        registrar=getattr(w, "registrar", None),
+        registrant_name=getattr(w, "name", None),
+        registrant_organization=getattr(w, "org", None),
+        registrant_country=getattr(w, "country", None),
+        creation_date=_format_date(getattr(w, "creation_date", None)),
+        expiration_date=_format_date(getattr(w, "expiration_date", None)),
+        updated_date=_format_date(getattr(w, "updated_date", None)),
+        name_servers=name_servers,
+        emails=whois_emails,
+        status=status,
+    )
+
+
+@dataclass(frozen=True)
 class ReconResult:
     """Resultado de uma operação de reconhecimento HTTP."""
 
@@ -565,6 +654,7 @@ class ReconResult:
     cve_findings: list[CVEFinding] | None = None
     waf_detected: list[str] | None = None
     emails: list[str] | None = None
+    whois_data: WhoisResult | None = None
 
 
 def banner() -> None:
@@ -679,6 +769,8 @@ def run_recon(
         emails.extend(crawl_internal_links(session, target, text, timeout, max_links=crawl_limit))
     emails = sorted(set(emails))
 
+    whois_data = run_whois(target)
+
     return ReconResult(
         url=target,
         status=status,
@@ -698,6 +790,7 @@ def run_recon(
         cve_findings=cve_findings,
         waf_detected=waf_detected,
         emails=emails,
+        whois_data=whois_data,
     )
 
 
@@ -745,6 +838,9 @@ def print_result(result: ReconResult) -> None:
         if len(result.emails) > 30:
             print(f"  {color(f'... e mais {len(result.emails) - 30} emails', Cyber.GRAY)}")
 
+    if result.whois_data:
+        _print_whois(result.whois_data)
+
     print(color("\nArquivos comuns", Cyber.CYAN, Cyber.BOLD))
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} robots.txt  {status_text(result.robots_status)}")
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} sitemap.xml  {status_text(result.sitemap_status)}")
@@ -790,6 +886,32 @@ def _print_cve_findings(findings: list[CVEFinding]) -> None:
 
     if len(findings) > 20:
         print(f"  {color(f'... e mais {len(findings) - 20} CVEs', Cyber.GRAY)}")
+
+
+def _print_whois(w: WhoisResult) -> None:
+    """Exibe os dados WHOIS encontrados no terminal."""
+    print(color("\nWHOIS", Cyber.CYAN, Cyber.BOLD))
+    rows = [
+        ("Domain", w.domain),
+        ("Registrar", w.registrar),
+        ("Owner", w.registrant_name),
+        ("Organization", w.registrant_organization),
+        ("Country", w.registrant_country),
+        ("Created", w.creation_date),
+        ("Expires", w.expiration_date),
+        ("Updated", w.updated_date),
+    ]
+    for label, value in rows:
+        if value:
+            marker = color("[+]", Cyber.GREEN, Cyber.BOLD)
+            print(f"{marker} {color(label.ljust(16), Cyber.GRAY)} {value}")
+
+    if w.name_servers:
+        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Nameservers'.ljust(16), Cyber.GRAY)} {', '.join(w.name_servers)}")
+    if w.emails:
+        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Emails'.ljust(16), Cyber.GRAY)} {', '.join(w.emails)}")
+    if w.status:
+        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Status'.ljust(16), Cyber.GRAY)} {', '.join(w.status[:5])}")
 
 
 def status_text(status: int | None) -> str:

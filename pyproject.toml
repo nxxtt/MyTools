@@ -10,6 +10,7 @@ packages = [{include = "*.py"}]
 python = ">=3.10,<3.15"
 requests = ">=2.34.2"
 beautifulsoup4 = ">=4.15.0"
+python-whois = ">=0.9.6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.1.0"

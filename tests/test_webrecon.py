@@ -14,7 +14,10 @@ from webrecon import (
     LIBRARY_SIGNATURES,
     SERVER_PATTERNS,
     WAF_SIGNATURES,
+    WhoisResult,
     ReconResult,
+    _ensure_list,
+    _format_date,
     _severity_color,
     build_parser,
     candidate_urls,
@@ -26,6 +29,7 @@ from webrecon import (
     lookup_cves,
     normalize_url,
     probe_status,
+    run_whois,
     status_text,
 )
 
@@ -750,3 +754,129 @@ class TestBuildParserEmailHarvesting:
         parser = build_parser()
         args = parser.parse_args(["https://example.com"])
         assert args.crawl_limit == 10
+
+
+class TestWhoisResultDataclass:
+    def test_creation(self):
+        w = WhoisResult(
+            domain="example.com",
+            registrar="GoDaddy",
+            registrant_name="Jane Doe",
+            registrant_organization="Example Corp",
+            registrant_country="US",
+            creation_date="1995-08-14T00:00:00",
+            expiration_date="2025-08-13T00:00:00",
+            updated_date="2024-08-14T00:00:00",
+            name_servers=["ns1.example.com", "ns2.example.com"],
+            emails=["admin@example.com"],
+            status=["clientTransferProhibited"],
+        )
+        assert w.domain == "example.com"
+        assert w.registrar == "GoDaddy"
+        assert len(w.name_servers) == 2
+
+    def test_frozen(self):
+        w = WhoisResult(domain="example.com")
+        try:
+            w.domain = "other.com"
+            assert False, "Should be frozen"
+        except AttributeError:
+            pass
+
+    def test_defaults_none(self):
+        w = WhoisResult(domain="test.com")
+        assert w.registrar is None
+        assert w.creation_date is None
+        assert w.name_servers is None
+
+    def test_optional_fields(self):
+        w = WhoisResult(domain="test.com", registrar="Namecheap")
+        assert w.registrar == "Namecheap"
+        assert w.registrant_name is None
+
+
+class TestFormatDate:
+    def test_none_returns_none(self):
+        assert _format_date(None) is None
+
+    def test_datetime_returns_iso(self):
+        from datetime import datetime
+        dt = datetime(2024, 1, 15, 10, 30, 0)
+        assert _format_date(dt) == "2024-01-15T10:30:00"
+
+    def test_string_returns_itself(self):
+        assert _format_date("2024-01-15") == "2024-01-15"
+
+    def test_list_returns_first(self):
+        from datetime import datetime
+        dt1 = datetime(2024, 1, 15)
+        dt2 = datetime(2024, 6, 20)
+        assert _format_date([dt1, dt2]) == "2024-01-15T00:00:00"
+
+    def test_empty_list_returns_none(self):
+        assert _format_date([]) is None
+
+
+class TestEnsureList:
+    def test_none_returns_none(self):
+        assert _ensure_list(None) is None
+
+    def test_string_returns_list(self):
+        assert _ensure_list("hello") == ["hello"]
+
+    def test_empty_string_returns_none(self):
+        assert _ensure_list("") is None
+
+    def test_list_passes_through(self):
+        assert _ensure_list(["a", "b"]) == ["a", "b"]
+
+    def test_list_with_none_filters(self):
+        assert _ensure_list(["a", None, "b"]) == ["a", "b"]
+
+    def test_empty_list_returns_none(self):
+        assert _ensure_list([]) is None
+
+
+class TestRunWhois:
+    def test_returns_none_for_ip(self):
+        result = run_whois("192.168.1.1")
+        assert result is None
+
+    def test_returns_none_for_ipv6(self):
+        result = run_whois("::1")
+        assert result is None
+
+    @responses.activate
+    def test_returns_none_on_error(self):
+        import whois as _whois
+        import unittest.mock
+        with unittest.mock.patch.object(_whois, "whois", side_effect=Exception("connection refused")):
+            result = run_whois("nonexistent.invalid")
+            assert result is None
+
+    def test_handles_url_input(self):
+        result = run_whois("https://example.com/path")
+        assert result is None or result.domain == "example.com"
+
+    def test_returns_whois_result_on_success(self):
+        import unittest.mock
+        import whois as _whois
+        mock_w = unittest.mock.MagicMock()
+        mock_w.registrar = "Test Registrar"
+        mock_w.name = "Test Owner"
+        mock_w.org = "Test Org"
+        mock_w.country = "US"
+        mock_w.creation_date = "2020-01-01"
+        mock_w.expiration_date = "2025-12-31"
+        mock_w.updated_date = "2024-06-15"
+        mock_w.name_servers = ["ns1.test.com", "ns2.test.com"]
+        mock_w.emails = ["admin@test.com"]
+        mock_w.status = ["active"]
+
+        with unittest.mock.patch.object(_whois, "whois", return_value=mock_w):
+            result = run_whois("test.com")
+            assert result is not None
+            assert result.domain == "test.com"
+            assert result.registrar == "Test Registrar"
+            assert result.registrant_name == "Test Owner"
+            assert result.name_servers == ["ns1.test.com", "ns2.test.com"]

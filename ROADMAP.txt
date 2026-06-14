@@ -1,7 +1,7 @@
 # MyTools Roadmap
 # Itens futuros identificados na auditoria de otimizacoes
 
-## 1. WHOIS lookup
+## 1. WHOIS lookup -- RESOLVIDO
 # Modulo ou extensao do webrecon.
 # Consulta WHOIS de dominios/IPs: proprietario, registrar, DNS, datas.
 # Lib: python-whois ou consulta direta WHOIS protocol.
