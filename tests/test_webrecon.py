@@ -857,27 +857,32 @@ class TestEnsureList:
 
 
 class TestRunWhois:
-    def test_returns_none_for_ip(self):
-        result = run_whois("192.168.1.1")
+    @pytest.mark.asyncio
+    async def test_returns_none_for_ip(self):
+        result = await run_whois("192.168.1.1")
         assert result is None
 
-    def test_returns_none_for_ipv6(self):
-        result = run_whois("::1")
+    @pytest.mark.asyncio
+    async def test_returns_none_for_ipv6(self):
+        result = await run_whois("::1")
         assert result is None
 
     @respx.mock
-    def test_returns_none_on_error(self):
+    @pytest.mark.asyncio
+    async def test_returns_none_on_error(self):
         import whois as _whois
         import unittest.mock
         with unittest.mock.patch.object(_whois, "whois", side_effect=Exception("connection refused")):
-            result = run_whois("nonexistent.invalid")
+            result = await run_whois("nonexistent.invalid")
             assert result is None
 
-    def test_handles_url_input(self):
-        result = run_whois("https://example.com/path")
+    @pytest.mark.asyncio
+    async def test_handles_url_input(self):
+        result = await run_whois("https://example.com/path")
         assert result is None or result.domain == "example.com"
 
-    def test_returns_whois_result_on_success(self):
+    @pytest.mark.asyncio
+    async def test_returns_whois_result_on_success(self):
         import unittest.mock
         import whois as _whois
         mock_w = unittest.mock.MagicMock()
@@ -893,7 +898,7 @@ class TestRunWhois:
         mock_w.status = ["active"]
 
         with unittest.mock.patch.object(_whois, "whois", return_value=mock_w):
-            result = run_whois("test.com")
+            result = await run_whois("test.com")
             assert result is not None
             assert result.domain == "test.com"
             assert result.registrar == "Test Registrar"

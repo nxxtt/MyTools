@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import ipaddress
 import os
 import re
 import sys
@@ -39,15 +40,6 @@ import whois
 logger = logging.getLogger("mytools.webrecon")
 
 """Ferramenta de reconhecimento HTTP para laboratórios e hosts autorizados."""
-
-INTERESTING_HEADERS = [
-    "server",
-    "x-powered-by",
-    "via",
-    "set-cookie",
-    "location",
-    "content-type",
-]
 
 # ---------------------------------------------------------------------------
 # Fingerprinting signatures
@@ -325,15 +317,23 @@ def detect_technologies(
     url: str,
     cookies: list[str] | None = None,
     lower_headers: dict[str, str] | None = None,
+    header_blob: str | None = None,
+    body_lower: str | None = None,
+    cookie_blob: str | None = None,
+    url_lower: str | None = None,
 ) -> dict[str, list[str]]:
     """Detecta tecnologias (CMS, frameworks, libs) a partir de headers, body e cookies."""
     result: dict[str, list[str]] = {"cms": [], "frameworks": [], "libraries": [], "server": []}
     if lower_headers is None:
         lower_headers = {k.lower(): v for k, v in headers.items()}
-    header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
-    body_lower = body.lower()
-    cookie_blob = " ".join((cookies or [])).lower()
-    url_lower = url.lower()
+    if header_blob is None:
+        header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
+    if body_lower is None:
+        body_lower = body.lower()
+    if cookie_blob is None:
+        cookie_blob = " ".join((cookies or [])).lower()
+    if url_lower is None:
+        url_lower = url.lower()
 
     for name, sigs in CMS_SIGNATURES.items():
         if _match_signature(sigs, header_blob, body_lower, cookie_blob, url_lower):
@@ -345,7 +345,7 @@ def detect_technologies(
 
     for name, sigs in LIBRARY_SIGNATURES.items():
         for b in sigs.get("body", []):
-            if b.lower() in body_lower:
+            if b in body_lower:
                 result["libraries"].append(name)
                 break
 
@@ -364,14 +364,22 @@ def detect_waf(
     url: str,
     cookies: list[str] | None = None,
     lower_headers: dict[str, str] | None = None,
+    header_blob: str | None = None,
+    body_lower: str | None = None,
+    cookie_blob: str | None = None,
+    url_lower: str | None = None,
 ) -> list[str]:
     """Detecta WAF/CDN a partir de headers, body e cookies."""
     if lower_headers is None:
         lower_headers = {k.lower(): v for k, v in headers.items()}
-    header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
-    body_lower = body.lower()
-    cookie_blob = " ".join((cookies or [])).lower()
-    url_lower = url.lower()
+    if header_blob is None:
+        header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
+    if body_lower is None:
+        body_lower = body.lower()
+    if cookie_blob is None:
+        cookie_blob = " ".join((cookies or [])).lower()
+    if url_lower is None:
+        url_lower = url.lower()
 
     detected: list[str] = []
     for name, sigs in WAF_SIGNATURES.items():
@@ -384,6 +392,8 @@ def extract_versions(
     headers: dict[str, str],
     body: str,
     lower_headers: dict[str, str] | None = None,
+    header_blob: str | None = None,
+    body_lower: str | None = None,
 ) -> list[tuple[str, str]]:
     """Extrai nomes e versoes de tecnologias a partir de headers e body.
 
@@ -394,8 +404,10 @@ def extract_versions(
     seen: set[str] = set()
     if lower_headers is None:
         lower_headers = {k.lower(): v for k, v in headers.items()}
-    header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
-    body_lower = body.lower()
+    if header_blob is None:
+        header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
+    if body_lower is None:
+        body_lower = body.lower()
 
     for tech_name, patterns in VERSION_PATTERNS.items():
         if tech_name in seen:
@@ -588,8 +600,8 @@ def _ensure_list(value) -> list[str] | None:
     return None
 
 
-def run_whois(domain: str) -> WhoisResult | None:
-    """Executa consulta WHOIS para o dominio informado.
+def _run_whois_sync(domain: str) -> WhoisResult | None:
+    """Executa consulta WHOIS (sincrona, para usar com asyncio.to_thread).
 
     Returns:
         WhoisResult ou None se a consulta falhar ou dominio for IP.
@@ -598,7 +610,6 @@ def run_whois(domain: str) -> WhoisResult | None:
     hostname = parsed.netloc or parsed.path
     hostname = hostname.split(":")[0].strip()
 
-    import ipaddress
     try:
         ipaddress.ip_address(hostname)
         return None
@@ -631,6 +642,15 @@ def run_whois(domain: str) -> WhoisResult | None:
         emails=whois_emails,
         status=status,
     )
+
+
+async def run_whois(domain: str) -> WhoisResult | None:
+    """Executa consulta WHOIS de forma assincrona.
+
+    Returns:
+        WhoisResult ou None se a consulta falhar ou dominio for IP.
+    """
+    return await asyncio.to_thread(_run_whois_sync, domain)
 
 
 @dataclass(frozen=True)
@@ -729,14 +749,19 @@ async def run_recon(
         content_type = header_get(headers, "content-type")
         text = body.decode("utf-8", errors="replace") if "text/html" in content_type.lower() else ""
 
-        lower_headers = {key.lower(): value for key, value in headers.items()}
-        present = [header for header in SECURITY_HEADERS if header in lower_headers]
-        missing = [header for header in SECURITY_HEADERS if header not in lower_headers]
-
         robots_url = urljoin(target.rstrip("/") + "/", "robots.txt")
         sitemap_url = urljoin(target.rstrip("/") + "/", "sitemap.xml")
 
         cookie_list = raw_headers.get("set-cookie", [])
+
+        lower_headers = {key.lower(): value for key, value in headers.items()}
+        header_blob = " ".join(f"{k}: {v}".lower() for k, v in lower_headers.items())
+        body_lower = text.lower()
+        cookie_blob = " ".join(cookie_list).lower()
+        url_lower = target.lower()
+
+        present = [header for header in SECURITY_HEADERS if header in lower_headers]
+        missing = [header for header in SECURITY_HEADERS if header not in lower_headers]
 
         technologies = detect_technologies(
             headers=headers,
@@ -744,6 +769,10 @@ async def run_recon(
             url=target,
             cookies=cookie_list,
             lower_headers=lower_headers,
+            header_blob=header_blob,
+            body_lower=body_lower,
+            cookie_blob=cookie_blob,
+            url_lower=url_lower,
         )
 
         waf_detected = detect_waf(
@@ -752,11 +781,15 @@ async def run_recon(
             url=target,
             cookies=cookie_list,
             lower_headers=lower_headers,
+            header_blob=header_blob,
+            body_lower=body_lower,
+            cookie_blob=cookie_blob,
+            url_lower=url_lower,
         )
 
         cve_findings: list[CVEFinding] | None = None
         if cve:
-            versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers)
+            versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers, header_blob=header_blob, body_lower=body_lower)
             if versions:
                 cve_findings = await lookup_cves(versions, api_key=nvd_api_key)
             else:
@@ -771,7 +804,7 @@ async def run_recon(
             emails.extend(await crawl_internal_links(client, target, text, timeout, max_links=crawl_limit))
         emails = sorted(set(emails))
 
-        whois_data = run_whois(target)
+        whois_data = await run_whois(target)
 
         robots_status = await probe_status(client, robots_url, timeout)
         sitemap_status = await probe_status(client, sitemap_url, timeout)

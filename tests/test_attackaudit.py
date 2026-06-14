@@ -445,12 +445,14 @@ class TestCSIFFieldNames:
 
 
 class TestCheckTLSVersions:
-    def test_http_url_returns_empty(self):
-        result = check_tls_versions("http://example.com", 5.0)
+    @pytest.mark.asyncio
+    async def test_http_url_returns_empty(self):
+        result = await check_tls_versions("http://example.com", 5.0)
         assert result == []
 
-    def test_https_returns_list(self):
-        result = check_tls_versions("https://example.com", 2.0)
+    @pytest.mark.asyncio
+    async def test_https_returns_list(self):
+        result = await check_tls_versions("https://example.com", 2.0)
         assert isinstance(result, list)
         for item in result:
             assert isinstance(item, TLSVersionResult)

@@ -249,11 +249,21 @@ def show_banner(art: str, subtitle: str) -> None:
 def print_table(
     headers: tuple[str, ...],
     rows: list[tuple[str, ...]],
-    column_styles: list[tuple[str, ...]],
+    column_styles: list[tuple[str, ...]] | None = None,
     empty_message: str = "Nenhum resultado encontrado.",
     alignments: list[str] | None = None,
+    row_styles_fn: Callable[[tuple[str, ...]], list[tuple[str, ...]]] | None = None,
 ) -> None:
-    """Exibe tabela formatada no terminal com cores por coluna."""
+    """Exibe tabela formatada no terminal com cores por coluna.
+
+    Args:
+        headers: Titulos das colunas.
+        rows: Lista de tuplas com valores de cada linha.
+        column_styles: Estilos estaticos por coluna (ignorado quando row_styles_fn).
+        empty_message: Mensagem exibida quando nao ha linhas.
+        alignments: Alinhamento por coluna ('left' ou 'right').
+        row_styles_fn: Funcao que recebe uma row e retorna estilos por coluna.
+    """
     if not rows:
         print(color(empty_message, Cyber.RED))
         return
@@ -271,9 +281,10 @@ def print_table(
     print(color("  ".join("-" * width for width in widths), Cyber.BLUE))
     for row in rows:
         cells = []
+        styles = row_styles_fn(row) if row_styles_fn else column_styles
         for i, value in enumerate(row):
             aligned = value.ljust(widths[i]) if alignments[i] == "left" else value.rjust(widths[i])
-            cells.append(color(aligned, *column_styles[i]))
+            cells.append(color(aligned, *styles[i]))
         print("  ".join(cells))
 
 
@@ -391,6 +402,7 @@ async def query_nvd(
     keyword: str,
     api_key: str | None = None,
     limit: int = 10,
+    client: httpx.AsyncClient | None = None,
 ) -> list[dict]:
     """Consulta a API NIST NVD v2.0 e retorna lista de vulnerabilidades.
 
@@ -398,6 +410,7 @@ async def query_nvd(
         keyword: Termo de busca (ex: "Apache 2.4.41").
         api_key: Chave da API NVD (opcional, aumenta rate limit de 5 para 50 req/30s).
         limit: Numero maximo de resultados por query.
+        client: Cliente HTTP opcional para reutilizar.
 
     Returns:
         Lista de dicts com chaves: id, description, score, severity.
@@ -409,8 +422,11 @@ async def query_nvd(
     params = {"keywordSearch": keyword, "resultsPerPage": limit}
 
     try:
-        async with httpx.AsyncClient() as client:
+        if client is not None:
             response = await client.get(NVD_API_URL, params=params, headers=headers, timeout=15)
+        else:
+            async with httpx.AsyncClient() as tmp:
+                response = await tmp.get(NVD_API_URL, params=params, headers=headers, timeout=15)
         if response.status_code == 403:
             logger.debug("NVD rate limited for keyword: %s", keyword)
             return []

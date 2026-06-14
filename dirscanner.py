@@ -20,6 +20,7 @@ from utils import (
     fetch,
     parse_extra_headers,
     parse_int_range,
+    print_table,
     run_interactive_shell,
     set_color,
     setup_logging,
@@ -295,28 +296,23 @@ def print_dir_table(findings: list[Finding]) -> None:
         extra = item.location or item.title
         rows.append((str(item.status), str(item.size), str(item.words), item.method, item.path, extra))
 
-    widths = [
-        max(len(headers[index]), *(len(row[index]) for row in rows))
-        for index in range(len(headers))
-    ]
+    def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
+        return [
+            (status_color(int(row[0])), Cyber.BOLD),
+            (Cyber.YELLOW,),
+            (Cyber.WHITE,),
+            (Cyber.MAGENTA,),
+            (Cyber.CYAN,),
+            (Cyber.GRAY,),
+        ]
 
-    print()
-    print(color("  ".join(header.ljust(widths[index]) for index, header in enumerate(headers)), Cyber.CYAN, Cyber.BOLD))
-    print(color("  ".join("-" * width for width in widths), Cyber.BLUE))
-    for row in rows:
-        status, size, words, method, path, extra = row
-        print(
-            "  ".join(
-                (
-                    color(status.ljust(widths[0]), status_color(int(status)), Cyber.BOLD),
-                    color(size.rjust(widths[1]), Cyber.YELLOW),
-                    color(words.rjust(widths[2]), Cyber.WHITE),
-                    color(method.ljust(widths[3]), Cyber.MAGENTA),
-                    color(path.ljust(widths[4]), Cyber.CYAN),
-                    color(extra.ljust(widths[5]), Cyber.GRAY),
-                )
-            )
-        )
+    print_table(
+        headers=headers,
+        rows=rows,
+        empty_message="Nenhum diretorio/arquivo encontrado com os filtros atuais.",
+        alignments=["left", "right", "right", "left", "left", "left"],
+        row_styles_fn=_row_styles,
+    )
 
 
 

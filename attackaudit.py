@@ -68,6 +68,14 @@ RISK_WEIGHTS = {
     "info": 0,
 }
 
+_SEVERITY_COLORS = {
+    "critical": Cyber.RED,
+    "high": Cyber.RED,
+    "medium": Cyber.YELLOW,
+    "low": Cyber.BLUE,
+    "info": Cyber.GRAY,
+}
+
 SQL_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "mysql": [
         re.compile(r"You have an error in your SQL syntax", re.IGNORECASE),
@@ -271,16 +279,21 @@ def load_paths_from_file(paths_file: str) -> list[str]:
     return sorted(set(paths))
 
 
-def resolve_ip(hostname: str) -> str:
-    """Resolve hostname para endereco IP, retornando string vazia em caso de erro."""
+def _resolve_ip_sync(hostname: str) -> str:
+    """Resolve hostname para endereco IP (sincrono, para usar com asyncio.to_thread)."""
     try:
         return socket.gethostbyname(hostname)
     except OSError:
         return ""
 
 
-def tls_info(url: str, timeout: float) -> tuple[str, str, str]:
-    """Coleta subject, issuer e data de expiracao do certificado TLS."""
+async def resolve_ip(hostname: str) -> str:
+    """Resolve hostname para endereco IP de forma assincrona."""
+    return await asyncio.to_thread(_resolve_ip_sync, hostname)
+
+
+def _tls_info_sync(url: str, timeout: float) -> tuple[str, str, str]:
+    """Coleta subject, issuer e data de expiracao do certificado TLS (sincrono)."""
     parsed = urlparse(url)
     if parsed.scheme != "https":
         return "", "", ""
@@ -308,8 +321,13 @@ def tls_info(url: str, timeout: float) -> tuple[str, str, str]:
     )
 
 
-def check_tls_versions(url: str, timeout: float) -> list[TLSVersionResult]:
-    """Testa suporte a versoes TLS/SSL, identificando versoes obsoletas."""
+async def tls_info(url: str, timeout: float) -> tuple[str, str, str]:
+    """Coleta subject, issuer e data de expiracao do certificado TLS (assincrono)."""
+    return await asyncio.to_thread(_tls_info_sync, url, timeout)
+
+
+def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]:
+    """Testa suporte a versoes TLS/SSL (sincrono, para usar com asyncio.to_thread)."""
     parsed = urlparse(url)
     if parsed.scheme != "https":
         return []
@@ -345,6 +363,11 @@ def check_tls_versions(url: str, timeout: float) -> list[TLSVersionResult]:
             results.append(TLSVersionResult(protocol=protocol_name, supported=False, reason=str(e)[:80]))
 
     return results
+
+
+async def check_tls_versions(url: str, timeout: float) -> list[TLSVersionResult]:
+    """Testa suporte a versoes TLS/SSL de forma assincrona."""
+    return await asyncio.to_thread(_check_tls_versions_sync, url, timeout)
 
 
 async def check_xss_reflection(client, base_url: str, timeout: float) -> tuple[bool, str]:
@@ -667,13 +690,7 @@ def risk_score(findings: list[Finding]) -> int:
 
 def severity_color(severity: str) -> str:
     """Retorna cor ANSI correspondente a severidade do finding."""
-    return {
-        "critical": Cyber.RED,
-        "high": Cyber.RED,
-        "medium": Cyber.YELLOW,
-        "low": Cyber.BLUE,
-        "info": Cyber.GRAY,
-    }.get(severity, Cyber.WHITE)
+    return _SEVERITY_COLORS.get(severity, Cyber.WHITE)
 
 
 async def run_audit(
@@ -696,7 +713,7 @@ async def run_audit(
     started = time.monotonic()
     target = normalize_url(url)
     parsed = urlparse(target)
-    ip = resolve_ip(parsed.hostname or "")
+    ip = await resolve_ip(parsed.hostname or "")
     rate_limiter = RateLimiter(requests_per_second)
     client = create_async_client(user_agent=user_agent, proxy=proxy)
     apply_session_auth(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
@@ -716,8 +733,8 @@ async def run_audit(
         if text:
             parser.feed(text)
 
-        tls_subject, tls_issuer, tls_not_after = tls_info(target, timeout)
-        tls_versions = check_tls_versions(target, timeout) if parsed.scheme == "https" else None
+        tls_subject, tls_issuer, tls_not_after = await tls_info(target, timeout)
+        tls_versions = await check_tls_versions(target, timeout) if parsed.scheme == "https" else None
         methods = await parse_allowed_methods(client, target, timeout)
         probes = await scan_paths(client, rate_limiter, target, timeout, threads, paths=paths) if deep else []
 
