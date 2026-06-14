@@ -6,10 +6,11 @@
 # Consulta WHOIS de dominios/IPs: proprietario, registrar, DNS, datas.
 # Lib: python-whois ou consulta direta WHOIS protocol.
 
-## 2. Subdomain enumeration
-# Enumeracao de subdominios via wordlist DNS brute-force.
-# Lib: dns.resolver (dnspython) + wordlist de subdominios.
-# Pode ser modulo novo ou extensao do webrecon.
+## 2. Subdomain enumeration -- RESOLVIDO
+# subdomainenum.py: modulo standalone com mytools-subenum CLI.
+# SubdomainResult, BUILTIN_WORDLIST (~220 entradas), load_wordlist(), _resolve_subdomain(),
+# enumerate_subdomains() com ThreadPoolExecutor, run_enum_scan(), build_parser(), run_once(), main().
+# 62 testes unitarios em tests/test_subdomainenum.py.
 
 ## 3. WAF detection -- RESOLVIDO
 # webrecon.py: WAF_SIGNATURES (12 WAFs), detect_waf(), ReconResult.waf_detected, print_result() secao WAF.

@@ -25,6 +25,7 @@ mytools-dir = "dirscanner:main"
 mytools-recon = "webrecon:main"
 mytools-audit = "attackaudit:main"
 mytools-dnsxfer = "dnstransfer:main"
+mytools-subenum = "subdomainenum:main"
 
 [build-system]
 requires = ["poetry-core"]
