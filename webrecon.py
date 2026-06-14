@@ -7,7 +7,7 @@ import os
 import re
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from urllib.parse import urljoin, urlparse
 
 from utils import (
@@ -652,9 +652,9 @@ class ReconResult:
     sitemap_status: int | None
     elapsed: float
     technologies: dict[str, list[str]] | None = None
-    cve_findings: list[CVEFinding] | None = None
-    waf_detected: list[str] | None = None
-    emails: list[str] | None = None
+    cve_findings: list[CVEFinding] = field(default_factory=list)
+    waf_detected: list[str] = field(default_factory=list)
+    emails: list[str] = field(default_factory=list)
     whois_data: WhoisResult | None = None
 
 
@@ -831,7 +831,7 @@ def print_result(result: ReconResult) -> None:
     if result.technologies:
         _print_technologies(result.technologies)
 
-    if result.cve_findings is not None:
+    if result.cve_findings:
         _print_cve_findings(result.cve_findings)
 
     if result.waf_detected:

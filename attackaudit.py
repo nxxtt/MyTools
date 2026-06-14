@@ -12,7 +12,7 @@ import ssl
 import sys
 import warnings
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
@@ -240,11 +240,11 @@ class AuditResult:
     findings: list[Finding]
     risk_score: int
     elapsed: float
-    tls_versions: list[TLSVersionResult] | None = None
+    tls_versions: list[TLSVersionResult] = field(default_factory=list)
     xss_reflected: bool = False
-    sqli_errors: list[str] | None = None
+    sqli_errors: list[str] = field(default_factory=list)
     csrf_missing: int = 0
-    method_results: list[MethodResult] | None = None
+    method_results: list[MethodResult] = field(default_factory=list)
 
 
 def banner() -> None:

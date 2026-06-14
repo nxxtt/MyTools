@@ -232,9 +232,9 @@ class TestAuditResultDataclass:
             tls_not_after="", allowed_methods=[], forms=0, password_inputs=0,
             probes=[], findings=[], risk_score=0, elapsed=1.0,
         )
-        assert r.tls_versions is None
+        assert r.tls_versions == []
         assert r.xss_reflected is False
-        assert r.sqli_errors is None
+        assert r.sqli_errors == []
         assert r.csrf_missing == 0
 
 
@@ -738,7 +738,7 @@ class TestAuditResultMethodResults:
             tls_not_after="", allowed_methods=[], forms=0, password_inputs=0,
             probes=[], findings=[], risk_score=0, elapsed=1.0,
         )
-        assert r.method_results is None
+        assert r.method_results == []
 
     def test_with_method_results(self):
         mr = [MethodResult("https://example.com/api", "PUT", 200, 500)]

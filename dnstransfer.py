@@ -118,7 +118,6 @@ def try_zone_transfer(
             domain,
             timeout=timeout,
             lifetime=timeout,
-            serial=0,
         )
         elapsed = time.monotonic() - start
 
