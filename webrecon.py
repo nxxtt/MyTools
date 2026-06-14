@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import httpx
 import ipaddress
 import os
 import re
@@ -515,6 +516,7 @@ async def lookup_cves(
     versions: list[tuple[str, str]],
     api_key: str | None = None,
     limit_per_tech: int = 5,
+    client: httpx.AsyncClient | None = None,
 ) -> list[CVEFinding]:
     """Consulta CVEs para cada tecnologia detectada na NVD.
 
@@ -522,6 +524,7 @@ async def lookup_cves(
         versions: Lista de (nome_tecnologia, versao) de extract_versions().
         api_key: Chave opcional da API NVD.
         limit_per_tech: Maximo de CVEs por tecnologia.
+        client: Cliente HTTP opcional para reutilizar.
 
     Returns:
         Lista de CVEFinding ordenada por score decrescente.
@@ -535,7 +538,7 @@ async def lookup_cves(
         logger.info("NVD lookup: %s", keyword)
 
         try:
-            results = await query_nvd(keyword, api_key=api_key, limit=limit_per_tech)
+            results = await query_nvd(keyword, api_key=api_key, limit=limit_per_tech, client=client)
         except Exception as error:
             logger.debug("NVD lookup failed for %s: %s", keyword, error)
             continue
@@ -791,7 +794,7 @@ async def run_recon(
         if cve:
             versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers, header_blob=header_blob, body_lower=body_lower)
             if versions:
-                cve_findings = await lookup_cves(versions, api_key=nvd_api_key)
+                cve_findings = await lookup_cves(versions, api_key=nvd_api_key, client=client)
             else:
                 cve_findings = []
 
