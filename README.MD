@@ -120,7 +120,7 @@ Tenta zone transfer (AXFR) em nameservers de um domínio para enumerar registros
 ```bash
 mytools-dnsxfer example.com
 mytools-dnsxfer example.com -o xfr.json
-mytools-dnsxfer example.com --concurrency 5
+mytools-dnsxfer example.com -t 15
 ```
 
 ### 7. Subdomain Enumeration (`mytools-subenum`)
@@ -130,7 +130,7 @@ Brute-force DNS de subdomínios com wordlist embutida ou customizada.
 mytools-subenum example.com
 mytools-subenum example.com -o subs.json
 mytools-subenum example.com -w wordlist.txt
-mytools-subenum example.com --concurrency 50
+mytools-subenum example.com -T 50
 mytools-subenum -l domains.txt --output-dir results/
 ```
 
@@ -211,7 +211,7 @@ mytools-recon https://example.com --deep --crawl-limit 20  # Limite de páginas
 Detecta Web Application Firewalls (Cloudflare, Akamai, AWS WAF, etc.) na resposta HTTP.
 
 ### HTTP Methods Scan
-Testa métodos HTTP perigosos (PUT, DELETE, OPTIONS, TRACE, etc.):
+Testa métodos HTTP perigosos (PUT, DELETE, PATCH, TRACE):
 
 ```bash
 mytools-audit https://example.com --test-methods
@@ -252,7 +252,7 @@ mytools-subenum --version
 ```bash
 mytools
 ```
-O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`.
+O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`.
 
 ### Modo interativo
 Cada módulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
