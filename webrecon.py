@@ -790,7 +790,7 @@ async def run_recon(
             url_lower=url_lower,
         )
 
-        cve_findings: list[CVEFinding] | None = None
+        cve_findings: list[CVEFinding] = []
         if cve:
             versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers, header_blob=header_blob, body_lower=body_lower)
             if versions:
