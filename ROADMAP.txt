@@ -140,3 +140,21 @@
 # Se target retorna 429 ou fecha conexoes, scanner continua na mesma velocidade.
 # Detectar 429 e aumentar delay automaticamente (backoff adaptativo).
 # Afeta: utils.py (RateLimiter), todos os modulos HTTP.
+
+## 26. Type checking com mypy/pyright (pendente)
+# Type hints em todo o codigo mas sem verificacao estatica.
+# Adicionar mypy ou pyright ao pyproject.toml e CI.
+# Afeta: pyproject.toml, .github/workflows/ci.yml.
+
+## 27. asyncio.run() no shell interativo (pendente)
+# dirscanner.run_once(), webrecon.run_once(), attackaudit.run_once() chamam asyncio.run().
+# Se chamado de dentro de um event loop (ex: Jupyter notebook), causa RuntimeError.
+# Usar nest_asyncio.run() ou detectar loop ativo e usar alternative.
+# Baixo impacto (CLI-only), mas importacao de modulos em notebooks quebra.
+# Afeta: dirscanner.py, webrecon.py, attackaudit.py.
+
+## 28. conftest.py com fixtures compartilhadas (pendente)
+# 29 chamadas create_async_client() espalhadas em 4 arquivos de teste.
+# Criar conftest.py com fixtures: mock_client, sample_response, sample_headers.
+# Elimina ~200 linhas de duplicacao entre test_dirscanner, test_attackaudit, test_webrecon.
+# Afeta: tests/conftest.py (novo), tests/test_dirscanner.py, tests/test_attackaudit.py, tests/test_webrecon.py.
