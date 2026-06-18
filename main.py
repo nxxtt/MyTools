@@ -82,6 +82,14 @@ def launch_portscanner() -> None:
         example="192.168.0.10 -p 1-1024 -b",
         validate_fn=_validate,
         banner_fn=portscanner.banner,
+        contextual_help=(
+            "Uso: <target> [opcoes]\n"
+            "  Targets: IP, hostname ou CIDR (IPv4/IPv6)\n"
+            "Exemplos:\n"
+            "  192.168.0.10 -p 22,80,443\n"
+            "  scanme.nmap.org -p top100 -b\n"
+            "  -l targets.txt -o results.json"
+        ),
     )
 
 
@@ -93,6 +101,13 @@ def launch_dirscanner() -> None:
         description="DirScanner interativo.",
         example="http://localhost:8000 -x php,txt,bak -s 200,301,403",
         banner_fn=dirscanner.banner,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  http://localhost:8000 -x php,txt,bak\n"
+            "  http://target.com -s 200,301,403\n"
+            "  -l urls.txt -o out.json"
+        ),
     )
 
 
@@ -104,6 +119,13 @@ def launch_webrecon() -> None:
         description="WebRecon interativo.",
         example="https://example.com -o recon.json",
         banner_fn=webrecon.banner,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://example.com\n"
+            "  https://example.com --cve --deep\n"
+            "  -l urls.txt -o recon.json"
+        ),
     )
 
 
@@ -115,6 +137,13 @@ def launch_attackaudit() -> None:
         description="AttackAudit interativo.",
         example="https://example.com --deep --test-vulns -o audit.json",
         banner_fn=attackaudit.banner,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://example.com --deep\n"
+            "  https://example.com --deep --test-vulns\n"
+            "  -l urls.txt -o audit.json"
+        ),
     )
 
 
@@ -126,6 +155,12 @@ def launch_dnstransfer() -> None:
         description="DNS Zone Transfer interativo.",
         example="example.com -o xfr.json",
         banner_fn=dnstransfer.banner,
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com -o xfr.json"
+        ),
     )
 
 
@@ -137,6 +172,12 @@ def launch_subdomainenum() -> None:
         description="Subdomain Enumeration interativo.",
         example="example.com -o subs.json",
         banner_fn=subdomainenum.banner,
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com -w wordlist.txt -o subs.json"
+        ),
     )
 
 

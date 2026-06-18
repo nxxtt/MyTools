@@ -979,6 +979,14 @@ def main() -> int:
             description="AttackAudit interativo.",
             example="https://example.com --deep --test-vulns -o audit.json",
             banner_fn=banner,
+            contextual_help=(
+                "Uso: <url> [opcoes]\n"
+                "Exemplos:\n"
+                "  https://example.com --deep\n"
+                "  https://example.com --deep --test-vulns --test-methods\n"
+                "  https://example.com --paths-file custom.txt -o audit.json\n"
+                "  -l targets.txt --output-dir results/"
+            ),
         )
 
     quiet = getattr(args, "quiet", False)

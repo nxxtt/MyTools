@@ -373,6 +373,15 @@ def main() -> int:
             example="192.168.0.10 -p 1-1024 -b",
             validate_fn=_validate,
             banner_fn=banner,
+            contextual_help=(
+                "Uso: <target> [opcoes]\n"
+                "  Targets: IP, hostname ou CIDR (IPv4/IPv6)\n"
+                "Exemplos:\n"
+                "  192.168.0.10 -p 22,80,443\n"
+                "  scanme.nmap.org -p top100 -b\n"
+                "  10.0.0.0/30 -w 500\n"
+                "  -l targets.txt -p 80,443 -o results.json"
+            ),
         )
 
     quiet = getattr(args, "quiet", False)

@@ -345,6 +345,13 @@ def main() -> int:
             example="example.com -t 15",
             validate_fn=_validate,
             banner_fn=banner,
+            contextual_help=(
+                "Uso: <dominio> [opcoes]\n"
+                "Exemplos:\n"
+                "  example.com\n"
+                "  example.com -t 15 -o xfr.json\n"
+                "  Use -l para arquivo com dominios (um por linha)"
+            ),
         )
 
     quiet = getattr(args, "quiet", False)

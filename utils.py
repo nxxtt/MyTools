@@ -558,6 +558,7 @@ def run_interactive_shell(
     example: str = "",
     validate_fn: Callable | None = None,
     banner_fn: Callable | None = None,
+    contextual_help: str | None = None,
 ) -> int:
     """Inicia shell interativo generico com loop de comandos."""
     if banner_fn:
@@ -581,7 +582,10 @@ def run_interactive_shell(
             clear_console()
             continue
         if raw == "help":
-            parser.print_help()
+            if contextual_help:
+                print(color(contextual_help, Cyber.WHITE, Cyber.BOLD))
+            else:
+                parser.print_help()
             continue
 
         try:

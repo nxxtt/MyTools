@@ -1045,6 +1045,14 @@ def main() -> int:
             description="WebRecon interativo.",
             example="https://example.com -o recon.json",
             banner_fn=banner,
+            contextual_help=(
+                "Uso: <url> [opcoes]\n"
+                "Exemplos:\n"
+                "  https://example.com\n"
+                "  https://example.com --cve --nvd-api-key KEY\n"
+                "  https://example.com --deep --crawl-limit 20\n"
+                "  -l urls.txt --output-dir results/ -o recon.json"
+            ),
         )
 
     quiet = getattr(args, "quiet", False)

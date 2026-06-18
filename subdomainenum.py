@@ -358,6 +358,14 @@ def main() -> int:
             example="example.com -T 30 -w wordlist.txt",
             validate_fn=_validate,
             banner_fn=banner,
+            contextual_help=(
+                "Uso: <dominio> [opcoes]\n"
+                "Exemplos:\n"
+                "  example.com\n"
+                "  example.com -T 30 -w wordlist.txt\n"
+                "  example.com -o subs.json\n"
+                "  Use -l para arquivo com dominios (um por linha)"
+            ),
         )
 
     quiet = getattr(args, "quiet", False)

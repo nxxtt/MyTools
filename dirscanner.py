@@ -464,6 +464,14 @@ def main() -> int:
             description="DirScanner interativo.",
             example="http://localhost:8000 -x php,txt,bak -s 200,301,403",
             banner_fn=banner,
+            contextual_help=(
+                "Uso: <url> [opcoes]\n"
+                "Exemplos:\n"
+                "  http://localhost:8000 -x php,txt,bak\n"
+                "  http://target.com -s 200,301,403 -w wordlist.txt\n"
+                "  http://target.com -M POST --filter-size 100-5000\n"
+                "  -l urls.txt --output-dir results/ -o out.json"
+            ),
         )
 
     quiet = getattr(args, "quiet", False)
