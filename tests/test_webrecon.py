@@ -896,3 +896,79 @@ class TestRunWhois:
             assert result.registrar == "Test Registrar"
             assert result.registrant_name == "Test Owner"
             assert result.name_servers == ["ns1.test.com", "ns2.test.com"]
+
+
+class TestProbeStatusEdgeCases:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_timeout_returns_none(self, async_client):
+        respx.get("http://example.com/robots.txt").mock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        result = await probe_status(async_client, "http://example.com/robots.txt", 0.1)
+        assert result is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_403_returns_status(self, async_client):
+        respx.get("http://example.com/forbidden").mock(
+            return_value=httpx.Response(403)
+        )
+        result = await probe_status(async_client, "http://example.com/forbidden", 5.0)
+        assert result == 403
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_500_returns_status(self, async_client):
+        respx.get("http://example.com/error").mock(
+            return_value=httpx.Response(500)
+        )
+        result = await probe_status(async_client, "http://example.com/error", 5.0)
+        assert result == 500
+
+
+class TestCrawlInternalLinksEdgeCases:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_connection_refused_returns_empty(self, async_client):
+        respx.get("http://example.com/").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        result = await crawl_internal_links(async_client, "http://example.com", "<html></html>", timeout=1.0)
+        assert result == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_timeout_returns_empty(self, async_client):
+        respx.get("http://example.com/").mock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        result = await crawl_internal_links(async_client, "http://example.com", "<html></html>", timeout=0.1)
+        assert result == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_malformed_html_handled(self, async_client):
+        respx.get("http://example.com/page").mock(
+            return_value=httpx.Response(200, text="Contact: admin@example.com")
+        )
+        body = "<html><body><a href='/page'>link</a></body></html>"
+        result = await crawl_internal_links(async_client, "http://example.com", body, timeout=5.0)
+        assert "admin@example.com" in result
+
+
+class TestLookupCvesEdgeCases:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_empty_versions_returns_empty(self):
+        result = await lookup_cves([])
+        assert result == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_connection_error_returns_empty(self):
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        result = await lookup_cves([("nginx", "1.21.0")])
+        assert result == []

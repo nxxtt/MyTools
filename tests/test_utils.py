@@ -628,3 +628,104 @@ class TestEnsureOutputDir:
 
     def test_existing_dir_is_noop(self, tmp_path):
         ensure_output_dir(str(tmp_path))
+
+
+class TestFetchRetry:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_retries_on_connection_error(self):
+        from utils import create_async_client, fetch
+
+        client = create_async_client()
+        url = "https://example.com/test"
+        attempt = 0
+
+        def side_effect(request):
+            nonlocal attempt
+            attempt += 1
+            raise httpx.ConnectError("connection refused")
+
+        respx.get(url).mock(side_effect=side_effect)
+        with pytest.raises(ValueError, match="falha ao acessar"):
+            await fetch(client, url, max_retries=2)
+        assert attempt == 2
+        await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_success_after_retry(self):
+        from utils import create_async_client, fetch
+
+        client = create_async_client()
+        url = "https://example.com/test"
+        attempt = 0
+
+        def side_effect(request):
+            nonlocal attempt
+            attempt += 1
+            if attempt == 1:
+                raise httpx.ConnectError("refused")
+            return httpx.Response(200, text="ok")
+
+        respx.get(url).mock(side_effect=side_effect)
+        status, _, body, _ = await fetch(client, url, max_retries=3)
+        assert status == 200
+        assert body == b"ok"
+        assert attempt == 2
+        await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_timeout_raises_after_retries(self):
+        from utils import create_async_client, fetch
+
+        client = create_async_client()
+        url = "https://example.com/test"
+
+        def side_effect(request):
+            raise httpx.TimeoutException("timeout")
+
+        respx.get(url).mock(side_effect=side_effect)
+        with pytest.raises(ValueError, match="falha ao acessar"):
+            await fetch(client, url, timeout=0.1, max_retries=1)
+        await client.aclose()
+
+
+class TestRateLimiterEdgeCases:
+    @pytest.mark.asyncio
+    async def test_large_rps_very_fast(self):
+        limiter = RateLimiter(1000.0)
+        start = time.monotonic()
+        for _ in range(10):
+            await limiter.wait()
+        elapsed = time.monotonic() - start
+        assert elapsed < 0.5
+
+    @pytest.mark.asyncio
+    async def test_consecutive_waits_maintain_interval(self):
+        limiter = RateLimiter(10.0)
+        timestamps = []
+        for _ in range(5):
+            await limiter.wait()
+            timestamps.append(time.monotonic())
+        for i in range(1, len(timestamps)):
+            gap = timestamps[i] - timestamps[i - 1]
+            assert gap >= 0.09
+
+
+class TestWriteOutputMalformed:
+    def test_json_with_unserializable_data(self, tmp_path):
+        from utils import write_output
+
+        path = str(tmp_path / "bad.json")
+        with pytest.raises((TypeError, ValueError, OverflowError)):
+            write_output(path, {"key": set([1, 2])}, quiet=True)
+
+    def test_csv_empty_data(self, tmp_path):
+        from utils import write_output
+
+        path = str(tmp_path / "empty.csv")
+        write_output(path, [], fieldnames=["a", "b"], quiet=True)
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+        assert "a,b" in content

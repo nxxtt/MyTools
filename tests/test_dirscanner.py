@@ -19,7 +19,7 @@ from dirscanner import (
     parse_statuses,
     scan_path,
 )
-from utils import RateLimiter, parse_auth, parse_extra_headers
+from utils import RateLimiter, create_async_client, parse_auth, parse_extra_headers
 
 
 class TestNormalizeBaseUrl:
@@ -416,3 +416,72 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args(["http://example.com", "--log-file", "scan.log"])
         assert args.log_file == "scan.log"
+
+
+class TestScanPathEdgeCases:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_connection_refused_returns_none(self):
+        respx.get("https://example.com/secret").mock(side_effect=httpx.ConnectError("refused"))
+        client = create_async_client(user_agent="TestAgent/1.0")
+        try:
+            rl = RateLimiter(0)
+            result = await scan_path(client, rl, "https://example.com/", "/secret", 1.0, {200, 301})
+            assert result is None
+        finally:
+            await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_timeout_returns_none(self):
+        def handler(request):
+            raise httpx.TimeoutException("timeout")
+
+        respx.get("https://example.com/slow").mock(side_effect=handler)
+        client = create_async_client(user_agent="TestAgent/1.0")
+        try:
+            rl = RateLimiter(0)
+            result = await scan_path(client, rl, "https://example.com/", "/slow", 0.1, {200})
+            assert result is None
+        finally:
+            await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_empty_path_probes_root(self):
+        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text="root"))
+        client = create_async_client(user_agent="TestAgent/1.0")
+        try:
+            rl = RateLimiter(0)
+            result = await scan_path(client, rl, "https://example.com", "", 1.0, {200})
+            assert result is None or result.path == "/"
+        finally:
+            await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_403_returns_finding_when_in_statuses(self):
+        respx.get("https://example.com/admin").mock(return_value=httpx.Response(403, text="forbidden"))
+        client = create_async_client(user_agent="TestAgent/1.0")
+        try:
+            rl = RateLimiter(0)
+            result = await scan_path(client, rl, "https://example.com/", "/admin", 1.0, {200, 403})
+            assert result is not None
+            assert result.status == 403
+        finally:
+            await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_large_body_handled(self):
+        body = "x" * 500_000
+        respx.get("https://example.com/big").mock(return_value=httpx.Response(200, text=body))
+        client = create_async_client(user_agent="TestAgent/1.0")
+        try:
+            rl = RateLimiter(0)
+            result = await scan_path(client, rl, "https://example.com/", "/big", 5.0, {200})
+            assert result is not None
+            assert result.size >= 500_000
+        finally:
+            await client.aclose()
+

@@ -741,3 +741,50 @@ class TestAuditResultMethodResults:
         )
         assert r.method_results is not None
         assert len(r.method_results) == 1
+
+
+class TestCheckXSSReflectionEdgeCases:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_connection_refused_returns_false(self, async_client):
+        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.ConnectError("refused"))
+        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 1.0)
+        assert reflected is False
+        assert evidence == ""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_timeout_returns_false(self, async_client):
+        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.TimeoutException("timeout"))
+        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 0.1)
+        assert reflected is False
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_empty_body_not_reflected(self, async_client):
+        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text=""))
+        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 5.0)
+        assert reflected is False
+
+
+class TestCheckSQLiErrorsEdgeCases:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_connection_refused_returns_empty(self, async_client):
+        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.ConnectError("refused"))
+        result = await check_sqli_errors(async_client, "https://example.com/page?id=1", 1.0)
+        assert result == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_timeout_returns_empty(self, async_client):
+        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.TimeoutException("timeout"))
+        result = await check_sqli_errors(async_client, "https://example.com/page?id=1", 0.1)
+        assert result == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_postgresql_error_detected(self, async_client):
+        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="ERROR: syntax error at or near \"1\""))
+        result = await check_sqli_errors(async_client, "https://example.com/page?id=1", 5.0)
+        assert any("postgresql" in r for r in result) or len(result) > 0
