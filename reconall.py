@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import time
+from urllib.parse import urlparse
 
 import attackaudit
 import dirscanner
@@ -62,7 +63,6 @@ def _is_url(target: str) -> bool:
 
 def _extract_domain(target: str) -> str:
     if _is_url(target):
-        from urllib.parse import urlparse
         parsed = urlparse(target)
         return parsed.hostname or target
     return target
@@ -109,6 +109,32 @@ def run_all(args: argparse.Namespace) -> int:
         retries=3,
         dry_run=args.dry_run,
         target_list=None,
+        user_agent=None,
+        proxy=None,
+        delay=0.0,
+        auth=None,
+        bearer_token=None,
+        cookie=None,
+        header=[],
+        concurrency=40,
+        status=frozenset({200, 204, 301, 302, 307, 308, 401, 403}),
+        method="GET",
+        wordlist=None,
+        extensions=[],
+        filter_size=None,
+        filter_words=None,
+        output_dir=None,
+        threads=None,
+        workers=200,
+        banner=False,
+        deep=False,
+        test_vulns=False,
+        test_methods=False,
+        paths_file=None,
+        params=None,
+        cve=False,
+        nvd_api_key=None,
+        crawl_limit=10,
     )
 
     if args.output_dir:
@@ -131,13 +157,13 @@ def run_all(args: argparse.Namespace) -> int:
 
     # --- PortScanner ---
     if "portscanner" not in skipped:
-        port_args = _make_args(target, {"targets": [domain], "ports": args.ports, "banner": False, "workers": 200, "output": _out("portscanner")}, base_ns)
+        port_args = _make_args(target, {"targets": [domain], "ports": args.ports}, base_ns)
         total_errors += _run_module("portscanner", portscanner.run_once, port_args)
 
     # --- HTTP modules (URL only) ---
     if is_url:
         if "dirscanner" not in skipped:
-            dir_args = _make_args(target, {"url": target, "output": _out("dirscanner"), "extensions": "php,txt,bak,html"}, base_ns)
+            dir_args = _make_args(target, {"url": target, "output": _out("dirscanner"), "extensions": ["php", "txt", "bak", "html"]}, base_ns)
             total_errors += _run_module("dirscanner", dirscanner.run_once, dir_args)
 
         if "webrecon" not in skipped:

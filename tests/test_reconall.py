@@ -140,3 +140,71 @@ class TestRunAll:
             run_all(args)
             call_args = mock_web.call_args[0][0]
             assert call_args.deep is True
+
+
+class TestNamespaceConstruction:
+    def test_portscanner_has_threads(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--skip", "dnstransfer", "--skip", "subenum"])
+        with patch("reconall.portscanner.run_once", return_value=0) as mock_fn:
+            run_all(args)
+            ns = mock_fn.call_args[0][0]
+            assert hasattr(ns, "threads")
+            assert ns.threads is None
+
+    def test_portscanner_has_workers(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--skip", "dnstransfer", "--skip", "subenum"])
+        with patch("reconall.portscanner.run_once", return_value=0) as mock_fn:
+            run_all(args)
+            ns = mock_fn.call_args[0][0]
+            assert hasattr(ns, "workers")
+            assert ns.workers == 200
+
+    def test_dirscanner_has_required_attrs(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--skip", "portscanner", "--skip", "webrecon", "--skip", "attackaudit"])
+        with patch("reconall.dirscanner.run_once", return_value=0) as mock_fn:
+            run_all(args)
+            ns = mock_fn.call_args[0][0]
+            for attr in ("user_agent", "proxy", "delay", "auth", "header", "cookie",
+                         "concurrency", "status", "method", "wordlist", "extensions",
+                         "filter_size", "filter_words", "retries"):
+                assert hasattr(ns, attr), f"dirscanner missing attribute: {attr}"
+
+    def test_dirscanner_extensions_is_list(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--skip", "portscanner", "--skip", "webrecon", "--skip", "attackaudit"])
+        with patch("reconall.dirscanner.run_once", return_value=0) as mock_fn:
+            run_all(args)
+            ns = mock_fn.call_args[0][0]
+            assert isinstance(ns.extensions, list)
+            assert ns.extensions == ["php", "txt", "bak", "html"]
+
+    def test_webrecon_has_required_attrs(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--skip", "portscanner", "--skip", "dirscanner", "--skip", "attackaudit"])
+        with patch("reconall.webrecon.run_once", return_value=0) as mock_fn:
+            run_all(args)
+            ns = mock_fn.call_args[0][0]
+            for attr in ("user_agent", "proxy", "cve", "deep", "crawl_limit", "nvd_api_key"):
+                assert hasattr(ns, attr), f"webrecon missing attribute: {attr}"
+
+    def test_attackaudit_has_required_attrs(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--skip", "portscanner", "--skip", "dirscanner", "--skip", "webrecon"])
+        with patch("reconall.attackaudit.run_once", return_value=0) as mock_fn:
+            run_all(args)
+            ns = mock_fn.call_args[0][0]
+            for attr in ("user_agent", "proxy", "delay", "concurrency", "deep",
+                         "test_vulns", "test_methods", "paths_file", "params"):
+                assert hasattr(ns, attr), f"attackaudit missing attribute: {attr}"
+
+    def test_subenum_has_threads(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--skip", "dnstransfer", "--skip", "portscanner"])
+        with patch("reconall.subdomainenum.run_once", return_value=0) as mock_fn:
+            run_all(args)
+            ns = mock_fn.call_args[0][0]
+            assert hasattr(ns, "threads")
+            assert ns.threads is None
