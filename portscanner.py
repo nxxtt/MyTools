@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from types import MappingProxyType
 from typing import Iterable
 
-from utils import Cyber, color, parse_int_range, print_table, set_color, setup_logging, show_banner, write_output, run_interactive_shell, __version__
+from utils import Cyber, add_base_args, color, parse_int_range, print_table, set_color, setup_logging, show_banner, write_output, run_interactive_shell
 
 import logging
 
@@ -271,13 +271,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Portas: default, top100, all, 22,80,443 ou 1-1024. Padrao: default",
     )
     parser.add_argument(
-        "-t",
-        "--timeout",
-        type=float,
-        default=0.5,
-        help="Timeout por conexao em segundos. Padrao: 0.5",
-    )
-    parser.add_argument(
         "-w",
         "--workers",
         type=int,
@@ -296,17 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Tenta coletar banner em portas abertas.",
     )
-    parser.add_argument(
-        "-o",
-        "--output",
-        help="Salva resultado em .json ou .csv.",
-    )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Mostra mensagens de debug no terminal.")
-    parser.add_argument("--log-file", help="Salva logs em arquivo.")
-    parser.add_argument("-q", "--quiet", action="store_true", help="Modo silencioso: sem banner/progresso. Requer -o.")
-    parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
-    parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    add_base_args(parser, timeout_default=0.5)
     return parser
 
 

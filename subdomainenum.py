@@ -14,13 +14,13 @@ import dns.resolver
 
 from utils import (
     Cyber,
+    add_base_args,
     color,
     run_interactive_shell,
     set_color,
     setup_logging,
     show_banner,
     write_output,
-    __version__,
 )
 
 logger = logging.getLogger("mytools.subdomainenum")
@@ -248,19 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_THREADS,
         help=f"Numero de threads. Padrao: {DEFAULT_THREADS}",
     )
-    parser.add_argument(
-        "-t", "--timeout",
-        type=float,
-        default=DEFAULT_TIMEOUT,
-        help=f"Timeout DNS em segundos. Padrao: {DEFAULT_TIMEOUT}",
-    )
-    parser.add_argument("-o", "--output", help="Salva resultado em .json ou .csv.")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Mostra mensagens de debug no terminal.")
-    parser.add_argument("--log-file", help="Salva logs em arquivo.")
-    parser.add_argument("-q", "--quiet", action="store_true", help="Modo silencioso: sem banner/progresso. Requer -o.")
-    parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
-    parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
     return parser
 
 

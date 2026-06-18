@@ -349,16 +349,23 @@ def normalize_url(url: str) -> str:
     return url.rstrip("/")
 
 
-def add_common_args(parser: argparse.ArgumentParser) -> None:
-    """Adiciona argumentos compartilhados a um parser."""
-    parser.add_argument("-t", "--timeout", type=float, default=5.0, help="Timeout em segundos. Padrao: 5")
+def add_base_args(parser: argparse.ArgumentParser, timeout_default: float = 5.0) -> None:
+    """Adiciona argumentos base compartilhados (timeout, output, verbose, etc)."""
+    parser.add_argument("-t", "--timeout", type=float, default=timeout_default, help="Timeout em segundos. Padrao: 5")
     parser.add_argument("-o", "--output", help="Salva resultado em .json ou .csv.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Mostra mensagens de debug no terminal.")
     parser.add_argument("--log-file", help="Salva logs em arquivo.")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Modo silencioso: sem banner/progresso. Requer -o.")
+    parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
+    parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+
+
+def add_http_args(parser: argparse.ArgumentParser) -> None:
+    """Adiciona argumentos HTTP especificos (user-agent, proxy, auth, etc)."""
     parser.add_argument("-A", "--user-agent", help="User-Agent usado nas requests.")
     parser.add_argument("--proxy", help="Proxy para as requests. Ex: http://proxy:8080")
     parser.add_argument("--delay", type=float, default=0.0, help="Delay entre requests (req/s). 0 = sem limite.")
-    parser.add_argument("-q", "--quiet", action="store_true", help="Modo silencioso: sem banner/progresso. Requer -o.")
     parser.add_argument(
         "--auth",
         type=parse_auth,
@@ -367,9 +374,12 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bearer-token", dest="bearer_token", help="Token Bearer para autenticacao.")
     parser.add_argument("--cookie", help="Cookie para as requests. Ex: 'session=abc123; token=xyz'")
     parser.add_argument("--header", action="append", default=[], help="Header customizado (pode usar mais de um). Ex: 'X-Token: abc'")
-    parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
-    parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+
+
+def add_common_args(parser: argparse.ArgumentParser) -> None:
+    """Adiciona argumentos compartilhados (base + HTTP) a um parser."""
+    add_base_args(parser)
+    add_http_args(parser)
 
 
 def apply_session_auth(
