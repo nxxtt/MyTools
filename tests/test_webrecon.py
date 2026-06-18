@@ -18,6 +18,7 @@ from webrecon import (
     WAF_SIGNATURES,
     WhoisResult,
     ReconResult,
+    _async_run_once,
     _ensure_list,
     _format_date,
     _severity_color,
@@ -972,3 +973,31 @@ class TestLookupCvesEdgeCases:
         )
         result = await lookup_cves([("nginx", "1.21.0")])
         assert result == []
+
+
+class TestDryRun:
+    def test_dry_run_flag_exists_in_parser(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_dry_run_default_false(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        assert args.dry_run is False
+
+    def test_dry_run_returns_zero(self, capsys):
+        import asyncio as _asyncio
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--dry-run"])
+        result = _asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_dry_run_outputs_info(self, capsys):
+        import asyncio as _asyncio
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--dry-run"])
+        _asyncio.run(_async_run_once(args))
+        captured = capsys.readouterr()
+        assert "DRY-RUN" in captured.out
+        assert "Nenhuma requisicao" in captured.out

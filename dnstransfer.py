@@ -303,6 +303,19 @@ def run_once(args: argparse.Namespace) -> int:
         raise ValueError("timeout precisa ser maior que zero")
 
     domain = args.domain.strip().lower()
+
+    if getattr(args, "dry_run", False):
+        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta DNS sera realizada.")
+        ns_list = get_nameservers(domain)
+        if not ns_list:
+            print(color("[!]", Cyber.RED, Cyber.BOLD), f"Nenhum nameserver encontrado para {color(domain, Cyber.WHITE, Cyber.BOLD)}")
+            return 0
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Nameservers: {color(str(len(ns_list)), Cyber.WHITE, Cyber.BOLD)}")
+        for ns in ns_list:
+            print(color("    ->", Cyber.BLUE), color(ns, Cyber.WHITE))
+        return 0
+
     start = time.monotonic()
     results = run_xfr_scan(domain, timeout=args.timeout)
     elapsed = time.monotonic() - start

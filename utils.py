@@ -406,6 +406,7 @@ def add_base_args(parser: argparse.ArgumentParser, timeout_default: float = 5.0)
     parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
     parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
     parser.add_argument("--retries", type=int, default=3, help="Numero de tentativas em caso de falha HTTP. Padrao: 3")
+    parser.add_argument("--dry-run", action="store_true", help="Mostra o que faria sem executar nada.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
 

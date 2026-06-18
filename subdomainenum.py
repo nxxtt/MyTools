@@ -322,6 +322,15 @@ def run_once(args: argparse.Namespace) -> int:
         raise ValueError("timeout precisa ser maior que zero")
 
     domain = args.domain.strip().lower()
+    wordlist = load_wordlist(getattr(args, "wordlist", None))
+
+    if getattr(args, "dry_run", False):
+        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta DNS sera realizada.")
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Wordlist: {color(str(len(wordlist)), Cyber.WHITE, Cyber.BOLD)} subdominios")
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Threads: {color(str(args.threads), Cyber.WHITE, Cyber.BOLD)} | Timeout: {color(f'{args.timeout}s', Cyber.YELLOW)}")
+        return 0
+
     results = run_enum_scan(
         domain,
         wordlist_path=getattr(args, "wordlist", None),

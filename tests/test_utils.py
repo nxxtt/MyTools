@@ -14,6 +14,7 @@ from utils import (
     FetchError,
     RateLimiter,
     __version__,
+    add_base_args,
     add_common_args,
     apply_session_auth,
     color,
@@ -869,3 +870,17 @@ class TestWriteOutputMalformed:
         with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "a,b" in content
+
+
+class TestDryRunFlag:
+    def test_add_base_args_includes_dry_run(self):
+        parser = argparse.ArgumentParser()
+        add_base_args(parser)
+        args = parser.parse_args(["--dry-run"])
+        assert args.dry_run is True
+
+    def test_dry_run_default_false(self):
+        parser = argparse.ArgumentParser()
+        add_base_args(parser)
+        args = parser.parse_args([])
+        assert args.dry_run is False

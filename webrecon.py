@@ -1013,6 +1013,21 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     output_dir = getattr(args, "output_dir", None)
     ensure_output_dir(output_dir)
 
+    if getattr(args, "dry_run", False):
+        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        for url in urls:
+            candidates = candidate_urls(url)
+            for c in candidates:
+                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(c, Cyber.WHITE, Cyber.BOLD)}")
+            features = []
+            if getattr(args, "cve", False):
+                features.append("CVE lookup")
+            if getattr(args, "deep", False):
+                features.append(f"deep crawl (limit={getattr(args, 'crawl_limit', 10)})")
+            if features:
+                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Features: {color(', '.join(features), Cyber.WHITE, Cyber.BOLD)}")
+        return 0
+
     all_results: list[ReconResult] = []
     for url in urls:
         result = await _run_single(url, args, quiet=quiet)

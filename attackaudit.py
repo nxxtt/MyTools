@@ -984,6 +984,24 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     output_dir = getattr(args, "output_dir", None)
     ensure_output_dir(output_dir)
 
+    if getattr(args, "dry_run", False):
+        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        for url in urls:
+            target = normalize_url(url)
+            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(target, Cyber.WHITE, Cyber.BOLD)}")
+            features = []
+            if args.deep:
+                features.append("path probing")
+            if getattr(args, "test_vulns", False):
+                features.append("XSS/SQLi tests")
+            if getattr(args, "test_methods", False):
+                features.append("HTTP method tests")
+            if getattr(args, "params", None):
+                features.append(f"params={args.params}")
+            if features:
+                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Features: {color(', '.join(features), Cyber.WHITE, Cyber.BOLD)}")
+        return 0
+
     all_results: list[AuditResult] = []
     for url in urls:
         result = await _run_single(url, args, quiet=quiet)

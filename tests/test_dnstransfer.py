@@ -376,3 +376,23 @@ class TestBannerAndConstants:
 
     def test_dns_port_is_53(self):
         assert DNS_PORT == 53
+
+
+class TestDryRun:
+    def test_dry_run_flag_exists_in_parser(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_dry_run_default_false(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        assert args.dry_run is False
+
+    def test_dry_run_outputs_info(self, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--dry-run"])
+        result = run_once(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "DRY-RUN" in captured.out

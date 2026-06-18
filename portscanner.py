@@ -337,6 +337,16 @@ def run_once(args: argparse.Namespace) -> int:
         raise ValueError("informe pelo menos um alvo ou use -l/--list")
 
     targets = resolve_targets(all_targets)
+
+    if getattr(args, "dry_run", False):
+        total = len(targets) * len(args.ports)
+        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma conexao sera realizada.")
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvos: {color(str(len(targets)), Cyber.WHITE, Cyber.BOLD)} | Portas: {color(str(len(args.ports)), Cyber.WHITE, Cyber.BOLD)} | Tentativas: {color(str(total), Cyber.WHITE, Cyber.BOLD)}")
+        for host, address in targets:
+            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(host, Cyber.WHITE, Cyber.BOLD)} ({color(address, Cyber.CYAN)})")
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Portas: {color(str(len(args.ports)), Cyber.WHITE, Cyber.BOLD)} em {color(str(len(targets)), Cyber.WHITE, Cyber.BOLD)} alvo(s) = {color(str(total), Cyber.YELLOW, Cyber.BOLD)} tentativas")
+        return 0
+
     findings = scan_targets(
         targets=targets,
         ports=args.ports,

@@ -495,3 +495,43 @@ class TestBannerAndConstants:
 
     def test_default_timeout(self):
         assert DEFAULT_TIMEOUT == 3.0
+
+
+class TestDryRun:
+    def test_dry_run_flag_exists_in_parser(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_dry_run_default_false(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        assert args.dry_run is False
+
+    def test_dry_run_returns_zero(self, capsys):
+        args = self._make_args(dry_run=True)
+        result = run_once(args)
+        assert result == 0
+
+    def test_dry_run_outputs_info(self, capsys):
+        args = self._make_args(dry_run=True)
+        run_once(args)
+        captured = capsys.readouterr()
+        assert "DRY-RUN" in captured.out
+        assert "Nenhuma consulta" in captured.out
+
+    def _make_args(self, **kwargs):
+        defaults = {
+            "domain": "example.com",
+            "threads": DEFAULT_THREADS,
+            "timeout": DEFAULT_TIMEOUT,
+            "wordlist": None,
+            "output": None,
+            "verbose": False,
+            "quiet": False,
+            "color": None,
+            "log_file": None,
+            "dry_run": False,
+        }
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)

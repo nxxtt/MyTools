@@ -21,6 +21,7 @@ from attackaudit import (
     RISK_WEIGHTS,
     SECURITY_HEADERS_RECS,
     TLSVersionResult,
+    _async_run_once,
     _extract_query_params,
     build_findings,
     build_parser,
@@ -927,3 +928,31 @@ class TestBuildParserParams:
         parser = build_parser()
         args = parser.parse_args(["https://example.com"])
         assert args.params is None
+
+
+class TestDryRun:
+    def test_dry_run_flag_exists_in_parser(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_dry_run_default_false(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        assert args.dry_run is False
+
+    def test_dry_run_returns_zero(self, capsys):
+        import asyncio as _asyncio
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--dry-run"])
+        result = _asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_dry_run_outputs_info(self, capsys):
+        import asyncio as _asyncio
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--dry-run"])
+        _asyncio.run(_async_run_once(args))
+        captured = capsys.readouterr()
+        assert "DRY-RUN" in captured.out
+        assert "Nenhuma requisicao" in captured.out

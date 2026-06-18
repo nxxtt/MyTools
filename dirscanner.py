@@ -425,6 +425,16 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     output_dir = getattr(args, "output_dir", None)
     ensure_output_dir(output_dir)
 
+    if getattr(args, "dry_run", False):
+        paths = load_paths(args.wordlist, args.extensions)
+        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        for url in urls:
+            base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
+            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Method: {color(args.method, Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}")
+            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {color(','.join(map(str, sorted(args.status))), Cyber.YELLOW)}")
+        return 0
+
     all_findings: list[Finding] = []
     for url in urls:
         findings = await _run_single(url, args, quiet=quiet)

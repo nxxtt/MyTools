@@ -284,3 +284,31 @@ class TestCreateConnection:
         import pytest
         with pytest.raises((ConnectionRefusedError, TimeoutError, OSError)):
             _create_connection("::1", 1, 0.1)
+
+
+class TestDryRun:
+    def test_dry_run_flag_exists_in_parser(self):
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_dry_run_default_false(self):
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1"])
+        assert args.dry_run is False
+
+    def test_dry_run_returns_zero(self, capsys):
+        from portscanner import run_once
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "80", "--dry-run"])
+        result = run_once(args)
+        assert result == 0
+
+    def test_dry_run_outputs_info(self, capsys):
+        from portscanner import run_once
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "22,80", "--dry-run"])
+        run_once(args)
+        captured = capsys.readouterr()
+        assert "DRY-RUN" in captured.out
+        assert "Nenhuma conexao" in captured.out
