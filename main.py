@@ -11,7 +11,20 @@ import subdomainenum
 import webrecon
 from utils import Cyber, clear_console, color, create_banner, run_interactive_shell, __version__
 
-"""Módulo principal que integra as ferramentas de segurança: port scanner, dir scanner, web recon e attack audit."""
+"""Modulo principal que integra as ferramentas de segurança.
+
+Painel interativo central que permite alternar entre:
+  1. PortScanner  - TCP port scan com banner grabbing
+  2. DirScanner   - HTTP directory brute-force
+  3. WebRecon     - HTTP passive recon (headers, CVE, WHOIS)
+  4. AttackAudit  - Red/blue web audit (XSS, SQLi, TLS)
+  5. DNS Xfer     - DNS zone transfer (AXFR)
+  6. SubEnum      - Subdomain enumeration (DNS brute-force)
+
+Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
+O usuario pode usar argumentos CLI normalmente dentro de cada shell.
+Use 'exit' para voltar ao menu principal.
+"""
 
 
 def banner() -> None:

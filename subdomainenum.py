@@ -1,5 +1,24 @@
 #!/usr/bin/env python3
-"""Enumerador de subdominios via DNS brute-force."""
+"""Enumerador de subdominios via DNS brute-force.
+
+Fluxo principal:
+  1. Carrega wordlist (built-in com ~170 subdominios ou customizada)
+  2. Faz prefetch de registros MX e CNAME para subdominios rapidos
+  3. Para cada subdominio da wordlist, tenta resolver A record
+  4. Subdominios resolvidos sao listados com seus IPs
+
+Estrategia de otimizacao:
+  - Prefetch MX/CNAME: muitos subdominios sao revelados por registros
+    MX (mail.example.com) e CNAME (www.example.com -> cdn.example.com)
+    Isso encontra subdominios rapidamente sem brute-force
+  - ThreadPoolExecutor: resolve subdominios em paralelo
+  - Resolver compartilhado: cache de resolucoes DNS entre threads
+  - Progress bar: mostra progresso a cada 20 subdominios
+
+Wordlist built-in:
+  Inclui subdominios comuns: www, mail, ftp, api, dev, staging, admin,
+  jenkins, gitlab, grafana, kibana, redis, docker, k8s, etc.
+"""
 from __future__ import annotations
 
 import argparse

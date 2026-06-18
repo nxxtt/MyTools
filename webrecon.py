@@ -49,7 +49,25 @@ import whois
 
 logger = logging.getLogger("mytools.webrecon")
 
-"""Ferramenta de reconhecimento HTTP para laboratórios e hosts autorizados."""
+"""Ferramenta de reconhecimento HTTP para laboratórios e hosts autorizados.
+
+Fluxo principal (run_recon):
+  1. Coleta basica: HTTP GET -> headers, body, status, redirect
+  2. Security headers: verifica presenca de HSTS, CSP, X-Frame, etc.
+  3. Fingerprinting: detecta CMS, frameworks, libs, servidor via assinaturas
+  4. WAF detection: identifica Cloudflare, Akamai, AWS WAF, etc.
+  5. Version extraction: extrai versoes de tecnologias para CVE lookup
+  6. Robots/Sitemap: coleta emails e verifica status HTTP
+  7. Email harvesting: regex no body + crawl de links internos (opcional)
+  8. WHOIS: consulta dados de registro do dominio
+  9. CVE lookup: busca CVEs na NVD para tecnologias detectadas
+
+As assinaturas de fingerprinting usam 4 sinais:
+  - Headers: valores especificos (ex: x-pingback para WordPress)
+  - Body: strings no HTML (ex: wp-content, laravel_session)
+  - Cookies: nomes de cookies (ex: PHPSESSID, JSESSIONID)
+  - URLs: paths conhecidos (ex: /wp-admin, /administrator)
+"""
 
 # ---------------------------------------------------------------------------
 # Fingerprinting signatures
@@ -305,7 +323,12 @@ def _match_signature(
     cookie_blob: str,
     url_lower: str,
 ) -> bool:
-    """Verifica se uma assinatura corresponde aos dados coletados."""
+    """Verifica se uma assinatura corresponde aos dados coletados.
+
+    Cada assinatura pode ter 4 tipos de sinais (headers, body, cookies, urls).
+    Basta UM sinal de qualquer tipo fazer match para retornar True.
+    Os valores ja estao em lowercase para comparacao case-insensitive.
+    """
     for h in sigs.get("headers", []):
         if h in header_blob:
             return True
@@ -332,7 +355,12 @@ def detect_technologies(
     cookie_blob: str | None = None,
     url_lower: str | None = None,
 ) -> dict[str, list[str]]:
-    """Detecta tecnologias (CMS, frameworks, libs) a partir de headers, body e cookies."""
+    """Detecta tecnologias (CMS, frameworks, libs) a partir de headers, body e cookies.
+
+    Os parametros pre-computados (lower_headers, header_blob, body_lower, etc.)
+    sao reutilizados entre detect_technologies, detect_waf e extract_versions
+    para evitar recalcular a mesma coisa multiplas vezes.
+    """
     result: dict[str, list[str]] = {"cms": [], "frameworks": [], "libraries": [], "server": []}
     if lower_headers is None:
         lower_headers = {k.lower(): v for k, v in headers.items()}
@@ -755,7 +783,12 @@ async def run_recon(
     deep: bool = False,
     crawl_limit: int = 10,
 ) -> ReconResult:
-    """Executa reconhecimento completo da URL alvo e retorna o resultado."""
+    """Executa reconhecimento completo da URL alvo e retorna o resultado.
+
+    Tenta HTTPS primeiro, depois HTTP. Coleta headers, body, cookies raw,
+    e executa todas as analises (fingerprinting, WAF, CVE, emails, WHOIS).
+    O cliente HTTP e fechado no finally para garantir limpeza.
+    """
     started = time.monotonic()
     errors = []
     client = create_async_client(user_agent=user_agent, proxy=proxy)

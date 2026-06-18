@@ -1,5 +1,27 @@
 #!/usr/bin/env python3
-"""Wrapper que executa todos os modulos MyTools contra um alvo de uma vez."""
+"""Wrapper que executa todos os modulos MyTools contra um alvo de uma vez.
+
+Orquestracao:
+  - DNS modules (dnstransfer, subenum): rodam em paralelo via ThreadPoolExecutor
+  - HTTP modules (portscanner, dirscanner, webrecon, attackaudit): rodam em paralelo
+  - Cada modulo e independente: cria seu proprio event loop e AsyncClient
+  - Thread-safe: args e copiado (vars() -> Namespace), saida e atomic (print)
+
+Fluxo:
+  1. Determina se alvo e URL ou dominio
+  2. Cria namespace base com argumentos compartilhados
+  3. Monta lista de modulos para executar (respeitando --skip)
+  4. Executa todos em paralelo via ThreadPoolExecutor(max_workers=6)
+  5. Coleta erros e retorna total
+
+Modulos disponiveis:
+  - dnstransfer: DNS zone transfer (AXFR)
+  - subenum: subdomain enumeration (DNS brute-force)
+  - portscanner: TCP port scan
+  - dirscanner: HTTP directory brute-force
+  - webrecon: HTTP passive recon (headers, CVE, WHOIS, emails)
+  - attackaudit: red/blue web audit (XSS, SQLi, TLS, methods)
+"""
 from __future__ import annotations
 
 import argparse

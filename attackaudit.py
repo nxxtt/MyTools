@@ -47,7 +47,20 @@ import logging
 
 logger = logging.getLogger("mytools.attackaudit")
 
-"""Ferramenta de auditoria web para alvos autorizados, combinando red team e hardening defensivo."""
+"""Ferramenta de auditoria web para alvos autorizados, combinando red team e hardening defensivo.
+
+Fluxo principal (run_once):
+  1. Coleta basica: HTTP GET -> headers, body, TLS info
+  2. Path probing: testa paths sensíveis (.env, .git, admin, etc.)
+  3. Analise HTML: forms, scripts externos, CSRF, comentarios
+  4. TLS: subject/issuer do certificado + versoes suportadas
+  5. Metodos HTTP: testa PUT/DELETE/PATCH/TRACE em endpoints
+  6. Vulnerabilidades: XSS reflection + SQLi error-based (paralelo)
+  7. Scoring: calcula risk_score baseado nos findings
+
+Cada finding tem severidade (critical/high/medium/low/info) e categoria.
+O risk_score e a soma dos RISK_WEIGHTS por severidade.
+"""
 
 SECURITY_HEADERS_RECS = {
     "strict-transport-security": "Ative HSTS com max-age alto e includeSubDomains quando fizer sentido.",
@@ -149,7 +162,16 @@ def _extract_query_params(url: str) -> list[str]:
 
 
 class PageParser(HTMLParser):
-    """Analisa HTML para extrair forms, scripts externos, comentarios e titulo."""
+    """Analisa HTML para extrair forms, scripts externos, comentarios e titulo.
+
+    Coleta sinais de seguranca:
+    - Quantidade de forms (indica superficie de ataque)
+    - Inputs type=password (indica areas de autenticacao)
+    - Scripts externos (possivel vetor de XSS via CDN comprometido)
+    - Tokens CSRF em forms hidden (protecao contra CSRF)
+    - Comentarios HTML (podem vazar info sensivel)
+    - Titulo da pagina (util para fingerprinting)
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -349,7 +371,13 @@ async def tls_info(url: str, timeout: float) -> tuple[str, str, str]:
 
 
 def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]:
-    """Testa suporte a versoes TLS/SSL (sincrono, para usar com asyncio.to_thread)."""
+    """Testa suporte a versoes TLS/SSL (sincrono, para usar com asyncio.to_thread).
+
+    Para cada versao, cria um novo SSLContext com minimum/maximum fixados
+    na versao alvo. Se a conexao TLS for bem-sucedida, a versao e suportada.
+    SSLv3 e TLS 1.0/1.1 podem nao existir em Pythons recentes (removidos por
+    motivos de seguranca), entao verificamos com hasattr() antes de usar.
+    """
     parsed = urlparse(url)
     if parsed.scheme != "https":
         return []
@@ -398,7 +426,17 @@ async def check_xss_reflection(
     timeout: float,
     inject_params: list[str] | None = None,
 ) -> tuple[bool, str]:
-    """Testa se a URL reflete entrada sem sanitizacao basica de XSS."""
+    """Testa se a URL reflete entrada sem sanitizacao basica de XSS.
+
+    Estrategia: gera um marker unico (ex: "xss7f3a1b2c"), injeta em cada
+    parametro da URL, e verifica se o marker aparece no corpo da resposta.
+    Se aparecer, a aplicacao reflete entrada do usuario sem sanitizacao,
+    indicando potencial vulnerabilidade a XSS refletido.
+
+    Retorna (True, evidencia) no primeiro hit, ou (False, "") se nenhum
+    parametro refletir. Para paralelizar entre URLs, usar asyncio.gather
+    na chamada externa.
+    """
     if inject_params is None:
         url_params = _extract_query_params(base_url)
         inject_params = url_params if url_params else list(DEFAULT_INJECT_PARAMS)
@@ -434,7 +472,16 @@ async def check_sqli_errors(
     timeout: float,
     inject_params: list[str] | None = None,
 ) -> list[str]:
-    """Testa se a aplicacao retorna erros SQL em payloads de injecao."""
+    """Testa se a aplicacao retorna erros SQL em payloads de injecao.
+
+    Estrategia: injeta payloads classicos de SQLi (aspas, OR 1=1) em cada
+    parametro e analisa a resposta em busca de mensagens de erro SQL
+    (MySQL, PostgreSQL, MSSQL, Oracle, SQLite). Cada banco tem padroes
+    de erro proprios definidos em SQL_ERROR_PATTERNS.
+
+    Executa todos os pares (param, payload) em paralelo via asyncio.gather
+    com Semaphore(5) para limitar concorrencia.
+    """
     parsed = urlparse(base_url)
 
     if inject_params is None:
@@ -606,7 +653,19 @@ def build_findings(
     raw_headers: dict[str, list[str]] | None = None,
     method_results: list[MethodResult] | None = None,
 ) -> list[Finding]:
-    """Gera lista de findings de seguranca baseado nos dados coletados."""
+    """Gera lista de findings de seguranca baseado nos dados coletados.
+
+    Verificacoes realizadas (em ordem):
+    1. Transporte: HTTP vs HTTPS, versoes TLS fracas
+    2. Headers: presenca de security headers (HSTS, CSP, X-Frame, etc.)
+    3. Fingerprint: headers que revelam tecnologias (Server, X-Powered-By)
+    4. CORS: configuracao permissiva (wildcard, credenciais)
+    5. Cookies: flags HttpOnly, Secure, SameSite
+    6. HTML: forms sem CSRF, scripts externos, comentarios
+    7. Path probing: arquivos sensiveis encontrados (.env, .git, etc.)
+    8. Vulnerabilidades: XSS refletido, SQLi error-based
+    9. Metodos HTTP: PUT/DELETE/PATCH/TRACE aceitos
+    """
     findings: list[Finding] = []
     parsed = urlparse(url)
     lower_headers = {key.lower(): value for key, value in headers.items()}

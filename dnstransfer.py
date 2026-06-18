@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
-"""Scanner de DNS Zone Transfer (AXFR) para detecção de configurações inseguras."""
+"""Scanner de DNS Zone Transfer (AXFR) para detecção de configurações inseguras.
+
+Fluxo principal:
+  1. Consulta registros NS do dominio (dns.resolver.resolve)
+  2. Resolve cada NS em IP (dns.resolver.resolve A record)
+  3. Tenta AXFR (zone transfer) contra cada NS
+  4. Retorna todos os registros DNS se bem-sucedido
+
+O que e zone transfer (AXFR)?
+  Protocolo DNS que permite copiar toda a zona DNS de um servidor.
+  Se habilitado indevidamente, revela todos os registros (subdominios,
+  IPs, MX, etc.) para qualquer pessoa que consulte.
+
+Vulnerabilidade:
+  Nameservers mal configurados permitem AXFR de qualquer IP.
+  Isso expoe a estrutura interna da rede para enumeracao.
+
+Uso do dnspython:
+  - dns.resolver.resolve: consultas DNS standard
+  - dns.query.inbound_xfr: tentativa de zone transfer AXFR
+  - dns.zone: parsing da zona transferida
+"""
 from __future__ import annotations
 
 import argparse

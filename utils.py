@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
-"""Utilitários gerais para formatação, cores e manipulação de dados."""
+"""Utilitários gerais para formatação, cores e manipulação de dados.
+
+Modulo compartilhado por todos os scanners do MyTools. Fornece:
+
+- Cores ANSI: classe Cyber + funcao color()
+- HTTP async: create_async_client(), fetch() com retry + rate limit
+- Rate limiter: classe RateLimiter com backoff adaptativo em 429
+- Parse de entrada: parse_int_range(), normalize_url(), parse_auth()
+- Saida: write_output() para JSON/CSV, print_table() para terminal
+- NVD API: query_nvd() para busca de CVEs no NIST NVD v2.0
+- Logging: setup_logging() com suporte a arquivo e verbose
+- Shell interativo: run_interactive_shell() reutilizavel por todos modulos
+
+Padroes de design:
+  - Todas as funcoes HTTP sao async (httpx.AsyncClient)
+  - fetch() retenta automaticamente em erros de rede (max 3 tentativas)
+  - RateLimiter notificado em 429 aumenta delay com backoff exponencial
+  - safe_asyncio_run() funciona mesmo com event loop ativo (Jupyter/REPL)
+"""
 from __future__ import annotations
 
 import argparse
@@ -113,7 +131,15 @@ def clear_console() -> None:
 
 
 class RateLimiter:
-    """Rate limiter async usando intervalo minimo entre requests com backoff adaptativo."""
+    """Rate limiter async usando intervalo minimo entre requests com backoff adaptativo.
+
+    Mecanismo:
+    - _min_interval: tempo minimo entre requests (1/rps)
+    - _backoff_multiplier: multiplica o intervalo quando recebe 429
+    - Em 429, dobramos o multiplicador (max 16x) para respeitar rate limit
+    - wait() calcula o proximo slot valido e dorme se necessario
+    - Not thread-safe (projetado para uso dentro de um event loop asyncio)
+    """
 
     def __init__(self, requests_per_second: float = 0.0) -> None:
         self._base_rps = requests_per_second
@@ -179,6 +205,12 @@ async def fetch(
     rate_limiter: RateLimiter | None = None,
 ) -> tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]:
     """Realiza uma requisicao HTTP async e retorna status, headers, corpo e raw_headers.
+
+    Logica de retry:
+    - Retenta em erros de rede (ConnectionError, Timeout, etc.)
+    - Em 429, notifica o rate_limiter e espera Retry-After (max 30s)
+    - Backoff linear entre tentativas: 0.5s, 1.0s, 1.5s
+    - After max_retries, levanta FetchError com contexto completo
 
     raw_headers e um dict mapeando nomes de headers (lowercase) para listas de
     todos os valores, preservando headers duplicados como Set-Cookie.

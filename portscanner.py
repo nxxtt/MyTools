@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
-"""Scanner de portas TCP rápido para laboratórios e hosts autorizados."""
+"""Scanner de portas TCP rápido para laboratórios e hosts autorizados.
+
+Fluxo principal:
+  1. Resolve targets (IPs, hostnames, CIDRs) em pares (host, IP)
+  2. Para cada par (target, porta), tenta conexao TCP
+  3. Se aberta, coleta banner (opcional) e nome do servico
+  4. Executa em paralelo via ThreadPoolExecutor (200 threads padrao)
+
+Banner grabbing:
+  Para portas HTTP (80, 8080, 8000, 8443), envia HEAD request
+  e le a resposta. Para outras portas, apenas le os primeiros
+  bytes recebidos apos a conexao.
+
+Performance:
+  - lru_cache em service_name evita syscalls redundantes
+  - batch_size = workers*2 para processar resultados em blocos
+  - ip_sort_key ordena por versao IP (v4 antes de v6) e endereco
+"""
 from __future__ import annotations
 
 import argparse

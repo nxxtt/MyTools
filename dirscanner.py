@@ -42,6 +42,25 @@ import logging
 
 logger = logging.getLogger("mytools.dirscanner")
 
+"""Scanner HTTP de diretórios e arquivos para alvos autorizados.
+
+Fluxo principal:
+  1. Carrega wordlist (built-in ou customizada) + extensoes
+  2. Para cada path, envia HTTP request com status code configurado
+  3. Filtra por status code, tamanho e numero de palavras
+  4. Detecta SPA (Single Page App) para ignorar respostas genericas
+  5. Exporta resultados em JSON/CSV
+
+Heuristica SPA:
+  Se >80% dos findings tem mesmo (size, words), provavelmente e uma SPA
+  que retorna o mesmo shell HTML para todos os paths. Esses findings
+  sao ignorados para evitar falsos positivos.
+
+Concorrencia:
+  Usa asyncio.Semaphore para limitar requests simultaneos.
+  RateLimiter controla intervalo minimo entre requests.
+"""
+
 
 DEFAULT_PATHS = [
     "admin", "login", "dashboard", "wp-admin", "administrator", "backup",
@@ -265,6 +284,9 @@ async def scan_target(
 
         non_null = [r for r in results if isinstance(r, Finding)]
         spa_skip: set[str] = set()
+        # Heuristica SPA: se >80% dos findings tem mesmo (size, words),
+        # provavelmente e uma SPA retornando o mesmo shell HTML.
+        # Ignoramos esses findings para evitar falsos positivos.
         if len(non_null) > 10:
             groups: dict[tuple[int, int], list[Finding]] = {}
             for r in non_null:
