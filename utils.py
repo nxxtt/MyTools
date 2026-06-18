@@ -97,24 +97,36 @@ def clear_console() -> None:
 
 
 class RateLimiter:
-    """Rate limiter async usando intervalo minimo entre requests."""
+    """Rate limiter async usando intervalo minimo entre requests com backoff adaptativo."""
 
     def __init__(self, requests_per_second: float = 0.0) -> None:
+        self._base_rps = requests_per_second
         self._min_interval = 1.0 / requests_per_second if requests_per_second > 0 else 0.0
         self._last_request_time = 0.0
+        self._backoff_multiplier: float = 1.0
 
     async def wait(self) -> None:
         """Bloqueia ate que o intervalo minimo entre requests tenha passado."""
-        if self._min_interval <= 0:
+        effective_interval = self._min_interval * self._backoff_multiplier
+        if effective_interval <= 0:
+            self._last_request_time = time.monotonic()
             return
         now = time.monotonic()
-        next_slot = self._last_request_time + self._min_interval
+        next_slot = self._last_request_time + effective_interval
         if now >= next_slot:
             self._last_request_time = now
             return
         sleep_time = next_slot - now
         self._last_request_time = next_slot
         await asyncio.sleep(sleep_time)
+
+    def notify_429(self) -> None:
+        """Notifica que um 429 foi recebido, aumentando o delay."""
+        self._backoff_multiplier = min(self._backoff_multiplier * 2.0, 16.0)
+
+    def reset_backoff(self) -> None:
+        """Reseta o multiplicador de backoff para 1.0."""
+        self._backoff_multiplier = 1.0
 
 
 def create_async_client(
@@ -148,6 +160,7 @@ async def fetch(
     method: str = "GET",
     allow_redirects: bool = False,
     max_retries: int = 3,
+    rate_limiter: RateLimiter | None = None,
 ) -> tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]:
     """Realiza uma requisicao HTTP async e retorna status, headers, corpo e raw_headers.
 
@@ -164,6 +177,11 @@ async def fetch(
                 timeout=timeout,
                 follow_redirects=allow_redirects,
             )
+            if response.status_code == 429 and rate_limiter is not None:
+                rate_limiter.notify_429()
+                retry_after = float(response.headers.get("Retry-After", "5"))
+                await asyncio.sleep(min(retry_after, 30))
+                continue
             logger.debug("response %d %s (%d bytes)", response.status_code, url, len(response.content))
             return response.status_code, response.headers, response.content, _extract_raw_headers(response)
         except httpx.RequestError as error:

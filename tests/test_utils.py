@@ -144,6 +144,104 @@ class TestRateLimiter:
 
         assert timestamps[1] - timestamps[0] >= 0.04
 
+    @pytest.mark.asyncio
+    async def test_notify_429_doubles_backoff(self):
+        limiter = RateLimiter(10.0)
+        assert limiter._backoff_multiplier == 1.0
+        limiter.notify_429()
+        assert limiter._backoff_multiplier == 2.0
+        limiter.notify_429()
+        assert limiter._backoff_multiplier == 4.0
+
+    @pytest.mark.asyncio
+    async def test_notify_429_caps_at_16(self):
+        limiter = RateLimiter(10.0)
+        for _ in range(10):
+            limiter.notify_429()
+        assert limiter._backoff_multiplier == 16.0
+
+    @pytest.mark.asyncio
+    async def test_reset_backoff(self):
+        limiter = RateLimiter(10.0)
+        limiter.notify_429()
+        limiter.notify_429()
+        assert limiter._backoff_multiplier == 4.0
+        limiter.reset_backoff()
+        assert limiter._backoff_multiplier == 1.0
+
+    @pytest.mark.asyncio
+    async def test_backoff_increases_sleep_time(self):
+        limiter = RateLimiter(20.0)
+        await limiter.wait()
+        t1 = time.monotonic()
+        await limiter.wait()
+        gap_no_backoff = time.monotonic() - t1
+
+        limiter.reset_backoff()
+        limiter.notify_429()
+        limiter.notify_429()
+        await limiter.wait()
+        t2 = time.monotonic()
+        await limiter.wait()
+        gap_with_backoff = time.monotonic() - t2
+
+        assert gap_with_backoff > gap_no_backoff
+
+
+class TestFetch429:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_429_triggers_backoff_and_retries(self):
+        from utils import create_async_client, fetch
+
+        client = create_async_client()
+        limiter = RateLimiter(100.0)
+        url = "https://example.com/rate"
+        call_count = 0
+
+        def side_effect(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(429, headers={"Retry-After": "0"})
+            return httpx.Response(200, text="ok")
+
+        respx.get(url).mock(side_effect=side_effect)
+        status, _, body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
+        assert status == 200
+        assert call_count == 2
+        assert limiter._backoff_multiplier == 2.0
+        await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_429_exhausts_retries(self):
+        from utils import create_async_client, fetch
+
+        client = create_async_client()
+        limiter = RateLimiter(100.0)
+        url = "https://example.com/rate"
+
+        respx.get(url).mock(return_value=httpx.Response(429, headers={"Retry-After": "0"}))
+        with pytest.raises(ValueError, match="falha ao acessar"):
+            await fetch(client, url, rate_limiter=limiter, max_retries=2)
+        await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_429_error_does_not_trigger_backoff(self):
+        from utils import create_async_client, fetch
+
+        client = create_async_client()
+        limiter = RateLimiter(100.0)
+        url = "https://example.com/ok"
+
+        respx.get(url).mock(return_value=httpx.Response(200, text="ok"))
+        status, _, body, _ = await fetch(client, url, rate_limiter=limiter)
+        assert status == 200
+        assert limiter._backoff_multiplier == 1.0
+        await client.aclose()
+
 
 class TestCreateAsyncClient:
     def test_returns_client(self):

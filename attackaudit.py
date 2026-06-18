@@ -436,7 +436,7 @@ async def probe_path(client, rate_limiter: RateLimiter, base_url: str, path: str
     url = urljoin(base_url.rstrip("/") + "/", path)
     await rate_limiter.wait()
     try:
-        status, headers, body, _ = await fetch(client, url, timeout=timeout)
+        status, headers, body, _ = await fetch(client, url, timeout=timeout, rate_limiter=rate_limiter)
     except ValueError:
         return None
     if status in {200, 204, 301, 302, 307, 308, 401, 403}:
@@ -499,7 +499,7 @@ async def test_http_methods(
             seen.add(key)
             await rate_limiter.wait()
             try:
-                status, _, body, _ = await fetch(client, probe.url, timeout=timeout, method=method)
+                status, _, body, _ = await fetch(client, probe.url, timeout=timeout, method=method, rate_limiter=rate_limiter)
             except ValueError:
                 continue
             if status not in {0, 404, 405} and method in {"PUT", "DELETE", "PATCH", "TRACE"}:
@@ -728,7 +728,7 @@ async def run_audit(
         if ip:
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"IP: {color(ip, Cyber.YELLOW)}")
 
-        status, headers, body, raw_headers = await fetch(client, target, timeout=timeout)
+        status, headers, body, raw_headers = await fetch(client, target, timeout=timeout, rate_limiter=rate_limiter)
         content_type = header_get(headers, "content-type")
         text = body.decode("utf-8", errors="replace") if "text/html" in content_type.lower() else ""
         parser = PageParser()

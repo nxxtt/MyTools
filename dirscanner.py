@@ -184,7 +184,7 @@ async def scan_path(
     await rate_limiter.wait()
 
     try:
-        status, headers, content, _ = await fetch(client, full_url, timeout=timeout, method=method)
+        status, headers, content, _ = await fetch(client, full_url, timeout=timeout, method=method, rate_limiter=rate_limiter)
     except ValueError:
         return None
 
