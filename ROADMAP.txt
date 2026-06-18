@@ -6,7 +6,7 @@
 # e executa coroutine em thread separada quando necessario.
 # Afeta: dirscanner.py, webrecon.py, attackaudit.py.
 
-## 2. Modo --all / wrapper script (futuro)
-# Rodar todos os modulos contra um alvo de uma vez (recon completo).
-# Melhor como wrapper script separado (ex: mytools-all target.com) do que modificar main.py.
-# Cada modulo precisa de args diferentes (--deep, -x, etc.), wrapper pode configurar defaults.
+## 2. Modo --all / wrapper script (resolvido)
+# Criado reconall.py (mytools-reconall) que executa portscanner, dirscanner,
+# webrecon, attackaudit, dnstransfer e subenum contra um alvo.
+# Suporta --skip, --deep, --cve, --test-vulns, --dry-run, -o (output dir).

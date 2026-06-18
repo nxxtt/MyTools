@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import argparse
+from unittest.mock import patch
+
+from reconall import (
+    _extract_domain,
+    _is_url,
+    _make_args,
+    build_parser,
+    run_all,
+)
+
+
+class TestIsUrl:
+    def test_http(self):
+        assert _is_url("http://example.com") is True
+
+    def test_https(self):
+        assert _is_url("https://example.com") is True
+
+    def test_domain(self):
+        assert _is_url("example.com") is False
+
+    def test_ip(self):
+        assert _is_url("192.168.1.1") is False
+
+
+class TestExtractDomain:
+    def test_from_url(self):
+        assert _extract_domain("https://example.com") == "example.com"
+
+    def test_from_url_with_port(self):
+        assert _extract_domain("https://example.com:8080") == "example.com"
+
+    def test_from_domain(self):
+        assert _extract_domain("example.com") == "example.com"
+
+    def test_from_ip(self):
+        assert _extract_domain("192.168.1.1") == "192.168.1.1"
+
+
+class TestMakeArgs:
+    def test_merges_base_and_extra(self):
+        base = argparse.Namespace(timeout=5.0, verbose=False)
+        result = _make_args("target", {"url": "http://example.com", "deep": True}, base)
+        assert result.url == "http://example.com"
+        assert result.deep is True
+        assert result.timeout == 5.0
+        assert result.verbose is False
+
+
+class TestBuildParser:
+    def test_has_target(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        assert args.target == "example.com"
+
+    def test_deep_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--deep"])
+        assert args.deep is True
+
+    def test_test_vulns_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--test-vulns"])
+        assert args.test_vulns is True
+
+    def test_skip_module(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--skip", "dnstransfer", "--skip", "subenum"])
+        assert "dnstransfer" in args.skip
+        assert "subenum" in args.skip
+
+    def test_dry_run(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_output_dir(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "-o", "results/"])
+        assert args.output_dir == "results/"
+
+    def test_cve_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--cve"])
+        assert args.cve is True
+
+
+class TestRunAll:
+    def test_runs_portscanner_for_domain(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--skip", "dnstransfer", "--skip", "subenum"])
+        with patch("reconall.portscanner.run_once", return_value=0) as mock_fn:
+            result = run_all(args)
+            assert result == 0
+            mock_fn.assert_called_once()
+
+    def test_runs_all_http_for_url(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--skip", "portscanner"])
+        with (
+            patch("reconall.dirscanner.run_once", return_value=0),
+            patch("reconall.webrecon.run_once", return_value=0),
+            patch("reconall.attackaudit.run_once", return_value=0),
+        ):
+            result = run_all(args)
+            assert result == 0
+
+    def test_skips_specified_modules(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--skip", "dirscanner", "--skip", "webrecon"])
+        with (
+            patch("reconall.portscanner.run_once", return_value=0),
+            patch("reconall.attackaudit.run_once", return_value=0),
+            patch("reconall.dirscanner.run_once") as mock_dir,
+            patch("reconall.webrecon.run_once") as mock_web,
+        ):
+            result = run_all(args)
+            assert result == 0
+            mock_dir.assert_not_called()
+            mock_web.assert_not_called()
+
+    def test_counts_errors(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--skip", "dnstransfer", "--skip", "subenum"])
+        with patch("reconall.portscanner.run_once", return_value=1):
+            result = run_all(args)
+            assert result == 1
+
+    def test_passes_deep_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--skip", "portscanner", "--deep"])
+        with (
+            patch("reconall.dirscanner.run_once", return_value=0),
+            patch("reconall.webrecon.run_once", return_value=0) as mock_web,
+            patch("reconall.attackaudit.run_once", return_value=0),
+        ):
+            run_all(args)
+            call_args = mock_web.call_args[0][0]
+            assert call_args.deep is True

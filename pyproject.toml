@@ -28,6 +28,7 @@ mytools-recon = "webrecon:main"
 mytools-audit = "attackaudit:main"
 mytools-dnsxfer = "dnstransfer:main"
 mytools-subenum = "subdomainenum:main"
+mytools-reconall = "reconall:main"
 
 [build-system]
 requires = ["poetry-core"]
