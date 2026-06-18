@@ -15,21 +15,23 @@ from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
-from utils import (
-    Cyber,
+from net import (
     FetchError,
-    SECURITY_HEADERS,
-    add_common_args,
     apply_session_auth,
-    color,
     create_async_client,
-    create_banner,
-    ensure_output_dir,
-    extract_hostname,
     extract_title,
     fetch,
     header_get,
     normalize_url,
+)
+from utils import (
+    Cyber,
+    SECURITY_HEADERS,
+    add_common_args,
+    color,
+    create_banner,
+    ensure_output_dir,
+    extract_hostname,
     query_nvd,
     resolve_target_urls,
     run_interactive_shell,

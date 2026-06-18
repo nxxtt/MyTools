@@ -17,20 +17,22 @@ from html.parser import HTMLParser
 from collections.abc import Mapping
 from urllib.parse import urljoin, urlparse
 
-from utils import (
-    Cyber,
+from net import (
     FetchError,
     RateLimiter,
-    add_common_args,
     apply_session_auth,
-    color,
     create_async_client,
-    create_banner,
-    ensure_output_dir,
-    extract_hostname,
     fetch,
     header_get,
     normalize_url,
+)
+from utils import (
+    Cyber,
+    add_common_args,
+    color,
+    create_banner,
+    ensure_output_dir,
+    extract_hostname,
     resolve_target_urls,
     run_interactive_shell,
     set_color,

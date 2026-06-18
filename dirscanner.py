@@ -9,19 +9,21 @@ import time
 from dataclasses import asdict, dataclass
 from urllib.parse import urljoin
 
-from utils import (
-    Cyber,
+from net import (
     FetchError,
     RateLimiter,
-    add_common_args,
-    color,
     create_async_client,
-    create_banner,
-    ensure_output_dir,
-    extract_hostname,
     extract_title,
     fetch,
     normalize_url,
+)
+from utils import (
+    Cyber,
+    add_common_args,
+    color,
+    create_banner,
+    ensure_output_dir,
+    extract_hostname,
     parse_extra_headers,
     parse_int_range,
     print_table,
