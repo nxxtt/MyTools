@@ -47,6 +47,7 @@ Isso instala os comandos CLI:
 | `mytools-dir` | Scanner de diretórios HTTP |
 | `mytools-dnsxfer` | DNS Zone Transfer |
 | `mytools-subenum` | Enumeração de subdomínios |
+| `mytools-reconall` | Recon completo (todos os módulos) |
 
 > **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
 
@@ -178,7 +179,7 @@ mytools-recon https://target.com --header "X-Token: abc" --header "Authorization
 ```
 
 ### Async HTTP (httpx)
-Todos os módulos HTTP utilizam `httpx.AsyncClient` com `asyncio.gather()` para concorrência nativa, substituindo `requests` + `ThreadPoolExecutor`.
+Todos os módulos HTTP utilizam `httpx.AsyncClient` com `asyncio.gather()` e `Semaphore` para concorrência nativa. Módulos independentes rodam em paralelo via `ThreadPoolExecutor`.
 
 ### CVE Lookup (NIST NVD)
 Detecta versões de frameworks/servidores e busca CVEs associadas:
@@ -274,6 +275,7 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-audit https://example.com --test-methods` | Scan de métodos HTTP |
 | `mytools-dnsxfer example.com` | DNS Zone Transfer scan |
 | `mytools-subenum example.com` | Enumeração de subdomínios |
+| `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 
 ### Proxy e Rate Limiting
 Todos os módulos HTTP suportam proxy e rate limiting:
@@ -306,12 +308,13 @@ MyTools-main/
 ├── dirscanner.py      # Scanner de diretórios HTTP
 ├── webrecon.py        # Reconhecimento passivo + CVE + WHOIS + emails
 ├── attackaudit.py     # Auditoria ofensiva/defensiva + métodos HTTP
+├── reconall.py        # Wrapper: executa todos os módulos contra um alvo
 ├── dnstransfer.py     # DNS Zone Transfer
 ├── subdomainenum.py   # Enumeração de subdomínios
 ├── utils.py           # Código compartilhado (cores, helpers, HTTP async)
 ├── KNOW_ISSUES.txt    # Problemas conhecidos
 ├── ROADMAP.txt        # Roadmap de otimizações
-├── tests/             # Testes unitários (570 testes)
+├── tests/             # Testes unitários (703 testes)
 ├── pyproject.toml     # Configuração do projeto
 └── README.MD
 ```
