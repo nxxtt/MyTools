@@ -149,6 +149,44 @@ def _resolve_subdomain(subdomain: str, domain: str, timeout: float, resolver: dn
         return SubdomainResult(subdomain=fqdn, status="error")
 
 
+def _prefetch_records(domain: str, resolver: dns.resolver.Resolver) -> list[SubdomainResult]:
+    """Consulta MX e CNAME antes do brute-force para revelar subdominios rapidamente.
+
+    Args:
+        domain: Dominio base (ex: "example.com").
+        resolver: Resolver DNS compartilhado.
+
+    Returns:
+        Lista de SubdomainResult para subdominios encontrados via MX/CNAME.
+    """
+    prefetched: list[SubdomainResult] = []
+    seen: set[str] = set()
+
+    for rtype in ("MX", "CNAME"):
+        try:
+            answers = resolver.resolve(domain, rtype)
+            for rdata in answers:
+                target = str(rdata.exchange if rtype == "MX" else rdata).rstrip(".")
+                prefix = target.replace(f".{domain}", "")
+                if prefix and prefix != target and prefix not in seen:
+                    seen.add(prefix)
+                    fqdn = f"{prefix}.{domain}"
+                    try:
+                        a_answers = resolver.resolve(fqdn, "A")
+                        ips = sorted(str(r) for r in a_answers)
+                        print(
+                            color("[+]", Cyber.GREEN, Cyber.BOLD),
+                            f"{color(f'{fqdn} (via {rtype})', Cyber.WHITE, Cyber.BOLD)} -> {color(', '.join(ips), Cyber.CYAN)}",
+                        )
+                        prefetched.append(SubdomainResult(subdomain=fqdn, ip_addresses=ips, status="resolved"))
+                    except dns.exception.DNSException:
+                        pass
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.exception.DNSException):
+            continue
+
+    return prefetched
+
+
 def enumerate_subdomains(
     domain: str,
     wordlist: list[str],
@@ -184,18 +222,24 @@ def enumerate_subdomains(
     resolver.lifetime = timeout
     resolver.timeout = timeout
 
+    prefetched = _prefetch_records(domain, resolver)
+    resolved.extend(prefetched)
+    prefetched_names = {r.subdomain for r in prefetched}
+
     with ThreadPoolExecutor(max_workers=threads) as executor:
+        remaining = [w for w in wordlist if f"{w}.{domain}" not in prefetched_names]
         futures = {
             executor.submit(_resolve_subdomain, word, domain, timeout, resolver): word
-            for word in wordlist
+            for word in remaining
         }
 
         done_count = 0
+        total_brute = len(remaining)
         for future in as_completed(futures):
             done_count += 1
             result = future.result()
-            if done_count % 20 == 0 or done_count == len(wordlist):
-                sys.stdout.write(f"\r  Progresso: {done_count}/{len(wordlist)} subdominios testados...")
+            if done_count % 20 == 0 or done_count == total_brute:
+                sys.stdout.write(f"\r  Progresso: {done_count}/{total_brute} subdominios testados...")
                 sys.stdout.flush()
             if result.status == "resolved":
                 sys.stdout.write("\r" + " " * 60 + "\r")
@@ -212,7 +256,7 @@ def enumerate_subdomains(
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
-        f"Testados: {color(str(len(wordlist)), Cyber.WHITE, Cyber.BOLD)}. "
+        f"Testados: {color(str(total_brute), Cyber.WHITE, Cyber.BOLD)}. "
         f"Resolvidos: {color(str(len(resolved)), Cyber.GREEN, Cyber.BOLD)}.",
     )
 
