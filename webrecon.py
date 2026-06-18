@@ -440,13 +440,13 @@ def harvest_emails(text: str) -> list[str]:
     return sorted(set(EMAIL_PATTERN.findall(text)))
 
 
-async def _fetch_file(client, url: str, timeout: float) -> str:
-    """Busca o conteudo de um arquivo (robots.txt, sitemap.xml) como string."""
+async def _fetch_file(client, url: str, timeout: float) -> tuple[str, int | None]:
+    """Busca o conteudo de um arquivo (robots.txt, sitemap.xml) e seu status."""
     try:
-        _, _, body, _ = await fetch(client, url, timeout=timeout)
-        return body.decode("utf-8", errors="replace")
+        status, _, body, _ = await fetch(client, url, timeout=timeout)
+        return body.decode("utf-8", errors="replace"), status
     except FetchError:
-        return ""
+        return "", None
 
 
 async def crawl_internal_links(
@@ -482,13 +482,21 @@ async def crawl_internal_links(
             break
 
     emails: list[str] = []
-    for link in internal_urls:
-        try:
-            _, _, link_body, _ = await fetch(client, link, timeout=timeout)
-            link_text = link_body.decode("utf-8", errors="replace")
-            emails.extend(harvest_emails(link_text))
-        except FetchError:
+    sem = asyncio.Semaphore(3)
+
+    async def _fetch_link(link: str) -> list[str]:
+        async with sem:
+            try:
+                _, _, link_body, _ = await fetch(client, link, timeout=timeout)
+                return harvest_emails(link_body.decode("utf-8", errors="replace"))
+            except FetchError:
+                return []
+
+    results = await asyncio.gather(*[_fetch_link(link) for link in internal_urls], return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
             continue
+        emails.extend(result)
 
     return emails
 
@@ -536,33 +544,47 @@ async def lookup_cves(
     Returns:
         Lista de CVEFinding ordenada por score decrescente.
     """
+    if not versions:
+        return []
+
+    sem = asyncio.Semaphore(5 if api_key else 2)
+
+    async def _query_one(tech_name: str, version: str) -> list[CVEFinding]:
+        async with sem:
+            search_term = CPE_MAP.get(tech_name, tech_name)
+            keyword = f"{search_term} {version}"
+            logger.info("NVD lookup: %s", keyword)
+
+            try:
+                results = await query_nvd(keyword, api_key=api_key, limit=limit_per_tech, client=client)
+            except Exception as error:
+                logger.debug("NVD lookup failed for %s: %s", keyword, error)
+                return []
+
+            findings: list[CVEFinding] = []
+            for result in results:
+                findings.append(CVEFinding(
+                    cve_id=result["id"],
+                    description=result["description"][:200],
+                    score=result["score"],
+                    severity=result["severity"],
+                    technology=tech_name,
+                    version=version,
+                ))
+            return findings
+
+    tasks = [_query_one(tech, ver) for tech, ver in versions]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
     findings: list[CVEFinding] = []
     seen_cves: set[str] = set()
-
-    for tech_name, version in versions:
-        search_term = CPE_MAP.get(tech_name, tech_name)
-        keyword = f"{search_term} {version}"
-        logger.info("NVD lookup: %s", keyword)
-
-        try:
-            results = await query_nvd(keyword, api_key=api_key, limit=limit_per_tech, client=client)
-        except Exception as error:
-            logger.debug("NVD lookup failed for %s: %s", keyword, error)
+    for result in results:
+        if isinstance(result, Exception):
             continue
-
-        for result in results:
-            cve_id = result["id"]
-            if cve_id in seen_cves:
-                continue
-            seen_cves.add(cve_id)
-            findings.append(CVEFinding(
-                cve_id=cve_id,
-                description=result["description"][:200],
-                score=result["score"],
-                severity=result["severity"],
-                technology=tech_name,
-                version=version,
-            ))
+        for finding in result:
+            if finding.cve_id not in seen_cves:
+                seen_cves.add(finding.cve_id)
+                findings.append(finding)
 
     findings.sort(key=lambda f: f.score, reverse=True)
     return findings
@@ -803,18 +825,15 @@ async def run_recon(
                 cve_findings = []
 
         emails = harvest_emails(text)
-        robots_text = await _fetch_file(client, robots_url, timeout)
+        robots_text, robots_status = await _fetch_file(client, robots_url, timeout)
         emails.extend(harvest_emails(robots_text))
-        sitemap_text = await _fetch_file(client, sitemap_url, timeout)
+        sitemap_text, sitemap_status = await _fetch_file(client, sitemap_url, timeout)
         emails.extend(harvest_emails(sitemap_text))
         if deep:
             emails.extend(await crawl_internal_links(client, target, text, timeout, max_links=crawl_limit))
         emails = sorted(set(emails))
 
         whois_data = await run_whois(target)
-
-        robots_status = await probe_status(client, robots_url, timeout)
-        sitemap_status = await probe_status(client, sitemap_url, timeout)
     finally:
         await client.aclose()
 

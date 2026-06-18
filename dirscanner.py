@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import os
 import sys
 import time
@@ -116,18 +117,24 @@ def parse_range(value: str) -> tuple[int, int] | None:
     return (min_val, max_val)
 
 
+@functools.lru_cache(maxsize=8)
+def _read_wordlist(wordlist: str) -> list[str]:
+    """Le e cacheia o conteudo bruto de uma wordlist."""
+    try:
+        with open(wordlist, "r", encoding="utf-8", errors="replace") as file_handle:
+            return [
+                line.strip()
+                for line in file_handle
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+    except FileNotFoundError:
+        raise ValueError(f"wordlist nao encontrada: {wordlist}")
+
+
 def load_paths(wordlist: str | None, extensions: list[str]) -> list[str]:
     """Carrega caminhos da wordlist ou lista padrão e aplica extensões."""
     if wordlist:
-        try:
-            with open(wordlist, "r", encoding="utf-8", errors="replace") as file_handle:
-                raw_paths = [
-                    line.strip()
-                    for line in file_handle
-                    if line.strip() and not line.lstrip().startswith("#")
-                ]
-        except FileNotFoundError:
-            raise ValueError(f"wordlist nao encontrada: {wordlist}")
+        raw_paths = _read_wordlist(wordlist)
     else:
         raw_paths = list(DEFAULT_PATHS)
 

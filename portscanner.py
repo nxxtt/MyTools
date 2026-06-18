@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import ipaddress
 import socket
 import sys
@@ -105,6 +106,7 @@ def resolve_targets(values: Iterable[str]) -> list[tuple[str, str]]:
     return targets
 
 
+@functools.lru_cache(maxsize=256)
 def service_name(port: int) -> str:
     """Retorna o nome do serviço associado à porta TCP."""
     try:

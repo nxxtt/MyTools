@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import os
 import time
 from urllib.parse import urlparse
@@ -97,7 +98,6 @@ def run_all(args: argparse.Namespace) -> int:
     target = args.target
     is_url = _is_url(target)
     domain = _extract_domain(target)
-    total_errors = 0
 
     base_ns = argparse.Namespace(
         timeout=args.timeout,
@@ -145,40 +145,61 @@ def run_all(args: argparse.Namespace) -> int:
             return None
         return os.path.join(args.output_dir, f"{module_name}.json")
 
-    # --- DNS modules (domain only) ---
+    def _run(name: str, fn, module_args: argparse.Namespace) -> int:
+        color_name = color(f"[{name}]", Cyber.CYAN, Cyber.BOLD)
+        print(f"\n{'='*60}")
+        print(f" {color_name} Iniciando {name}")
+        print(f"{'='*60}")
+        start = time.monotonic()
+        try:
+            result = fn(module_args)
+        except Exception as exc:
+            print(color(f"  Erro em {name}: {exc}", Cyber.RED))
+            return 1
+        elapsed = time.monotonic() - start
+        status = color("OK", Cyber.GREEN, Cyber.BOLD) if result == 0 else color(f"FALHA ({result})", Cyber.RED, Cyber.BOLD)
+        print(f" {color_name} {status} ({elapsed:.1f}s)")
+        return result
+
+    modules: list[tuple[str, callable, argparse.Namespace]] = []
+
     if not is_url:
         if "dnstransfer" not in skipped:
-            dns_args = _make_args(domain, {"domain": domain, "output": _out("dnstransfer")}, base_ns)
-            total_errors += _run_module("dnstransfer", dnstransfer.run_once, dns_args)
-
+            modules.append(("dnstransfer", dnstransfer.run_once,
+                            _make_args(domain, {"domain": domain, "output": _out("dnstransfer")}, base_ns)))
         if "subenum" not in skipped:
-            sub_args = _make_args(domain, {"domain": domain, "output": _out("subenum")}, base_ns)
-            total_errors += _run_module("subenum", subdomainenum.run_once, sub_args)
+            modules.append(("subenum", subdomainenum.run_once,
+                            _make_args(domain, {"domain": domain, "output": _out("subenum")}, base_ns)))
 
-    # --- PortScanner ---
     if "portscanner" not in skipped:
-        port_args = _make_args(target, {"targets": [domain], "ports": args.ports}, base_ns)
-        total_errors += _run_module("portscanner", portscanner.run_once, port_args)
+        modules.append(("portscanner", portscanner.run_once,
+                        _make_args(target, {"targets": [domain], "ports": args.ports}, base_ns)))
 
-    # --- HTTP modules (URL only) ---
     if is_url:
         if "dirscanner" not in skipped:
-            dir_args = _make_args(target, {"url": target, "output": _out("dirscanner"), "extensions": ["php", "txt", "bak", "html"]}, base_ns)
-            total_errors += _run_module("dirscanner", dirscanner.run_once, dir_args)
-
+            modules.append(("dirscanner", dirscanner.run_once,
+                            _make_args(target, {"url": target, "output": _out("dirscanner"), "extensions": ["php", "txt", "bak", "html"]}, base_ns)))
         if "webrecon" not in skipped:
-            web_args = _make_args(target, {"url": target, "output": _out("webrecon"), "cve": args.cve, "deep": args.deep}, base_ns)
-            total_errors += _run_module("webrecon", webrecon.run_once, web_args)
-
+            modules.append(("webrecon", webrecon.run_once,
+                            _make_args(target, {"url": target, "output": _out("webrecon"), "cve": args.cve, "deep": args.deep}, base_ns)))
         if "attackaudit" not in skipped:
-            audit_args = _make_args(target, {
-                "url": target,
-                "output": _out("attackaudit"),
-                "deep": args.deep,
-                "test_vulns": args.test_vulns,
-                "test_methods": args.test_methods,
-            }, base_ns)
-            total_errors += _run_module("attackaudit", attackaudit.run_once, audit_args)
+            modules.append(("attackaudit", attackaudit.run_once,
+                            _make_args(target, {
+                                "url": target,
+                                "output": _out("attackaudit"),
+                                "deep": args.deep,
+                                "test_vulns": args.test_vulns,
+                                "test_methods": args.test_methods,
+                            }, base_ns)))
+
+    if not modules:
+        return 0
+
+    total_errors = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(modules), 6)) as executor:
+        futures = {executor.submit(_run, name, fn, a): name for name, fn, a in modules}
+        for future in concurrent.futures.as_completed(futures):
+            total_errors += future.result()
 
     return total_errors
 

@@ -435,15 +435,16 @@ async def check_sqli_errors(
     inject_params: list[str] | None = None,
 ) -> list[str]:
     """Testa se a aplicacao retorna erros SQL em payloads de injecao."""
-    detected_databases: list[str] = []
     parsed = urlparse(base_url)
 
     if inject_params is None:
         url_params = _extract_query_params(base_url)
         inject_params = url_params if url_params else ["id"]
 
-    for param in inject_params:
-        for payload in SQLI_PAYLOADS[:2]:
+    sem = asyncio.Semaphore(5)
+
+    async def _test_one(param: str, payload: str) -> list[str]:
+        async with sem:
             if parsed.query:
                 test_url = re.sub(rf'{re.escape(param)}=[^&]*', param + "=" + payload, base_url, count=1)
             else:
@@ -452,15 +453,31 @@ async def check_sqli_errors(
             try:
                 _, _, body, _ = await fetch(client, test_url, timeout=timeout)
             except FetchError:
-                continue
+                return []
 
             text = body.decode("utf-8", errors="replace")
+            found: list[str] = []
             for db_name, patterns in SQL_ERROR_PATTERNS.items():
                 for pattern in patterns:
                     if pattern.search(text):
-                        if db_name not in detected_databases:
-                            detected_databases.append(db_name)
+                        found.append(db_name)
                         break
+            return found
+
+    tasks = [
+        _test_one(param, payload)
+        for param in inject_params
+        for payload in SQLI_PAYLOADS[:2]
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    detected_databases: list[str] = []
+    for result in results:
+        if isinstance(result, Exception):
+            continue
+        for db_name in result:
+            if db_name not in detected_databases:
+                detected_databases.append(db_name)
 
     return detected_databases
 
@@ -530,8 +547,8 @@ async def test_http_methods(
 ) -> list[MethodResult]:
     """Testa metodos HTTP perigosos nos endpoints descobertos."""
     to_test = methods or METHODS_TO_TEST
-    results: list[MethodResult] = []
     seen: set[tuple[str, str]] = set()
+    pairs: list[tuple[str, str]] = []
 
     for probe in probes:
         if probe.status not in {200, 401, 403}:
@@ -541,21 +558,37 @@ async def test_http_methods(
             if key in seen:
                 continue
             seen.add(key)
+            pairs.append((probe.url, method))
+
+    sem = asyncio.Semaphore(5)
+
+    async def _test_one(url: str, method: str) -> MethodResult | None:
+        async with sem:
             await rate_limiter.wait()
             try:
-                status, _, body, _ = await fetch(client, probe.url, timeout=timeout, method=method, rate_limiter=rate_limiter)
+                status, _, body, _ = await fetch(client, url, timeout=timeout, method=method, rate_limiter=rate_limiter)
             except FetchError:
-                continue
+                return None
             if status not in {0, 404, 405} and method in {"PUT", "DELETE", "PATCH", "TRACE"}:
-                results.append(MethodResult(probe.url, method, status, len(body)))
-                if status in {200, 201, 204}:
-                    print(
-                        f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                        f"{color(method.ljust(7), Cyber.YELLOW, Cyber.BOLD)} "
-                        f"{color(str(status).ljust(3), status_color(status), Cyber.BOLD)} "
-                        f"{color(probe.url, Cyber.CYAN)}"
-                    )
-    return results
+                return MethodResult(url, method, status, len(body))
+            return None
+
+    tasks = [_test_one(url, method) for url, method in pairs]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    method_results: list[MethodResult] = []
+    for result in results:
+        if isinstance(result, Exception) or result is None:
+            continue
+        method_results.append(result)
+        if result.status in {200, 201, 204}:
+            print(
+                f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} "
+                f"{color(result.method.ljust(7), Cyber.YELLOW, Cyber.BOLD)} "
+                f"{color(str(result.status).ljust(3), status_color(result.status), Cyber.BOLD)} "
+                f"{color(result.url, Cyber.CYAN)}"
+            )
+    return method_results
 
 
 def build_findings(
@@ -798,23 +831,45 @@ async def run_audit(
 
         xss_reflected, xss_evidence = False, ""
         sqli_databases: list[str] | None = None
-        if test_vulns:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando XSS reflection...")
-            xss_reflected, xss_evidence = await check_xss_reflection(client, target, timeout, inject_params=inject_params)
-            if xss_reflected:
-                print(color("[!]", Cyber.RED, Cyber.BOLD), "XSS refletido detectado!")
-
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando SQLi error-based...")
-            sqli_databases = await check_sqli_errors(client, target, timeout, inject_params=inject_params)
-            if sqli_databases:
-                print(color("[!]", Cyber.RED, Cyber.BOLD), f"Erros SQL detectados: {', '.join(sqli_databases)}")
-
         method_results: list[MethodResult] | None = None
+
+        vuln_tasks = []
+        if test_vulns:
+            print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando XSS reflection e SQLi error-based em paralelo...")
+            vuln_tasks.append(check_xss_reflection(client, target, timeout, inject_params=inject_params))
+            vuln_tasks.append(check_sqli_errors(client, target, timeout, inject_params=inject_params))
         if test_methods and probes:
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando metodos HTTP...")
-            method_results = await test_http_methods(client, probes, timeout, rate_limiter)
-            if not method_results:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum metodo perigoso aceito.")
+            vuln_tasks.append(test_http_methods(client, probes, timeout, rate_limiter))
+
+        if vuln_tasks:
+            vuln_results = await asyncio.gather(*vuln_tasks, return_exceptions=True)
+            task_idx = 0
+            if test_vulns:
+                xss_result = vuln_results[task_idx]
+                task_idx += 1
+                sqli_result = vuln_results[task_idx]
+                task_idx += 1
+                if isinstance(xss_result, Exception):
+                    xss_reflected, xss_evidence = False, ""
+                else:
+                    xss_reflected, xss_evidence = xss_result
+                if xss_reflected:
+                    print(color("[!]", Cyber.RED, Cyber.BOLD), "XSS refletido detectado!")
+                if isinstance(sqli_result, Exception):
+                    sqli_databases = []
+                else:
+                    sqli_databases = sqli_result
+                if sqli_databases:
+                    print(color("[!]", Cyber.RED, Cyber.BOLD), f"Erros SQL detectados: {', '.join(sqli_databases)}")
+            if test_methods and probes:
+                methods_result = vuln_results[task_idx]
+                if isinstance(methods_result, Exception):
+                    method_results = []
+                else:
+                    method_results = methods_result
+                if not method_results:
+                    print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum metodo perigoso aceito.")
     finally:
         await client.aclose()
 
