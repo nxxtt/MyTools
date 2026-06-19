@@ -560,7 +560,11 @@ async def scan_paths(
     concurrency: int,
     paths: list[str] | None = None,
 ) -> list[Probe]:
-    """Escaneia paths interessantes em paralelo usando asyncio.gather."""
+    """Escaneia paths interessantes em paralelo usando asyncio.gather.
+
+    Inclui deteccao de SPA: se >80% dos probes retornam mesmo (status, size),
+    sao tratados como fallback do SPA e filtrados para evitar falsos positivos.
+    """
     target_paths = paths if paths is not None else INTERESTING_PATHS
     sem = asyncio.Semaphore(concurrency)
 
@@ -570,18 +574,37 @@ async def scan_paths(
 
     tasks = [_limited_probe(path) for path in target_paths]
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    probes: list[Probe] = []
+    all_probes: list[Probe] = []
     for result in results:
         if isinstance(result, BaseException):
             continue
         if result:
-            probes.append(result)
+            all_probes.append(result)
             print(
                 f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
                 f"{color(str(result.status).ljust(3), status_color(result.status), Cyber.BOLD)} "
                 f"{color(str(result.size).rjust(7), Cyber.YELLOW)}B "
                 f"{color(result.url, Cyber.CYAN)}"
             )
+
+    # SPA detection: se >80% dos probes tem mesmo (status, size),
+    # provavelmente e o SPA retornando shell HTML para todos os paths.
+    probes = all_probes
+    if len(all_probes) > 5:
+        groups: dict[tuple[int, int], list[Probe]] = {}
+        for p in all_probes:
+            groups.setdefault((p.status, p.size), []).append(p)
+        dominant_key, dominant_group = max(groups.items(), key=lambda kv: len(kv[1]))
+        if len(dominant_group) > len(all_probes) * 0.8:
+            spa_urls = {p.url for p in dominant_group}
+            probes = [p for p in all_probes if p.url not in spa_urls]
+            logger.debug("SPA detectado: %d/%d probes ignorados (status=%d, size=%d)",
+                         len(spa_urls), len(all_probes), dominant_key[0], dominant_key[1])
+            if probes:
+                print(color("[*]", Cyber.YELLOW, Cyber.BOLD),
+                      f"SPA detectado: filtrados {color(str(len(spa_urls)), Cyber.RED)} "
+                      f"probes de fallback ({dominant_key[0]} {dominant_key[1]}B)")
+
     return sorted(probes, key=lambda item: (item.status, item.url))
 
 
