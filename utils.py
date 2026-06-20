@@ -98,6 +98,49 @@ def init_scanner(args: argparse.Namespace) -> bool:
     return quiet
 
 
+def run_main_loop(
+    parser: argparse.ArgumentParser,
+    banner_fn: Callable[[], None],
+    run_fn: Callable[[argparse.Namespace], int],
+    has_target: Callable[[argparse.Namespace], bool],
+    prompt: str,
+    description: str,
+    example: str,
+    contextual_help: str,
+    validate_fn: Callable[[argparse.Namespace], None] | None = None,
+) -> int:
+    """Loop principal compartilhado por todos os scanners.
+
+    Trata parse_args, shell interativo, quiet check e try/except.
+    """
+    args = parser.parse_args()
+    if not has_target(args):
+        return run_interactive_shell(
+            parser, prompt, run_fn,
+            description=description,
+            example=example,
+            validate_fn=validate_fn,
+            banner_fn=banner_fn,
+            contextual_help=contextual_help,
+        )
+
+    quiet = getattr(args, "quiet", False)
+    if quiet and not args.output:
+        print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
+        return 1
+
+    try:
+        if not quiet:
+            banner_fn()
+        return run_fn(args)
+    except KeyboardInterrupt:
+        print(color("\n[*] Interrompido pelo usuario.", Cyber.YELLOW), file=sys.stderr)
+        return 130
+    except Exception as error:
+        print(color(f"Erro: {error}", Cyber.RED), file=sys.stderr)
+        return 1
+
+
 class FetchError(Exception):
     """Erro de requisicao HTTP com contexto completo.
 
@@ -503,16 +546,43 @@ def extract_hostname(url: str) -> str:
     return host.replace("/", "_").replace(":", "_")
 
 
+def read_target_lines(filepath: str) -> list[str]:
+    """Le linhas de um arquivo de targets, removendo blanks e comentarios."""
+    try:
+        with open(filepath, encoding="utf-8", errors="replace") as fh:
+            return [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+    except FileNotFoundError:
+        raise ValueError(f"arquivo nao encontrado: {filepath}") from None
+
+
+def detect_spa_fallback(
+    items: list,
+    key_fn: Callable,
+    min_count: int = 10,
+    threshold: float = 0.8,
+) -> set[int]:
+    """Detecta SPA retornando o mesmo shell para todos os paths.
+
+    Retorna set de indices a ignorar (dominant group) se >threshold dos items
+    tem mesma chave. Lista vazia se len(items) <= min_count.
+    """
+    if len(items) <= min_count:
+        return set()
+    groups: dict[tuple, list] = {}
+    for idx, item in enumerate(items):
+        groups.setdefault(key_fn(item), []).append((idx, item))
+    _, dominant_group = max(groups.items(), key=lambda kv: len(kv[1]))
+    if len(dominant_group) > len(items) * threshold:
+        return {idx for idx, _ in dominant_group}
+    return set()
+
+
 def resolve_target_urls(args: argparse.Namespace) -> list[str]:
     """Le -l/--list e args.url, retorna lista deduplicada de URLs."""
     urls: list[str] = []
     target_list = getattr(args, "target_list", None)
     if target_list:
-        try:
-            with open(target_list, encoding="utf-8", errors="replace") as fh:
-                urls = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
-        except FileNotFoundError:
-            raise ValueError(f"arquivo nao encontrado: {target_list}") from None
+        urls = read_target_lines(target_list)
     url = getattr(args, "url", None)
     if url:
         urls.append(url)

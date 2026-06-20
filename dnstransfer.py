@@ -41,7 +41,7 @@ from utils import (
     color,
     create_banner,
     init_scanner,
-    run_interactive_shell,
+    run_main_loop,
     write_output,
 )
 
@@ -354,42 +354,28 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """Ponto de entrada principal do scanner."""
-    parser = build_parser()
-    args = parser.parse_args()
 
-    if not args.domain:
+    def _validate(args: argparse.Namespace) -> None:
+        if not args.domain:
+            raise ValueError("Informe um dominio alvo.")
 
-        def _validate(args: argparse.Namespace) -> None:
-            if not args.domain:
-                raise ValueError("Informe um dominio alvo.")
-
-        return run_interactive_shell(
-            parser, "dnsxfer> ", run_once,
-            description="DNS Zone Transfer Scanner interativo.",
-            example="example.com -t 15",
-            validate_fn=_validate,
-            banner_fn=banner,
-            contextual_help=(
-                "Uso: <dominio> [opcoes]\n"
-                "Exemplos:\n"
-                "  example.com\n"
-                "  example.com -t 15 -o xfr.json\n"
-                "  Use -l para arquivo com dominios (um por linha)"
-            ),
-        )
-
-    quiet = getattr(args, "quiet", False)
-    if quiet and not args.output:
-        print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
-        return 1
-
-    try:
-        if not quiet:
-            banner()
-        return run_once(args)
-    except Exception as error:
-        print(color(f"Erro: {error}", Cyber.RED), file=sys.stderr)
-        return 1
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=banner,
+        run_fn=run_once,
+        has_target=lambda a: bool(a.domain),
+        prompt="dnsxfer> ",
+        description="DNS Zone Transfer Scanner interativo.",
+        example="example.com -t 15",
+        validate_fn=_validate,
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com -t 15 -o xfr.json\n"
+            "  Use -l para arquivo com dominios (um por linha)"
+        ),
+    )
 
 
 if __name__ == "__main__":

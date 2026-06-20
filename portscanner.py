@@ -24,14 +24,13 @@ import functools
 import ipaddress
 import logging
 import socket
-import sys
 import time
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
 
-from utils import Cyber, add_base_args, color, create_banner, init_scanner, parse_int_range, print_table, run_interactive_shell, write_output
+from utils import Cyber, add_base_args, color, create_banner, init_scanner, parse_int_range, print_table, read_target_lines, run_main_loop, write_output
 
 logger = logging.getLogger("mytools.portscanner")
 
@@ -343,11 +342,7 @@ def run_once(args: argparse.Namespace) -> int:
 
     all_targets: list[str] = list(args.targets) if args.targets else []
     if getattr(args, "target_list", None):
-        try:
-            with open(args.target_list, encoding="utf-8", errors="replace") as fh:
-                all_targets.extend(line.strip() for line in fh if line.strip() and not line.startswith("#"))
-        except FileNotFoundError:
-            raise ValueError(f"arquivo nao encontrado: {args.target_list}") from None
+        all_targets.extend(read_target_lines(args.target_list))
     if not all_targets:
         raise ValueError("informe pelo menos um alvo ou use -l/--list")
 
@@ -383,44 +378,30 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """Ponto de entrada principal do scanner."""
-    parser = build_parser()
-    args = parser.parse_args()
-    has_targets = args.targets or getattr(args, "target_list", None)
-    if not has_targets:
 
-        def _validate(args):
-            if not args.targets and not getattr(args, "target_list", None):
-                raise ValueError("Informe pelo menos um alvo.")
+    def _validate(args: argparse.Namespace) -> None:
+        if not args.targets and not getattr(args, "target_list", None):
+            raise ValueError("Informe pelo menos um alvo.")
 
-        return run_interactive_shell(
-            parser, "scanner> ", run_once,
-            description="PortScanner interativo.",
-            example="192.168.0.10 -p 1-1024 -b",
-            validate_fn=_validate,
-            banner_fn=banner,
-            contextual_help=(
-                "Uso: <target> [opcoes]\n"
-                "  Targets: IP, hostname ou CIDR (IPv4/IPv6)\n"
-                "Exemplos:\n"
-                "  192.168.0.10 -p 22,80,443\n"
-                "  scanme.nmap.org -p top100 -b\n"
-                "  10.0.0.0/30 -w 500\n"
-                "  -l targets.txt -p 80,443 -o results.json"
-            ),
-        )
-
-    quiet = getattr(args, "quiet", False)
-    if quiet and not args.output:
-        print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
-        return 1
-
-    try:
-        if not quiet:
-            banner()
-        return run_once(args)
-    except Exception as error:
-        print(color(f"Erro: {error}", Cyber.RED), file=sys.stderr)
-        return 1
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=banner,
+        run_fn=run_once,
+        has_target=lambda a: bool(a.targets or getattr(a, "target_list", None)),
+        prompt="scanner> ",
+        description="PortScanner interativo.",
+        example="192.168.0.10 -p 1-1024 -b",
+        validate_fn=_validate,
+        contextual_help=(
+            "Uso: <target> [opcoes]\n"
+            "  Targets: IP, hostname ou CIDR (IPv4/IPv6)\n"
+            "Exemplos:\n"
+            "  192.168.0.10 -p 22,80,443\n"
+            "  scanme.nmap.org -p top100 -b\n"
+            "  10.0.0.0/30 -w 500\n"
+            "  -l targets.txt -p 80,443 -o results.json"
+        ),
+    )
 
 
 if __name__ == "__main__":

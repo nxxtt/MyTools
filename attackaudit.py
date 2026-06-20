@@ -9,7 +9,6 @@ import re
 import secrets
 import socket
 import ssl
-import sys
 import time
 import warnings
 from collections.abc import Mapping
@@ -34,11 +33,12 @@ from utils import (
     add_common_args,
     color,
     create_banner,
+    detect_spa_fallback,
     ensure_output_dir,
     extract_hostname,
     init_scanner,
     resolve_target_urls,
-    run_interactive_shell,
+    run_main_loop,
     safe_asyncio_run,
     status_color,
     write_output,
@@ -589,20 +589,17 @@ async def scan_paths(
     # SPA detection: se >80% dos probes tem mesmo (status, size),
     # provavelmente e o SPA retornando shell HTML para todos os paths.
     probes = all_probes
-    if len(all_probes) > 5:
-        groups: dict[tuple[int, int], list[Probe]] = {}
-        for p in all_probes:
-            groups.setdefault((p.status, p.size), []).append(p)
-        dominant_key, dominant_group = max(groups.items(), key=lambda kv: len(kv[1]))
-        if len(dominant_group) > len(all_probes) * 0.8:
-            spa_urls = {p.url for p in dominant_group}
-            probes = [p for p in all_probes if p.url not in spa_urls]
-            logger.debug("SPA detectado: %d/%d probes ignorados (status=%d, size=%d)",
-                         len(spa_urls), len(all_probes), dominant_key[0], dominant_key[1])
-            if probes:
-                print(color("[*]", Cyber.YELLOW, Cyber.BOLD),
-                      f"SPA detectado: filtrados {color(str(len(spa_urls)), Cyber.RED)} "
-                      f"probes de fallback ({dominant_key[0]} {dominant_key[1]}B)")
+    spa_skip_indices = detect_spa_fallback(all_probes, lambda p: (p.status, p.size), min_count=5)
+    if spa_skip_indices:
+        spa_urls = {all_probes[i].url for i in spa_skip_indices}
+        probes = [p for p in all_probes if p.url not in spa_urls]
+        first_idx = next(iter(spa_skip_indices))
+        logger.debug("SPA detectado: %d/%d probes ignorados", len(spa_urls), len(all_probes))
+        if probes:
+            dk = (all_probes[first_idx].status, all_probes[first_idx].size)
+            print(color("[*]", Cyber.YELLOW, Cyber.BOLD),
+                  f"SPA detectado: filtrados {color(str(len(spa_urls)), Cyber.RED)} "
+                  f"probes de fallback ({dk[0]} {dk[1]}B)")
 
     return sorted(probes, key=lambda item: (item.status, item.url))
 
@@ -1208,40 +1205,24 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """Ponto de entrada principal do AttackAudit."""
-    parser = build_parser()
-    args = parser.parse_args()
-    if not args.url and not getattr(args, "target_list", None):
-        return run_interactive_shell(
-            parser, "audit> ", run_once,
-            description="AttackAudit interativo.",
-            example="https://example.com --deep --test-vulns -o audit.json",
-            banner_fn=banner,
-            contextual_help=(
-                "Uso: <url> [opcoes]\n"
-                "Exemplos:\n"
-                "  https://example.com --deep\n"
-                "  https://example.com --deep --test-vulns --test-methods\n"
-                "  https://example.com --deep --test-vulns --params 'q,search,id'\n"
-                "  https://example.com --paths-file custom.txt -o audit.json\n"
-                "  -l targets.txt --output-dir results/"
-            ),
-        )
-
-    quiet = getattr(args, "quiet", False)
-    if quiet and not args.output:
-        print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
-        return 1
-
-    try:
-        if not quiet:
-            banner()
-        return run_once(args)
-    except KeyboardInterrupt:
-        print(color("\n[*] Interrompido pelo usuario.", Cyber.YELLOW), file=sys.stderr)
-        return 130
-    except Exception as error:
-        print(color(f"Erro: {error}", Cyber.RED), file=sys.stderr)
-        return 1
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=banner,
+        run_fn=run_once,
+        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
+        prompt="audit> ",
+        description="AttackAudit interativo.",
+        example="https://example.com --deep --test-vulns -o audit.json",
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://example.com --deep\n"
+            "  https://example.com --deep --test-vulns --test-methods\n"
+            "  https://example.com --deep --test-vulns --params 'q,search,id'\n"
+            "  https://example.com --paths-file custom.txt -o audit.json\n"
+            "  -l targets.txt --output-dir results/"
+        ),
+    )
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@ import ipaddress
 import logging
 import os
 import re
-import sys
 import time
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
@@ -38,7 +37,7 @@ from utils import (
     init_scanner,
     query_nvd,
     resolve_target_urls,
-    run_interactive_shell,
+    run_main_loop,
     safe_asyncio_run,
     status_color,
     write_output,
@@ -1094,40 +1093,23 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """Ponto de entrada principal da ferramenta."""
-    parser = build_parser()
-    args = parser.parse_args()
-    if not args.url and not getattr(args, "target_list", None):
-        return run_interactive_shell(
-            parser, "webrecon> ", run_once,
-            description="WebRecon interativo.",
-            example="https://example.com -o recon.json",
-            banner_fn=banner,
-            contextual_help=(
-                "Uso: <url> [opcoes]\n"
-                "Exemplos:\n"
-                "  https://example.com\n"
-                "  https://example.com --cve --nvd-api-key KEY\n"
-                "  https://example.com --deep --crawl-limit 20\n"
-                "  -l urls.txt --output-dir results/ -o recon.json"
-            ),
-        )
-
-    quiet = getattr(args, "quiet", False)
-    if quiet and not args.output:
-        print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
-        return 1
-
-    try:
-        if not quiet:
-            banner()
-            sys.stdout.flush()
-        return run_once(args)
-    except KeyboardInterrupt:
-        print(color("\n[*] Interrompido pelo usuario.", Cyber.YELLOW), file=sys.stderr)
-        return 130
-    except Exception as error:
-        print(color(f"Erro: {error}", Cyber.RED), file=sys.stderr)
-        return 1
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=banner,
+        run_fn=run_once,
+        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
+        prompt="webrecon> ",
+        description="WebReCon interativo.",
+        example="https://example.com -o recon.json",
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://example.com\n"
+            "  https://example.com --cve --nvd-api-key KEY\n"
+            "  https://example.com --deep --crawl-limit 20\n"
+            "  -l urls.txt --output-dir results/ -o recon.json"
+        ),
+    )
 
 
 if __name__ == "__main__":

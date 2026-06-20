@@ -27,6 +27,7 @@ from utils import (
     add_common_args,
     color,
     create_banner,
+    detect_spa_fallback,
     ensure_output_dir,
     extract_hostname,
     init_scanner,
@@ -34,7 +35,7 @@ from utils import (
     parse_int_range,
     print_table,
     resolve_target_urls,
-    run_interactive_shell,
+    run_main_loop,
     safe_asyncio_run,
     status_color,
     write_output,
@@ -277,18 +278,10 @@ async def scan_target(
 
         non_null = [r for r in results if isinstance(r, Finding)]
         spa_skip: set[str] = set()
-        # Heuristica SPA: se >80% dos findings tem mesmo (size, words),
-        # provavelmente e uma SPA retornando o mesmo shell HTML.
-        # Ignoramos esses findings para evitar falsos positivos.
-        if len(non_null) > 10:
-            groups: dict[tuple[int, int], list[Finding]] = {}
-            for r in non_null:
-                groups.setdefault((r.size, r.words), []).append(r)
-            dominant_size, dominant_group = max(groups.items(), key=lambda kv: len(kv[1]))
-            if len(dominant_group) > len(non_null) * 0.8:
-                spa_skip = {r.url for r in dominant_group}
-                logger.debug("SPA detectado: %d/%d findings ignorados (size=%d, words=%d)",
-                             len(spa_skip), len(non_null), dominant_size[0], dominant_size[1])
+        spa_skip_indices = detect_spa_fallback(non_null, lambda r: (r.size, r.words))
+        if spa_skip_indices:
+            spa_skip = {non_null[i].url for i in spa_skip_indices}
+            logger.debug("SPA detectado: %d/%d findings ignorados", len(spa_skip), len(non_null))
 
         findings: list[Finding] = []
         for result in results:
@@ -486,39 +479,23 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """Ponto de entrada principal do DirScanner."""
-    parser = build_parser()
-    args = parser.parse_args()
-    if not args.url and not getattr(args, "target_list", None):
-        return run_interactive_shell(
-            parser, "dirscan> ", run_once,
-            description="DirScanner interativo.",
-            example="http://localhost:8000 -x php,txt,bak -s 200,301,403",
-            banner_fn=banner,
-            contextual_help=(
-                "Uso: <url> [opcoes]\n"
-                "Exemplos:\n"
-                "  http://localhost:8000 -x php,txt,bak\n"
-                "  http://target.com -s 200,301,403 -w wordlist.txt\n"
-                "  http://target.com -M POST --filter-size 100-5000\n"
-                "  -l urls.txt --output-dir results/ -o out.json"
-            ),
-        )
-
-    quiet = getattr(args, "quiet", False)
-    if quiet and not args.output:
-        print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
-        return 1
-
-    try:
-        if not quiet:
-            banner()
-        return run_once(args)
-    except KeyboardInterrupt:
-        print(color("\n[*] Interrompido pelo usuario.", Cyber.YELLOW), file=sys.stderr)
-        return 130
-    except Exception as error:
-        print(color(f"Erro: {error}", Cyber.RED), file=sys.stderr)
-        return 1
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=banner,
+        run_fn=run_once,
+        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
+        prompt="dirscan> ",
+        description="DirScanner interativo.",
+        example="http://localhost:8000 -x php,txt,bak -s 200,301,403",
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  http://localhost:8000 -x php,txt,bak\n"
+            "  http://target.com -s 200,301,403 -w wordlist.txt\n"
+            "  http://target.com -M POST --filter-size 100-5000\n"
+            "  -l urls.txt --output-dir results/ -o out.json"
+        ),
+    )
 
 
 if __name__ == "__main__":

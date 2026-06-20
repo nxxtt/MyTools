@@ -417,10 +417,9 @@ class TestRunOnce:
 
 class TestMain:
     def test_no_domain_shells_interactive(self):
-        with patch("subdomainenum.run_interactive_shell") as mock_shell:
+        with patch("utils.run_interactive_shell") as mock_shell:
             mock_shell.return_value = 0
             args = _make_args(domain=None)
-            # main() calls parser.parse_args(), so we patch that
             with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
                 result = main()
                 assert result == 0
