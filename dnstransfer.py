@@ -40,9 +40,8 @@ from utils import (
     add_base_args,
     color,
     create_banner,
+    init_scanner,
     run_interactive_shell,
-    set_color,
-    setup_logging,
     write_output,
 )
 
@@ -315,10 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa uma única varredura de zone transfer."""
-    setup_logging(verbose=args.verbose, log_file=args.log_file)
-    quiet = getattr(args, "quiet", False)
-    if getattr(args, "color", None) is not None:
-        set_color(args.color)
+    quiet = init_scanner(args)
 
     if args.timeout <= 0:
         raise ValueError("timeout precisa ser maior que zero")

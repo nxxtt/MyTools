@@ -35,12 +35,11 @@ from utils import (
     create_banner,
     ensure_output_dir,
     extract_hostname,
+    init_scanner,
     query_nvd,
     resolve_target_urls,
     run_interactive_shell,
     safe_asyncio_run,
-    set_color,
-    setup_logging,
     status_color,
     write_output,
 )
@@ -463,7 +462,7 @@ def harvest_emails(text: str) -> list[str]:
     return sorted(set(EMAIL_PATTERN.findall(text)))
 
 
-async def _fetch_file(client, url: str, timeout: float) -> tuple[str, int | None]:
+async def _fetch_file(client: httpx.AsyncClient, url: str, timeout: float) -> tuple[str, int | None]:
     """Busca o conteudo de um arquivo (robots.txt, sitemap.xml) e seu status."""
     try:
         status, _, body, _ = await fetch(client, url, timeout=timeout)
@@ -473,7 +472,7 @@ async def _fetch_file(client, url: str, timeout: float) -> tuple[str, int | None
 
 
 async def crawl_internal_links(
-    client,
+    client: httpx.AsyncClient,
     url: str,
     body_text: str,
     timeout: float,
@@ -755,7 +754,7 @@ def candidate_urls(url: str) -> list[str]:
     return [normalize_url("https://" + url), normalize_url("http://" + url)]
 
 
-async def probe_status(client, url: str, timeout: float) -> int | None:
+async def probe_status(client: httpx.AsyncClient, url: str, timeout: float) -> int | None:
     """Verifica o status HTTP de uma URL, retornando None em caso de falha."""
     try:
         status, _, _, _ = await fetch(client, url, timeout=timeout)
@@ -1050,10 +1049,7 @@ async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -
 
 async def _async_run_once(args: argparse.Namespace) -> int:
     """Executa uma unica operacao de reconhecimento (async)."""
-    setup_logging(verbose=args.verbose, log_file=args.log_file)
-    quiet = getattr(args, "quiet", False)
-    if getattr(args, "color", None) is not None:
-        set_color(args.color)
+    quiet = init_scanner(args)
 
     urls = resolve_target_urls(args)
     output_dir = getattr(args, "output_dir", None)

@@ -22,6 +22,22 @@ from subdomainenum import (
 )
 
 
+def _make_args(**kwargs):
+    defaults = {
+        "domain": "example.com",
+        "threads": DEFAULT_THREADS,
+        "timeout": DEFAULT_TIMEOUT,
+        "wordlist": None,
+        "output": None,
+        "verbose": False,
+        "quiet": False,
+        "color": None,
+        "log_file": None,
+    }
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
 class TestSubdomainResult:
     def test_frozen(self):
         result = SubdomainResult(subdomain="www.example.com")
@@ -124,7 +140,7 @@ class TestResolveSubdomain:
         rdata.__str__ = lambda self: "1.2.3.4"
         mock_resolver.resolve.return_value = [rdata]
 
-        result = _resolve_subdomain("www", "example.com", 3.0)
+        result = _resolve_subdomain("www", "example.com", 3.0, mock_resolver)
         assert result.status == "resolved"
         assert result.ip_addresses == ["1.2.3.4"]
         assert result.subdomain == "www.example.com"
@@ -139,7 +155,7 @@ class TestResolveSubdomain:
         r2.__str__ = lambda self: "1.2.3.4"
         mock_resolver.resolve.return_value = [r1, r2]
 
-        result = _resolve_subdomain("www", "example.com", 3.0)
+        result = _resolve_subdomain("www", "example.com", 3.0, mock_resolver)
         assert result.ip_addresses == ["1.2.3.4", "5.6.7.8"]
 
     @patch("subdomainenum.dns.resolver.Resolver")
@@ -148,7 +164,7 @@ class TestResolveSubdomain:
         MockResolver.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
 
-        result = _resolve_subdomain("nope", "example.com", 3.0)
+        result = _resolve_subdomain("nope", "example.com", 3.0, mock_resolver)
         assert result.status == "nxdomain"
         assert result.subdomain == "nope.example.com"
         assert result.ip_addresses == []
@@ -159,7 +175,7 @@ class TestResolveSubdomain:
         MockResolver.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NoAnswer()
 
-        result = _resolve_subdomain("mx", "example.com", 3.0)
+        result = _resolve_subdomain("mx", "example.com", 3.0, mock_resolver)
         assert result.status == "noanswer"
         assert result.ip_addresses == []
 
@@ -169,7 +185,7 @@ class TestResolveSubdomain:
         MockResolver.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.Timeout()
 
-        result = _resolve_subdomain("slow", "example.com", 3.0)
+        result = _resolve_subdomain("slow", "example.com", 3.0, mock_resolver)
         assert result.status == "timeout"
         assert result.ip_addresses == []
 
@@ -179,7 +195,7 @@ class TestResolveSubdomain:
         MockResolver.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.exception.DNSException("fail")
 
-        result = _resolve_subdomain("err", "example.com", 3.0)
+        result = _resolve_subdomain("err", "example.com", 3.0, mock_resolver)
         assert result.status == "error"
         assert result.ip_addresses == []
 
@@ -189,7 +205,7 @@ class TestResolveSubdomain:
         MockResolver.return_value = mock_resolver
         mock_resolver.resolve.side_effect = RuntimeError("unexpected")
 
-        result = _resolve_subdomain("err", "example.com", 3.0)
+        result = _resolve_subdomain("err", "example.com", 3.0, mock_resolver)
         assert result.status == "error"
         assert result.ip_addresses == []
 
@@ -199,18 +215,8 @@ class TestResolveSubdomain:
         MockResolver.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
 
-        _resolve_subdomain("mail", "test.com", 3.0)
+        _resolve_subdomain("mail", "test.com", 3.0, mock_resolver)
         mock_resolver.resolve.assert_called_once_with("mail.test.com", "A")
-
-    @patch("subdomainenum.dns.resolver.Resolver")
-    def test_resolver_timeout_configured(self, MockResolver):
-        mock_resolver = MagicMock()
-        MockResolver.return_value = mock_resolver
-        mock_resolver.resolve.side_effect = dns.resolver.Timeout()
-
-        _resolve_subdomain("www", "example.com", 5.0)
-        assert mock_resolver.lifetime == 5.0
-        assert mock_resolver.timeout == 5.0
 
 
 class TestEnumerateSubdomains:
@@ -372,29 +378,14 @@ class TestBuildParser:
 
 
 class TestRunOnce:
-    def _make_args(self, **kwargs):
-        defaults = {
-            "domain": "example.com",
-            "threads": DEFAULT_THREADS,
-            "timeout": DEFAULT_TIMEOUT,
-            "wordlist": None,
-            "output": None,
-            "verbose": False,
-            "quiet": False,
-            "color": None,
-            "log_file": None,
-        }
-        defaults.update(kwargs)
-        return argparse.Namespace(**defaults)
-
     @patch("subdomainenum.run_enum_scan")
     def test_returns_zero(self, mock_scan):
         mock_scan.return_value = []
-        args = self._make_args()
+        args = _make_args()
         assert run_once(args) == 0
 
     def test_invalid_threads(self):
-        args = self._make_args(threads=0)
+        args = _make_args(threads=0)
         try:
             run_once(args)
             raise AssertionError("Should raise ValueError")
@@ -402,7 +393,7 @@ class TestRunOnce:
             assert "threads" in str(e).lower()
 
     def test_invalid_timeout(self):
-        args = self._make_args(timeout=0)
+        args = _make_args(timeout=0)
         try:
             run_once(args)
             raise AssertionError("Should raise ValueError")
@@ -413,37 +404,22 @@ class TestRunOnce:
     @patch("subdomainenum.write_output")
     def test_saves_output(self, mock_write, mock_scan):
         mock_scan.return_value = [SubdomainResult(subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved")]
-        args = self._make_args(output="out.json")
+        args = _make_args(output="out.json")
         run_once(args)
         mock_write.assert_called_once()
 
     @patch("subdomainenum.run_enum_scan")
     def test_no_output_no_write(self, mock_scan):
         mock_scan.return_value = []
-        args = self._make_args(output=None)
+        args = _make_args(output=None)
         assert run_once(args) == 0
 
 
 class TestMain:
-    def _make_args(self, **kwargs):
-        defaults = {
-            "domain": "example.com",
-            "threads": DEFAULT_THREADS,
-            "timeout": DEFAULT_TIMEOUT,
-            "wordlist": None,
-            "output": None,
-            "verbose": False,
-            "quiet": False,
-            "color": None,
-            "log_file": None,
-        }
-        defaults.update(kwargs)
-        return argparse.Namespace(**defaults)
-
     def test_no_domain_shells_interactive(self):
         with patch("subdomainenum.run_interactive_shell") as mock_shell:
             mock_shell.return_value = 0
-            args = self._make_args(domain=None)
+            args = _make_args(domain=None)
             # main() calls parser.parse_args(), so we patch that
             with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
                 result = main()
@@ -451,7 +427,7 @@ class TestMain:
                 mock_shell.assert_called_once()
 
     def test_quiet_without_output_returns_1(self):
-        args = self._make_args(quiet=True, output=None)
+        args = _make_args(quiet=True, output=None)
         with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
             assert result == 1
@@ -460,7 +436,7 @@ class TestMain:
     @patch("utils.show_banner")
     def test_valid_domain_calls_run_once(self, mock_banner, mock_run_once):
         mock_run_once.return_value = 0
-        args = self._make_args(domain="example.com")
+        args = _make_args(domain="example.com")
         with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
             assert result == 0
@@ -469,7 +445,7 @@ class TestMain:
     @patch("subdomainenum.run_once")
     def test_quiet_with_output_skips_banner(self, mock_run_once):
         mock_run_once.return_value = 0
-        args = self._make_args(quiet=True, output="out.json")
+        args = _make_args(quiet=True, output="out.json")
         with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args), patch("utils.show_banner") as mock_banner:
             result = main()
             assert result == 0
@@ -479,7 +455,7 @@ class TestMain:
     @patch("utils.show_banner")
     def test_exception_returns_1(self, mock_banner, mock_run_once):
         mock_run_once.side_effect = RuntimeError("fail")
-        args = self._make_args(domain="example.com")
+        args = _make_args(domain="example.com")
         with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
             assert result == 1
@@ -508,29 +484,13 @@ class TestDryRun:
         assert args.dry_run is False
 
     def test_dry_run_returns_zero(self, capsys):
-        args = self._make_args(dry_run=True)
+        args = _make_args(dry_run=True)
         result = run_once(args)
         assert result == 0
 
     def test_dry_run_outputs_info(self, capsys):
-        args = self._make_args(dry_run=True)
+        args = _make_args(dry_run=True)
         run_once(args)
         captured = capsys.readouterr()
         assert "DRY-RUN" in captured.out
         assert "Nenhuma consulta" in captured.out
-
-    def _make_args(self, **kwargs):
-        defaults = {
-            "domain": "example.com",
-            "threads": DEFAULT_THREADS,
-            "timeout": DEFAULT_TIMEOUT,
-            "wordlist": None,
-            "output": None,
-            "verbose": False,
-            "quiet": False,
-            "color": None,
-            "log_file": None,
-            "dry_run": False,
-        }
-        defaults.update(kwargs)
-        return argparse.Namespace(**defaults)

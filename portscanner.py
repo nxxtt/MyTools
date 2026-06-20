@@ -31,7 +31,7 @@ from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
 
-from utils import Cyber, add_base_args, color, create_banner, parse_int_range, print_table, run_interactive_shell, set_color, setup_logging, write_output
+from utils import Cyber, add_base_args, color, create_banner, init_scanner, parse_int_range, print_table, run_interactive_shell, write_output
 
 logger = logging.getLogger("mytools.portscanner")
 
@@ -325,10 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa uma única varredura com os argumentos fornecidos."""
-    setup_logging(verbose=args.verbose, log_file=args.log_file)
-    quiet = getattr(args, "quiet", False)
-    if getattr(args, "color", None) is not None:
-        set_color(args.color)
+    quiet = init_scanner(args)
 
     if args.threads is not None:
         import warnings

@@ -11,6 +11,8 @@ import time
 from dataclasses import asdict, dataclass
 from urllib.parse import urljoin
 
+import httpx
+
 from net import (
     FetchError,
     RateLimiter,
@@ -27,14 +29,13 @@ from utils import (
     create_banner,
     ensure_output_dir,
     extract_hostname,
+    init_scanner,
     parse_extra_headers,
     parse_int_range,
     print_table,
     resolve_target_urls,
     run_interactive_shell,
     safe_asyncio_run,
-    set_color,
-    setup_logging,
     status_color,
     write_output,
 )
@@ -180,7 +181,7 @@ def matches_filter(
 
 
 async def scan_path(
-    client,
+    client: httpx.AsyncClient,
     rate_limiter: RateLimiter,
     base_url: str,
     path: str,
@@ -436,10 +437,7 @@ async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -
 
 async def _async_run_once(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
-    setup_logging(verbose=args.verbose, log_file=args.log_file)
-    quiet = getattr(args, "quiet", False)
-    if getattr(args, "color", None) is not None:
-        set_color(args.color)
+    quiet = init_scanner(args)
     if args.concurrency < 1:
         raise ValueError("concorrencia precisa ser maior que zero")
 

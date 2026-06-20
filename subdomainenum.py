@@ -36,9 +36,8 @@ from utils import (
     add_base_args,
     color,
     create_banner,
+    init_scanner,
     run_interactive_shell,
-    set_color,
-    setup_logging,
     write_output,
 )
 
@@ -128,26 +127,22 @@ def load_wordlist(path: str | None = None) -> list[str]:
     return words
 
 
-def _resolve_subdomain(subdomain: str, domain: str, timeout: float, resolver: dns.resolver.Resolver | None = None) -> SubdomainResult:
+def _resolve_subdomain(subdomain: str, domain: str, timeout: float, resolver: dns.resolver.Resolver) -> SubdomainResult:
     """Resolve um unico subdominio via DNS A record.
 
     Args:
         subdomain: Prefixo do subdominio (ex: "www").
         domain: Dominio base (ex: "example.com").
         timeout: Timeout em segundos.
-        resolver: Resolver DNS compartilhado (com cache). Cria um novo se None.
+        resolver: Resolver DNS compartilhado (com cache).
 
     Returns:
         SubdomainResult com os IPs encontrados ou erro.
     """
     fqdn = f"{subdomain}.{domain}"
-    shared_resolver = resolver if resolver is not None else dns.resolver.Resolver()
-    if resolver is None:
-        shared_resolver.lifetime = timeout
-        shared_resolver.timeout = timeout
 
     try:
-        answers = shared_resolver.resolve(fqdn, "A")
+        answers = resolver.resolve(fqdn, "A")
         ips = sorted(str(rdata) for rdata in answers)
         logger.debug("resolvido %s -> %s", fqdn, ips)
         return SubdomainResult(subdomain=fqdn, ip_addresses=ips, status="resolved")
@@ -328,10 +323,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa uma unica enumeracao de subdominios."""
-    setup_logging(verbose=args.verbose, log_file=args.log_file)
-    quiet = getattr(args, "quiet", False)
-    if getattr(args, "color", None) is not None:
-        set_color(args.color)
+    quiet = init_scanner(args)
 
     if args.threads < 1:
         raise ValueError("threads precisa ser maior que zero")

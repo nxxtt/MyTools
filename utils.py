@@ -86,6 +86,18 @@ def set_color(enabled: bool) -> None:
     _USE_COLOR = enabled
 
 
+def init_scanner(args: argparse.Namespace) -> bool:
+    """Inicializa logging, quiet mode e color para um scanner.
+
+    Retorna True se o modo quiet esta ativo.
+    """
+    setup_logging(verbose=args.verbose, log_file=args.log_file)
+    quiet = getattr(args, "quiet", False)
+    if getattr(args, "color", None) is not None:
+        set_color(args.color)
+    return quiet
+
+
 class FetchError(Exception):
     """Erro de requisicao HTTP com contexto completo.
 
