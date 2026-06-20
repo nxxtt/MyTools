@@ -257,7 +257,7 @@ def status_color(status: int) -> str:
 
 
 def header_get(headers: Mapping[str, str], name: str) -> str:
-    """Obtém o valor de um header HTTP, ignorando maiúsculas/minúsculas."""
+    """Obtém o valor de um header HTTP."""
     return headers.get(name, "")
 
 
@@ -287,7 +287,7 @@ def parse_int_range(
             else:
                 result.add(int(part))
         except ValueError:
-            raise argparse.ArgumentTypeError(f"{error_label} invalido: {part!r}")
+            raise argparse.ArgumentTypeError(f"{error_label} invalido: {part!r}") from None
 
     invalid = [v for v in result if v < min_val or v > max_val]
     if invalid:
@@ -497,10 +497,10 @@ def resolve_target_urls(args: argparse.Namespace) -> list[str]:
     target_list = getattr(args, "target_list", None)
     if target_list:
         try:
-            with open(target_list, "r", encoding="utf-8", errors="replace") as fh:
+            with open(target_list, encoding="utf-8", errors="replace") as fh:
                 urls = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
         except FileNotFoundError:
-            raise ValueError(f"arquivo nao encontrado: {target_list}")
+            raise ValueError(f"arquivo nao encontrado: {target_list}") from None
     url = getattr(args, "url", None)
     if url:
         urls.append(url)
@@ -658,4 +658,5 @@ def run_interactive_shell(
         except SystemExit:
             continue
         except Exception as error:
+            logger.debug("excecao inesperada no shell interativo", exc_info=True)
             print(color(f"Erro: {error}", Cyber.RED))

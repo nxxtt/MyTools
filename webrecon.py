@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import httpx
 import ipaddress
+import logging
 import os
 import re
 import sys
@@ -13,6 +13,8 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from urllib.parse import urljoin, urlparse
 
+import httpx
+import whois
 from bs4 import BeautifulSoup
 
 from net import (
@@ -25,8 +27,9 @@ from net import (
     normalize_url,
 )
 from utils import (
-    Cyber,
     SECURITY_HEADERS,
+    Cyber,
+    __version__,
     add_common_args,
     color,
     create_banner,
@@ -40,12 +43,7 @@ from utils import (
     setup_logging,
     status_color,
     write_output,
-    __version__,
 )
-
-import logging
-
-import whois
 
 logger = logging.getLogger("mytools.webrecon")
 
@@ -338,10 +336,7 @@ def _match_signature(
     for c in sigs.get("cookies", []):
         if c in cookie_blob:
             return True
-    for u in sigs.get("urls", []):
-        if u in url_lower:
-            return True
-    return False
+    return any(u in url_lower for u in sigs.get("urls", []))
 
 
 def detect_technologies(
@@ -369,7 +364,7 @@ def detect_technologies(
     if body_lower is None:
         body_lower = body.lower()
     if cookie_blob is None:
-        cookie_blob = " ".join((cookies or [])).lower()
+        cookie_blob = " ".join(cookies or []).lower()
     if url_lower is None:
         url_lower = url.lower()
 
@@ -415,7 +410,7 @@ def detect_waf(
     if body_lower is None:
         body_lower = body.lower()
     if cookie_blob is None:
-        cookie_blob = " ".join((cookies or [])).lower()
+        cookie_blob = " ".join(cookies or []).lower()
     if url_lower is None:
         url_lower = url.lower()
 
@@ -854,8 +849,6 @@ async def run_recon(
             versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers, header_blob=header_blob, body_lower=body_lower)
             if versions:
                 cve_findings = await lookup_cves(versions, api_key=nvd_api_key, client=client)
-            else:
-                cve_findings = []
 
         emails = harvest_emails(text)
         robots_text, robots_status = await _fetch_file(client, robots_url, timeout)

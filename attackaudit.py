@@ -3,18 +3,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
+import logging
 import os
 import re
 import secrets
 import socket
 import ssl
 import sys
-import warnings
 import time
+import warnings
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from html.parser import HTMLParser
-from collections.abc import Mapping
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from net import (
@@ -28,6 +28,7 @@ from net import (
 )
 from utils import (
     Cyber,
+    __version__,
     add_common_args,
     color,
     create_banner,
@@ -40,10 +41,7 @@ from utils import (
     setup_logging,
     status_color,
     write_output,
-    __version__,
 )
-
-import logging
 
 logger = logging.getLogger("mytools.attackaudit")
 
@@ -146,8 +144,7 @@ SQLI_PAYLOADS = ("'", "\"", "`", "' OR '1'='1", "\" OR \"1\"=\"1")
 
 CSRF_FIELD_NAMES_LOWER = frozenset({
     "csrf_token", "_csrf", "csrf", "csrftoken", "_token",
-    "authenticity_token", "xsrf-token", "_xsrf", "xsrf-token",
-    "_csrf_token", "csrfmiddlewaretoken", "__requestverificationtoken",
+    "authenticity_token", "xsrf-token", "_xsrf", "_csrf_token", "csrfmiddlewaretoken", "__requestverificationtoken",
 })
 
 DEFAULT_INJECT_PARAMS = ("q", "id", "search", "page", "name", "user", "cmd", "file", "path", "input")
@@ -307,10 +304,10 @@ banner = create_banner(r"""
 def load_paths_from_file(paths_file: str) -> list[str]:
     """Carrega paths customizados de arquivo (um por linha)."""
     try:
-        with open(paths_file, "r", encoding="utf-8", errors="replace") as fh:
+        with open(paths_file, encoding="utf-8", errors="replace") as fh:
             paths = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
     except FileNotFoundError:
-        raise ValueError(f"arquivo de paths nao encontrado: {paths_file}")
+        raise ValueError(f"arquivo de paths nao encontrado: {paths_file}") from None
     if not paths:
         raise ValueError(f"nenhum path valido em {paths_file}")
     return sorted(set(paths))
@@ -337,7 +334,7 @@ def _tls_info_sync(url: str, timeout: float) -> tuple[str, str, str]:
     port = parsed.port or 443
     context = ssl.create_default_context()
     try:
-        with socket.create_connection((parsed.hostname or "", port), timeout=timeout) as sock:
+        with socket.create_connection((parsed.hostname or "", port), timeout=timeout) as sock:  # noqa: SIM117
             with context.wrap_socket(sock, server_hostname=parsed.hostname) as tls:
                 cert = tls.getpeercert()
     except (OSError, ssl.SSLError, TimeoutError):
@@ -406,7 +403,7 @@ def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]
                 warnings.filterwarnings("ignore", category=DeprecationWarning)
                 ctx.minimum_version = tls_version
                 ctx.maximum_version = tls_version
-                with socket.create_connection((hostname, port), timeout=timeout) as sock:
+                with socket.create_connection((hostname, port), timeout=timeout) as sock:  # noqa: SIM117
                     with ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock:
                         _ = tls_sock.version()
             results.append(TLSVersionResult(protocol=protocol_name, supported=True))
@@ -452,7 +449,7 @@ async def check_xss_reflection(
             test_url = base_url + separator + param + "=" + marker
 
         try:
-            _, headers, body, _ = await fetch(client, test_url, timeout=timeout)
+            _, _headers, body, _ = await fetch(client, test_url, timeout=timeout)
         except FetchError:
             continue
 
@@ -994,18 +991,12 @@ async def run_audit(
                     xss_reflected, xss_evidence = xss_result
                 if xss_reflected:
                     print(color("[!]", Cyber.RED, Cyber.BOLD), "XSS refletido detectado!")
-                if isinstance(sqli_result, BaseException):
-                    sqli_databases = []
-                else:
-                    sqli_databases = sqli_result
+                sqli_databases = [] if isinstance(sqli_result, BaseException) else sqli_result
                 if sqli_databases:
                     print(color("[!]", Cyber.RED, Cyber.BOLD), f"Erros SQL detectados: {', '.join(sqli_databases)}")
             if test_methods and probes:
                 methods_result = vuln_results[task_idx]
-                if isinstance(methods_result, BaseException):
-                    method_results = []
-                else:
-                    method_results = methods_result
+                method_results = [] if isinstance(methods_result, BaseException) else methods_result
                 if not method_results:
                     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum metodo perigoso aceito.")
     finally:
@@ -1208,12 +1199,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             _save_audit_output(args.output, all_results[0], quiet=quiet)
         else:
             consolidated = [asdict(r) for r in all_results]
-            _path = args.output
-            with open(_path, "w", encoding="utf-8") as fh:
-                json.dump(consolidated, fh, indent=2)
-                fh.write("\n")
-            if not quiet:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado consolidado salvo em {color(_path, Cyber.GREEN)}")
+            write_output(args.output, consolidated, quiet=quiet)
     return 0
 
 
