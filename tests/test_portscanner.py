@@ -48,35 +48,35 @@ class TestParsePorts:
     def test_invalid_port_raises(self):
         try:
             parse_ports("0")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
     def test_empty_raises(self):
         try:
             parse_ports("")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
     def test_non_numeric_raises(self):
         try:
             parse_ports("abc")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError as e:
             assert "abc" in str(e)
 
     def test_non_numeric_in_range_raises(self):
         try:
             parse_ports("abc-100")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError as e:
             assert "abc-100" in str(e)
 
     def test_mixed_valid_invalid_raises(self):
         try:
             parse_ports("80,abc,443")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
@@ -130,7 +130,7 @@ class TestBannerProbes:
         assert 8443 in BANNER_PROBES
 
     def test_probes_are_bytes(self):
-        for port, probe in BANNER_PROBES.items():
+        for _port, probe in BANNER_PROBES.items():
             assert isinstance(probe, bytes)
             assert b"HEAD" in probe
 
@@ -146,7 +146,7 @@ class TestFindingDataclass:
         f = Finding(host="localhost", address="127.0.0.1", port=80, state="open", service="http")
         try:
             f.port = 443
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 

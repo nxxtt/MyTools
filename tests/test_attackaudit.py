@@ -11,6 +11,8 @@ from attackaudit import (
     CSRF_FIELD_NAMES_LOWER,
     DEFAULT_INJECT_PARAMS,
     METHODS_TO_TEST,
+    RISK_WEIGHTS,
+    SECURITY_HEADERS_RECS,
     SQL_ERROR_PATTERNS,
     SQLI_PAYLOADS,
     AuditResult,
@@ -18,8 +20,6 @@ from attackaudit import (
     MethodResult,
     PageParser,
     Probe,
-    RISK_WEIGHTS,
-    SECURITY_HEADERS_RECS,
     TLSVersionResult,
     _async_run_once,
     _extract_query_params,
@@ -52,14 +52,14 @@ class TestNormalizeUrl:
     def test_empty_raises(self):
         try:
             normalize_url("")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
     def test_invalid_scheme_raises(self):
         try:
             normalize_url("ftp://example.com")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
@@ -177,7 +177,7 @@ class TestProbeDataclass:
         p = Probe(url="http://x.com/.env", status=200, size=50, location="")
         try:
             p.status = 404
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -191,7 +191,7 @@ class TestFindingDataclass:
         f = Finding("high", "transport", "item", "evidence", "rec")
         try:
             f.severity = "low"
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -212,7 +212,7 @@ class TestTLSVersionResult:
         r = TLSVersionResult(protocol="TLS 1.3", supported=True)
         try:
             r.supported = False
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -425,7 +425,7 @@ class TestSQLiPatterns:
         assert "sqlite" in SQL_ERROR_PATTERNS
 
     def test_patterns_are_regex(self):
-        for db, patterns in SQL_ERROR_PATTERNS.items():
+        for _db, patterns in SQL_ERROR_PATTERNS.items():
             for pattern in patterns:
                 assert isinstance(pattern, re.Pattern)
 
@@ -467,7 +467,7 @@ class TestCheckXSSReflection:
     async def test_marker_reflected(self, async_client):
         def handler(request):
             url = str(request.url)
-            from urllib.parse import urlparse, parse_qs
+            from urllib.parse import parse_qs, urlparse
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("q", [""])[0]
@@ -484,7 +484,7 @@ class TestCheckXSSReflection:
     async def test_marker_not_reflected(self, async_client):
         respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="<html><body>Hello World</body></html>"))
         client = async_client
-        reflected, evidence = await check_xss_reflection(client, "https://example.com/search", 5.0)
+        reflected, _evidence = await check_xss_reflection(client, "https://example.com/search", 5.0)
         assert reflected is False
 
 
@@ -569,7 +569,7 @@ class TestSecurityHeadersConstant:
         assert set(SECURITY_HEADERS_RECS.keys()) == expected
 
     def test_values_are_strings(self):
-        for header, rec in SECURITY_HEADERS_RECS.items():
+        for _header, rec in SECURITY_HEADERS_RECS.items():
             assert isinstance(rec, str)
             assert len(rec) > 0
 
@@ -646,7 +646,7 @@ class TestMethodResultDataclass:
         r = MethodResult(url="https://example.com/api", method="DELETE", status=204, size=0)
         try:
             r.status = 404
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -759,14 +759,14 @@ class TestCheckXSSReflectionEdgeCases:
     @pytest.mark.asyncio
     async def test_timeout_returns_false(self, async_client):
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.TimeoutException("timeout"))
-        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 0.1)
+        reflected, _evidence = await check_xss_reflection(async_client, "https://example.com/search", 0.1)
         assert reflected is False
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_empty_body_not_reflected(self, async_client):
         respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text=""))
-        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 5.0)
+        reflected, _evidence = await check_xss_reflection(async_client, "https://example.com/search", 5.0)
         assert reflected is False
 
 
@@ -834,7 +834,7 @@ class TestCheckXSSWithCustomParams:
     async def test_custom_param_reflected(self, async_client):
         def handler(request):
             url = str(request.url)
-            from urllib.parse import urlparse, parse_qs
+            from urllib.parse import parse_qs, urlparse
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("search", [""])[0]
@@ -852,7 +852,7 @@ class TestCheckXSSWithCustomParams:
     async def test_auto_detect_from_url(self, async_client):
         def handler(request):
             url = str(request.url)
-            from urllib.parse import urlparse, parse_qs
+            from urllib.parse import parse_qs, urlparse
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("user", [""])[0]
@@ -870,14 +870,14 @@ class TestCheckXSSWithCustomParams:
     async def test_fallback_to_defaults(self, async_client):
         def handler(request):
             url = str(request.url)
-            from urllib.parse import urlparse, parse_qs
+            from urllib.parse import parse_qs, urlparse
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("q", [""])[0]
             return httpx.Response(200, text=f"<html>{marker}</html>")
 
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
-        reflected, evidence = await check_xss_reflection(
+        reflected, _evidence = await check_xss_reflection(
             async_client, "https://example.com", 5.0
         )
         assert reflected is True

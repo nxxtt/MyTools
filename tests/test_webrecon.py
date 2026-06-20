@@ -10,14 +10,14 @@ import respx
 from utils import Cyber
 from webrecon import (
     CMS_SIGNATURES,
-    CVEFinding,
     EMAIL_PATTERN,
     FRAMEWORK_SIGNATURES,
     LIBRARY_SIGNATURES,
     SERVER_PATTERNS,
     WAF_SIGNATURES,
-    WhoisResult,
+    CVEFinding,
     ReconResult,
+    WhoisResult,
     _async_run_once,
     _ensure_list,
     _format_date,
@@ -50,14 +50,14 @@ class TestNormalizeUrl:
     def test_ftp_scheme_raises(self):
         try:
             normalize_url("ftp://example.com")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
     def test_no_netloc_raises(self):
         try:
             normalize_url("http://")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
@@ -83,7 +83,7 @@ class TestCandidateUrls:
     def test_empty_raises(self):
         try:
             candidate_urls("")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
@@ -163,7 +163,7 @@ class TestReconResultDataclass:
         )
         try:
             r.status = 404
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -466,7 +466,7 @@ class TestCVEFindingDataclass:
         )
         try:
             f.score = 5.0
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -791,7 +791,7 @@ class TestWhoisResultDataclass:
         w = WhoisResult(domain="example.com")
         try:
             w.domain = "other.com"
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -863,8 +863,9 @@ class TestRunWhois:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_none_on_error(self):
-        import whois as _whois
         import unittest.mock
+
+        import whois as _whois
         with unittest.mock.patch.object(_whois, "whois", side_effect=Exception("connection refused")):
             result = await run_whois("nonexistent.invalid")
             assert result is None
@@ -877,6 +878,7 @@ class TestRunWhois:
     @pytest.mark.asyncio
     async def test_returns_whois_result_on_success(self):
         import unittest.mock
+
         import whois as _whois
         mock_w = unittest.mock.MagicMock()
         mock_w.registrar = "Test Registrar"

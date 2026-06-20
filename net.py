@@ -31,21 +31,21 @@ from utils import (
 )
 
 __all__ = [
-    "http",
     "Client",
     "FetchError",
     "RateLimiter",
+    "__version__",
     "add_base_args",
     "apply_session_auth",
+    "classify_by_content_type",
     "create_async_client",
     "extract_title",
     "fetch",
-    "header_get",
-    "normalize_url",
     "fetch_bytes",
+    "header_get",
+    "http",
+    "normalize_url",
     "read_response_text",
-    "classify_by_content_type",
-    "__version__",
 ]
 
 http = httpx

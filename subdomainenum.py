@@ -117,10 +117,10 @@ def load_wordlist(path: str | None = None) -> list[str]:
         return list(BUILTIN_WORDLIST)
 
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        with open(path, encoding="utf-8", errors="replace") as fh:
             words = [line.strip().lower() for line in fh if line.strip() and not line.startswith("#")]
     except FileNotFoundError:
-        raise ValueError(f"wordlist nao encontrada: {path}")
+        raise ValueError(f"wordlist nao encontrada: {path}") from None
 
     if not words:
         raise ValueError("wordlist esta vazia")
@@ -252,10 +252,8 @@ def enumerate_subdomains(
             for word in remaining
         }
 
-        done_count = 0
         total_brute = len(remaining)
-        for future in as_completed(futures):
-            done_count += 1
+        for done_count, future in enumerate(as_completed(futures), 1):
             result = future.result()
             if done_count % 20 == 0 or done_count == total_brute:
                 sys.stdout.write(f"\r  Progresso: {done_count}/{total_brute} subdominios testados...")

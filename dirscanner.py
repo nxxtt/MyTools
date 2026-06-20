@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import functools
+import logging
 import os
 import sys
 import time
@@ -20,6 +21,7 @@ from net import (
 )
 from utils import (
     Cyber,
+    __version__,
     add_common_args,
     color,
     create_banner,
@@ -35,10 +37,7 @@ from utils import (
     setup_logging,
     status_color,
     write_output,
-    __version__,
 )
-
-import logging
 
 logger = logging.getLogger("mytools.dirscanner")
 
@@ -130,7 +129,7 @@ def parse_range(value: str) -> tuple[int, int] | None:
     try:
         min_val, max_val = int(parts[0]), int(parts[1])
     except ValueError:
-        raise argparse.ArgumentTypeError(f"valores nao numericos: {value!r}")
+        raise argparse.ArgumentTypeError(f"valores nao numericos: {value!r}") from None
     if min_val > max_val:
         min_val, max_val = max_val, min_val
     return (min_val, max_val)
@@ -140,22 +139,19 @@ def parse_range(value: str) -> tuple[int, int] | None:
 def _read_wordlist(wordlist: str) -> list[str]:
     """Le e cacheia o conteudo bruto de uma wordlist."""
     try:
-        with open(wordlist, "r", encoding="utf-8", errors="replace") as file_handle:
+        with open(wordlist, encoding="utf-8", errors="replace") as file_handle:
             return [
                 line.strip()
                 for line in file_handle
                 if line.strip() and not line.lstrip().startswith("#")
             ]
     except FileNotFoundError:
-        raise ValueError(f"wordlist nao encontrada: {wordlist}")
+        raise ValueError(f"wordlist nao encontrada: {wordlist}") from None
 
 
 def load_paths(wordlist: str | None, extensions: list[str]) -> list[str]:
     """Carrega caminhos da wordlist ou lista padrão e aplica extensões."""
-    if wordlist:
-        raw_paths = _read_wordlist(wordlist)
-    else:
-        raw_paths = list(DEFAULT_PATHS)
+    raw_paths = _read_wordlist(wordlist) if wordlist else list(DEFAULT_PATHS)
 
     paths: set[str] = set()
     for raw_path in raw_paths:
@@ -178,13 +174,9 @@ def matches_filter(
     words_range: tuple[int, int] | None,
 ) -> bool:
     """Verifica se o finding atende aos filtros de tamanho e palavras."""
-    if size_range:
-        if not (size_range[0] <= finding.size <= size_range[1]):
-            return False
-    if words_range:
-        if not (words_range[0] <= finding.words <= words_range[1]):
-            return False
-    return True
+    if size_range and not (size_range[0] <= finding.size <= size_range[1]):
+        return False
+    return not (words_range and not words_range[0] <= finding.words <= words_range[1])
 
 
 async def scan_path(

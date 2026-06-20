@@ -29,12 +29,15 @@ poetry.toml
 # Ruff
 .ruff_cache/
 
+# Type checker
+.basedpyright_cache/
+
 # OS
 Thumbs.db
 Desktop.ini
 .DS_Store
 
 # Output files (gerados pelo scanner)
-*.json
+out.json
 *.csv
 results/

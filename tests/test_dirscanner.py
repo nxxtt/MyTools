@@ -39,14 +39,14 @@ class TestNormalizeBaseUrl:
     def test_invalid_scheme_raises(self):
         try:
             normalize_url("ftp://example.com", default_scheme="http", ensure_trailing_slash=True)
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
     def test_empty_netloc_raises(self):
         try:
             normalize_url("http://", default_scheme="http", ensure_trailing_slash=True)
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
@@ -74,21 +74,21 @@ class TestParseStatuses:
     def test_invalid_status_raises(self):
         try:
             parse_statuses("99")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
     def test_non_numeric_raises(self):
         try:
             parse_statuses("abc")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError as e:
             assert "abc" in str(e)
 
     def test_non_numeric_in_range_raises(self):
         try:
             parse_statuses("abc-200")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError as e:
             assert "abc-200" in str(e)
 
@@ -133,14 +133,14 @@ class TestParseRange:
     def test_invalid_format_raises(self):
         try:
             parse_range("abc")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
     def test_non_numeric_raises(self):
         try:
             parse_range("abc-200")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
@@ -158,7 +158,7 @@ class TestParseAuth:
     def test_no_colon_raises(self):
         try:
             parse_auth("nocolon")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
@@ -177,7 +177,7 @@ class TestParseExtraHeaders:
     def test_no_colon_raises(self):
         try:
             parse_extra_headers(["InvalidHeader"])
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
@@ -247,7 +247,7 @@ class TestLoadPaths:
     def test_missing_wordlist_raises(self):
         try:
             load_paths("/nonexistent/wordlist.txt", [])
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError as e:
             assert "nao encontrada" in str(e)
 
@@ -281,7 +281,7 @@ class TestFindingDataclass:
         f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T")
         try:
             f.status = 404
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 

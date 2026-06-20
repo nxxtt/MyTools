@@ -9,7 +9,7 @@ import dnstransfer
 import portscanner
 import subdomainenum
 import webrecon
-from utils import Cyber, clear_console, color, create_banner, run_interactive_shell, __version__
+from utils import Cyber, __version__, clear_console, color, create_banner, run_interactive_shell
 
 """Modulo principal que integra as ferramentas de segurança.
 

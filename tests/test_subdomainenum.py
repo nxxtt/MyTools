@@ -12,13 +12,13 @@ from subdomainenum import (
     DEFAULT_THREADS,
     DEFAULT_TIMEOUT,
     SubdomainResult,
+    _resolve_subdomain,
     build_parser,
     enumerate_subdomains,
     load_wordlist,
     main,
     run_enum_scan,
     run_once,
-    _resolve_subdomain,
 )
 
 
@@ -27,7 +27,7 @@ class TestSubdomainResult:
         result = SubdomainResult(subdomain="www.example.com")
         try:
             result.subdomain = "other.com"
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -89,7 +89,7 @@ class TestLoadWordlist:
     def test_file_not_found(self):
         try:
             load_wordlist("/tmp/nonexistent_wordlist_12345.txt")
-            assert False, "Should raise ValueError"
+            raise AssertionError("Should raise ValueError")
         except ValueError as e:
             assert "nao encontrada" in str(e)
 
@@ -98,7 +98,7 @@ class TestLoadWordlist:
         wl.write_text("\n\n\n", encoding="utf-8")
         try:
             load_wordlist(str(wl))
-            assert False, "Should raise ValueError"
+            raise AssertionError("Should raise ValueError")
         except ValueError as e:
             assert "vazia" in str(e)
 
@@ -217,14 +217,14 @@ class TestEnumerateSubdomains:
     def test_empty_domain(self):
         try:
             enumerate_subdomains("", ["www"])
-            assert False, "Should raise ValueError"
+            raise AssertionError("Should raise ValueError")
         except ValueError as e:
             assert "dominio" in str(e).lower() or "domínio" in str(e).lower()
 
     def test_whitespace_domain_stripped(self):
         try:
             enumerate_subdomains("   ", ["www"])
-            assert False, "Should raise ValueError"
+            raise AssertionError("Should raise ValueError")
         except ValueError:
             pass
 
@@ -397,7 +397,7 @@ class TestRunOnce:
         args = self._make_args(threads=0)
         try:
             run_once(args)
-            assert False, "Should raise ValueError"
+            raise AssertionError("Should raise ValueError")
         except ValueError as e:
             assert "threads" in str(e).lower()
 
@@ -405,7 +405,7 @@ class TestRunOnce:
         args = self._make_args(timeout=0)
         try:
             run_once(args)
-            assert False, "Should raise ValueError"
+            raise AssertionError("Should raise ValueError")
         except ValueError as e:
             assert "timeout" in str(e).lower()
 
@@ -470,11 +470,10 @@ class TestMain:
     def test_quiet_with_output_skips_banner(self, mock_run_once):
         mock_run_once.return_value = 0
         args = self._make_args(quiet=True, output="out.json")
-        with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
-            with patch("utils.show_banner") as mock_banner:
-                result = main()
-                assert result == 0
-                mock_banner.assert_not_called()
+        with patch("subdomainenum.argparse.ArgumentParser.parse_args", return_value=args), patch("utils.show_banner") as mock_banner:
+            result = main()
+            assert result == 0
+            mock_banner.assert_not_called()
 
     @patch("subdomainenum.run_once")
     @patch("utils.show_banner")

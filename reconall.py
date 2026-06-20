@@ -40,10 +40,10 @@ import webrecon
 from portscanner import parse_ports
 from utils import (
     Cyber,
+    __version__,
     color,
     create_banner,
     setup_logging,
-    __version__,
 )
 
 """Recon completo: executa portscanner, dirscanner, webrecon, attackaudit, dnstransfer e subenum contra um alvo."""

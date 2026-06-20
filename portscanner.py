@@ -22,17 +22,16 @@ from __future__ import annotations
 import argparse
 import functools
 import ipaddress
+import logging
 import socket
 import sys
 import time
+from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
-from typing import Iterable
 
-from utils import Cyber, add_base_args, color, create_banner, parse_int_range, print_table, set_color, setup_logging, write_output, run_interactive_shell
-
-import logging
+from utils import Cyber, add_base_args, color, create_banner, parse_int_range, print_table, run_interactive_shell, set_color, setup_logging, write_output
 
 logger = logging.getLogger("mytools.portscanner")
 
@@ -103,7 +102,7 @@ def resolve_targets(values: Iterable[str]) -> list[tuple[str, str]]:
                 infos = socket.getaddrinfo(value, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
             except socket.gaierror as error:
                 raise ValueError(f"nao consegui resolver {value!r}: {error}") from error
-            for family, _, _, _, sockaddr in infos:
+            for _family, _, _, _, sockaddr in infos:
                 address = str(sockaddr[0])
                 item = (value, address)
                 if item not in seen:
@@ -148,7 +147,7 @@ def grab_banner(sock: socket.socket, port: int, timeout: float) -> str:
         if port in BANNER_PROBES:
             sock.sendall(BANNER_PROBES[port])
         data = sock.recv(120)
-    except (OSError, socket.timeout):
+    except (TimeoutError, OSError):
         return ""
     return data.decode("utf-8", errors="replace").strip().replace("\r", " ").replace("\n", " ")
 
@@ -185,7 +184,7 @@ def scan_port(
                 service=service_name(port),
                 banner=banner_text,
             )
-    except (ConnectionRefusedError, TimeoutError, OSError, socket.timeout):
+    except (ConnectionRefusedError, TimeoutError, OSError):
         return None
 
 
@@ -348,10 +347,10 @@ def run_once(args: argparse.Namespace) -> int:
     all_targets: list[str] = list(args.targets) if args.targets else []
     if getattr(args, "target_list", None):
         try:
-            with open(args.target_list, "r", encoding="utf-8", errors="replace") as fh:
+            with open(args.target_list, encoding="utf-8", errors="replace") as fh:
                 all_targets.extend(line.strip() for line in fh if line.strip() and not line.startswith("#"))
         except FileNotFoundError:
-            raise ValueError(f"arquivo nao encontrado: {args.target_list}")
+            raise ValueError(f"arquivo nao encontrado: {args.target_list}") from None
     if not all_targets:
         raise ValueError("informe pelo menos um alvo ou use -l/--list")
 

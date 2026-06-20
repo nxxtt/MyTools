@@ -209,7 +209,7 @@ class TestFetch429:
             return httpx.Response(200, text="ok")
 
         respx.get(url).mock(side_effect=side_effect)
-        status, _, body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
+        status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
         assert status == 200
         assert call_count == 2
         assert limiter._backoff_multiplier == 2.0
@@ -239,7 +239,7 @@ class TestFetch429:
         url = "https://example.com/ok"
 
         respx.get(url).mock(return_value=httpx.Response(200, text="ok"))
-        status, _, body, _ = await fetch(client, url, rate_limiter=limiter)
+        status, _, _body, _ = await fetch(client, url, rate_limiter=limiter)
         assert status == 200
         assert limiter._backoff_multiplier == 1.0
         await client.aclose()
@@ -319,7 +319,7 @@ class TestParseAuthUtils:
     def test_no_colon_raises(self):
         try:
             parse_auth("nocolon")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except argparse.ArgumentTypeError:
             pass
 
@@ -336,7 +336,7 @@ class TestParseExtraHeadersUtils:
     def test_no_colon_raises(self):
         try:
             parse_extra_headers(["InvalidHeader"])
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
@@ -549,21 +549,21 @@ class TestNormalizeUrl:
     def test_empty_raises(self):
         try:
             normalize_url("")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
     def test_invalid_scheme_raises(self):
         try:
             normalize_url("ftp://example.com")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
     def test_no_netloc_raises(self):
         try:
             normalize_url("http://")
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except ValueError:
             pass
 
@@ -915,8 +915,9 @@ class TestSafeAsyncioRun:
             safe_asyncio_run(coro())
 
     def test_works_with_existing_event_loop(self):
-        from utils import safe_asyncio_run
         import asyncio
+
+        from utils import safe_asyncio_run
 
         async def coro():
             return 99
@@ -947,7 +948,7 @@ class TestRetryAfterEdgeCases:
             return httpx.Response(200, text="ok")
 
         respx.get(url).mock(side_effect=side_effect)
-        status, _, body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
+        status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
         assert status == 200
         assert call_count == 2
         await client.aclose()
@@ -970,7 +971,7 @@ class TestRetryAfterEdgeCases:
             return httpx.Response(200, text="ok")
 
         respx.get(url).mock(side_effect=side_effect)
-        status, _, body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
+        status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
         assert status == 200
         assert call_count == 2
         await client.aclose()

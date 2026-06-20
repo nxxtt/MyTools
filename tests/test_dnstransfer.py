@@ -27,7 +27,7 @@ class TestXfrResult:
         result = XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False)
         try:
             result.domain = "other.com"
-            assert False, "Should be frozen"
+            raise AssertionError("Should be frozen")
         except AttributeError:
             pass
 
@@ -132,7 +132,7 @@ class TestResolveNsToIp:
     def test_raises_on_failure(self, mock_resolve):
         try:
             resolve_ns_to_ip("ns1.example.com")
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError as e:
             assert "ns1.example.com" in str(e)
 
@@ -151,8 +151,8 @@ class TestTryZoneTransfer:
 
     @patch("dnstransfer.dns.query.inbound_xfr")
     def test_successful_transfer_with_records(self, mock_axfr):
-        import dns.rdataset
         import dns.rdata
+        import dns.rdataset
 
         mock_zone = MagicMock()
         mock_node = MagicMock()
@@ -260,7 +260,7 @@ class TestRunXfrScan:
     def test_raises_on_empty_domain(self):
         try:
             run_xfr_scan("  ")
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError:
             pass
 
@@ -307,7 +307,7 @@ class TestBuildParser:
         parser = build_parser()
         try:
             parser.parse_args(["--version"])
-            assert False, "Should have raised SystemExit"
+            raise AssertionError("Should have raised SystemExit")
         except SystemExit:
             pass
 
@@ -351,7 +351,7 @@ class TestRunOnce:
         args = build_parser().parse_args(["example.com", "-t", "-1"])
         try:
             run_once(args)
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError:
             pass
 
