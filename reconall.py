@@ -37,6 +37,7 @@ import dnstransfer
 import portscanner
 import subdomainenum
 import webrecon
+from dirscanner import DEFAULT_STATUSES
 from portscanner import parse_ports
 from utils import (
     Cyber,
@@ -107,6 +108,7 @@ def run_all(args: argparse.Namespace) -> int:
     is_url = _is_url(target)
     domain = _extract_domain(target)
 
+    # ATENCAO: Se adicionar arg em modulo filho, adicione aqui tambem.
     base_ns = argparse.Namespace(
         timeout=args.timeout,
         output=None,
@@ -126,7 +128,7 @@ def run_all(args: argparse.Namespace) -> int:
         cookie=None,
         header=[],
         concurrency=40,
-        status=frozenset({200, 204, 301, 302, 307, 308, 401, 403}),
+        status=DEFAULT_STATUSES,
         method="GET",
         wordlist=None,
         extensions=[],
