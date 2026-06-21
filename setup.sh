@@ -4,9 +4,11 @@
 
 set -euo pipefail
 
+VERSION=$(grep '^version' pyproject.toml | head -1 | cut -d'"' -f2)
+
 echo ""
 echo "========================================"
-echo "  MyTools v3.2.0 — Instalador"
+echo "  MyTools v${VERSION} — Instalador"
 echo "========================================"
 echo ""
 

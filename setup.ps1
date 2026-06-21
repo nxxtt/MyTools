@@ -3,9 +3,11 @@
 
 $ErrorActionPreference = "Stop"
 
+$version = (Get-Content pyproject.toml | Select-String '^version').Line -replace '.*"(.*)".*','$1'
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  MyTools v3.2.0 — Instalador" -ForegroundColor Cyan
+Write-Host "  MyTools v$version — Instalador" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 

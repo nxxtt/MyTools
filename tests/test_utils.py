@@ -309,7 +309,15 @@ class TestVersion:
         assert all(p.isdigit() for p in parts)
 
     def test_version_is_3_1_5(self):
-        assert __version__ == "3.2.0"
+        from pathlib import Path
+        pyproject = Path(__file__).parent.parent / "pyproject.toml"
+        for line in pyproject.read_text(encoding="utf-8").splitlines():
+            if line.startswith("version"):
+                expected = line.split("=", 1)[1].strip().strip('"')
+                break
+        else:
+            expected = "0.0.0"
+        assert __version__ == expected
 
 
 class TestParseAuthUtils:

@@ -208,11 +208,11 @@ def scan_targets(
     with ThreadPoolExecutor(max_workers=workers) as executor:
         batch_size = workers * 2
         pending = []
-        targets_ports = [
+        targets_ports = (
             (host, address, port)
             for host, address in targets
             for port in ports
-        ]
+        )
 
         def _process_completed(futures_list: list[Future[Finding | None]]) -> None:
             for future in as_completed(futures_list):

@@ -31,6 +31,7 @@ import shlex
 import sys
 import time
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -38,7 +39,20 @@ import httpx
 
 logger = logging.getLogger("mytools")
 
-__version__ = "3.2.0"
+
+def _read_version() -> str:
+    """Le a versao de pyproject.toml (single source of truth)."""
+    try:
+        pyproject = Path(__file__).parent / "pyproject.toml"
+        for line in pyproject.read_text(encoding="utf-8").splitlines():
+            if line.startswith("version"):
+                return line.split("=", 1)[1].strip().strip('"')
+    except (FileNotFoundError, IndexError, OSError):
+        pass
+    return "0.0.0"
+
+
+__version__ = _read_version()
 
 SECURITY_HEADERS = [
     "strict-transport-security",
