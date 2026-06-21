@@ -226,7 +226,7 @@ class PageParser(HTMLParser):
         return sum(1 for has_csrf in self.form_has_csrf if not has_csrf)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Probe:
     """Resultado de probing de um path na aplicacao."""
 
@@ -236,7 +236,7 @@ class Probe:
     location: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Finding:
     """Finding de seguranca identificado durante a auditoria."""
 
@@ -248,7 +248,7 @@ class Finding:
     exploit: str = ""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TLSVersionResult:
     """Resultado de teste de versao TLS."""
 
@@ -257,7 +257,7 @@ class TLSVersionResult:
     reason: str = ""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MethodResult:
     """Resultado de teste de metodo HTTP em um endpoint."""
 
@@ -267,7 +267,7 @@ class MethodResult:
     size: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AuditResult:
     """Resultado completo de uma auditoria web."""
 

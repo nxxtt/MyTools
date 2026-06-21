@@ -63,7 +63,7 @@ banner = create_banner(r"""
 """, "   TCP scanner | use apenas em alvos autorizados")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Finding:
     """Representa uma porta aberta encontrada durante a varredura."""
     host: str

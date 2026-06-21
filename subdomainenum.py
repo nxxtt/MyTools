@@ -94,7 +94,7 @@ DEFAULT_TIMEOUT = 3.0
 banner = create_banner(BANNER_ART, "   subdomain enumeration via DNS brute-force")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SubdomainResult:
     """Resultado da enumeracao de um subdominio."""
 

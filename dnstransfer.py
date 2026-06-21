@@ -62,7 +62,7 @@ AXFR_TIMEOUT = 10
 banner = create_banner(BANNER_ART, "   DNS zone transfer (AXFR) scanner")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class XfrResult:
     """Resultado de uma tentativa de zone transfer contra um nameserver."""
     domain: str

@@ -313,8 +313,12 @@ def status_color(status: int) -> str:
 
 
 def header_get(headers: Mapping[str, str], name: str) -> str:
-    """Obtém o valor de um header HTTP."""
-    return headers.get(name, "")
+    """Obtém o valor de um header HTTP, ignorando maiúsculas/minúsculas."""
+    name_lower = name.lower()
+    for key, value in headers.items():
+        if key.lower() == name_lower:
+            return value
+    return ""
 
 
 def parse_int_range(

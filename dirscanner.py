@@ -77,7 +77,7 @@ DEFAULT_STATUSES = frozenset({200, 204, 301, 302, 307, 308, 401, 403})
 """Scanner HTTP de diretórios e arquivos para alvos autorizados."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Finding:
     """Representa um caminho encontrado durante o scan."""
 

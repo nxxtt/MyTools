@@ -101,6 +101,12 @@ class TestHeaderGet:
     def test_empty_headers(self):
         assert header_get({}, "anything") == ""
 
+    def test_case_insensitive(self):
+        assert header_get({"Content-Type": "text/html"}, "content-type") == "text/html"
+
+    def test_case_insensitive_mixed(self):
+        assert header_get({"X-Custom": "val"}, "x-custom") == "val"
+
 
 class TestExtractTitle:
     def test_simple_title(self):

@@ -522,7 +522,7 @@ async def crawl_internal_links(
     return emails
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CVEFinding:
     """Uma vulnerabilidade CVE encontrada para uma tecnologia."""
 
@@ -611,7 +611,7 @@ async def lookup_cves(
     return findings
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class WhoisResult:
     """Resultado de uma consulta WHOIS de dominio."""
 
@@ -706,7 +706,7 @@ async def run_whois(domain: str) -> WhoisResult | None:
     return await asyncio.to_thread(_run_whois_sync, domain)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ReconResult:
     """Resultado de uma operação de reconhecimento HTTP."""
 
