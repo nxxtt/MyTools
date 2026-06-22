@@ -9,8 +9,10 @@ import pytest
 import respx
 
 from attackaudit import (
+    _ERROR_INFO_SEVERITY,
     CSRF_FIELD_NAMES_LOWER,
     DEFAULT_INJECT_PARAMS,
+    ERROR_INFO_PATTERNS,
     METHODS_TO_TEST,
     RISK_WEIGHTS,
     SECURITY_HEADERS_RECS,
@@ -24,6 +26,7 @@ from attackaudit import (
     TLSVersionResult,
     _async_run_once,
     _extract_query_params,
+    analyze_error_response,
     build_findings,
     build_parser,
     check_sqli_errors,
@@ -430,6 +433,89 @@ class TestCSIFFieldNames:
     def test_contains_common_names(self):
         for name in ["csrf_token", "_csrf", "_token", "authenticity_token", "csrfmiddlewaretoken"]:
             assert name in CSRF_FIELD_NAMES_LOWER
+
+
+class TestErrorInfoPatterns:
+    def test_all_categories_have_patterns(self):
+        assert len(ERROR_INFO_PATTERNS) == 5
+        for category in ("stack_trace", "framework_version", "internal_path", "database_error", "config_leak"):
+            assert category in ERROR_INFO_PATTERNS
+            assert len(ERROR_INFO_PATTERNS[category]) > 0
+
+    def test_patterns_are_regex(self):
+        for _cat, patterns in ERROR_INFO_PATTERNS.items():
+            for pattern in patterns:
+                assert isinstance(pattern, re.Pattern)
+
+    def test_severity_has_all_categories(self):
+        for category in ERROR_INFO_PATTERNS:
+            assert category in _ERROR_INFO_SEVERITY
+
+    def test_severity_values_are_valid(self):
+        for severity in _ERROR_INFO_SEVERITY.values():
+            assert severity in ("critical", "high", "medium", "low", "info")
+
+
+class TestAnalyzeErrorResponse:
+    def test_java_stack_trace(self):
+        body = 'java.lang.NullPointerException\n\tat com.app.Main(Main.java:42)'
+        findings = analyze_error_response(body)
+        assert any(f.category == "info_leak" and "stack_trace" in f.item for f in findings)
+
+    def test_python_traceback(self):
+        body = 'Traceback (most recent call last):\n  File "app.py", line 10'
+        findings = analyze_error_response(body)
+        assert any("stack_trace" in f.item for f in findings)
+
+    def test_php_fatal_error(self):
+        body = 'Fatal error: Uncaught Exception in /var/www/app.php on line 42'
+        findings = analyze_error_response(body)
+        assert any("stack_trace" in f.item for f in findings)
+
+    def test_framework_version_nginx(self):
+        body = 'nginx/1.18.0 (Ubuntu)'
+        findings = analyze_error_response(body)
+        assert any("framework_version" in f.item for f in findings)
+
+    def test_internal_path(self):
+        body = 'Error reading file /var/www/html/config.php'
+        findings = analyze_error_response(body)
+        assert any("internal_path" in f.item for f in findings)
+
+    def test_database_error(self):
+        body = 'MySQL error: Connection refused'
+        findings = analyze_error_response(body)
+        assert any("database_error" in f.item for f in findings)
+
+    def test_config_leak_aws_key(self):
+        body = 'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE'
+        findings = analyze_error_response(body)
+        assert any("config_leak" in f.item for f in findings)
+        assert any(f.severity == "critical" for f in findings if "config_leak" in f.item)
+
+    def test_config_leak_jdbc(self):
+        body = 'jdbc:mysql://localhost:3306/mydb'
+        findings = analyze_error_response(body)
+        assert any("config_leak" in f.item for f in findings)
+
+    def test_clean_body_no_findings(self):
+        body = '<html><body>Hello World</body></html>'
+        findings = analyze_error_response(body)
+        assert len(findings) == 0
+
+    def test_multiple_categories(self):
+        body = 'Traceback (most recent call last):\nnginx/1.18.0\n/var/www/app.py'
+        findings = analyze_error_response(body)
+        categories = [f.item for f in findings]
+        assert any("stack_trace" in c for c in categories)
+        assert any("framework_version" in c for c in categories)
+        assert any("internal_path" in c for c in categories)
+
+    def test_snippet_is_truncated(self):
+        body = "A" * 500 + "Traceback (most recent call last):" + "B" * 500
+        findings = analyze_error_response(body)
+        assert len(findings) > 0
+        assert len(findings[0].evidence) <= 200
 
 
 class TestCheckTLSVersions:

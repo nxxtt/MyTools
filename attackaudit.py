@@ -142,6 +142,61 @@ CSRF_FIELD_NAMES_LOWER = frozenset({
 
 DEFAULT_INJECT_PARAMS = ("q", "id", "search", "page", "name", "user", "cmd", "file", "path", "input")
 
+ERROR_INFO_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    "stack_trace": [
+        re.compile(r"at\s+[\w.]+\([\w.]+\.java:\d+\)"),
+        re.compile(r"at\s+[\w.]+\s+in\s+.*\.cs:line\s+\d+"),
+        re.compile(r"(?:Fatal error|Uncaught.*Exception).*in\s+.*\.php\s+on\s+line\s+\d+"),
+        re.compile(r"Traceback \(most recent call last\):"),
+        re.compile(r"(?:ActionController|ActiveRecord)::\w+Error"),
+        re.compile(r"at\s+\w+\.\w+\s+\(.*\.js:\d+:\d+\)"),
+    ],
+    "framework_version": [
+        re.compile(r"Apache/\d+\.\d+\.\d+"),
+        re.compile(r"nginx/\d+\.\d+\.\d+"),
+        re.compile(r"Microsoft-IIS/\d+\.\d+"),
+        re.compile(r"Apache-Coyote/\d+\.\d+"),
+        re.compile(r"PHP/\d+\.\d+\.\d+"),
+        re.compile(r"X-Powered-By:\s*\w+/\d+"),
+        re.compile(r"Django/\d+\.\d+"),
+        re.compile(r"Laravel\s+v\d+"),
+        re.compile(r"Spring/\d+\.\d+"),
+    ],
+    "internal_path": [
+        re.compile(r"(?:/var/www/|/home/\w+/|/app/|/src/|C:\\\\(?:inetpub|Users))"),
+        re.compile(r"(?:/etc/(?:passwd|shadow|apache2|nginx))"),
+        re.compile(r"(?:\.env|\.git|\.svn|\.DS_Store)"),
+        re.compile(r"(?:/proc/self/|/proc/version)"),
+    ],
+    "database_error": [
+        re.compile(r"(?:MySQL|PostgreSQL|SQLite|Oracle|SQL Server).*(?:error|exception|warning)", re.IGNORECASE),
+        re.compile(r"(?:database\s+(?:error|connection|configuration)\s+error)", re.IGNORECASE),
+        re.compile(r"(?:ECONNREFUSED|ETIMEDOUT|ENOTFOUND).*(?:database|redis|mongo)", re.IGNORECASE),
+    ],
+    "config_leak": [
+        re.compile(r"(?:AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY)\s*="),
+        re.compile(r"(?:API_KEY|SECRET_KEY|PRIVATE_KEY)\s*[:=]"),
+        re.compile(r"(?:jdbc:|mongodb://|redis://|amqp://)"),
+        re.compile(r"(?:BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY)"),
+    ],
+}
+
+_ERROR_INFO_SEVERITY: dict[str, str] = {
+    "stack_trace": "high",
+    "framework_version": "medium",
+    "internal_path": "high",
+    "database_error": "medium",
+    "config_leak": "critical",
+}
+
+_ERROR_INFO_RECOMMENDATIONS: dict[str, str] = {
+    "stack_trace": "Configure error pages customizadas para nao expor stack traces em producao.",
+    "framework_version": "Remova versao de frameworks de headers e error pages.",
+    "internal_path": "Restrinja acesso a arquivos sensiveis e configure webroot corretamente.",
+    "database_error": "Trate erros de banco de forma generica, sem expor detalhes ao cliente.",
+    "config_leak": "Nunca exponha credenciais ou chaves em respostas HTTP.",
+}
+
 
 def _extract_query_params(url: str) -> list[str]:
     """Extrai nomes dos query params de uma URL para injecao XSS/SQLi."""
@@ -149,6 +204,32 @@ def _extract_query_params(url: str) -> list[str]:
     if not parsed.query:
         return []
     return list(parse_qs(parsed.query, keep_blank_values=True).keys())
+
+
+def analyze_error_response(body: str) -> list[Finding]:
+    """Analisa corpo de resposta HTTP em busca de info leakage.
+
+    Procura por stack traces, versoes de framework, paths internos,
+    erros de banco e vazamento de configuracao. Retorna um Finding
+    por categoria encontrada (max 1 match por categoria).
+    """
+    findings: list[Finding] = []
+    for category, patterns in ERROR_INFO_PATTERNS.items():
+        for pattern in patterns:
+            match = pattern.search(body)
+            if match:
+                start = max(0, match.start() - 50)
+                end = min(len(body), match.end() + 50)
+                snippet = body[start:end].strip()
+                findings.append(Finding(
+                    _ERROR_INFO_SEVERITY[category],
+                    "info_leak",
+                    f"{category} detectado",
+                    snippet[:200],
+                    _ERROR_INFO_RECOMMENDATIONS[category],
+                ))
+                break
+    return findings
 
 
 class PageParser(HTMLParser):
@@ -659,6 +740,7 @@ def build_findings(
     sqli_databases: list[str] | None = None,
     raw_headers: dict[str, list[str]] | None = None,
     method_results: list[MethodResult] | None = None,
+    body_text: str = "",
 ) -> list[Finding]:
     """Gera lista de findings de seguranca baseado nos dados coletados.
 
@@ -812,13 +894,17 @@ def build_findings(
         ))
 
     if 500 <= status < 600:
+        body_snippet = body_text[:300].strip() if body_text else f"HTTP {status}"
         findings.append(Finding(
             "medium", "stability", "Erro 5xx na pagina principal",
-            f"HTTP {status}",
+            body_snippet,
             "Investigue logs e tratamento de erro para evitar vazamento e indisponibilidade.",
             f"curl -v {url}\n"
             f"# Verifique se a resposta contem stack traces ou informacoes internas.",
         ))
+
+    if body_text:
+        findings.extend(analyze_error_response(body_text))
 
     if xss_reflected:
         findings.append(Finding(
@@ -990,6 +1076,7 @@ async def run_audit(
         tls_versions=tls_versions, xss_reflected=xss_reflected,
         xss_evidence=xss_evidence, sqli_databases=sqli_databases,
         raw_headers=raw_headers, method_results=method_results,
+        body_text=text,
     )
 
     return AuditResult(
