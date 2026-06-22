@@ -10,6 +10,8 @@ import respx
 
 from attackaudit import (
     _ERROR_INFO_SEVERITY,
+    _JS_ENDPOINT_PATTERNS,
+    _JS_SECRET_PATTERNS,
     _SENSITIVE_HIDDEN_FIELDS,
     _SENSITIVE_VALUE_PATTERNS,
     _VERBOSE_ERROR_HEADERS,
@@ -33,6 +35,7 @@ from attackaudit import (
     analyze_error_response,
     analyze_headers_findings,
     analyze_hidden_fields,
+    analyze_js_content,
     build_findings,
     build_parser,
     check_sqli_errors,
@@ -1282,3 +1285,159 @@ class TestMain:
         with patch("attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
             assert result == 1
+
+
+class TestJsSecretPatterns:
+    def test_patterns_exist(self):
+        assert len(_JS_SECRET_PATTERNS) == 8
+
+    def test_all_are_compiled_regex(self):
+        for secret_type, (severity, category, pattern) in _JS_SECRET_PATTERNS.items():
+            assert isinstance(pattern, re.Pattern), f"{secret_type} is not compiled"
+            assert severity in ("critical", "high", "medium", "low", "info")
+            assert isinstance(category, str)
+
+    def test_google_api_key(self):
+        pattern = _JS_SECRET_PATTERNS["google_api_key"][2]
+        assert pattern.search("AIzaSyD_example_key_35_chars_paddi00000")
+
+    def test_github_token(self):
+        pattern = _JS_SECRET_PATTERNS["github_token"][2]
+        assert pattern.search("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijij")
+
+    def test_stripe_key(self):
+        pattern = _JS_SECRET_PATTERNS["stripe_key"][2]
+        assert pattern.search("sk_live_" + "a" * 24)
+
+    def test_jwt_token(self):
+        pattern = _JS_SECRET_PATTERNS["jwt_token"][2]
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123def456ghi789jkl012mno345pqr"
+        assert pattern.search(jwt)
+
+    def test_hardcoded_secret(self):
+        pattern = _JS_SECRET_PATTERNS["hardcoded_secret"][2]
+        assert pattern.search('password = "supersecretpassword123"')
+        assert pattern.search("apiKey: 'my_secret_key_value'")
+        assert pattern.search('token: "abc123456789"')
+
+
+class TestJsEndpointPatterns:
+    def test_patterns_exist(self):
+        assert len(_JS_ENDPOINT_PATTERNS) == 6
+
+    def test_fetch_api(self):
+        pattern = _JS_ENDPOINT_PATTERNS[0][1]
+        match = pattern.search("fetch('/api/users')")
+        assert match
+        assert match.group(1) == "/api/users"
+
+    def test_axios_api(self):
+        pattern = _JS_ENDPOINT_PATTERNS[1][1]
+        match = pattern.search('axios.get("/api/data")')
+        assert match
+        assert match.group(1) == "/api/data"
+
+    def test_api_endpoint(self):
+        pattern = _JS_ENDPOINT_PATTERNS[3][1]
+        matches = pattern.findall('"/api/v2/users" "/graphql" "/v1/auth"')
+        assert len(matches) >= 2
+
+    def test_websocket_url(self):
+        pattern = _JS_ENDPOINT_PATTERNS[4][1]
+        match = pattern.search('new WebSocket("wss://example.com/ws")')
+        assert match
+
+    def test_internal_url(self):
+        pattern = _JS_ENDPOINT_PATTERNS[5][1]
+        match = pattern.search('"/admin/panel"')
+        assert match
+
+
+class TestAnalyzeJsContent:
+    def test_finds_google_api_key(self):
+        js = 'const key = "AIzaSyD_example_key_35_chars_padding000"'
+        findings = analyze_js_content(js, "test.js")
+        assert any("google_api_key" in f.item for f in findings)
+
+    def test_finds_github_token(self):
+        js = 'const token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"'
+        findings = analyze_js_content(js, "test.js")
+        assert any("github_token" in f.item for f in findings)
+
+    def test_finds_endpoint(self):
+        js = 'fetch("/api/users")'
+        findings = analyze_js_content(js, "test.js")
+        assert any("endpoint" in f.item.lower() for f in findings)
+
+    def test_clean_js_no_findings(self):
+        js = 'console.log("hello world"); var x = 42;'
+        findings = analyze_js_content(js, "test.js")
+        assert len(findings) == 0
+
+    def test_multiple_secrets(self):
+        js = '''
+        const google = "AIzaSyD_example_key_35_chars_padding000";
+        const token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
+        '''
+        findings = analyze_js_content(js, "test.js")
+        secret_items = [f for f in findings if f.category == "exposure"]
+        assert len(secret_items) >= 2
+
+    def test_snippet_truncation(self):
+        long_value = "x" * 200
+        js = f'const key = "AIzaSyD_example_key_35_chars_padding000{long_value}"'
+        findings = analyze_js_content(js, "test.js")
+        assert all(len(f.evidence) <= 250 for f in findings)
+
+    def test_source_label_in_evidence(self):
+        js = 'const key = "AIzaSyD_example_key_35_chars_padding000"'
+        findings = analyze_js_content(js, "app.js")
+        assert any("app.js" in f.evidence for f in findings)
+
+    def test_inline_source_label(self):
+        js = 'const key = "AIzaSyD_example_key_35_chars_padding000"'
+        findings = analyze_js_content(js)
+        assert any("inline" in f.evidence for f in findings)
+
+    def test_endpoint_limit(self):
+        js = ' '.join(f'fetch("/api/{i}")' for i in range(20))
+        findings = analyze_js_content(js, "test.js")
+        endpoint_findings = [f for f in findings if f.category == "info_leak"]
+        assert len(endpoint_findings) <= 5
+
+    def test_severity_values(self):
+        js = 'const key = "AIzaSyD_example_key_35_chars_padding000"'
+        findings = analyze_js_content(js)
+        for f in findings:
+            assert f.severity in ("critical", "high", "medium", "low", "info")
+
+
+class TestPageParserInlineScripts:
+    def test_captures_inline_script(self):
+        parser = PageParser()
+        parser.feed('<html><script>var x = 1;</script></html>')
+        assert len(parser.inline_scripts) == 1
+        assert "var x = 1;" in parser.inline_scripts[0]
+
+    def test_ignores_external_script(self):
+        parser = PageParser()
+        parser.feed('<script src="app.js"></script>')
+        assert len(parser.inline_scripts) == 0
+        assert len(parser.external_scripts) == 1
+
+    def test_mixed_inline_and_external(self):
+        parser = PageParser()
+        parser.feed('<script src="lib.js"></script><script>var y = 2;</script>')
+        assert len(parser.external_scripts) == 1
+        assert len(parser.inline_scripts) == 1
+
+    def test_empty_inline_script(self):
+        parser = PageParser()
+        parser.feed('<script></script>')
+        assert len(parser.inline_scripts) == 0
+
+    def test_script_content_truncated(self):
+        long_js = "var x = " + "'a'" * 3000 + ";"
+        parser = PageParser()
+        parser.feed(f"<script>{long_js}</script>")
+        assert len(parser.inline_scripts[0]) <= 2000

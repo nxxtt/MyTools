@@ -175,6 +175,34 @@ _SENSITIVE_VALUE_PATTERNS: dict[str, tuple[str, str, re.Pattern[str]]] = {
         re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
 }
 
+_JS_SECRET_PATTERNS: dict[str, tuple[str, str, re.Pattern[str]]] = {
+    "google_api_key": ("high", "exposure",
+        re.compile(r"AIza[0-9A-Za-z_-]{35}")),
+    "github_token": ("critical", "exposure",
+        re.compile(r"ghp_[0-9A-Za-z]{36}")),
+    "stripe_key": ("critical", "exposure",
+        re.compile(r"sk_live_[0-9a-zA-Z]{24,}")),
+    "firebase_url": ("high", "exposure",
+        re.compile(r"https?://[a-z0-9-]+\.firebaseio\.com")),
+    "aws_access_key": ("critical", "exposure",
+        re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
+    "jwt_token": ("high", "exposure",
+        re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
+    "private_key_block": ("critical", "exposure",
+        re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
+    "hardcoded_secret": ("high", "exposure",
+        re.compile(r"""(?:password|secret|api[_-]?key|token)\s*[:=]\s*['"][^'"]{8,}['"]""", re.IGNORECASE)),
+}
+
+_JS_ENDPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("fetch_api", re.compile(r"""fetch\s*\(\s*['"]([^'"]+)['"]""")),
+    ("axios_api", re.compile(r"""axios\.\w+\s*\(\s*['"]([^'"]+)['"]""")),
+    ("ajax_url", re.compile(r"""url\s*:\s*['"](/api/[^'"]+)['"]""")),
+    ("api_endpoint", re.compile(r"""['"]/(api|v[0-9]+|graphql|endpoint)/[^'"]*['"]""")),
+    ("websocket_url", re.compile(r"""wss?://[^\s'"]+""")),
+    ("internal_url", re.compile(r"""['"](/(?:admin|internal|debug|config|status)/[^'"]*)['"]""")),
+]
+
 ERROR_INFO_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "stack_trace": [
         re.compile(r"at\s+[\w.]+\([\w.]+\.java:\d+\)"),
@@ -399,6 +427,68 @@ def analyze_hidden_fields(hidden_fields: list[tuple[str, str]]) -> list[Finding]
     return findings
 
 
+def analyze_js_content(
+    js_text: str,
+    source: str = "",
+) -> list[Finding]:
+    """Analisa conteudo JavaScript em busca de secrets e endpoints."""
+    findings: list[Finding] = []
+
+    for secret_type, (severity, category, pattern) in _JS_SECRET_PATTERNS.items():
+        for match in pattern.finditer(js_text):
+            snippet = js_text[max(0, match.start() - 30) : match.end() + 30]
+            findings.append(Finding(
+                severity, category,
+                f"Secret em JS ({secret_type})",
+                f"Encontrado em {source or 'JS inline'}: ...{snippet[:150]}...",
+                f"Remova {secret_type.replace('_', ' ')} do codigo JS e mova para variaveis de ambiente.",
+                "",
+            ))
+            break
+
+    endpoint_count = 0
+    for ep_name, pattern in _JS_ENDPOINT_PATTERNS:
+        for match in pattern.finditer(js_text):
+            if endpoint_count >= 5:
+                break
+            endpoint = match.group(1) if match.lastindex else match.group(0)
+            findings.append(Finding(
+                "low", "info_leak",
+                f"Endpoint exposto em JS: {ep_name}",
+                f"Endpoint '{endpoint[:120]}' encontrado em {source or 'JS inline'}.",
+                "Endpoints hardcoded podem revelar estrutura da API.",
+                "",
+            ))
+            endpoint_count += 1
+        if endpoint_count >= 5:
+            break
+
+    return findings
+
+
+async def analyze_js_files(
+    client: httpx.AsyncClient,
+    base_url: str,
+    script_urls: list[str],
+    timeout: float = 5.0,
+    rate_limiter: RateLimiter | None = None,
+) -> list[Finding]:
+    """Busca e analisa arquivos JS externos (max 5)."""
+    findings: list[Finding] = []
+    for url in script_urls[:5]:
+        full_url = urljoin(base_url, url)
+        try:
+            status, _, body, _ = await fetch(
+                client, full_url, timeout=timeout, rate_limiter=rate_limiter,
+            )
+            if status == 200:
+                text = body.decode("utf-8", errors="ignore")[:50_000]
+                findings.extend(analyze_js_content(text, full_url))
+        except FetchError:
+            continue
+    return findings
+
+
 class PageParser(HTMLParser):
     """Analisa HTML para extrair forms, scripts externos, comentarios e titulo.
 
@@ -406,6 +496,7 @@ class PageParser(HTMLParser):
     - Quantidade de forms (indica superficie de ataque)
     - Inputs type=password (indica areas de autenticacao)
     - Scripts externos (possivel vetor de XSS via CDN comprometido)
+    - Scripts inline (possiveis secrets/endpoints)
     - Tokens CSRF em forms hidden (protecao contra CSRF)
     - Comentarios HTML (podem vazar info sensivel)
     - Titulo da pagina (util para fingerprinting)
@@ -416,6 +507,9 @@ class PageParser(HTMLParser):
         self.forms = 0
         self.password_inputs = 0
         self.external_scripts: set[str] = set()
+        self.inline_scripts: list[str] = []
+        self._in_script = False
+        self._script_content: list[str] = []
         self.comments: list[str] = []
         self._title = False
         self.title_parts: list[str] = []
@@ -443,16 +537,26 @@ class PageParser(HTMLParser):
                     self._current_form_has_csrf = True
         if tag.lower() == "script" and attrs_dict.get("src"):
             self.external_scripts.add(attrs_dict["src"])
+        if tag.lower() == "script" and not attrs_dict.get("src"):
+            self._in_script = True
+            self._script_content = []
 
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "title":
             self._title = False
+        if tag.lower() == "script" and self._in_script:
+            self._in_script = False
+            content = " ".join("".join(self._script_content).split())
+            if content:
+                self.inline_scripts.append(content[:2000])
         if tag.lower() == "form":
             self.form_has_csrf.append(self._current_form_has_csrf)
 
     def handle_data(self, data: str) -> None:
         if self._title:
             self.title_parts.append(data.strip())
+        if self._in_script:
+            self._script_content.append(data)
 
     def handle_comment(self, data: str) -> None:
         text = " ".join(data.split())
@@ -1200,6 +1304,8 @@ async def run_audit(
         if text:
             parser.feed(text)
 
+        js_inline_findings = analyze_js_content(text, target) if text else []
+
         tls_subject, tls_issuer, tls_not_after = await tls_info(target, timeout)
         tls_versions = await check_tls_versions(target, timeout) if parsed.scheme == "https" else []
         methods = await parse_allowed_methods(client, target, timeout)
@@ -1208,6 +1314,7 @@ async def run_audit(
         xss_reflected, xss_evidence = False, ""
         sqli_databases: list[str] | None = None
         method_results: list[MethodResult] | None = None
+        js_external_findings: list[Finding] = []
 
         vuln_tasks = []
         if test_vulns:
@@ -1217,6 +1324,8 @@ async def run_audit(
         if test_methods and probes:
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando metodos HTTP...")
             vuln_tasks.append(test_http_methods(client, probes, timeout, rate_limiter))
+        if parser.external_scripts:
+            vuln_tasks.append(analyze_js_files(client, target, list(parser.external_scripts), timeout, rate_limiter))
 
         if vuln_tasks:
             vuln_results = await asyncio.gather(*vuln_tasks, return_exceptions=True)
@@ -1240,6 +1349,9 @@ async def run_audit(
                 method_results = [] if isinstance(methods_result, BaseException) else methods_result
                 if not method_results:
                     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum metodo perigoso aceito.")
+            if parser.external_scripts:
+                js_result = vuln_results[task_idx]
+                js_external_findings = [] if isinstance(js_result, BaseException) else js_result
     finally:
         await client.aclose()
 
@@ -1250,6 +1362,8 @@ async def run_audit(
         raw_headers=raw_headers, method_results=method_results,
         body_text=text,
     )
+    findings.extend(js_inline_findings)
+    findings.extend(js_external_findings)
 
     return AuditResult(
         target=url,
