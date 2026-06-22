@@ -72,6 +72,12 @@ class TestBuildParser:
         assert "dnstransfer" in args.skip
         assert "subenum" in args.skip
 
+    def test_skip_invalid_module_rejected(self):
+        import pytest
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["example.com", "--skip", "invalidmodule"])
+
     def test_dry_run(self):
         parser = build_parser()
         args = parser.parse_args(["example.com", "--dry-run"])

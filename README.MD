@@ -296,6 +296,15 @@ mytools-audit https://target.local --deep --proxy http://proxy:8080 --delay 5
 ```
 
 ### PortScanner — Workers
+
+### Controle de Cores
+```bash
+# Desativar cores (padrão NO_COLOR — https://no-color.org/)
+export NO_COLOR=1
+mytools
+```
+
+
 ```bash
 mytools-port 10.0.0.0/24 -w 500          # 500 threads
 mytools-port 10.0.0.0/24 --threads 500   # alias deprecated
@@ -318,7 +327,7 @@ MyTools-main/
 ├── utils.py           # Código compartilhado (cores, helpers, HTTP async)
 ├── KNOW_ISSUES.txt    # Problemas conhecidos
 ├── ROADMAP.txt        # Roadmap de otimizações
-├── tests/             # Testes unitários (733 testes)
+├── tests/             # Testes unitários (730 testes)
 ├── pyproject.toml     # Configuração do projeto
 └── README.MD
 ```

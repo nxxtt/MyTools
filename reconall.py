@@ -79,7 +79,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="Mostra mensagens de debug")
     parser.add_argument("-q", "--quiet", action="store_true", help="Modo silencioso")
     parser.add_argument("--dry-run", action="store_true", help="Mostra o que faria sem executar nada")
-    parser.add_argument("--skip", action="append", default=[], help="Modulo para pular (pode usar mais de um)")
+    parser.add_argument("--skip", action="append", default=[],
+                        choices=ALL_MODULES,
+                        help=f"Modulo para pular (pode repetir). Opcoes: {', '.join(ALL_MODULES)}")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
