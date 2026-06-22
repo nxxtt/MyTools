@@ -606,7 +606,7 @@ def read_target_lines(filepath: str, *, lowercase: bool = False, sort_dedup: boo
 
 def detect_spa_fallback(
     items: list,
-    key_fn: Callable,
+    key_fn: Callable[[Any], tuple],
     min_count: int = 10,
     threshold: float = 0.8,
 ) -> set[int]:

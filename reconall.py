@@ -37,7 +37,6 @@ import dnstransfer
 import portscanner
 import subdomainenum
 import webrecon
-from dirscanner import DEFAULT_STATUSES
 from portscanner import parse_ports
 from utils import (
     Cyber,
@@ -103,6 +102,34 @@ def _make_args(target: str, extra: dict, base_args: argparse.Namespace) -> argpa
     return ns
 
 
+def _build_base_ns(args: argparse.Namespace) -> argparse.Namespace:
+    """Constroi base_ns derivando defaults dos parsers dos modulos filhos.
+
+    Elimina hardcode de 37+ atributos. Quando um modulo adiciona um arg,
+    ele aparece automaticamente aqui via build_parser().parse_args([]).
+    """
+    all_defaults: dict[str, object] = {}
+    for mod in (dirscanner, portscanner, dnstransfer, subdomainenum, webrecon, attackaudit):
+        parser = mod.build_parser()
+        all_defaults.update(vars(parser.parse_args([])))
+
+    # Overrides do reconall — valores que difinem do default do parser
+    all_defaults.update({
+        "output": None,
+        "quiet": True,
+        "log_file": None,
+        "color": None,
+        "verbose": args.verbose,
+        "timeout": args.timeout,
+        "dry_run": args.dry_run,
+        "output_dir": args.output_dir,
+        "user_agent": f"MyTools/{__version__}",
+        "verify": False,
+        "threads": None,
+    })
+
+    return argparse.Namespace(**all_defaults)
+
 
 def run_all(args: argparse.Namespace) -> int:
     skipped = {s.lower() for s in args.skip}
@@ -110,46 +137,7 @@ def run_all(args: argparse.Namespace) -> int:
     is_url = _is_url(target)
     domain = _extract_domain(target)
 
-    # ATENCAO: Mantenha sincronizado com os argumentos dos modulos filhos.
-    # Se adicionar um arg em qualquer modulo, adicione aqui tambem com o mesmo nome.
-    base_ns = argparse.Namespace(
-        timeout=args.timeout,
-        output=None,
-        verbose=args.verbose,
-        log_file=None,
-        quiet=True,
-        color=None,
-        retries=3,
-        dry_run=args.dry_run,
-        target_list=None,
-        user_agent=f"MyTools/{__version__}",
-        proxy=None,
-        verify=False,
-        delay=0.0,
-        auth=None,
-        bearer_token=None,
-        cookie=None,
-        header=[],
-        concurrency=40,
-        status=DEFAULT_STATUSES,
-        method="GET",
-        wordlist=None,
-        extensions=[],
-        filter_size=None,
-        filter_words=None,
-        output_dir=args.output_dir,
-        threads=None,
-        workers=200,
-        banner=False,
-        deep=False,
-        test_vulns=False,
-        test_methods=False,
-        paths_file=None,
-        params=None,
-        cve=False,
-        nvd_api_key=None,
-        crawl_limit=10,
-    )
+    base_ns = _build_base_ns(args)
 
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
@@ -175,7 +163,7 @@ def run_all(args: argparse.Namespace) -> int:
         print(f" {color_name} {status} ({elapsed:.1f}s)")
         return result
 
-    modules: list[tuple[str, Callable[..., object], argparse.Namespace]] = []
+    modules: list[tuple[str, Callable[[argparse.Namespace], int], argparse.Namespace]] = []
 
     if "dnstransfer" not in skipped:
         modules.append(("dnstransfer", dnstransfer.run_once,
