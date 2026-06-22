@@ -23,6 +23,7 @@ basedpyright = ">=1.39.8"
 
 [tool.poetry.scripts]
 mytools = "main:main"
+mytools-cred = "cred:main"
 mytools-port = "portscanner:main"
 mytools-dir = "dirscanner:main"
 mytools-recon = "webrecon:main"

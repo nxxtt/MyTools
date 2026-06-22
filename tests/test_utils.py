@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import time
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -32,6 +33,7 @@ from utils import (
     parse_int_range,
     print_table,
     query_nvd,
+    resolve_cred,
     resolve_target_urls,
     set_color,
     setup_logging,
@@ -1062,4 +1064,73 @@ class TestRetryAfterEdgeCases:
         status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
         assert status == 200
         assert call_count == 2
+        await client.aclose()
+
+
+class TestResolveCred:
+    """Testes para resolve_cred() — resolucao de credenciais do keyring."""
+
+    def test_passthrough_no_prefix(self):
+        assert resolve_cred("plain_value") == "plain_value"
+
+    def test_passthrough_user_pass(self):
+        assert resolve_cred("user:pass") == "user:pass"
+
+    def test_empty_name_raises(self):
+        with pytest.raises(ValueError, match="nome de credencial vazio"):
+            resolve_cred("@")
+
+    @patch("cred.get_credential")
+    def test_resolves_from_keyring(self, mock_get):
+        mock_get.return_value = "secret_token"
+        assert resolve_cred("@my_token") == "secret_token"
+        mock_get.assert_called_once_with("my_token")
+
+    @patch("cred.get_credential")
+    def test_missing_cred_raises(self, mock_get):
+        mock_get.return_value = None
+        with pytest.raises(ValueError, match="nao encontrada"):
+            resolve_cred("@missing_cred")
+
+
+class TestParseAuthKeyring:
+    """Testes para parse_auth() com prefixo @ (keyring)."""
+
+    @patch("cred.get_credential")
+    def test_parse_auth_with_keyring(self, mock_get):
+        mock_get.return_value = "admin:secret123"
+        result = parse_auth("@basic_auth")
+        assert result == {"Authorization": "Basic YWRtaW46c2VjcmV0MTIz"}
+
+    def test_parse_auth_plain(self):
+        result = parse_auth("admin:pass123")
+        assert result == {"Authorization": "Basic YWRtaW46cGFzczEyMw=="}
+
+
+class TestApplySessionAuthKeyring:
+    """Testes para apply_session_auth() com prefixo @."""
+
+    @pytest.mark.asyncio
+    @patch("cred.get_credential")
+    async def test_bearer_from_keyring(self, mock_get):
+        mock_get.return_value = "keyring_token_abc"
+        client = create_async_client()
+        apply_session_auth(client, bearer_token="@my_bearer")
+        assert client.headers["Authorization"] == "Bearer keyring_token_abc"
+        await client.aclose()
+
+    @pytest.mark.asyncio
+    @patch("cred.get_credential")
+    async def test_cookie_from_keyring(self, mock_get):
+        mock_get.return_value = "session=xyz789"
+        client = create_async_client()
+        apply_session_auth(client, cookie="@my_cookie")
+        assert client.headers["Cookie"] == "session=xyz789"
+        await client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_bearer_plain_value(self):
+        client = create_async_client()
+        apply_session_auth(client, bearer_token="direct_token_123")
+        assert client.headers["Authorization"] == "Bearer direct_token_123"
         await client.aclose()

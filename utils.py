@@ -562,8 +562,35 @@ def write_output(
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado salvo em {color(path, Cyber.GREEN)}")
 
 
+def resolve_cred(value: str) -> str:
+    """Resolve valor de credencial do keyring.
+
+    Se o valor comeca com '@', busca a credencial homonima no keyring do SO.
+    Caso contrario, retorna o valor como esta (compatibilidade total).
+
+    Raises:
+        ValueError: se comeca com '@' mas keyring nao esta disponivel.
+        ValueError: se a credencial nao foi encontrada no keyring.
+    """
+    if not value.startswith("@"):
+        return value
+    name = value[1:]
+    if not name:
+        raise ValueError("nome de credencial vazio (use @nome)")
+    from cred import get_credential
+
+    result = get_credential(name)
+    if result is None:
+        raise ValueError(f"credencial '{name}' nao encontrada. Use: mytools-cred set {name}")
+    return result
+
+
 def parse_auth(value: str) -> dict[str, str]:
-    """Converte string 'user:pass' em headers de autenticacao Basic."""
+    """Converte string 'user:pass' em headers de autenticacao Basic.
+
+    Suporta prefixo '@' para resolver credenciais do keyring.
+    """
+    value = resolve_cred(value)
     if ":" not in value:
         raise argparse.ArgumentTypeError(f"formato invalido: {value!r} (use user:pass)")
     user, password = value.split(":", 1)
@@ -645,15 +672,21 @@ def apply_session_auth(
     cookie: str | None = None,
     extra_headers: list[str] | None = None,
 ) -> None:
-    """Aplica headers de autenticacao e personalizados a um cliente async."""
+    """Aplica headers de autenticacao e personalizados a um cliente async.
+
+    Suporta prefixo '@' em bearer_token e cookie para resolver do keyring.
+    """
     if auth:
         client.headers.update(auth)
     if bearer_token:
-        client.headers["Authorization"] = f"Bearer {bearer_token}"
+        client.headers["Authorization"] = f"Bearer {resolve_cred(bearer_token)}"
     if extra_headers:
-        client.headers.update(parse_extra_headers(extra_headers))
+        resolved = []
+        for h in extra_headers:
+            resolved.append(resolve_cred(h))
+        client.headers.update(parse_extra_headers(resolved))
     if cookie:
-        client.headers["Cookie"] = cookie
+        client.headers["Cookie"] = resolve_cred(cookie)
 
 
 def extract_hostname(url: str) -> str:
