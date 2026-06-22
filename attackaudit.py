@@ -203,6 +203,19 @@ _JS_ENDPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("internal_url", re.compile(r"""['"](/(?:admin|internal|debug|config|status)/[^'"]*)['"]""")),
 ]
 
+_URL_PARAM_NAMES: dict[str, tuple[str, str, str]] = {
+    "api_key": ("high", "exposure", "Nao passe API keys como query params. Use headers Authorization ou variaveis de ambiente."),
+    "apikey": ("high", "exposure", "Nao passe API keys como query params. Use headers Authorization ou variaveis de ambiente."),
+    "key": ("medium", "exposure", "Evite passar chaves em query params. Use headers ou body params."),
+    "token": ("high", "exposure", "Nao expose tokens em URLs. Use headers Authorization: Bearer."),
+    "access_token": ("high", "exposure", "Nao expose access tokens em URLs. Use headers Authorization."),
+    "bearer": ("high", "exposure", "Nao passe Bearer tokens como query params. Use header Authorization."),
+    "auth_token": ("high", "exposure", "Nao expose auth tokens em URLs. Use headers ou cookies HttpOnly."),
+    "secret": ("critical", "exposure", "Secrets em URLs sao logados em server logs, proxy e historico. Use headers."),
+    "password": ("critical", "exposure", "Senhas em URLs sao extremamente perigosas. Use HTTPS + body params ou headers."),
+    "session_id": ("medium", "exposure", "Session IDs em URLs podem vazar via Referer header. Use cookies HttpOnly."),
+}
+
 ERROR_INFO_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "stack_trace": [
         re.compile(r"at\s+[\w.]+\([\w.]+\.java:\d+\)"),
@@ -422,6 +435,62 @@ def analyze_hidden_fields(hidden_fields: list[tuple[str, str]]) -> list[Finding]
                         "Nunca exponha tokens, keys ou credenciais em campos hidden.",
                         f"# Valor detectado comecando por: {value[:20]}...",
                     ))
+                    break
+
+    return findings
+
+
+def analyze_url_params(url: str) -> list[Finding]:
+    """Analisa query params de uma URL buscando secrets e tokens expostos.
+
+    Verifica nomes de params contra _URL_PARAM_NAMES e valores contra
+    _SENSITIVE_VALUE_PATTERNS. Retorna no max 1 Finding por tipo de nome
+    sensivel e 1 por tipo de valor sensivel.
+    """
+    findings: list[Finding] = []
+    parsed = urlparse(url)
+    if not parsed.query:
+        return []
+
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    seen_names: set[str] = set()
+    seen_values: set[str] = set()
+
+    for param_name, values in params.items():
+        name_lower = param_name.lower()
+
+        for pattern_name, (severity, category, recommendation) in _URL_PARAM_NAMES.items():
+            if pattern_name in seen_names:
+                continue
+            if name_lower == pattern_name or pattern_name in name_lower:
+                findings.append(Finding(
+                    severity, category,
+                    f"API key/token em URL (param: {param_name})",
+                    f"Query param '{param_name}' pode conter dado sensiveis em URL exposta.",
+                    recommendation,
+                    f"# Verifique logs de acesso:\n"
+                    f"grep '{param_name}' /var/log/nginx/access.log\n"
+                    f"# Verifique se o param aparece em Referer headers.",
+                ))
+                seen_names.add(pattern_name)
+                break
+
+        for value in values:
+            if not value or len(value) < 8:
+                continue
+            for value_type, (severity, category, pattern) in _SENSITIVE_VALUE_PATTERNS.items():
+                if value_type in seen_values:
+                    continue
+                if pattern.search(value):
+                    findings.append(Finding(
+                        severity, category,
+                        f"Valor sensiveis em URL (param: {param_name})",
+                        f"Query param '{param_name}' contem {value_type.replace('_', ' ')} em URL visivel.",
+                        "Nunca exponha tokens, keys ou credenciais em URLs. Use headers Authorization.",
+                        f"# Valor detectado comecando por: {value[:20]}...\n"
+                        f"# Mova para: export {param_name.upper()}=<valor>",
+                    ))
+                    seen_values.add(value_type)
                     break
 
     return findings
@@ -1222,6 +1291,8 @@ def build_findings(
         ))
 
     findings.extend(analyze_hidden_fields(parser.hidden_fields))
+
+    findings.extend(analyze_url_params(url))
 
     if method_results:
         high_methods = [mr for mr in method_results if mr.status in {200, 201, 204} and mr.method in {"PUT", "DELETE", "TRACE"}]

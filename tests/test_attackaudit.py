@@ -14,6 +14,7 @@ from attackaudit import (
     _JS_SECRET_PATTERNS,
     _SENSITIVE_HIDDEN_FIELDS,
     _SENSITIVE_VALUE_PATTERNS,
+    _URL_PARAM_NAMES,
     _VERBOSE_ERROR_HEADERS,
     _WAF_SIGNATURES,
     CSRF_FIELD_NAMES_LOWER,
@@ -36,6 +37,7 @@ from attackaudit import (
     analyze_headers_findings,
     analyze_hidden_fields,
     analyze_js_content,
+    analyze_url_params,
     build_findings,
     build_parser,
     check_sqli_errors,
@@ -1441,3 +1443,76 @@ class TestPageParserInlineScripts:
         parser = PageParser()
         parser.feed(f"<script>{long_js}</script>")
         assert len(parser.inline_scripts[0]) <= 2000
+
+
+class TestUrlParamNames:
+    def test_has_expected_keys(self):
+        expected = {"api_key", "apikey", "key", "token", "access_token",
+                    "bearer", "auth_token", "secret", "password", "session_id"}
+        assert set(_URL_PARAM_NAMES.keys()) == expected
+
+    def test_values_are_tuples(self):
+        for key, val in _URL_PARAM_NAMES.items():
+            assert isinstance(val, tuple) and len(val) == 3, f"{key} must be (severity, category, recommendation)"
+            severity, category, recommendation = val
+            assert severity in {"critical", "high", "medium", "low", "info"}
+            assert isinstance(category, str)
+            assert isinstance(recommendation, str) and len(recommendation) > 10
+
+
+class TestAnalyzeUrlParams:
+    def test_api_key_in_param_name(self):
+        findings = analyze_url_params("https://example.com/api?key=abc123")
+        assert any("api_key" in f.item.lower() or "key" in f.item.lower() for f in findings)
+
+    def test_token_in_param_name(self):
+        findings = analyze_url_params("https://example.com/?token=xyz789")
+        assert any("token" in f.item.lower() for f in findings)
+
+    def test_secret_in_param_name(self):
+        findings = analyze_url_params("https://example.com/?secret=mysecretvalue123")
+        assert any(f.severity == "critical" for f in findings)
+
+    def test_password_in_param_name(self):
+        findings = analyze_url_params("https://example.com/?password=hunter2")
+        assert any(f.severity == "critical" for f in findings)
+
+    def test_jwt_in_param_value(self):
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        findings = analyze_url_params(f"https://example.com/?q={jwt}")
+        assert any("jwt" in f.item.lower() or "jwt" in f.evidence.lower() for f in findings)
+
+    def test_aws_key_in_param_value(self):
+        findings = analyze_url_params("https://example.com/?key=AKIAIOSFODNN7EXAMPLE")
+        assert any("aws" in f.evidence.lower() or "aws" in f.item.lower() for f in findings)
+
+    def test_clean_url_no_findings(self):
+        findings = analyze_url_params("https://example.com/page?q=search&page=2")
+        assert findings == []
+
+    def test_no_query_string(self):
+        findings = analyze_url_params("https://example.com/page")
+        assert findings == []
+
+    def test_empty_query_string(self):
+        findings = analyze_url_params("https://example.com/page?")
+        assert findings == []
+
+    def test_multiple_params_mixed(self):
+        findings = analyze_url_params("https://example.com/?token=abc123&q=search&id=5")
+        assert len(findings) >= 1
+
+    def test_dedup_by_value_type(self):
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        findings = analyze_url_params(f"https://example.com/?a={jwt}&b={jwt}")
+        jwt_findings = [f for f in findings if "jwt" in f.evidence.lower() or "jwt" in f.item.lower()]
+        assert len(jwt_findings) <= 2
+
+    def test_short_value_ignored(self):
+        findings = analyze_url_params("https://example.com/?q=abc")
+        assert findings == []
+
+    def test_base64_token_in_value(self):
+        long_b64 = "A" * 50 + "=="
+        findings = analyze_url_params(f"https://example.com/?data={long_b64}")
+        assert any("base64" in f.evidence.lower() or "base64" in f.item.lower() for f in findings)
