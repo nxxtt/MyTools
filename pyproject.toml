@@ -12,6 +12,7 @@ httpx = ">=0.28.1"
 beautifulsoup4 = ">=4.15.0"
 python-whois = ">=0.9.6"
 dnspython = ">=2.8.0"
+pyyaml = ">=6.0.3"
 pyreadline3 = {version = ">=3.5.6", markers = "sys_platform == 'win32'"}
 
 [tool.poetry.group.dev.dependencies]
@@ -37,6 +38,7 @@ mytools-techfp = "techfingerprint:main"
 mytools-oas = "openapidiscovery:main"
 mytools-gql = "graphqlplayground:main"
 mytools-sm = "sourcemapdiscovery:main"
+mytools-vcs = "vcsleak:main"
 mytools-reconall = "reconall:main"
 
 [build-system]

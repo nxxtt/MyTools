@@ -15,6 +15,7 @@ import reconall
 import sourcemapdiscovery
 import subdomainenum
 import techfingerprint
+import vcsleak
 import webrecon
 import whoishistory
 from utils import Cyber, __version__, clear_console, color, create_banner, run_interactive_shell
@@ -35,7 +36,8 @@ Painel interativo central que permite alternar entre:
   11. OpenAPI/Swagger  - Busca specs OpenAPI/Swagger expostas
   12. GraphQL Playground - Descobre GraphQL playgrounds e introspection
   13. Source Map Discovery - Busca .map files de JavaScript expostos
-  14. ReconAll     - Todos os modulos contra um alvo
+  14. VCS Leak Detection - Detecta .git, .svn, .hg expostos
+  15. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -73,9 +75,10 @@ def menu() -> None:
     print(f"  {color('11', Cyber.GREEN, Cyber.BOLD)} {color('OpenAPI/Swagger', Cyber.CYAN)}  Busca specs OpenAPI/Swagger expostas")
     print(f"  {color('12', Cyber.GREEN, Cyber.BOLD)} {color('GraphQL Playground', Cyber.CYAN)} Descobre GraphQL playgrounds e introspection")
     print(f"  {color('13', Cyber.GREEN, Cyber.BOLD)} {color('Source Map Discovery', Cyber.CYAN)} Busca .map files de JavaScript expostos")
-    print(f"  {color('14', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('15', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('16', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('14', Cyber.GREEN, Cyber.BOLD)} {color('VCS Leak Detection', Cyber.CYAN)} Detecta .git, .svn, .hg expostos")
+    print(f"  {color('15', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('16', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('17', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -126,6 +129,10 @@ def help_screen() -> None:
     print("  mytools-sm http://target.com")
     print("  mytools-sm http://target.com --sources")
     print("  mytools-sm http://target.com --no-scan-scripts")
+    print(color("\nVCS Leak Detection:", Cyber.CYAN))
+    print("  mytools-vcs http://target.com")
+    print("  mytools-vcs http://target.com --git-only")
+    print("  mytools-vcs http://target.com --svn-only")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -377,6 +384,25 @@ def launch_sourcemapdiscovery() -> None:
     )
 
 
+def launch_vcsleak() -> None:
+    """Inicia o modulo VCS Leak Detection em modo interativo."""
+    parser = vcsleak.build_parser()
+    run_interactive_shell(
+        parser, "vcs> ", vcsleak.run_once,
+        description="VCS Leak Detection interativo — detecta .git, .svn, .hg expostos.",
+        example="http://target.com --git-only",
+        banner_fn=vcsleak.banner,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  http://target.com\n"
+            "  http://target.com --git-only\n"
+            "  http://target.com --svn-only\n"
+            "  -l urls.txt -o results.json"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -439,12 +465,14 @@ def main() -> int:
             launch_graphqlplayground()
         elif choice in {"13", "sourcemap", "sm", "sourcemaps", "sourcemapdiscovery"}:
             launch_sourcemapdiscovery()
-        elif choice in {"14", "recon", "reconall"}:
+        elif choice in {"14", "vcs", "vcsleak", "git", "svn", "hg"}:
+            launch_vcsleak()
+        elif choice in {"15", "recon", "reconall"}:
             launch_reconall()
-        elif choice in {"15", "help", "ajuda", "h"}:
+        elif choice in {"16", "help", "ajuda", "h"}:
             help_screen()
             input(color("Enter para voltar...", Cyber.GRAY))
-        elif choice in {"16", "clear", "limpar", "cls"}:
+        elif choice in {"17", "clear", "limpar", "cls"}:
             clear_console()
             continue
         else:
