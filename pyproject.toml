@@ -34,6 +34,7 @@ mytools-dnshistory = "dnshistory:main"
 mytools-whoishistory = "whoishistory:main"
 mytools-ipasn = "ipasninfo:main"
 mytools-techfp = "techfingerprint:main"
+mytools-oas = "openapidiscovery:main"
 mytools-reconall = "reconall:main"
 
 [build-system]

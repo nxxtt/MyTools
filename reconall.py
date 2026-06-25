@@ -37,6 +37,7 @@ import dirscanner
 import dnshistory
 import dnstransfer
 import ipasninfo
+import openapidiscovery
 import portscanner
 import subdomainenum
 import techfingerprint
@@ -52,7 +53,7 @@ from utils import (
     setup_logging,
 )
 
-ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "dirscanner", "webrecon", "attackaudit"]
+ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "openapidiscovery", "dirscanner", "webrecon", "attackaudit"]
 
 """Recon completo: executa portscanner, dirscanner, webrecon, attackaudit, dnstransfer e subenum contra um alvo."""
 
@@ -66,7 +67,7 @@ def banner() -> None:
 /_/  /_/\__, /   /_/  \____/\____/_/____/
        /____/
 """
-    create_banner(art, "   recon all-in-one: port + dir + web + audit + dns + subenum + dnshistory + whoishistory + ipasn + techfp")()
+    create_banner(art, "   recon all-in-one: port + dir + web + audit + dns + subenum + dnshistory + whoishistory + ipasn + techfp + oas")()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -121,7 +122,7 @@ def _build_base_ns(args: argparse.Namespace) -> argparse.Namespace:
     ele aparece automaticamente aqui via build_parser().parse_args([]).
     """
     all_defaults: dict[str, object] = {}
-    for mod in (dirscanner, portscanner, dnstransfer, subdomainenum, dnshistory, whoishistory, ipasninfo, techfingerprint, webrecon, attackaudit):
+    for mod in (dirscanner, portscanner, dnstransfer, subdomainenum, dnshistory, whoishistory, ipasninfo, techfingerprint, openapidiscovery, webrecon, attackaudit):
         parser = mod.build_parser()
         all_defaults.update(vars(parser.parse_args([])))
 
@@ -208,6 +209,9 @@ def run_all(args: argparse.Namespace) -> int:
         if "techfingerprint" not in skipped:
             modules.append(("techfingerprint", techfingerprint.run_once,
                             _make_args(target, {"urls": [target], "output": _out("techfingerprint")}, base_ns)))
+        if "openapidiscovery" not in skipped:
+            modules.append(("openapidiscovery", openapidiscovery.run_once,
+                            _make_args(target, {"url": target, "output": _out("openapidiscovery")}, base_ns)))
         if "dirscanner" not in skipped:
             modules.append(("dirscanner", dirscanner.run_once,
                             _make_args(target, {"url": target, "output": _out("dirscanner"), "extensions": ["php", "txt", "bak", "html"]}, base_ns)))

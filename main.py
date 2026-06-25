@@ -8,6 +8,7 @@ import dirscanner
 import dnshistory
 import dnstransfer
 import ipasninfo
+import openapidiscovery
 import portscanner
 import reconall
 import subdomainenum
@@ -27,7 +28,10 @@ Painel interativo central que permite alternar entre:
   6. SubEnum      - Subdomain enumeration (DNS brute-force)
   7. DNS History  - DNS history via OSINT APIs
   8. WHOIS History - WHOIS history via OSINT APIs
-  9. ReconAll     - Todos os modulos contra um alvo
+  9. IP ASN Info  - IP -> ASN/org/ISP enrichment
+  10. Tech Fingerprint - Detecta tecnologias com versoes exatas
+  11. OpenAPI/Swagger  - Busca specs OpenAPI/Swagger expostas
+  12. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -45,7 +49,7 @@ def banner() -> None:
 /_/  /_/\__, /   /_/  \____/\____/_/____/
        /____/
 """
-    create_banner(art, "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory",
+    create_banner(art, "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory + oas",
                   extra=lambda: print(color("   by Default\n", Cyber.GRAY)))()
 
 
@@ -62,9 +66,10 @@ def menu() -> None:
     print(f"  {color('8', Cyber.GREEN, Cyber.BOLD)} {color('WHOIS History', Cyber.CYAN)}   WHOIS history via OSINT APIs")
     print(f"  {color('9', Cyber.GREEN, Cyber.BOLD)} {color('IP ASN Info', Cyber.CYAN)}     IP -> ASN/org/ISP/country enrichment")
     print(f"  {color('10', Cyber.GREEN, Cyber.BOLD)} {color('Tech Fingerprint', Cyber.CYAN)} Detecta tecnologias com versoes exatas")
-    print(f"  {color('11', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('12', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('13', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('11', Cyber.GREEN, Cyber.BOLD)} {color('OpenAPI/Swagger', Cyber.CYAN)}  Busca specs OpenAPI/Swagger expostas")
+    print(f"  {color('12', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('13', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('14', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -103,6 +108,10 @@ def help_screen() -> None:
     print("  mytools-techfp https://example.com")
     print("  mytools-techfp https://example.com -o tech.json")
     print("  mytools-techfp -l urls.txt -o results.json")
+    print(color("\nOpenAPI/Swagger:", Cyber.CYAN))
+    print("  mytools-oas http://target.com")
+    print("  mytools-oas http://target.com --endpoints")
+    print("  mytools-oas -l urls.txt -o oas.json")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -298,6 +307,24 @@ def launch_techfingerprint() -> None:
     )
 
 
+def launch_openapidiscovery() -> None:
+    """Inicia o modulo OpenAPI/Swagger Discovery em modo interativo."""
+    parser = openapidiscovery.build_parser()
+    run_interactive_shell(
+        parser, "oas> ", openapidiscovery.run_once,
+        description="OpenAPI/Swagger Discovery interativo — busca specs expostas.",
+        example="http://target.com --endpoints",
+        banner_fn=openapidiscovery.banner,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  http://target.com\n"
+            "  http://target.com --endpoints\n"
+            "  -l urls.txt -o oas.json"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -354,12 +381,14 @@ def main() -> int:
             launch_ipasninfo()
         elif choice in {"10", "tech", "techfp", "fingerprint"}:
             launch_techfingerprint()
-        elif choice in {"11", "recon", "reconall"}:
+        elif choice in {"11", "oas", "openapi", "swagger", "openapidiscovery"}:
+            launch_openapidiscovery()
+        elif choice in {"12", "recon", "reconall"}:
             launch_reconall()
-        elif choice in {"12", "help", "ajuda", "h"}:
+        elif choice in {"13", "help", "ajuda", "h"}:
             help_screen()
             input(color("Enter para voltar...", Cyber.GRAY))
-        elif choice in {"13", "clear", "limpar", "cls"}:
+        elif choice in {"14", "clear", "limpar", "cls"}:
             clear_console()
             continue
         else:
