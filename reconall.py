@@ -247,12 +247,10 @@ def run_all(args: argparse.Namespace) -> int:
             return result
 
         tasks = [_run_one(name, fn, a) for name, fn, a in modules]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results:
-            if isinstance(r, BaseException):
-                total_errors += 1
-            else:
-                total_errors += r
+        async with asyncio.TaskGroup() as tg:
+            futures = [tg.create_task(t) for t in tasks]
+        for f in futures:
+            total_errors += f.result()
         return total_errors
 
     return safe_asyncio_run(_run_all_async())

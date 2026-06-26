@@ -929,12 +929,12 @@ async def check_sqli_errors(
         for param in inject_params
         for payload in SQLI_PAYLOADS[:2]
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(t) for t in tasks]
+    results = [f.result() for f in futures]
 
     detected_databases: list[str] = []
     for result in results:
-        if isinstance(result, BaseException):
-            continue
         for db_name in result:
             if db_name not in detected_databases:
                 detected_databases.append(db_name)
@@ -986,11 +986,11 @@ async def scan_paths(
             return await probe_path(client, rate_limiter, base_url, path, timeout)
 
     tasks = [_limited_probe(path) for path in target_paths]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(t) for t in tasks]
+    results = [f.result() for f in futures]
     all_probes: list[Probe] = []
     for result in results:
-        if isinstance(result, BaseException):
-            continue
         if result:
             all_probes.append(result)
             print(
@@ -1054,11 +1054,13 @@ async def test_http_methods(
             return None
 
     tasks = [_test_one(url, method) for url, method in pairs]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(t) for t in tasks]
+    results = [f.result() for f in futures]
 
     method_results: list[MethodResult] = []
     for result in results:
-        if isinstance(result, BaseException) or result is None:
+        if result is None:
             continue
         method_results.append(result)
         if result.status in {200, 201, 204}:
@@ -1399,30 +1401,63 @@ async def run_audit(
             vuln_tasks.append(analyze_js_files(client, target, list(parser.external_scripts), timeout, rate_limiter))
 
         if vuln_tasks:
-            vuln_results = await asyncio.gather(*vuln_tasks, return_exceptions=True)
+            async def _safe_xss() -> tuple[bool, str]:
+                try:
+                    return await check_xss_reflection(client, target, timeout, inject_params=inject_params)
+                except Exception:
+                    return False, ""
+
+            async def _safe_sqli() -> list[str]:
+                try:
+                    return await check_sqli_errors(client, target, timeout, inject_params=inject_params)
+                except Exception:
+                    return []
+
+            async def _safe_methods() -> list[MethodResult]:
+                try:
+                    return await test_http_methods(client, probes, timeout, rate_limiter)
+                except Exception:
+                    return []
+
+            async def _safe_js() -> list[Finding]:
+                try:
+                    return await analyze_js_files(client, target, list(parser.external_scripts), timeout, rate_limiter)
+                except Exception:
+                    return []
+
+            safe_tasks = []
+            if test_vulns:
+                safe_tasks.append(_safe_xss())
+                safe_tasks.append(_safe_sqli())
+            if test_methods and probes:
+                safe_tasks.append(_safe_methods())
+            if parser.external_scripts:
+                safe_tasks.append(_safe_js())
+
+            async with asyncio.TaskGroup() as tg:
+                futures = [tg.create_task(t) for t in safe_tasks]
+            vuln_results = [f.result() for f in futures]
+
             task_idx = 0
             if test_vulns:
                 xss_result = vuln_results[task_idx]
                 task_idx += 1
                 sqli_result = vuln_results[task_idx]
                 task_idx += 1
-                if isinstance(xss_result, BaseException):
-                    xss_reflected, xss_evidence = False, ""
-                else:
-                    xss_reflected, xss_evidence = xss_result
+                xss_reflected, xss_evidence = xss_result
                 if xss_reflected:
                     print(color("[!]", Cyber.RED, Cyber.BOLD), "XSS refletido detectado!")
-                sqli_databases = [] if isinstance(sqli_result, BaseException) else sqli_result
+                sqli_databases = sqli_result
                 if sqli_databases:
                     print(color("[!]", Cyber.RED, Cyber.BOLD), f"Erros SQL detectados: {', '.join(sqli_databases)}")
             if test_methods and probes:
                 methods_result = vuln_results[task_idx]
-                method_results = [] if isinstance(methods_result, BaseException) else methods_result
+                method_results = methods_result
                 if not method_results:
                     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum metodo perigoso aceito.")
             if parser.external_scripts:
                 js_result = vuln_results[task_idx]
-                js_external_findings = [] if isinstance(js_result, BaseException) else js_result
+                js_external_findings = js_result
     finally:
         await client.aclose()
 

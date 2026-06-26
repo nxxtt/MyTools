@@ -513,10 +513,10 @@ async def crawl_internal_links(
             except FetchError:
                 return []
 
-    results = await asyncio.gather(*[_fetch_link(link) for link in internal_urls], return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(_fetch_link(link)) for link in internal_urls]
+    results = [f.result() for f in futures]
     for result in results:
-        if isinstance(result, BaseException):
-            continue
         emails.extend(result)
 
     return emails
@@ -581,13 +581,13 @@ async def lookup_cves(
             return findings
 
     tasks = [_query_one(tech, ver) for tech, ver in versions]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(t) for t in tasks]
+    results = [f.result() for f in futures]
 
     findings: list[CVEFinding] = []
     seen_cves: set[str] = set()
     for result in results:
-        if isinstance(result, BaseException):
-            continue
         for finding in result:
             if finding.cve_id not in seen_cves:
                 seen_cves.add(finding.cve_id)

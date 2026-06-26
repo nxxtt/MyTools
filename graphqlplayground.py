@@ -303,8 +303,9 @@ async def scan_graphql(
             return result
 
     try:
-        tasks = [_limited_probe(p) for p in paths]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        async with asyncio.TaskGroup() as tg:
+            futures = [tg.create_task(_limited_probe(p)) for p in paths]
+        results = [f.result() for f in futures]
 
         sys.stdout.write("\r" + " " * 60 + "\r")
         sys.stdout.flush()

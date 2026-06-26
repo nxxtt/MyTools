@@ -387,7 +387,9 @@ async def _passive_enumerate_async(
     for source in sources:
         api_key = api_keys.get(source)
         tasks.append(_query_source(source, domain, api_key, timeout))
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(t) for t in tasks]
+    results = [f.result() for f in futures]
     seen: set[str] = set()
     for result in results:
         if not isinstance(result, list):

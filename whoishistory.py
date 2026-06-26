@@ -19,6 +19,7 @@ import json
 import logging
 import time
 from dataclasses import asdict, dataclass
+from datetime import UTC
 
 from utils import (
     Cyber,
@@ -92,10 +93,10 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
         ended = item.get("ended")
         date_str = ""
         if ended:
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             try:
-                date_str = datetime.fromtimestamp(ended / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                date_str = datetime.fromtimestamp(ended / 1000, tz=UTC).strftime("%Y-%m-%d")
             except (ValueError, OSError):
                 date_str = str(ended)
 
@@ -117,17 +118,17 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
 
         created = ""
         if item.get("createdDate"):
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             with contextlib.suppress(ValueError, OSError):
-                created = datetime.fromtimestamp(item["createdDate"] / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                created = datetime.fromtimestamp(item["createdDate"] / 1000, tz=UTC).strftime("%Y-%m-%d")
 
         expires = ""
         if item.get("expiresDate"):
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             with contextlib.suppress(ValueError, OSError):
-                expires = datetime.fromtimestamp(item["expiresDate"] / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                expires = datetime.fromtimestamp(item["expiresDate"] / 1000, tz=UTC).strftime("%Y-%m-%d")
 
         records.append(WhoisHistoryRecord(
             domain=domain,
@@ -262,7 +263,9 @@ async def _query_all_sources(
             return await _query_source(source, domain, api_keys.get(source), timeout)
 
     tasks = [_limited(s) for s in sources]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(t) for t in tasks]
+    results = [f.result() for f in futures]
 
     all_records: list[WhoisHistoryRecord] = []
     for result in results:

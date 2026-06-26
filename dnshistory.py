@@ -267,7 +267,9 @@ async def _query_all_sources(
             return await _query_source(source, domain, api_keys.get(source), record_types, timeout)
 
     tasks = [_limited(s) for s in sources]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(t) for t in tasks]
+    results = [f.result() for f in futures]
 
     all_records: list[DnsHistoryRecord] = []
     for result in results:

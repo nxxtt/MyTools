@@ -318,8 +318,9 @@ async def scan_sourcemaps(
             return result
 
     try:
-        tasks = [_limited_probe(mu, ju) for mu, ju in all_map_urls]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        async with asyncio.TaskGroup() as tg:
+            futures = [tg.create_task(_limited_probe(mu, ju)) for mu, ju in all_map_urls]
+        results = [f.result() for f in futures]
 
         sys.stdout.write("\r" + " " * 60 + "\r")
         sys.stdout.flush()

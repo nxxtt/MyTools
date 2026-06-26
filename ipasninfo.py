@@ -251,7 +251,9 @@ def lookup_ip_asn(
                 return await _query_single(ip, timeout)
 
         tasks = [_limited(ip) for ip in ips]
-        gathered = await asyncio.gather(*tasks, return_exceptions=True)
+        async with asyncio.TaskGroup() as tg:
+            futures = [tg.create_task(t) for t in tasks]
+        gathered = [f.result() for f in futures]
         for r in gathered:
             if isinstance(r, IpAsnInfo):
                 results.append(r)
