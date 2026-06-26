@@ -232,7 +232,7 @@ def parse_spec(content: bytes, content_type: str) -> ApiSpecInfo | None:
         try:
             spec = json.loads(content)
             fmt = "json"
-        except (json.JSONDecodeError, ValueError):
+        except ValueError:
             pass
 
     if spec is None:
@@ -383,7 +383,7 @@ async def scan_specs(
                     f"{color(r.format.upper(), Cyber.YELLOW, Cyber.BOLD)} "
                     f"{color(str(len(r.endpoints)).rjust(4), Cyber.WHITE)} endpoints "
                     f"{color(r.url, Cyber.CYAN)}"
-                    f"{color(f' | {r.title} v{r.version}' if r.title else '', Cyber.GRAY)}"
+                    f"{color(f" | {r.title} v{r.version}" if r.title else '', Cyber.GRAY)}"
                 )
     finally:
         await client.aclose()
@@ -391,7 +391,7 @@ async def scan_specs(
     elapsed = time.monotonic() - started
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
         f"Specs encontradas: {color(str(len(specs)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return specs
@@ -491,7 +491,7 @@ def print_api_endpoints(spec: ApiSpecInfo) -> None:
         for s in spec.schemas[:20]:
             print(f"    {color('-', Cyber.GRAY)} {s}")
         if len(spec.schemas) > 20:
-            print(f"    {color(f'... +{len(spec.schemas) - 20} mais', Cyber.GRAY)}")
+            print(f"    {color(f"... +{len(spec.schemas) - 20} mais", Cyber.GRAY)}")
 
 
 def build_parser() -> argparse.ArgumentParser:

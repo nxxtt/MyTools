@@ -178,7 +178,7 @@ async def run_introspection(
 
     try:
         data = json.loads(content)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return [], "", "", ""
 
     if not isinstance(data, dict) or "errors" in data:
@@ -225,7 +225,7 @@ async def probe_endpoint(
                     status=status,
                     raw_size=len(content),
                 )
-        except (json.JSONDecodeError, ValueError):
+        except ValueError:
             pass
         return None
 
@@ -330,7 +330,7 @@ async def scan_graphql(
     elapsed = time.monotonic() - started
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
         f"Endpoints encontrados: {color(str(len(endpoints)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return endpoints
@@ -403,7 +403,7 @@ def print_schema_details(ep: GraphqlEndpoint) -> None:
     for t in ep.schema_types[:30]:
         print(f"    {color('-', Cyber.GRAY)} {t}")
     if len(ep.schema_types) > 30:
-        print(f"    {color(f'... +{len(ep.schema_types) - 30} mais', Cyber.GRAY)}")
+        print(f"    {color(f"... +{len(ep.schema_types) - 30} mais", Cyber.GRAY)}")
 
 
 def build_parser() -> argparse.ArgumentParser:

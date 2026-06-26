@@ -204,7 +204,7 @@ def scan_targets(
     logger.debug("timeout=%.2f, workers=%d, banner=%s", timeout, workers, with_banner)
 
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvos: {color(str(len(targets)), Cyber.WHITE, Cyber.BOLD)} | Portas: {color(str(len(ports)), Cyber.WHITE, Cyber.BOLD)} | Tentativas: {color(str(total), Cyber.WHITE, Cyber.BOLD)}")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Timeout: {color(f'{timeout:.2f}s', Cyber.YELLOW)} | Threads: {color(str(workers), Cyber.YELLOW)}")
+    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Timeout: {color(f"{timeout:.2f}s", Cyber.YELLOW)} | Threads: {color(str(workers), Cyber.YELLOW)}")
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         batch_size = workers * 2
@@ -246,7 +246,7 @@ def scan_targets(
     findings.sort(key=lambda item: (ip_sort_key(item.address), item.port))
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
         f"Portas abertas: {color(str(len(findings)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return findings

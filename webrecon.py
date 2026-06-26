@@ -771,12 +771,11 @@ async def run_recon(
     """
     started = time.monotonic()
     errors = []
-    client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
-    await apply_session_auth_async(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
+    async with create_async_client(user_agent=user_agent, proxy=proxy, verify=verify) as client:
+        await apply_session_auth_async(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
 
-    logger.info("recon iniciado: %s", url)
+        logger.info("recon iniciado: %s", url)
 
-    try:
         for target in candidate_urls(url):
             try:
                 status, headers, body, raw_headers = await fetch(client, target, timeout=timeout)
@@ -845,8 +844,6 @@ async def run_recon(
         emails = sorted(set(emails))
 
         whois_data = await run_whois(target)
-    finally:
-        await client.aclose()
 
     return ReconResult(
         url=target,
@@ -874,7 +871,7 @@ async def run_recon(
 def print_result(result: ReconResult) -> None:
     """Exibe o resultado do reconhecimento formatado no terminal."""
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"URL: {color(result.url, Cyber.WHITE, Cyber.BOLD)}")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {status_text(result.status)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}")
+    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {status_text(result.status)} | Tempo: {color(f"{result.elapsed:.2f}s", Cyber.YELLOW)}")
 
     if result.redirect:
         print(color("[>]", Cyber.YELLOW, Cyber.BOLD), f"Redirect: {color(result.redirect, Cyber.YELLOW)}")
@@ -913,7 +910,7 @@ def print_result(result: ReconResult) -> None:
         for email in result.emails[:30]:
             print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color(email, Cyber.GREEN)}")
         if len(result.emails) > 30:
-            print(f"  {color(f'... e mais {len(result.emails) - 30} emails', Cyber.GRAY)}")
+            print(f"  {color(f"... e mais {len(result.emails) - 30} emails", Cyber.GRAY)}")
 
     if result.whois_data:
         _print_whois(result.whois_data)
@@ -956,13 +953,13 @@ def _print_cve_findings(findings: list[CVEFinding]) -> None:
             f"  {color('[!]', sev_color, Cyber.BOLD)} "
             f"{color(finding.cve_id, sev_color, Cyber.BOLD)} "
             f"({finding.technology} {finding.version}) "
-            f"Score: {color(f'{finding.score:.1f}', sev_color, Cyber.BOLD)} "
+            f"Score: {color(f"{finding.score:.1f}", sev_color, Cyber.BOLD)} "
             f"[{finding.severity.upper()}]"
         )
         print(f"    {color(finding.description[:120], Cyber.GRAY)}")
 
     if len(findings) > 20:
-        print(f"  {color(f'... e mais {len(findings) - 20} CVEs', Cyber.GRAY)}")
+        print(f"  {color(f"... e mais {len(findings) - 20} CVEs", Cyber.GRAY)}")
 
 
 def _print_whois(w: WhoisResult) -> None:
@@ -1058,8 +1055,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 0
 
     all_results: list[ReconResult] = []
-    for url in urls:
-        result = await _run_single(url, args, quiet=quiet)
+    sem = asyncio.Semaphore(3)
+
+    async def _limited_single(u: str) -> tuple[str, ReconResult]:
+        async with sem:
+            return u, await _run_single(u, args, quiet=quiet)
+
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(_limited_single(u)) for u in urls]
+    url_results = [f.result() for f in futures]
+
+    for url, result in url_results:
         all_results.append(result)
         if output_dir:
             hostname = extract_hostname(url)

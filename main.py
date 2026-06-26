@@ -439,45 +439,46 @@ def main() -> int:
         if choice in {"0", "q", "quit", "exit"}:
             print(color("bye bye user!", Cyber.MAGENTA))
             return 0
-        if choice in {"1", "port", "ports", "portscanner"}:
-            launch_portscanner()
-        elif choice in {"2", "dir", "dirs", "dirscanner"}:
-            launch_dirscanner()
-        elif choice in {"3", "web", "recon", "webrecon"}:
-            launch_webrecon()
-        elif choice in {"4", "audit", "attack", "attackaudit", "redblue"}:
-            launch_attackaudit()
-        elif choice in {"5", "dns", "xfer", "dnstransfer", "dnsxfer"}:
-            launch_dnstransfer()
-        elif choice in {"6", "sub", "subenum", "subdomainenum"}:
-            launch_subdomainenum()
-        elif choice in {"7", "dns-history", "dnshistory", "history"}:
-            launch_dnshistory()
-        elif choice in {"8", "whois-history", "whoishistory", "whois"}:
-            launch_whoishistory()
-        elif choice in {"9", "ip-asn", "ipasn", "asn"}:
-            launch_ipasninfo()
-        elif choice in {"10", "tech", "techfp", "fingerprint"}:
-            launch_techfingerprint()
-        elif choice in {"11", "oas", "openapi", "swagger", "openapidiscovery"}:
-            launch_openapidiscovery()
-        elif choice in {"12", "gql", "graphql", "playground", "graphqlplayground"}:
-            launch_graphqlplayground()
-        elif choice in {"13", "sourcemap", "sm", "sourcemaps", "sourcemapdiscovery"}:
-            launch_sourcemapdiscovery()
-        elif choice in {"14", "vcs", "vcsleak", "git", "svn", "hg"}:
-            launch_vcsleak()
-        elif choice in {"15", "recon", "reconall"}:
-            launch_reconall()
-        elif choice in {"16", "help", "ajuda", "h"}:
-            help_screen()
-            input(color("Enter para voltar...", Cyber.GRAY))
-        elif choice in {"17", "clear", "limpar", "cls"}:
-            clear_console()
-            continue
-        else:
-            print(color("Opcao invalida.", Cyber.RED))
-            input(color("Enter para continuar...", Cyber.GRAY))
+        match choice:
+            case "1" | "port" | "ports" | "portscanner":
+                launch_portscanner()
+            case "2" | "dir" | "dirs" | "dirscanner":
+                launch_dirscanner()
+            case "3" | "web" | "webrecon":
+                launch_webrecon()
+            case "4" | "audit" | "attack" | "attackaudit" | "redblue":
+                launch_attackaudit()
+            case "5" | "dns" | "xfer" | "dnstransfer" | "dnsxfer":
+                launch_dnstransfer()
+            case "6" | "sub" | "subenum" | "subdomainenum":
+                launch_subdomainenum()
+            case "7" | "dns-history" | "dnshistory" | "history":
+                launch_dnshistory()
+            case "8" | "whois-history" | "whoishistory" | "whois":
+                launch_whoishistory()
+            case "9" | "ip-asn" | "ipasn" | "asn":
+                launch_ipasninfo()
+            case "10" | "tech" | "techfp" | "fingerprint":
+                launch_techfingerprint()
+            case "11" | "oas" | "openapi" | "swagger" | "openapidiscovery":
+                launch_openapidiscovery()
+            case "12" | "gql" | "graphql" | "playground" | "graphqlplayground":
+                launch_graphqlplayground()
+            case "13" | "sourcemap" | "sm" | "sourcemaps" | "sourcemapdiscovery":
+                launch_sourcemapdiscovery()
+            case "14" | "vcs" | "vcsleak" | "git" | "svn" | "hg":
+                launch_vcsleak()
+            case "15" | "reconall" | "all" | "full":
+                launch_reconall()
+            case "16" | "help" | "ajuda" | "h":
+                help_screen()
+                input(color("Enter para voltar...", Cyber.GRAY))
+            case "17" | "clear" | "limpar" | "cls":
+                clear_console()
+                continue
+            case _:
+                print(color("Opcao invalida.", Cyber.RED))
+                input(color("Enter para continuar...", Cyber.GRAY))
 
         clear_console()
 

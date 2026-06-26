@@ -72,7 +72,7 @@ def _parse_dnslytics(body: bytes, domain: str) -> list[DnsHistoryRecord]:
     """Parseia resposta JSON do DNSlytics Hosting History API."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
 
     if data.get("status") != "succeed":
@@ -135,7 +135,7 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[DnsHistoryRecord]:
     """Parseia resposta JSON do SecurityTrails DNS History API."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
 
     records: list[DnsHistoryRecord] = []
@@ -170,7 +170,7 @@ def _parse_viewdns(body: bytes, domain: str) -> list[DnsHistoryRecord]:
     """Parseia resposta JSON do ViewDNS.info IP History API."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
 
     records: list[DnsHistoryRecord] = []
@@ -399,7 +399,7 @@ def run_once(args: argparse.Namespace) -> int:
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"Records: {color(str(len(records)), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Elapsed: {color(f'{elapsed:.1f}s', Cyber.YELLOW)} | "
+        f"Elapsed: {color(f"{elapsed:.1f}s", Cyber.YELLOW)} | "
         f"Sources: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}",
     )
 

@@ -1206,18 +1206,18 @@ class TestDryRun:
         args = parser.parse_args(["https://example.com"])
         assert args.dry_run is False
 
-    def test_dry_run_returns_zero(self, capsys):
-        import asyncio as _asyncio
+    @pytest.mark.asyncio
+    async def test_dry_run_returns_zero(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--dry-run"])
-        result = _asyncio.run(_async_run_once(args))
+        result = await _async_run_once(args)
         assert result == 0
 
-    def test_dry_run_outputs_info(self, capsys):
-        import asyncio as _asyncio
+    @pytest.mark.asyncio
+    async def test_dry_run_outputs_info(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--dry-run"])
-        _asyncio.run(_async_run_once(args))
+        await _async_run_once(args)
         captured = capsys.readouterr()
         assert "DRY-RUN" in captured.out
         assert "Nenhuma requisicao" in captured.out

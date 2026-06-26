@@ -196,7 +196,7 @@ def _prefetch_records(domain: str, resolver: dns.resolver.Resolver) -> list[Subd
                         ips = sorted(str(r) for r in a_answers)
                         print(
                             color("[+]", Cyber.GREEN, Cyber.BOLD),
-                            f"{color(f'{fqdn} (via {rtype})', Cyber.WHITE, Cyber.BOLD)} -> {color(', '.join(ips), Cyber.CYAN)}",
+                            f"{color(f"{fqdn} (via {rtype})", Cyber.WHITE, Cyber.BOLD)} -> {color(', '.join(ips), Cyber.CYAN)}",
                         )
                         prefetched.append(SubdomainResult(subdomain=fqdn, ip_addresses=ips, status="resolved"))
                     except dns.exception.DNSException:
@@ -249,7 +249,7 @@ def _parse_crtsh(body: bytes, domain: str) -> list[str]:
     """Extrai subdominios do JSON do crt.sh."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
     seen: set[str] = set()
     for entry in data:
@@ -267,7 +267,7 @@ def _parse_otx(body: bytes, domain: str) -> list[str]:
     """Extrai subdominios do JSON do AlienVault OTX."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
     seen: set[str] = set()
     for entry in data.get("passive_dns", []):
@@ -281,7 +281,7 @@ def _parse_urlscan(body: bytes, domain: str) -> list[str]:
     """Extrai subdominios do JSON do URLScan.io."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
     seen: set[str] = set()
     for result in data.get("results", []):
@@ -296,7 +296,7 @@ def _parse_virustotal(body: bytes, domain: str) -> list[str]:
     """Extrai subdominios do JSON do VirusTotal."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
     seen: set[str] = set()
     for entry in data.get("data", []):
@@ -310,7 +310,7 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[str]:
     """Extrai subdominios do JSON do SecurityTrails."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
     seen: set[str] = set()
     for sub in data.get("subdomains", []):
@@ -324,7 +324,7 @@ def _parse_shodan(body: bytes, domain: str) -> list[str]:
     """Extrai subdominios do JSON do Shodan."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
     seen: set[str] = set()
     for sub in data.get("data", []):
@@ -508,7 +508,7 @@ def enumerate_subdomains(
     print()
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
         f"Testados: {color(str(total_brute), Cyber.WHITE, Cyber.BOLD)}. "
         f"Resolvidos: {color(str(len(resolved)), Cyber.GREEN, Cyber.BOLD)}.",
     )
@@ -636,7 +636,7 @@ def run_once(args: argparse.Namespace) -> int:
         print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta DNS sera realizada.")
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Wordlist: {color(str(len(wordlist)), Cyber.WHITE, Cyber.BOLD)} subdominios")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Threads: {color(str(threads), Cyber.WHITE, Cyber.BOLD)} | Timeout: {color(f'{args.timeout}s', Cyber.YELLOW)}")
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Threads: {color(str(threads), Cyber.WHITE, Cyber.BOLD)} | Timeout: {color(f"{args.timeout}s", Cyber.YELLOW)}")
         if passive_results:
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Passive: {color(str(len(passive_results)), Cyber.GREEN, Cyber.BOLD)} subdominios (ja resolvidos via DNS)")
         return 0

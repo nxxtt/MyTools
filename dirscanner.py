@@ -303,7 +303,7 @@ async def scan_target(
     findings.sort(key=lambda item: (item.status, item.url))
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
         f"Achados: {color(str(len(findings)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return findings

@@ -148,7 +148,7 @@ def parse_source_map(content: bytes) -> SourceMapInfo | None:
 
     try:
         data = json.loads(content)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return None
 
     if not isinstance(data, dict):
@@ -332,8 +332,8 @@ async def scan_sourcemaps(
                 logger.info("Source map encontrado: %s (sources=%d)", r.url, r.sources_count)
                 print(
                     f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(f'{r.raw_size}B', Cyber.YELLOW)} "
-                    f"{color(f'{r.sources_count} sources', Cyber.WHITE)} "
+                    f"{color(f"{r.raw_size}B", Cyber.YELLOW)} "
+                    f"{color(f"{r.sources_count} sources", Cyber.WHITE)} "
                     f"{color(r.url, Cyber.CYAN)}"
                 )
     finally:
@@ -342,7 +342,7 @@ async def scan_sourcemaps(
     elapsed = time.monotonic() - started
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
         f"Source maps encontrados: {color(str(len(maps)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return maps
@@ -394,7 +394,7 @@ def print_sources_detail(maps: list[SourceMapInfo]) -> None:
         for s in m.sources[:30]:
             print(f"    {color('-', Cyber.GRAY)} {s}")
         if len(m.sources) > 30:
-            print(f"    {color(f'... +{len(m.sources) - 30} mais', Cyber.GRAY)}")
+            print(f"    {color(f"... +{len(m.sources) - 30} mais", Cyber.GRAY)}")
 
 
 def build_parser() -> argparse.ArgumentParser:

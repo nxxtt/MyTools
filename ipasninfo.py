@@ -75,7 +75,7 @@ def _parse_ipwhois(body: bytes) -> IpAsnInfo | None:
     """Parseia resposta JSON do ipwho.is."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return None
 
     if not data.get("success", False):
@@ -106,7 +106,7 @@ def _parse_ipapi(body: bytes) -> IpAsnInfo | None:
     """Parseia resposta JSON do ip-api.com."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return None
 
     if data.get("status") != "success":
@@ -135,7 +135,7 @@ def _parse_ipapi_batch(body: bytes) -> list[IpAsnInfo]:
     """Parseia resposta JSON batch do ip-api.com."""
     try:
         items = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
 
     if not isinstance(items, list):
@@ -359,7 +359,7 @@ def run_once(args: argparse.Namespace) -> int:
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"IPs: {color(str(len(results)), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Elapsed: {color(f'{elapsed:.1f}s', Cyber.YELLOW)} | "
+        f"Elapsed: {color(f"{elapsed:.1f}s", Cyber.YELLOW)} | "
         f"Mode: {color('auto', Cyber.WHITE, Cyber.BOLD)}",
     )
 

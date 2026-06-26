@@ -83,7 +83,7 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
     """Parseia resposta JSON do SecurityTrails WHOIS History API."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
 
     records: list[WhoisHistoryRecord] = []
@@ -157,7 +157,7 @@ def _parse_whoisxml(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
     """Parseia resposta JSON do WhoisXML History API."""
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError:
         return []
 
     records: list[WhoisHistoryRecord] = []
@@ -394,7 +394,7 @@ def run_once(args: argparse.Namespace) -> int:
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"Records: {color(str(len(records)), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Elapsed: {color(f'{elapsed:.1f}s', Cyber.YELLOW)} | "
+        f"Elapsed: {color(f"{elapsed:.1f}s", Cyber.YELLOW)} | "
         f"Sources: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}",
     )
 

@@ -14,6 +14,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from html.parser import HTMLParser
+from typing import override
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
@@ -586,6 +587,7 @@ class PageParser(HTMLParser):
         self._current_form_has_csrf = False
         self.hidden_fields: list[tuple[str, str]] = []
 
+    @override
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attrs_dict = {key.lower(): value or "" for key, value in attrs}
         if tag.lower() == "title":
@@ -610,6 +612,7 @@ class PageParser(HTMLParser):
             self._in_script = True
             self._script_content = []
 
+    @override
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "title":
             self._title = False
@@ -621,12 +624,14 @@ class PageParser(HTMLParser):
         if tag.lower() == "form":
             self.form_has_csrf.append(self._current_form_has_csrf)
 
+    @override
     def handle_data(self, data: str) -> None:
         if self._title:
             self.title_parts.append(data.strip())
         if self._in_script:
             self._script_content.append(data)
 
+    @override
     def handle_comment(self, data: str) -> None:
         text = " ".join(data.split())
         if text:
@@ -1359,13 +1364,12 @@ async def run_audit(
     parsed = urlparse(target)
     ip = await resolve_ip(parsed.hostname or "")
     rate_limiter = RateLimiter(requests_per_second)
-    client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
-    await apply_session_auth_async(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
+    async with create_async_client(user_agent=user_agent, proxy=proxy, verify=verify) as client:
+        await apply_session_auth_async(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
 
-    logger.info("audit iniciado: %s", target)
-    logger.debug("threads=%d, deep=%s, test_vulns=%s, test_methods=%s", threads, deep, test_vulns, test_methods)
+        logger.info("audit iniciado: %s", target)
+        logger.debug("threads=%d, deep=%s, test_vulns=%s, test_methods=%s", threads, deep, test_vulns, test_methods)
 
-    try:
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(target, Cyber.WHITE, Cyber.BOLD)}")
         if ip:
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"IP: {color(ip, Cyber.YELLOW)}")
@@ -1458,8 +1462,6 @@ async def run_audit(
             if parser.external_scripts:
                 js_result = vuln_results[task_idx]
                 js_external_findings = js_result
-    finally:
-        await client.aclose()
 
     findings = build_findings(
         target, status, headers, parser, methods, probes, tls_subject,
@@ -1500,7 +1502,7 @@ def print_result(result: AuditResult) -> None:
     print()
     print(color("Resumo", Cyber.CYAN, Cyber.BOLD))
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} URL: {color(result.final_url, Cyber.WHITE, Cyber.BOLD)}")
-    print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Status: {color(str(result.status), status_color(result.status), Cyber.BOLD)} | Score: {color(str(result.risk_score), Cyber.YELLOW, Cyber.BOLD)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}")
+    print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Status: {color(str(result.status), status_color(result.status), Cyber.BOLD)} | Score: {color(str(result.risk_score), Cyber.YELLOW, Cyber.BOLD)} | Tempo: {color(f"{result.elapsed:.2f}s", Cyber.YELLOW)}")
     if result.title:
         print(f"{color('[T]', Cyber.MAGENTA, Cyber.BOLD)} Title: {color(result.title, Cyber.WHITE)}")
     if result.tls_subject:
@@ -1645,8 +1647,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 0
 
     all_results: list[AuditResult] = []
-    for url in urls:
-        result = await _run_single(url, args, quiet=quiet)
+    sem = asyncio.Semaphore(args.concurrency)
+
+    async def _limited_single(u: str) -> tuple[str, AuditResult]:
+        async with sem:
+            return u, await _run_single(u, args, quiet=quiet)
+
+    async with asyncio.TaskGroup() as tg:
+        futures = [tg.create_task(_limited_single(u)) for u in urls]
+    url_results = [f.result() for f in futures]
+
+    for url, result in url_results:
         all_results.append(result)
         if output_dir:
             hostname = extract_hostname(url)

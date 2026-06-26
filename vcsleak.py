@@ -323,7 +323,7 @@ async def scan_vcs(
                 logger.info("VCS leak encontrado: [%s] %s — %s", r.vcs_type, r.path, r.detail)
                 print(
                     f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(f'[{r.vcs_type.upper()}]', Cyber.YELLOW, Cyber.BOLD)} "
+                    f"{color(f"[{r.vcs_type.upper()}]", Cyber.YELLOW, Cyber.BOLD)} "
                     f"{color(r.path, Cyber.WHITE)} "
                     f"{color(r.detail, Cyber.GRAY)}"
                 )
@@ -333,7 +333,7 @@ async def scan_vcs(
     elapsed = time.monotonic() - started
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
         f"VCS leaks encontrados: {color(str(len(leaks)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return leaks

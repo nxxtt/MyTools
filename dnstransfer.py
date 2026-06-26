@@ -335,7 +335,7 @@ def run_once(args: argparse.Namespace) -> int:
         _print_results(results)
         print(
             color("[*]", Cyber.CYAN, Cyber.BOLD),
-            f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
+            f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
             f"Nameservers: {color(str(len(results)), Cyber.WHITE, Cyber.BOLD)}. "
             f"Vulneraveis: {color(str(sum(1 for r in results if r.zone_transferred)), Cyber.RED, Cyber.BOLD)}",
         )

@@ -553,7 +553,7 @@ def run_once(args: argparse.Namespace) -> int:
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"URLs: {color(str(len(urls)), Cyber.GREEN, Cyber.BOLD)} | "
         f"Tecnologias: {color(str(total_techs), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Tempo: {color(f'{elapsed:.1f}s', Cyber.WHITE)}"
+        f"Tempo: {color(f"{elapsed:.1f}s", Cyber.WHITE)}"
     )
 
     if getattr(args, "output", None):

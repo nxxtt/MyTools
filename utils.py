@@ -31,6 +31,7 @@ import os
 import shlex
 import sys
 import time
+import tomllib
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -45,11 +46,10 @@ def _read_version() -> str:
     """Le a versao de pyproject.toml (single source of truth)."""
     try:
         pyproject = Path(__file__).parent / "pyproject.toml"
-        for line in pyproject.read_text(encoding="utf-8").splitlines():
-            key = line.split("=", 1)[0].strip()
-            if key == "version":
-                return line.split("=", 1)[1].strip().strip('"')
-    except (FileNotFoundError, IndexError, OSError):
+        with open(pyproject, "rb") as fh:
+            data = tomllib.load(fh)
+        return data["tool"]["poetry"]["version"]
+    except (FileNotFoundError, KeyError, ValueError):
         pass
     return "0.0.0"
 
