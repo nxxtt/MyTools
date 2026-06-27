@@ -7,6 +7,7 @@ import configfiledetect
 import dirscanner
 import dnshistory
 import dnstransfer
+import emailbreachcheck
 import googledorking
 import graphqlplayground
 import ipasninfo
@@ -41,7 +42,8 @@ Painel interativo central que permite alternar entre:
    15. Config File Detection - Busca .env, config.json, settings.py expostos
    16. Backup File Detection - Busca .bak, .old, .swp, .sql, .zip expostos
    17. Google Dorking - Gera dorks e busca via DuckDuckGo
-   18. ReconAll     - Todos os modulos contra um alvo
+   18. Email Breach Check - Verifica emails em vazamentos de dados
+   19. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -59,7 +61,7 @@ def banner() -> None:
 /_/  /_/\__, /   /_/  \____/\____/_/____/
        /____/
 """
-    create_banner(art, "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory + oas + bak + dork",
+    create_banner(art, "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory + oas + bak + dork + breach",
                   extra=lambda: print(color("   by Default\n", Cyber.GRAY)))()
 
 
@@ -83,9 +85,10 @@ def menu() -> None:
     print(f"  {color('15', Cyber.GREEN, Cyber.BOLD)} {color('Config File Detection', Cyber.CYAN)} Busca .env, config.json, settings.py expostos")
     print(f"  {color('16', Cyber.GREEN, Cyber.BOLD)} {color('Backup File Detection', Cyber.CYAN)} Busca .bak, .old, .swp, .sql, .zip expostos")
     print(f"  {color('17', Cyber.GREEN, Cyber.BOLD)} {color('Google Dorking', Cyber.CYAN)}       Gera dorks, busca via DuckDuckGo")
-    print(f"  {color('18', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('19', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('20', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('18', Cyber.GREEN, Cyber.BOLD)} {color('Email Breach Check', Cyber.CYAN)} Verifica emails em vazamentos")
+    print(f"  {color('19', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('20', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('21', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -156,6 +159,11 @@ def help_screen() -> None:
     print("  mytools-dork example.com --category sensitive --search")
     print("  mytools-dork example.com --custom-dork 'inurl:api v1'")
     print("  mytools-dork -l domains.txt -o results.json")
+    print(color("\nEmail Breach Check:", Cyber.CYAN))
+    print("  mytools-breach user@example.com")
+    print("  mytools-breach user1@test.com user2@test.com")
+    print("  mytools-breach user@example.com --source hibp --hibp-api-key KEY")
+    print("  mytools-breach -f emails.txt -o results.json")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -484,6 +492,25 @@ def launch_googledorking() -> None:
     )
 
 
+def launch_emailbreachcheck() -> None:
+    """Inicia o modulo Email Breach Check em modo interativo."""
+    parser = emailbreachcheck.build_parser()
+    run_interactive_shell(
+        parser, "breach> ", emailbreachcheck.run_once,
+        description="Email Breach Check interativo — verifica emails em vazamentos de dados.",
+        example="user@example.com --source xposedornot",
+        banner_fn=emailbreachcheck.banner,
+        contextual_help=(
+            "Uso: <emails...> [opcoes]\n"
+            "Exemplos:\n"
+            "  user@example.com\n"
+            "  user1@test.com user2@test.com\n"
+            "  user@example.com --source hibp --hibp-api-key KEY\n"
+            "  -f emails.txt -o results.json"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -555,12 +582,14 @@ def main() -> int:
                 launch_backupfiledetect()
             case "17" | "dork" | "google" | "googledorking":
                 launch_googledorking()
-            case "18" | "reconall" | "all" | "full":
+            case "18" | "breach" | "email" | "hibp" | "emailbreachcheck":
+                launch_emailbreachcheck()
+            case "19" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "19" | "help" | "ajuda" | "h":
+            case "20" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "20" | "clear" | "limpar" | "cls":
+            case "21" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

@@ -42,6 +42,7 @@ mytools-vcs = "vcsleak:main"
 mytools-cfg = "configfiledetect:main"
 mytools-bak = "backupfiledetect:main"
 mytools-dork = "googledorking:main"
+mytools-breach = "emailbreachcheck:main"
 mytools-reconall = "reconall:main"
 
 [build-system]
