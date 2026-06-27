@@ -12,6 +12,7 @@ import googledorking
 import graphqlplayground
 import ipasninfo
 import openapidiscovery
+import pasteleak
 import portscanner
 import reconall
 import socialengrecon
@@ -45,7 +46,8 @@ Painel interativo central que permite alternar entre:
    17. Google Dorking - Gera dorks e busca via DuckDuckGo
    18. Email Breach Check - Verifica emails em vazamentos de dados
    19. Social Engineering Recon - Coleta emails, nomes, cargos de funcionarios
-   20. ReconAll     - Todos os modulos contra um alvo
+   20. Paste/Leak Monitor - Busca credenciais em pastes e repos publicos
+   21. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -89,9 +91,10 @@ def menu() -> None:
     print(f"  {color('17', Cyber.GREEN, Cyber.BOLD)} {color('Google Dorking', Cyber.CYAN)}       Gera dorks, busca via DuckDuckGo")
     print(f"  {color('18', Cyber.GREEN, Cyber.BOLD)} {color('Email Breach Check', Cyber.CYAN)} Verifica emails em vazamentos")
     print(f"  {color('19', Cyber.GREEN, Cyber.BOLD)} {color('Social Eng Recon', Cyber.CYAN)}  Coleta emails, nomes, cargos")
-    print(f"  {color('20', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('21', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('22', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('20', Cyber.GREEN, Cyber.BOLD)} {color('Paste/Leak Monitor', Cyber.CYAN)} Busca credenciais em pastes/repos")
+    print(f"  {color('21', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('22', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('23', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -172,6 +175,11 @@ def help_screen() -> None:
     print("  mytools-soceng example.com --source github --source hunter")
     print("  mytools-soceng example.com --hunter-api-key KEY")
     print("  mytools-soceng -l domains.txt -o results.json")
+    print(color("\nPaste/Leak Monitoring:", Cyber.CYAN))
+    print("  mytools-leak example.com")
+    print("  mytools-leak example.com --source github_gists --source pastebin_rss")
+    print("  mytools-leak example.com --github-token ghp_xxx")
+    print("  mytools-leak -l domains.txt -o results.json")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -538,6 +546,25 @@ def launch_socialengrecon() -> None:
     )
 
 
+def launch_pasteleak() -> None:
+    """Inicia o módulo Paste/Leak Monitoring em modo interativo."""
+    parser = pasteleak.build_parser()
+    run_interactive_shell(
+        parser, "leak> ", pasteleak.run_once,
+        description="Paste/Leak Monitoring interativo.",
+        example="example.com --source github_gists",
+        banner_fn=pasteleak.banner,
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --source github_gists --source pastebin_rss\n"
+            "  example.com --github-token ghp_xxx\n"
+            "  -l domains.txt -o results.json"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -613,12 +640,14 @@ def main() -> int:
                 launch_emailbreachcheck()
             case "19" | "soceng" | "social" | "employee" | "socialengrecon":
                 launch_socialengrecon()
-            case "20" | "reconall" | "all" | "full":
+            case "20" | "leak" | "paste" | "pasteleak" | "monitor":
+                launch_pasteleak()
+            case "21" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "21" | "help" | "ajuda" | "h":
+            case "22" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "22" | "clear" | "limpar" | "cls":
+            case "23" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
