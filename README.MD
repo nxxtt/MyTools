@@ -57,7 +57,13 @@ Isso instala os comandos CLI:
 | `mytools-gql` | GraphQL Playground Exposure |
 | `mytools-sm` | Source Map Discovery |
 | `mytools-vcs` | VCS Leak Detection |
-| `mytools-cred` | Gerenciador de credenciais |
+| `mytools-cfg` | Config File Detection |
+| `mytools-bak` | Backup File Detection |
+| `mytools-dork` | Google Dorking |
+| `mytools-breach` | Email Breach Check |
+| `mytools-soceng` | Social Engineering Recon |
+| `mytools-leak` | Paste/Leak Monitoring |
+| `mytools-dark` | Dark Web Monitoring |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
 > **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
@@ -219,6 +225,77 @@ mytools-vcs http://target.com --git-only
 mytools-vcs -l urls.txt -o vcs.json
 ```
 
+### 16. Config File Detection (`mytools-cfg`)
+Detecta arquivos de configuração sensíveis expostos (.env, config.json, settings.py, .htpasswd) com validação por categoria.
+
+```bash
+mytools-cfg http://target.com
+mytools-cfg http://target.com --category env
+mytools-cfg http://target.com --sensitive-only
+mytools-cfg -l urls.txt -o results.json
+```
+
+### 17. Backup File Detection (`mytools-bak`)
+Detecta arquivos de backup expostos (.bak, .old, .swp, .sql, .zip) com validação de magic bytes para evitar falsos positivos.
+
+```bash
+mytools-bak http://target.com
+mytools-bak http://target.com --type sql
+mytools-bak http://target.com --type archive
+mytools-bak -l urls.txt -o results.json
+```
+
+### 18. Google Dorking (`mytools-dork`)
+Gera dorks Google para o alvo e busca via DuckDuckGo. 6 categorias de dorks + dorks customizados.
+
+```bash
+mytools-dork example.com
+mytools-dork example.com --category filetype
+mytools-dork example.com --category sensitive --search
+mytools-dork example.com --custom-dork 'inurl:api v1'
+mytools-dork -l domains.txt -o results.json
+```
+
+### 19. Email Breach Check (`mytools-breach`)
+Verifica se emails apareceram em vazamentos de dados usando múltiplas fontes (XposedOrNot, LeakCheck, HIBP).
+
+```bash
+mytools-breach user@example.com
+mytools-breach user1@test.com user2@test.com
+mytools-breach user@example.com --source hibp --hibp-api-key KEY
+mytools-breach -f emails.txt -o results.json
+```
+
+### 20. Social Engineering Recon (`mytools-soceng`)
+Coleta emails, nomes e cargos de funcionários do alvo usando GitHub, Hunter.io e web scraping.
+
+```bash
+mytools-soceng example.com
+mytools-soceng example.com --source github --source hunter
+mytools-soceng example.com --hunter-api-key KEY
+mytools-soceng -l domains.txt -o results.json
+```
+
+### 21. Paste/Leak Monitoring (`mytools-leak`)
+Monitora pastes e repos públicos por credenciais e dados sensíveis do alvo (GitHub Gists, Pastebin RSS, GitLab Snippets).
+
+```bash
+mytools-leak example.com
+mytools-leak example.com --source github_gists --source pastebin_rss
+mytools-leak example.com --github-token ghp_xxx
+mytools-leak -l domains.txt -o results.json
+```
+
+### 22. Dark Web Monitoring (`mytools-dark`)
+Busca menções do domínio em sites .onion via APIs públicas (Ahmia, DarkSearch, Intelligence X).
+
+```bash
+mytools-dark example.com
+mytools-dark example.com --source ahmia --source darksearch
+mytools-dark example.com --intelx-key KEY
+mytools-dark -l domains.txt -o results.json
+```
+
 ---
 
 ## Features v3.2.0
@@ -364,6 +441,63 @@ mytools-vcs http://target.com
 mytools-vcs http://target.com --git-only
 ```
 
+### Config File Detection
+Detecta arquivos de configuração sensíveis expostos em 6 categorias com 88 paths e validação de conteúdo:
+
+```bash
+mytools-cfg http://target.com
+mytools-cfg http://target.com --category env
+mytools-cfg http://target.com --sensitive-only
+```
+
+### Backup File Detection
+Detecta arquivos de backup expostos com 6 categorias (.bak/.swp/.tilde/.sql/.archive/.orig_tmp) e validação de magic bytes:
+
+```bash
+mytools-bak http://target.com
+mytools-bak http://target.com --type sql
+```
+
+### Google Dorking
+Gera dorks Google em 6 categorias (filetype, directory, login, error, sensitive, subdomain) + dorks customizados + busca via DuckDuckGo:
+
+```bash
+mytools-dork example.com
+mytools-dork example.com --category sensitive --search
+```
+
+### Email Breach Check
+Verifica emails em vazamentos usando 3 fontes (XposedOrNot, LeakCheck, HIBP) com dedup por email+breach:
+
+```bash
+mytools-breach user@example.com
+mytools-breach user@example.com --source hibp --hibp-api-key KEY
+```
+
+### Social Engineering Recon
+Coleta emails, nomes e cargos de funcionários via GitHub API, Hunter.io e web scraping (/about, /team):
+
+```bash
+mytools-soceng example.com
+mytools-soceng example.com --hunter-api-key KEY
+```
+
+### Paste/Leak Monitoring
+Monitora pastes e repos públicos por credenciais com 10 padrões de detecção (AWS, GitHub, Slack, Stripe, etc.):
+
+```bash
+mytools-leak example.com
+mytools-leak example.com --github-token ghp_xxx
+```
+
+### Dark Web Monitoring
+Busca menções do domínio em sites .onion via Ahmia, DarkSearch e Intelligence X com classificação de severidade:
+
+```bash
+mytools-dark example.com
+mytools-dark example.com --intelx-key KEY
+```
+
 ### Email Harvesting
 Coleta emails do alvo com crawl recursivo:
 
@@ -415,6 +549,13 @@ mytools-oas --version
 mytools-gql --version
 mytools-sm --version
 mytools-vcs --version
+mytools-cfg --version
+mytools-bak --version
+mytools-dork --version
+mytools-breach --version
+mytools-soceng --version
+mytools-leak --version
+mytools-dark --version
 ```
 
 ---
@@ -425,7 +566,7 @@ mytools-vcs --version
 ```bash
 mytools
 ```
-O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`.
+O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`.
 
 ### Modo interativo
 Cada módulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
@@ -456,6 +597,13 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-gql http://target.com` | GraphQL playground discovery |
 | `mytools-sm http://target.com` | Source map discovery |
 | `mytools-vcs http://target.com` | VCS leak detection |
+| `mytools-cfg http://target.com` | Config file detection |
+| `mytools-bak http://target.com` | Backup file detection |
+| `mytools-dork example.com` | Google dorking |
+| `mytools-breach user@example.com` | Email breach check |
+| `mytools-soceng example.com` | Social engineering recon |
+| `mytools-leak example.com` | Paste/leak monitoring |
+| `mytools-dark example.com` | Dark web monitoring |
 | `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 
 ### Proxy e Rate Limiting
@@ -507,11 +655,18 @@ MyTools-main/
 ├── graphqlplayground.py    # GraphQL Playground Exposure
 ├── sourcemapdiscovery.py   # Source Map Discovery
 ├── vcsleak.py              # VCS Leak Detection (.git, .svn, .hg)
+├── configfiledetect.py     # Config File Detection
+├── backupfiledetect.py     # Backup File Detection
+├── googledorking.py        # Google Dorking
+├── emailbreachcheck.py     # Email Breach Check
+├── socialengrecon.py       # Social Engineering Recon
+├── pasteleak.py            # Paste/Leak Monitoring
+├── darkwebmonitor.py       # Dark Web Monitoring
 ├── utils.py                # Código compartilhado (cores, helpers, HTTP async)
 ├── cred.py                 # Gerenciador de credenciais (keyring)
 ├── KNOW_ISSUES.txt         # Problemas conhecidos
 ├── ROADMAP.txt             # Roadmap de otimizações
-├── tests/                  # Testes unitários (1277 testes)
+├── tests/                  # Testes unitários (1587 testes)
 ├── pyproject.toml          # Configuração do projeto
 └── README.MD
 ```
