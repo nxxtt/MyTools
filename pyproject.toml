@@ -40,6 +40,7 @@ mytools-gql = "graphqlplayground:main"
 mytools-sm = "sourcemapdiscovery:main"
 mytools-vcs = "vcsleak:main"
 mytools-cfg = "configfiledetect:main"
+mytools-bak = "backupfiledetect:main"
 mytools-reconall = "reconall:main"
 
 [build-system]

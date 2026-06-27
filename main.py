@@ -2,6 +2,7 @@
 import sys
 
 import attackaudit
+import backupfiledetect
 import configfiledetect
 import dirscanner
 import dnshistory
@@ -36,8 +37,9 @@ Painel interativo central que permite alternar entre:
   12. GraphQL Playground - Descobre GraphQL playgrounds e introspection
   13. Source Map Discovery - Busca .map files de JavaScript expostos
   14. VCS Leak Detection - Detecta .git, .svn, .hg expostos
-  15. Config File Detection - Busca .env, config.json, settings.py expostos
-  16. ReconAll     - Todos os modulos contra um alvo
+   15. Config File Detection - Busca .env, config.json, settings.py expostos
+   16. Backup File Detection - Busca .bak, .old, .swp, .sql, .zip expostos
+   17. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -55,7 +57,7 @@ def banner() -> None:
 /_/  /_/\__, /   /_/  \____/\____/_/____/
        /____/
 """
-    create_banner(art, "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory + oas",
+    create_banner(art, "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory + oas + bak",
                   extra=lambda: print(color("   by Default\n", Cyber.GRAY)))()
 
 
@@ -77,9 +79,10 @@ def menu() -> None:
     print(f"  {color('13', Cyber.GREEN, Cyber.BOLD)} {color('Source Map Discovery', Cyber.CYAN)} Busca .map files de JavaScript expostos")
     print(f"  {color('14', Cyber.GREEN, Cyber.BOLD)} {color('VCS Leak Detection', Cyber.CYAN)} Detecta .git, .svn, .hg expostos")
     print(f"  {color('15', Cyber.GREEN, Cyber.BOLD)} {color('Config File Detection', Cyber.CYAN)} Busca .env, config.json, settings.py expostos")
-    print(f"  {color('16', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('17', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('18', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('16', Cyber.GREEN, Cyber.BOLD)} {color('Backup File Detection', Cyber.CYAN)} Busca .bak, .old, .swp, .sql, .zip expostos")
+    print(f"  {color('17', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('18', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('19', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -139,6 +142,11 @@ def help_screen() -> None:
     print("  mytools-cfg http://target.com --category env")
     print("  mytools-cfg http://target.com --sensitive-only")
     print("  mytools-cfg -l urls.txt -o results.json")
+    print(color("\nBackup File Detection:", Cyber.CYAN))
+    print("  mytools-bak http://target.com")
+    print("  mytools-bak http://target.com --type sql")
+    print("  mytools-bak http://target.com --type archive")
+    print("  mytools-bak -l urls.txt -o results.json")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -428,6 +436,25 @@ def launch_configfiledetect() -> None:
     )
 
 
+def launch_backupfiledetect() -> None:
+    """Inicia o modulo Backup File Detection em modo interativo."""
+    parser = backupfiledetect.build_parser()
+    run_interactive_shell(
+        parser, "bak> ", backupfiledetect.run_once,
+        description="Backup File Detection interativo — busca .bak, .old, .swp, .sql, .zip expostos.",
+        example="http://target.com --type sql",
+        banner_fn=backupfiledetect.banner,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  http://target.com\n"
+            "  http://target.com --type sql\n"
+            "  http://target.com --type archive\n"
+            "  -l urls.txt -o results.json"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -495,12 +522,14 @@ def main() -> int:
                 launch_vcsleak()
             case "15" | "config" | "cfg" | "env" | "configfiledetect":
                 launch_configfiledetect()
-            case "16" | "reconall" | "all" | "full":
+            case "16" | "bak" | "backup" | "backupfiledetect":
+                launch_backupfiledetect()
+            case "17" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "17" | "help" | "ajuda" | "h":
+            case "18" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "18" | "clear" | "limpar" | "cls":
+            case "19" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
