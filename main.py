@@ -7,6 +7,7 @@ import configfiledetect
 import darkwebmonitor
 import dirscanner
 import dnshistory
+import dnsamplification
 import dnsrebinding
 import dnstransfer
 import dnswatorture
@@ -53,7 +54,8 @@ Painel interativo central que permite alternar entre:
    21. Dark Web Monitor - Busca mencoes em sites .onion
    22. DNS Rebinding - Testa vulnerabilidade a DNS rebinding
    23. DNS Water Torture - Stress test DNS com subdominios aleatorios
-   24. ReconAll     - Todos os modulos contra um alvo
+   24. DNS Amplification - Detecta se servidor pode ser usado para amplificacao
+   25. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -101,9 +103,10 @@ def menu() -> None:
     print(f"  {color('21', Cyber.GREEN, Cyber.BOLD)} {color('Dark Web Monitor', Cyber.CYAN)}  Mencoes em sites .onion")
     print(f"  {color('22', Cyber.GREEN, Cyber.BOLD)} {color('DNS Rebinding', Cyber.CYAN)}      Testa vuln rebinding (TTL, IP, CNAME)")
     print(f"  {color('23', Cyber.GREEN, Cyber.BOLD)} {color('DNS Water Torture', Cyber.CYAN)} Stress test DNS (subdominios aleatorios)")
-    print(f"  {color('24', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('25', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('26', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('24', Cyber.GREEN, Cyber.BOLD)} {color('DNS Amplification', Cyber.CYAN)}  Detecta amplificacao DNS (audit)")
+    print(f"  {color('25', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('26', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('27', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -203,6 +206,10 @@ def help_screen() -> None:
     print("  mytools-dwt example.com --rate 100 --duration 30")
     print("  mytools-dwt example.com --nameserver 8.8.8.8 --pattern uuid")
     print("  mytools-dwt example.com --concurrency 50 --duration 60")
+    print(color("\nDNS Amplification Detection:", Cyber.CYAN))
+    print("  mytools-amp example.com")
+    print("  mytools-amp 8.8.8.8 --nameserver 1.1.1.1")
+    print("  mytools-amp example.com --record-types ANY,TXT,MX")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -644,6 +651,24 @@ def launch_dnswatorture() -> None:
     )
 
 
+def launch_dnsamplification() -> None:
+    """Inicia o módulo DNS Amplification Detection em modo interativo."""
+    parser = dnsamplification.build_parser()
+    run_interactive_shell(
+        parser, "amp> ", dnsamplification.run_once,
+        description="DNS Amplification Detection interativo.",
+        example="example.com --record-types ANY,TXT,MX",
+        banner_fn=dnsamplification.banner,
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  8.8.8.8 --nameserver 1.1.1.1\n"
+            "  example.com --record-types ANY,TXT,MX"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -727,12 +752,14 @@ def main() -> int:
                 launch_dnsrebinding()
             case "23" | "dwt" | "watorture" | "dns watorture" | "dnswatorture":
                 launch_dnswatorture()
-            case "24" | "reconall" | "all" | "full":
+            case "24" | "amp" | "amplification" | "dnsamplification":
+                launch_dnsamplification()
+            case "25" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "25" | "help" | "ajuda" | "h":
+            case "26" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "26" | "clear" | "limpar" | "cls":
+            case "27" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
