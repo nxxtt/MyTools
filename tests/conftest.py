@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 
-from reconall import _get_parser_defaults
-from utils import create_async_client
+from mytools.core.reconall import _get_parser_defaults
+from mytools.core.utils import create_async_client
 
 
 @pytest.fixture(scope="session")
