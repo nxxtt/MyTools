@@ -49,6 +49,7 @@ mytools-dark = "darkwebmonitor:main"
 mytools-rebind = "dnsrebinding:main"
 mytools-dwt = "dnswatorture:main"
 mytools-amp = "dnsamplification:main"
+mytools-tunnel = "dnstunnel:main"
 mytools-reconall = "reconall:main"
 
 [build-system]
