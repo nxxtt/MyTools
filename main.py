@@ -3,22 +3,23 @@ import sys
 
 import attackaudit
 import backupfiledetect
+import caacheck
 import configfiledetect
 import darkwebmonitor
 import dirscanner
-import dnshistory
 import dnsamplification
+import dnshistory
 import dnsrebinding
 import dnssecvalidation
-import dnstunnel
-import nsecwalking
-import caacheck
 import dnstransfer
+import dnstunnel
 import dnswatorture
 import emailbreachcheck
+import emailsecurity
 import googledorking
 import graphqlplayground
 import ipasninfo
+import nsecwalking
 import openapidiscovery
 import pasteleak
 import portscanner
@@ -63,7 +64,8 @@ Painel interativo central que permite alternar entre:
    26. DNSSEC Validation - Verifica se DNSSEC esta configurado corretamente
    27. NSEC Walking   - Enumera zona via NSEC records em DNSSEC
    28. CAA Record Check - Verifica registros CAA de certificados
-   29. ReconAll     - Todos os modulos contra um alvo
+   29. Email Security  - Verifica DMARC/SPF/DKIM
+   30. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -116,9 +118,10 @@ def menu() -> None:
     print(f"  {color('26', Cyber.GREEN, Cyber.BOLD)} {color('DNSSEC Validation', Cyber.CYAN)} Verifica se DNSSEC esta correto")
     print(f"  {color('27', Cyber.GREEN, Cyber.BOLD)} {color('NSEC Walking', Cyber.CYAN)}      Enumera zona via NSEC records")
     print(f"  {color('28', Cyber.GREEN, Cyber.BOLD)} {color('CAA Record Check', Cyber.CYAN)} Verifica registros CAA de certificados")
-    print(f"  {color('29', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('30', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('31', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('29', Cyber.GREEN, Cyber.BOLD)} {color('Email Security', Cyber.CYAN)}   Verifica DMARC/SPF/DKIM")
+    print(f"  {color('30', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('31', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('32', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -237,6 +240,10 @@ def help_screen() -> None:
     print(color("\nCAA Record Check:", Cyber.CYAN))
     print("  mytools-caa example.com")
     print("  mytools-caa example.com --nameserver 1.1.1.1")
+    print(color("\nEmail Security (DMARC/SPF/DKIM):", Cyber.CYAN))
+    print("  mytools-secemail example.com")
+    print("  mytools-secemail example.com --selectors default,google")
+    print("  mytools-secemail example.com --nameserver 1.1.1.1")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -767,6 +774,24 @@ def launch_caacheck() -> None:
     )
 
 
+def launch_emailsecurity() -> None:
+    """Inicia o módulo Email Security em modo interativo."""
+    parser = emailsecurity.build_parser()
+    run_interactive_shell(
+        parser, "secemail> ", emailsecurity.run_once,
+        description="Email Security interativo — verifica DMARC/SPF/DKIM.",
+        example="example.com --selectors default,google",
+        banner_fn=emailsecurity.banner,
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --selectors default,google,s1\n"
+            "  example.com --nameserver 1.1.1.1"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -860,12 +885,14 @@ def main() -> int:
                 launch_nsecwalking()
             case "28" | "caa" | "caacheck":
                 launch_caacheck()
-            case "29" | "reconall" | "all" | "full":
+            case "29" | "secemail" | "emailsecurity" | "dmarc" | "spf" | "dkim":
+                launch_emailsecurity()
+            case "30" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "30" | "help" | "ajuda" | "h":
+            case "31" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "31" | "clear" | "limpar" | "cls":
+            case "32" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
