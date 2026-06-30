@@ -9,6 +9,7 @@ import dirscanner
 import dnshistory
 import dnsamplification
 import dnsrebinding
+import dnssecvalidation
 import dnstunnel
 import dnstransfer
 import dnswatorture
@@ -57,7 +58,8 @@ Painel interativo central que permite alternar entre:
    23. DNS Water Torture - Stress test DNS com subdominios aleatorios
    24. DNS Amplification - Detecta se servidor pode ser usado para amplificacao
    25. DNS Tunnel    - Detecta DNS tunneling via analise de padroes
-   26. ReconAll     - Todos os modulos contra um alvo
+   26. DNSSEC Validation - Verifica se DNSSEC esta configurado corretamente
+   27. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -107,9 +109,10 @@ def menu() -> None:
     print(f"  {color('23', Cyber.GREEN, Cyber.BOLD)} {color('DNS Water Torture', Cyber.CYAN)} Stress test DNS (subdominios aleatorios)")
     print(f"  {color('24', Cyber.GREEN, Cyber.BOLD)} {color('DNS Amplification', Cyber.CYAN)}  Detecta amplificacao DNS (audit)")
     print(f"  {color('25', Cyber.GREEN, Cyber.BOLD)} {color('DNS Tunnel', Cyber.CYAN)}        Detecta DNS tunneling via padroes")
-    print(f"  {color('26', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('27', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('28', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('26', Cyber.GREEN, Cyber.BOLD)} {color('DNSSEC Validation', Cyber.CYAN)} Verifica se DNSSEC esta correto")
+    print(f"  {color('27', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('28', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('29', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -217,6 +220,10 @@ def help_screen() -> None:
     print("  mytools-tunnel example.com")
     print("  mytools-tunnel example.com --num-queries 100")
     print("  mytools-tunnel example.com --min-entropy 3.5 --max-label-length 30")
+    print(color("\nDNSSEC Validation:", Cyber.CYAN))
+    print("  mytools-dnssec example.com")
+    print("  mytools-dnssec example.com --nameserver 1.1.1.1")
+    print("  mytools-dnssec example.com --query-timeout 10")
     print(color("\nReconAll:", Cyber.CYAN))
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
@@ -682,14 +689,32 @@ def launch_dnstunnel() -> None:
     run_interactive_shell(
         parser, "tunnel> ", dnstunnel.run_once,
         description="DNS Tunnel Detection interativo.",
-        example="example.com --queries 100 --min-entropy 3.5",
+        example="example.com --num-queries 100 --min-entropy 3.5",
         banner_fn=dnstunnel.banner,
         contextual_help=(
             "Uso: <dominio> [opcoes]\n"
             "Exemplos:\n"
             "  example.com\n"
-            "  example.com --queries 100\n"
+            "  example.com --num-queries 100\n"
             "  example.com --min-entropy 3.5 --max-label-length 30"
+        ),
+    )
+
+
+def launch_dnssecvalidation() -> None:
+    """Inicia o módulo DNSSEC Validation em modo interativo."""
+    parser = dnssecvalidation.build_parser()
+    run_interactive_shell(
+        parser, "dnssec> ", dnssecvalidation.run_once,
+        description="DNSSEC Validation interativo.",
+        example="example.com --nameserver 8.8.8.8",
+        banner_fn=dnssecvalidation.banner,
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --nameserver 1.1.1.1\n"
+            "  example.com --query-timeout 10"
         ),
     )
 
@@ -781,12 +806,14 @@ def main() -> int:
                 launch_dnsamplification()
             case "25" | "tunnel" | "dnstunnel":
                 launch_dnstunnel()
-            case "26" | "reconall" | "all" | "full":
+            case "26" | "dnssec" | "dnssecvalidation":
+                launch_dnssecvalidation()
+            case "27" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "27" | "help" | "ajuda" | "h":
+            case "28" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "28" | "clear" | "limpar" | "cls":
+            case "29" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
