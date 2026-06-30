@@ -2,9 +2,6 @@
 """Testes unitarios do modulo de Email Security (DMARC/SPF/DKIM)."""
 from unittest.mock import MagicMock, patch
 
-import dns.exception
-import dns.resolver
-
 import pytest
 
 from emailsecurity import (
