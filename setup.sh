@@ -19,7 +19,7 @@ if command -v python3 &>/dev/null; then
 elif command -v python &>/dev/null; then
     PY="python"
 else
-    echo "  ERRO: Python nao encontrado. Instale Python 3.10+."
+    echo "  ERRO: Python nao encontrado. Instale Python 3.14+."
     exit 1
 fi
 echo "  OK: $($PY --version)"

@@ -42,3 +42,6 @@ Desktop.ini
 out.json
 *.csv
 results/
+
+# MyTools
+src/mytools.egg-info/

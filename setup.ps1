@@ -17,7 +17,7 @@ try {
     $pyVersion = python --version 2>&1
     Write-Host "  OK: $pyVersion" -ForegroundColor Green
 } catch {
-    Write-Host "  ERRO: Python nao encontrado. Instale Python 3.10+ e adicione ao PATH." -ForegroundColor Red
+    Write-Host "  ERRO: Python nao encontrado. Instale Python 3.14+ e adicione ao PATH." -ForegroundColor Red
     exit 1
 }
 

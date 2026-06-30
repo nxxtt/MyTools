@@ -40,17 +40,17 @@ poetry install --with dev
 
 Isso instala os comandos CLI:
 
-| Comando | Módulo |
+| Comando | Modulo |
 |---------|--------|
 | `mytools` | Painel interativo central |
 | `mytools-audit` | Auditoria ofensiva/defensiva |
 | `mytools-recon` | Reconhecimento passivo |
 | `mytools-port` | Scanner de portas TCP |
-| `mytools-dir` | Scanner de diretórios HTTP |
+| `mytools-dir` | Scanner de diretorios HTTP |
 | `mytools-dnsxfer` | DNS Zone Transfer |
-| `mytools-subenum` | Enumeração de subdomínios |
-| `mytools-dnshistory` | Histórico DNS (OSINT) |
-| `mytools-whoishistory` | Histórico WHOIS (OSINT) |
+| `mytools-subenum` | Enumeracao de subdominios |
+| `mytools-dnshistory` | Historico DNS (OSINT) |
+| `mytools-whoishistory` | Historico WHOIS (OSINT) |
 | `mytools-ipasn` | IP ASN/ISP enrichment |
 | `mytools-techfp` | Technology Fingerprint |
 | `mytools-oas` | OpenAPI/Swagger Discovery |
@@ -64,20 +64,94 @@ Isso instala os comandos CLI:
 | `mytools-soceng` | Social Engineering Recon |
 | `mytools-leak` | Paste/Leak Monitoring |
 | `mytools-dark` | Dark Web Monitoring |
+| `mytools-rebind` | DNS Rebinding Detection |
+| `mytools-dwt` | DNS Water Torture (stress test) |
+| `mytools-amp` | DNS Amplification Detection |
+| `mytools-tunnel` | DNS Tunnel Detection |
+| `mytools-dnssec` | DNSSEC Validation |
+| `mytools-nsec` | NSEC Walking |
+| `mytools-caa` | CAA Record Check |
+| `mytools-secemail` | Email Security (DMARC/SPF/DKIM) |
+| `mytools-spoof` | Email Spoofing Analysis |
+| `mytools-smtpinject` | SMTP Header Injection |
+| `mytools-smtpdown` | SMTP Downgrade Attack |
+| `mytools-templeti` | Email Template Injection |
 | `mytools-cred` | Gerenciador de credenciais |
-| `mytools-reconall` | Recon completo (todos os módulos) |
+| `mytools-reconall` | Recon completo (todos os modulos) |
 
-> **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
+> **Nota:** Apos instalar, abra um novo terminal. Se o comando nao for encontrado, adicione o diretorio `Scripts` do Python ao PATH.
 
-### Execução direta (sem instalar)
-```bash
-python main.py               # Painel unificado
-python attackaudit.py --help # Ajuda individual
+---
+
+## Estrutura do Projeto
+
+```
+src/mytools/                    # Pacote principal
+  __init__.py                   # __version__
+  core/                         # Infraestrutura compartilhada
+    utils.py                    # Cores, HTTP async, helpers, output
+    cred.py                     # Gerenciador de credenciais (keyring)
+    main.py                     # Menu interativo central
+    reconall.py                 # Orquestrador: executa todos os modulos
+  network/                      # Rede e portas
+    portscanner.py              # Scanner de portas TCP
+    dirscanner.py               # Scanner de diretorios HTTP
+  web/                          # Web e HTTP
+    webrecon.py                 # Reconhecimento passivo + CVE + WHOIS
+    attackaudit.py              # Auditoria ofensiva/defensiva
+    openapidiscovery.py         # OpenAPI/Swagger Discovery
+    graphqlplayground.py        # GraphQL Playground Exposure
+    sourcemapdiscovery.py       # Source Map Discovery
+    techfingerprint.py          # Technology Fingerprint
+  dns/                          # DNS e resolucao
+    dnstransfer.py              # DNS Zone Transfer
+    subdomainenum.py            # Enumeracao de subdominios
+    dnshistory.py               # Historico DNS (OSINT)
+    dnswatorture.py             # DNS Water Torture (stress test)
+    dnsamplification.py         # DNS Amplification Detection
+    dnstunnel.py                # DNS Tunnel Detection
+    dnssecvalidation.py         # DNSSEC Validation
+    nsecwalking.py              # NSEC Walking
+    caacheck.py                 # CAA Record Check
+    dnsrebinding.py             # DNS Rebinding Detection
+  whois/                        # WHOIS
+    whoishistory.py             # Historico WHOIS (OSINT)
+  osint/                        # OSINT e reconhecimento
+    emailbreachcheck.py         # Email Breach Check
+    socialengrecon.py           # Social Engineering Recon
+    pasteleak.py                # Paste/Leak Monitoring
+    darkwebmonitor.py           # Dark Web Monitoring
+    googledorking.py            # Google Dorking
+    ipasninfo.py                # IP ASN/ISP Enrichment
+  email/                        # Seguranca de email
+    emailsecurity.py            # DMARC/SPF/DKIM
+    emailspoof.py               # Email Spoofing Analysis
+    smtpinjection.py            # SMTP Header Injection
+    smtpdowngrade.py            # SMTP Downgrade Attack
+    emailtemplateinject.py      # Email Template Injection
+  vcs/                          # Controle de versao
+    vcsleak.py                  # VCS Leak Detection
+  config/                       # Arquivos de configuracao
+    configfiledetect.py         # Config File Detection
+    backupfiledetect.py         # Backup File Detection
+
+tests/                          # Testes unitarios (1900 testes)
+  core/                         # test_utils, test_cred, test_reconall
+  network/                      # test_portscanner, test_dirscanner
+  web/                          # test_webrecon, test_attackaudit, ...
+  dns/                          # test_dnstransfer, test_subdomainenum, ...
+  whois/                        # test_whoishistory
+  osint/                        # test_emailbreachcheck, ...
+  email/                        # test_emailsecurity, ...
+  vcs/                          # test_vcsleak
+  config/                       # test_configfiledetect, ...
+
+pyproject.toml                  # Configuracao do projeto
 ```
 
 ---
 
-## Módulos
+## Modulos
 
 ### 1. Painel Central (`mytools`)
 Orquestrador do ecossistema com menu interativo colorido para alternar entre todas as subferramentas.
@@ -88,7 +162,7 @@ mytools --version
 ```
 
 ### 2. Network PortScanner (`mytools-port`)
-Scanner de portas TCP com suporte a CIDR, banner grabbing e exportação JSON/CSV.
+Scanner de portas TCP com suporte a CIDR, banner grabbing e exportacao JSON/CSV.
 
 ```bash
 mytools-port 192.168.0.0/24 -p 22,80,443 -b
@@ -98,7 +172,7 @@ mytools-port 10.0.0.0/30 -p 80 -w 100 --banner -o scan.csv
 ```
 
 ### 3. Web Directory Scanner (`mytools-dir`)
-Fuzzing e descoberta de caminhos ocultos em servidores web com filtros de status code e extensões.
+Fuzzing e descoberta de caminhos ocultos em servidores web com filtros de status code e extensoes.
 
 ```bash
 mytools-dir http://target.local -x php,txt,bak -s 200,403
@@ -108,72 +182,63 @@ mytools-dir -l urls.txt --output-dir results/
 ```
 
 ### 4. Web Passive Recon (`mytools-recon`)
-Reconhecimento passivo: headers de segurança, fingerprinting, robots.txt, sitemap.xml, WAF detection, email harvesting, WHOIS e lookup de CVEs.
+Reconhecimento passivo: headers de seguranca, fingerprinting, robots.txt, sitemap.xml, WAF detection, email harvesting, WHOIS e lookup de CVEs.
 
 ```bash
 mytools-recon https://example.com
 mytools-recon https://example.com -o recon.json
-mytools-recon https://example.com --proxy http://proxy:8080
-mytools-recon -l targets.txt --output-dir results/
 mytools-recon https://example.com --cve                    # Lookup de CVEs
 mytools-recon https://example.com --cve --nvd-api-key KEY  # Com API key
 mytools-recon https://example.com --deep                   # Email harvesting + crawl
-mytools-recon https://example.com --deep --crawl-limit 20  # Limite de páginas crawleadas
+mytools-recon https://example.com --deep --crawl-limit 20  # Limite de paginas crawleadas
 ```
 
 ### 5. Deep Attack & Vulnerability Audit (`mytools-audit`)
-Auditoria red/blue com verificação de CORS, TLS, cookies, XSS, SQLi, CSRF, métodos HTTP perigosos e deep scan de arquivos sensíveis.
+Auditoria red/blue com verificacao de CORS, TLS, cookies, XSS, SQLi, CSRF, metodos HTTP perigosos e deep scan de arquivos sensiveis.
 
 ```bash
 mytools-audit https://example.com --deep
 mytools-audit https://example.com --deep -o audit.json
-mytools-audit https://example.com --deep --proxy http://proxy:8080 --delay 5
-mytools-audit -l targets.txt --output-dir results/
 mytools-audit https://example.com --test-vulns                 # Testa XSS, SQLi e CSRF
-mytools-audit https://example.com --paths-file sensitive.txt  # Paths customizados
-mytools-audit https://example.com --test-methods              # Scan de métodos HTTP
+mytools-audit https://example.com --test-methods               # Scan de metodos HTTP
 ```
 
 ### 6. DNS Zone Transfer (`mytools-dnsxfer`)
-Tenta zone transfer (AXFR) em nameservers de um domínio para enumerar registros DNS.
+Tenta zone transfer (AXFR) em nameservers de um dominio para enumerar registros DNS.
 
 ```bash
 mytools-dnsxfer example.com
 mytools-dnsxfer example.com -o xfr.json
-mytools-dnsxfer example.com -t 15
 ```
 
 ### 7. Subdomain Enumeration (`mytools-subenum`)
-Brute-force DNS de subdomínios com wordlist embutida ou customizada.
+Brute-force DNS de subdominios com wordlist embutida ou customizada.
 
 ```bash
 mytools-subenum example.com
 mytools-subenum example.com -o subs.json
 mytools-subenum example.com -w wordlist.txt
 mytools-subenum example.com -T 50
-mytools-subenum -l domains.txt --output-dir results/
 ```
 
 ### 8. DNS History (`mytools-dnshistory`)
-Consulta histórico DNS via fontes OSINT (DNSlytics, SecurityTrails, ViewDNS).
+Consulta historico DNS via fontes OSINT (DNSlytics, SecurityTrails, ViewDNS).
 
 ```bash
 mytools-dnshistory example.com
 mytools-dnshistory example.com -o dns-history.json
-mytools-dnshistory example.com --sources dnslytics,viewdns
 ```
 
 ### 9. WHOIS History (`mytools-whoishistory`)
-Consulta histórico WHOIS via fontes OSINT (SecurityTrails, WhoisXML).
+Consulta historico WHOIS via fontes OSINT (SecurityTrails, WhoisXML).
 
 ```bash
 mytools-whoishistory example.com
 mytools-whoishistory example.com -o whois-history.json
-mytools-whoishistory example.com --api-key KEY
 ```
 
 ### 10. IP ASN/ISP Info (`mytools-ipasn`)
-Enriquece IPs com dados BGP: ASN, organização, ISP, país, cidade. Dual API (ipwho.is + ip-api.com), suporte batch.
+Enriquece IPs com dados BGP: ASN, organizacao, ISP, pais, cidade. Dual API (ipwho.is + ip-api.com), suporte batch.
 
 ```bash
 mytools-ipasn 8.8.8.8
@@ -182,381 +247,203 @@ mytools-ipasn -l ips.txt -o asn.json
 ```
 
 ### 11. Technology Fingerprint (`mytools-techfp`)
-Fingerprinting tecnológico com 7 sinais: headers, meta tags, scripts, CSS, cookies, body HTML, headers de segurança. 40+ tecnologias, confidence scoring, categorias.
+Fingerprinting tecnologico com 7 sinais: headers, meta tags, scripts, CSS, cookies, body HTML, headers de seguranca. 40+ tecnologias, confidence scoring.
 
 ```bash
 mytools-techfp https://example.com
 mytools-techfp https://example.com -o tech.json
-mytools-techfp -l urls.txt --output-dir results/
 ```
 
 ### 12. OpenAPI/Swagger Discovery (`mytools-oas`)
-Busca specs OpenAPI/Swagger expostas em paths comuns, faz parse JSON/YAML, extrai endpoints, métodos, tags e schemas.
+Busca specs OpenAPI/Swagger expostas em paths comuns, faz parse JSON/YAML, extrai endpoints, metodos, tags e schemas.
 
 ```bash
 mytools-oas http://target.com
 mytools-oas http://target.com --endpoints
-mytools-oas -l urls.txt -o oas.json
 ```
 
 ### 13. GraphQL Playground Exposure (`mytools-gql`)
-Descobre GraphQL playgrounds expostos (GraphiQL, Playground, Altair, Voyager, Apollo Sandbox) e opcionalmente executa introspection query para extrair schema.
+Descobre GraphQL playgrounds expostos (GraphiQL, Playground, Altair, Voyager) e opcionalmente executa introspection query.
 
 ```bash
 mytools-gql http://target.com
 mytools-gql http://target.com --introspect
-mytools-gql http://target.com --schema
 ```
 
 ### 14. Source Map Discovery (`mytools-sm`)
-Busca `.map` files de JavaScript expostos por duas abordagens: scan de `<script src>` + probing de paths comuns.
+Busca `.map` files de JavaScript expostos por scan de `<script src>` + probing de paths comuns.
 
 ```bash
 mytools-sm http://target.com
 mytools-sm http://target.com --sources
-mytools-sm http://target.com --no-scan-scripts
 ```
 
 ### 15. VCS Leak Detection (`mytools-vcs`)
-Detecta repositórios versionados expostos (.git, .svn, .hg) com validação de conteúdo para evitar falsos positivos.
+Detecta repositorios versionados expostos (.git, .svn, .hg) com validacao de conteudo.
 
 ```bash
 mytools-vcs http://target.com
 mytools-vcs http://target.com --git-only
-mytools-vcs -l urls.txt -o vcs.json
 ```
 
 ### 16. Config File Detection (`mytools-cfg`)
-Detecta arquivos de configuração sensíveis expostos (.env, config.json, settings.py, .htpasswd) com validação por categoria.
+Detecta arquivos de configuracao sensiveis expostos (.env, config.json, settings.py, .htpasswd).
 
 ```bash
 mytools-cfg http://target.com
 mytools-cfg http://target.com --category env
-mytools-cfg http://target.com --sensitive-only
-mytools-cfg -l urls.txt -o results.json
 ```
 
 ### 17. Backup File Detection (`mytools-bak`)
-Detecta arquivos de backup expostos (.bak, .old, .swp, .sql, .zip) com validação de magic bytes para evitar falsos positivos.
+Detecta arquivos de backup expostos (.bak, .old, .swp, .sql, .zip) com validacao de magic bytes.
 
 ```bash
 mytools-bak http://target.com
 mytools-bak http://target.com --type sql
-mytools-bak http://target.com --type archive
-mytools-bak -l urls.txt -o results.json
 ```
 
 ### 18. Google Dorking (`mytools-dork`)
-Gera dorks Google para o alvo e busca via DuckDuckGo. 6 categorias de dorks + dorks customizados.
+Gera dorks Google para o alvo e busca via DuckDuckGo. 6 categorias de dorks.
 
 ```bash
 mytools-dork example.com
-mytools-dork example.com --category filetype
 mytools-dork example.com --category sensitive --search
-mytools-dork example.com --custom-dork 'inurl:api v1'
-mytools-dork -l domains.txt -o results.json
 ```
 
 ### 19. Email Breach Check (`mytools-breach`)
-Verifica se emails apareceram em vazamentos de dados usando múltiplas fontes (XposedOrNot, LeakCheck, HIBP).
+Verifica se emails apareceram em vazamentos de dados (XposedOrNot, LeakCheck, HIBP).
 
 ```bash
 mytools-breach user@example.com
-mytools-breach user1@test.com user2@test.com
 mytools-breach user@example.com --source hibp --hibp-api-key KEY
-mytools-breach -f emails.txt -o results.json
 ```
 
 ### 20. Social Engineering Recon (`mytools-soceng`)
-Coleta emails, nomes e cargos de funcionários do alvo usando GitHub, Hunter.io e web scraping.
+Coleta emails, nomes e cargos de funcionarios via GitHub, Hunter.io e web scraping.
 
 ```bash
 mytools-soceng example.com
-mytools-soceng example.com --source github --source hunter
 mytools-soceng example.com --hunter-api-key KEY
-mytools-soceng -l domains.txt -o results.json
 ```
 
 ### 21. Paste/Leak Monitoring (`mytools-leak`)
-Monitora pastes e repos públicos por credenciais e dados sensíveis do alvo (GitHub Gists, Pastebin RSS, GitLab Snippets).
+Monitora pastes e repos publicos por credenciais e dados sensiveis (GitHub Gists, Pastebin RSS).
 
 ```bash
 mytools-leak example.com
-mytools-leak example.com --source github_gists --source pastebin_rss
 mytools-leak example.com --github-token ghp_xxx
-mytools-leak -l domains.txt -o results.json
 ```
 
 ### 22. Dark Web Monitoring (`mytools-dark`)
-Busca menções do domínio em sites .onion via APIs públicas (Ahmia, DarkSearch, Intelligence X).
-
-```bash
-mytools-dark example.com
-mytools-dark example.com --source ahmia --source darksearch
-mytools-dark example.com --intelx-key KEY
-mytools-dark -l domains.txt -o results.json
-```
-
----
-
-## Features v3.2.0
-
-### Python 3.12+ Modernization
-Código utilize as features modernas do Python 3.14+: `asyncio.TaskGroup` para concorrência segura, `match/case` para dispatch, `tomllib` para parsing TOML, `@override` para herança, PEP 758 `except` sem parênteses, e f-strings PEP 701.
-
-### Multi-target
-Execute qualquer ferramenta em múltiplos alvos a partir de um arquivo:
-
-```bash
-# Arquivo com um URL por linha (linhas com # são ignoradas)
-mytools-recon -l targets.txt --output-dir results/
-mytools-audit -l targets.txt --output-dir results/
-mytools-dir -l urls.txt --output-dir results/
-mytools-port -l hosts.txt -p 80,443
-mytools-subenum -l domains.txt --output-dir results/
-mytools-dnshistory -l domains.txt --output-dir results/
-mytools-whoishistory -l domains.txt --output-dir results/
-mytools-ipasn -l ips.txt -o asn.json
-mytools-techfp -l urls.txt --output-dir results/
-mytools-oas -l urls.txt -o oas.json
-mytools-gql -l urls.txt -o gql.json
-mytools-sm -l urls.txt -o sm.json
-mytools-vcs -l urls.txt -o vcs.json
-```
-
-Cada alvo gera um arquivo individual (`hostname.json`) no `--output-dir`. Com `-o`, gera saída consolidada.
-
-### Quiet Mode
-Sem banner, sem mensagens de progresso — apenas erros no stderr. Requer `-o`:
-
-```bash
-mytools-recon https://example.com -q -o recon.json
-mytools-audit https://example.com --deep -q -o audit.json
-```
-
-### Autenticação
-Suporte a Basic Auth, Bearer Token, Cookies e Headers customizados:
-
-```bash
-# Basic Auth
-mytools-audit https://internal.app --auth admin:senha123
-
-# Bearer Token
-mytools-recon https://api.target.com --bearer-token eyJhbGc...
-
-# Cookie
-mytools-dir http://app.local --cookie "session=abc123; token=xyz"
-
-# Header customizado (pode usar mais de um)
-mytools-recon https://target.com --header "X-Token: abc" --header "Authorization: Bearer xyz"
-```
-
-### Async HTTP (httpx)
-Todos os módulos HTTP utilizam `httpx.AsyncClient` com `asyncio.TaskGroup` e `Semaphore` para concorrência nativa. Módulos independentes rodam em paralelo via `asyncio.gather` + `asyncio.to_thread`.
-
-### CVE Lookup (NIST NVD)
-Detecta versões de frameworks/servidores e busca CVEs associadas:
-
-```bash
-mytools-recon https://example.com --cve
-mytools-recon https://example.com --cve --nvd-api-key YOUR_KEY
-```
-
-- Sem API key: 5 requests/30s
-- Com API key: 50 requests/30s (solicite em https://nvd.nist.gov/developers/request-an-api-key)
-- Fonte: NIST NVD API v2.0
-
-### WHOIS Lookup
-Consulta WHOIS automatica para domínios (retorna None para IPs):
-
-```bash
-mytools-recon https://example.com  # WHOIS sempre executado
-```
-
-### DNS History
-Histórico DNS via fontes OSINT (DNSlytics, SecurityTrails, ViewDNS):
-
-```bash
-mytools-dnshistory example.com
-mytools-dnshistory example.com --sources dnslytics,viewdns
-```
-
-### WHOIS History
-Histórico WHOIS via fontes OSINT (SecurityTrails, WhoisXML):
-
-```bash
-mytools-whoishistory example.com
-mytools-whoishistory example.com --api-key KEY
-```
-
-### IP ASN/ISP Enrichment
-Enriquece IPs com dados BGP completos (ASN, organização, ISP, país):
-
-```bash
-mytools-ipasn 8.8.8.8
-mytools-ipasn 8.8.8.8 1.1.1.1 1.0.0.1
-mytools-ipasn -l ips.txt -o asn.json
-```
-
-Dual API: ipwho.is (individual) + ip-api.com (batch 100 IPs).
-
-### Technology Fingerprint
-Fingerprinting tecnológico avançado com 7 sinais e 40+ tecnologias:
-
-```bash
-mytools-techfp https://example.com
-mytools-techfp https://example.com -o tech.json
-```
-
-Sinais analisados: headers HTTP, meta tags, scripts, CSS, cookies, body HTML, headers de segurança. Confidence scoring (high/medium/low) e categorias (server, language, framework, library, cms).
-
-### OpenAPI/Swagger Discovery
-Busca specs OpenAPI/Swagger expostas em 24 paths comuns, faz parse JSON/YAML, extrai endpoints, métodos, tags e schemas:
-
-```bash
-mytools-oas http://target.com
-mytools-oas http://target.com --endpoints
-```
-
-### GraphQL Playground Exposure
-Detecta 5 ferramentas GraphQL (GraphiQL, Playground, Altair, Voyager, Apollo Sandbox) e opcionalmente executa introspection query:
-
-```bash
-mytools-gql http://target.com
-mytools-gql http://target.com --introspect
-```
-
-### Source Map Discovery
-Busca `.map` files de JavaScript expostos via scan de `<script src>` + probing de 27 paths comuns:
-
-```bash
-mytools-sm http://target.com
-mytools-sm http://target.com --sources
-```
-
-### VCS Leak Detection
-Detecta repositórios versionados expostos (.git, .svn, .hg) com validação de conteúdo e HEAD pre-check:
-
-```bash
-mytools-vcs http://target.com
-mytools-vcs http://target.com --git-only
-```
-
-### Config File Detection
-Detecta arquivos de configuração sensíveis expostos em 6 categorias com 88 paths e validação de conteúdo:
-
-```bash
-mytools-cfg http://target.com
-mytools-cfg http://target.com --category env
-mytools-cfg http://target.com --sensitive-only
-```
-
-### Backup File Detection
-Detecta arquivos de backup expostos com 6 categorias (.bak/.swp/.tilde/.sql/.archive/.orig_tmp) e validação de magic bytes:
-
-```bash
-mytools-bak http://target.com
-mytools-bak http://target.com --type sql
-```
-
-### Google Dorking
-Gera dorks Google em 6 categorias (filetype, directory, login, error, sensitive, subdomain) + dorks customizados + busca via DuckDuckGo:
-
-```bash
-mytools-dork example.com
-mytools-dork example.com --category sensitive --search
-```
-
-### Email Breach Check
-Verifica emails em vazamentos usando 3 fontes (XposedOrNot, LeakCheck, HIBP) com dedup por email+breach:
-
-```bash
-mytools-breach user@example.com
-mytools-breach user@example.com --source hibp --hibp-api-key KEY
-```
-
-### Social Engineering Recon
-Coleta emails, nomes e cargos de funcionários via GitHub API, Hunter.io e web scraping (/about, /team):
-
-```bash
-mytools-soceng example.com
-mytools-soceng example.com --hunter-api-key KEY
-```
-
-### Paste/Leak Monitoring
-Monitora pastes e repos públicos por credenciais com 10 padrões de detecção (AWS, GitHub, Slack, Stripe, etc.):
-
-```bash
-mytools-leak example.com
-mytools-leak example.com --github-token ghp_xxx
-```
-
-### Dark Web Monitoring
-Busca menções do domínio em sites .onion via Ahmia, DarkSearch e Intelligence X com classificação de severidade:
+Busca mencoes do dominio em sites .onion via Ahmia, DarkSearch e Intelligence X.
 
 ```bash
 mytools-dark example.com
 mytools-dark example.com --intelx-key KEY
 ```
 
-### Email Harvesting
-Coleta emails do alvo com crawl recursivo:
+### 23. DNS Rebinding (`mytools-rebind`)
+Testa vulnerabilidade a DNS rebinding (TTL, IPs privados, wildcard, IP flip).
 
 ```bash
-mytools-recon https://example.com --deep                # Ativa crawl
-mytools-recon https://example.com --deep --crawl-limit 20  # Limite de páginas
+mytools-rebind example.com
+mytools-rebind example.com -o rebind.json
 ```
 
-### WAF Detection
-Detecta Web Application Firewalls (Cloudflare, Akamai, AWS WAF, etc.) na resposta HTTP.
-
-### HTTP Methods Scan
-Testa métodos HTTP perigosos (PUT, DELETE, PATCH, TRACE):
+### 24. DNS Water Torture (`mytools-dwt`)
+Stress test DNS com subdominios aleatorios para testar resiliencia.
 
 ```bash
-mytools-audit https://example.com --test-methods
+mytools-dwt example.com
+mytools-dwt example.com --num-queries 1000
 ```
 
-### Paths Customizados (attackaudit)
-Carregue seus próprios paths para deep scan:
+### 25. DNS Amplification (`mytools-amp`)
+Detecta se servidor DNS pode ser usado para amplificacao DDoS.
 
 ```bash
-# Arquivo com um path por linha
-mytools-audit https://example.com --paths-file sensitive.txt --deep
+mytools-amp example.com
+mytools-amp example.com -o amp.json
 ```
 
-O argumento `--paths-file` ativa `--deep` automaticamente.
+### 26. DNS Tunnel Detection (`mytools-tunnel`)
+Detecta DNS tunneling via analise de entropia, comprimento de labels e padroes.
 
-### Controle de Cores
 ```bash
-mytools-recon https://example.com --no-color     # Sem cores
-mytools-port 10.0.0.1 -p 80 --color              # Forçar cores (útil em pipes)
+mytools-tunnel example.com
+mytools-tunnel example.com -o tunnel.json
 ```
 
-### Versão
+### 27. DNSSEC Validation (`mytools-dnssec`)
+Valida configuracao DNSSEC: cadeia de confianca, RRSIG, forca de algoritmo.
+
 ```bash
-mytools --version
-mytools-recon --version
-mytools-audit --version
-mytools-port --version
-mytools-dir --version
-mytools-dnsxfer --version
-mytools-subenum --version
-mytools-dnshistory --version
-mytools-whoishistory --version
-mytools-ipasn --version
-mytools-techfp --version
-mytools-oas --version
-mytools-gql --version
-mytools-sm --version
-mytools-vcs --version
-mytools-cfg --version
-mytools-bak --version
-mytools-dork --version
-mytools-breach --version
-mytools-soceng --version
-mytools-leak --version
-mytools-dark --version
+mytools-dnssec example.com
+mytools-dnssec example.com -o dnssec.json
+```
+
+### 28. NSEC Walking (`mytools-nsec`)
+Enumera zonas DNSSEC via NSEC records em cadeia.
+
+```bash
+mytools-nsec example.com
+mytools-nsec example.com -o nsec.json
+```
+
+### 29. CAA Record Check (`mytools-caa`)
+Verifica registros CAA (Certificate Authority Authorization) de certificados.
+
+```bash
+mytools-caa example.com
+mytools-caa example.com -o caa.json
+```
+
+### 30. Email Security (`mytools-secemail`)
+Verifica configuracao DMARC/SPF/DKIM de email.
+
+```bash
+mytools-secemail example.com
+mytools-secemail example.com -o emailsec.json
+```
+
+### 31. Email Spoofing (`mytools-spoof`)
+Analise de vulnerabilidade a spoofing via SPF/DKIM/DMARC.
+
+```bash
+mytools-spoof example.com
+mytools-spoof example.com -o spoof.json
+```
+
+### 32. SMTP Injection (`mytools-smtpinject`)
+Testa injecao CRLF em campos de email via SMTP.
+
+```bash
+mytools-smtpinject mail.example.com
+mytools-smtpinject mail.example.com --port 25
+```
+
+### 33. SMTP Downgrade (`mytools-smtpdown`)
+Testa se servidor SMTP pode ser forcado a operar em plaintext (STARTTLS stripping).
+
+```bash
+mytools-smtpdown mail.example.com
+mytools-smtpdown mail.example.com --port 25
+```
+
+### 34. Email Template Injection (`mytools-templeti`)
+Testa injecao de codigo em templates de email (Jinja2, Handlebars, Mako).
+
+```bash
+mytools-templeti mail.example.com
+mytools-templeti mail.example.com --port 25
+```
+
+### 35. ReconAll (`mytools-reconall`)
+Executa todos os modulos contra um alvo de uma vez.
+
+```bash
+mytools-reconall https://example.com --deep
+mytools-reconall example.com --skip dnstransfer --skip subenum
 ```
 
 ---
@@ -567,110 +454,81 @@ mytools-dark --version
 ```bash
 mytools
 ```
-O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`.
 
 ### Modo interativo
-Cada módulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
+Cada modulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
 ```
 scanner> 192.168.1.0/24 -p 80,443 -b -t 1
 ```
 Use `help` para ver a ajuda, `exit` para voltar ao menu.
 
-### Exemplos rápidos
-| Comando | Descrição |
+### Exemplos rapidos
+| Comando | Descricao |
 |---------|-----------|
 | `mytools-port 127.0.0.1 -p 1-1024` | Scan TCP nas primeiras 1024 portas |
 | `mytools-dir http://testphp.vulnweb.com -x php` | Busca por arquivos .php |
-| `mytools-recon https://google.com` | Recon passivo rápido |
-| `mytools-recon https://example.com --cve` | Recon com lookup de CVEs |
-| `mytools-recon https://example.com --deep` | Recon com email harvesting + crawl |
-| `mytools-audit https://example.com --deep` | Auditoria completa com deep scan |
-| `mytools-audit https://example.com --test-vulns` | Auditoria com testes XSS, SQLi e CSRF |
-| `mytools-audit https://example.com -q -o audit.json` | Audit silencioso com saída em arquivo |
-| `mytools-audit https://example.com --test-methods` | Scan de métodos HTTP |
+| `mytools-recon https://example.com` | Recon passivo rapido |
+| `mytools-audit https://example.com --deep` | Auditoria completa |
 | `mytools-dnsxfer example.com` | DNS Zone Transfer scan |
-| `mytools-subenum example.com` | Enumeração de subdomínios |
-| `mytools-dnshistory example.com` | Histórico DNS via OSINT |
-| `mytools-whoishistory example.com` | Histórico WHOIS via OSINT |
+| `mytools-subenum example.com` | Enumeracao de subdominios |
+| `mytools-dnshistory example.com` | Historico DNS via OSINT |
 | `mytools-ipasn 8.8.8.8` | IP ASN/ISP enrichment |
 | `mytools-techfp https://example.com` | Technology fingerprinting |
-| `mytools-oas http://target.com` | OpenAPI/Swagger discovery |
-| `mytools-gql http://target.com` | GraphQL playground discovery |
-| `mytools-sm http://target.com` | Source map discovery |
 | `mytools-vcs http://target.com` | VCS leak detection |
-| `mytools-cfg http://target.com` | Config file detection |
-| `mytools-bak http://target.com` | Backup file detection |
 | `mytools-dork example.com` | Google dorking |
 | `mytools-breach user@example.com` | Email breach check |
-| `mytools-soceng example.com` | Social engineering recon |
-| `mytools-leak example.com` | Paste/leak monitoring |
-| `mytools-dark example.com` | Dark web monitoring |
-| `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
+| `mytools-secemail example.com` | Email security (DMARC/SPF/DKIM) |
+| `mytools-rebind example.com` | DNS rebinding test |
+| `mytools-dnssec example.com` | DNSSEC validation |
+| `mytools-reconall https://example.com --deep` | Recon completo |
 
-### Proxy e Rate Limiting
-Todos os módulos HTTP suportam proxy e rate limiting:
-
+### Execucao direta (sem instalar)
 ```bash
-# Usar proxy
-mytools-dir http://target.local --proxy http://proxy:8080
-
-# Rate limiting (segundos entre requests)
-mytools-dir http://target.local --delay 0.5
-
-# Proxy + rate limiting
-mytools-audit https://target.local --deep --proxy http://proxy:8080 --delay 5
-```
-
-### PortScanner — Workers
-```bash
-mytools-port 10.0.0.0/24 -w 500          # 500 threads
-mytools-port 10.0.0.0/24 --threads 500   # alias deprecated
-```
-
-### Controle de Cores
-```bash
-# Desativar cores (padrão NO_COLOR — https://no-color.org/)
-export NO_COLOR=1
-mytools
+python -m mytools.core.main                # Painel unificado
+python -m mytools.web.attackaudit --help   # Ajuda individual
+python -m mytools.dns.dnstransfer --help   # DNS Zone Transfer
 ```
 
 ---
 
-## Estrutura do Projeto
+## Features v3.2.0
 
+### src/ Package Structure
+Codigo organizado em `src/mytools/` com subpacotes por categoria: `core`, `network`, `web`, `dns`, `whois`, `osint`, `email`, `vcs`, `config`.
+
+### Python 3.14+ Modernization
+Codigo utiliza features modernas do Python 3.14+: `asyncio.TaskGroup`, `match/case`, `tomllib`, PEP 758 `except` sem parenteses, f-strings PEP 701.
+
+### Multi-target
+Execute qualquer ferramenta em multiplos alvos a partir de um arquivo:
+
+```bash
+mytools-recon -l targets.txt --output-dir results/
+mytools-audit -l targets.txt --output-dir results/
+mytools-port -l hosts.txt -p 80,443
 ```
-MyTools-main/
-├── main.py                 # Painel central
-├── portscanner.py          # Scanner de portas TCP
-├── dirscanner.py           # Scanner de diretórios HTTP
-├── webrecon.py             # Reconhecimento passivo + CVE + WHOIS + emails
-├── attackaudit.py          # Auditoria ofensiva/defensiva + métodos HTTP
-├── reconall.py             # Wrapper: executa todos os módulos contra um alvo
-├── dnstransfer.py          # DNS Zone Transfer
-├── subdomainenum.py        # Enumeração de subdomínios
-├── dnshistory.py           # Histórico DNS (OSINT)
-├── whoishistory.py         # Histórico WHOIS (OSINT)
-├── ipasninfo.py            # IP ASN/ISP enrichment
-├── techfingerprint.py      # Technology Fingerprint (7 sinais)
-├── openapidiscovery.py     # OpenAPI/Swagger Discovery
-├── graphqlplayground.py    # GraphQL Playground Exposure
-├── sourcemapdiscovery.py   # Source Map Discovery
-├── vcsleak.py              # VCS Leak Detection (.git, .svn, .hg)
-├── configfiledetect.py     # Config File Detection
-├── backupfiledetect.py     # Backup File Detection
-├── googledorking.py        # Google Dorking
-├── emailbreachcheck.py     # Email Breach Check
-├── socialengrecon.py       # Social Engineering Recon
-├── pasteleak.py            # Paste/Leak Monitoring
-├── darkwebmonitor.py       # Dark Web Monitoring
-├── utils.py                # Código compartilhado (cores, helpers, HTTP async)
-├── cred.py                 # Gerenciador de credenciais (keyring)
-├── KNOW_ISSUES.txt         # Problemas conhecidos
-├── ROADMAP.txt             # Roadmap de otimizações
-├── tests/                  # Testes unitários (1587 testes)
-├── pyproject.toml          # Configuração do projeto
-└── README.MD
+
+### Quiet Mode
+Sem banner, sem mensagens de progresso — apenas erros no stderr:
+
+```bash
+mytools-recon https://example.com -q -o recon.json
 ```
+
+### Autenticacao
+Suporte a Basic Auth, Bearer Token, Cookies e Headers customizados:
+
+```bash
+mytools-audit https://internal.app --auth admin:senha123
+mytools-recon https://api.target.com --bearer-token eyJhbGc...
+mytools-dir http://app.local --cookie "session=abc123"
+```
+
+### Async HTTP (httpx)
+Todos os modulos HTTP utilizam `httpx.AsyncClient` com `asyncio.TaskGroup` e `Semaphore`.
+
+### 1900 Testes
+Suite completa de testes unitarios com mocks, organizados por categoria.
 
 ---
 
@@ -683,24 +541,24 @@ poetry run pytest tests/ -v
 
 ### Lint
 ```bash
-poetry run ruff check .
-poetry run basedpyright
+poetry run ruff check src/mytools/ tests/
+poetry run basedpyright src/mytools/
 ```
 
-### Adicionar dependências de dev
+### Adicionar dependencias de dev
 ```bash
 poetry install --with dev
 ```
 
 ---
 
-## Dependências
+## Dependencias
 
 ### Runtime
 - `httpx>=0.28.1` — HTTP client async com sessions, proxy, retry
-- `beautifulsoup4>=4.15.0` — Parser HTML avançado
+- `beautifulsoup4>=4.15.0` — Parser HTML avancado
 - `python-whois>=0.9.6` — Consulta WHOIS
-- `dnspython>=2.8.0` — Resolução DNS, zone transfer e enumeração de subdomínios
+- `dnspython>=2.8.0` — Resolucao DNS, zone transfer e enumeracao
 - `pyyaml>=6.0.3` — Parse de YAML (OpenAPI specs)
 
 ### Dev
@@ -708,13 +566,13 @@ poetry install --with dev
 - `pytest-asyncio>=1.4.0` — Testes async
 - `respx>=0.23.1` — Mock de httpx para testes
 - `ruff>=0.15.20` — Linter/formatter
-- `basedpyright` — Type checker
+- `basedpyright>=1.39.8` — Type checker
 
 ---
 
 ## Aviso Legal
 
-Este software é fornecido "como está", sem garantia de qualquer tipo. O autor não se responsabiliza pelo uso indevido destas ferramentas. Execute apenas em ambientes que você tenha autorização expressa para testar.
+Este software e fornecido "como esta", sem garantia de qualquer tipo. O autor nao se responsabiliza pelo uso indevido destas ferramentas. Execute apenas em ambientes que voce tenha autorizacao expressa para testar.
 
 ---
 
