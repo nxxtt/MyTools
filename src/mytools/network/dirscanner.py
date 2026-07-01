@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from urllib.parse import urljoin
 
@@ -69,6 +70,14 @@ DEFAULT_PATHS = [
 ]
 
 DEFAULT_STATUSES = frozenset({200, 204, 301, 302, 307, 308, 401, 403})
+
+_CASE_VARIATIONS: list[tuple[str, Callable[[str], str]]] = [
+    ("upper", str.upper),
+    ("title", str.title),
+    ("alt1", lambda s: "".join(c.upper() if i % 2 else c for i, c in enumerate(s))),
+    ("alt2", lambda s: "".join(c.lower() if i % 2 else c for i, c in enumerate(s))),
+    ("capitalize", str.capitalize),
+]
 
 """Scanner HTTP de diretórios e arquivos para alvos autorizados."""
 
@@ -138,8 +147,23 @@ def _read_wordlist(wordlist: str) -> list[str]:
     return read_target_lines(wordlist)
 
 
-def load_paths(wordlist: str | None, extensions: list[str]) -> list[str]:
-    """Carrega caminhos da wordlist ou lista padrão e aplica extensões."""
+def _generate_case_variations(path: str) -> list[str]:
+    """Gera variacoes de case para um path (Admin, ADMIN, aDmIn, etc)."""
+    name, _, ext = path.rpartition(".")
+    base = name if ext else path
+    ext_part = f".{ext}" if ext else ""
+    variations: list[str] = []
+    seen: set[str] = set()
+    for _label, transform in _CASE_VARIATIONS:
+        candidate = transform(base) + ext_part
+        if candidate != path and candidate not in seen:
+            seen.add(candidate)
+            variations.append(candidate)
+    return variations
+
+
+def load_paths(wordlist: str | None, extensions: list[str], case_variation: bool = False) -> list[str]:
+    """Carrega caminhos da wordlist ou lista padrao e aplica extensoes."""
     raw_paths = _read_wordlist(wordlist) if wordlist else list(DEFAULT_PATHS)
 
     paths: set[str] = set()
@@ -151,6 +175,12 @@ def load_paths(wordlist: str | None, extensions: list[str]) -> list[str]:
         if extensions and "." not in os.path.basename(path):
             for extension in extensions:
                 paths.add(f"{path}.{extension}")
+        if case_variation:
+            for variation in _generate_case_variations(path):
+                paths.add(variation)
+                if extensions and "." not in os.path.basename(variation):
+                    for extension in extensions:
+                        paths.add(f"{variation}.{extension}")
 
     if not paths:
         raise ValueError("nenhum path valido para testar")
@@ -386,6 +416,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=parse_range,
         help="Filtrar por numero de palavras. Ex: 10-100",
     )
+    parser.add_argument(
+        "-C",
+        "--case-variation",
+        action="store_true",
+        help="Gera variacoes de case (Admin, ADMIN, aDmIn) para cada path da wordlist",
+    )
     parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) DirScanner/{__version__}")
     return parser
 
@@ -395,7 +431,7 @@ async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -
     extra_headers = parse_extra_headers(args.header) if args.header else {}
     cookie_headers = {"Cookie": args.cookie} if args.cookie else {}
     base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
-    paths = load_paths(args.wordlist, args.extensions)
+    paths = load_paths(args.wordlist, args.extensions, case_variation=getattr(args, "case_variation", False))
     findings = await scan_target(
         base_url=base_url,
         paths=paths,
@@ -429,7 +465,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     ensure_output_dir(output_dir)
 
     if getattr(args, "dry_run", False):
-        paths = load_paths(args.wordlist, args.extensions)
+        paths = load_paths(args.wordlist, args.extensions, case_variation=getattr(args, "case_variation", False))
         print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
@@ -482,6 +518,7 @@ def main() -> int:
             "Exemplos:\n"
             "  http://localhost:8000 -x php,txt,bak\n"
             "  http://target.com -s 200,301,403 -w wordlist.txt\n"
+            "  http://target.com -C -x php,txt,bak\n"
             "  http://target.com -M POST --filter-size 100-5000\n"
             "  -l urls.txt --output-dir results/ -o out.json"
         ),
