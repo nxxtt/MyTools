@@ -43,7 +43,7 @@ logger = logging.getLogger("mytools.charsetbypass")
 
 _CATEGORY_MAP: dict[str, list[str]] = {
     "meta": ["meta_charset_utf7", "meta_charset_utf16", "meta_http_equiv"],
-    "content_type": ["ct_utf7", "ct_utf16", "ct_iso8859", "ct_mismatch"],
+    "content_type": ["ct_utf7", "ct_utf16", "ct_iso8859", "ct_mismatch", "ct_utf8_as_latin1", "ct_latin1_as_utf8", "ct_utf7_xss", "ct_win1252_as_utf8", "ct_utf16_as_iso", "ct_multipart_mismatch"],
     "bom": ["bom_utf7", "bom_utf16_le", "bom_utf16_be"],
     "xml": ["xml_utf7", "xml_utf16", "xml_iso8859"],
     "mixed": ["meta_bom", "ct_meta", "ct_xml"],
@@ -85,6 +85,15 @@ _SQLI_PAYLOADS: list[str] = [
     "1; DROP TABLE users",
     "' UNION SELECT NULL--",
     "admin'--",
+]
+
+_MISMATCH_PAYLOADS: list[tuple[str, str, bytes, str]] = [
+    ("ct_utf8_as_latin1", "text/html; charset=iso-8859-1", "\u00e9\u00e8\u00ea".encode("utf-8"), "UTF-8 body with latin-1 Content-Type"),
+    ("ct_latin1_as_utf8", "text/html; charset=utf-8", b"\xe9\xe8\xea", "Latin-1 body with UTF-8 Content-Type"),
+    ("ct_utf7_xss", "text/html; charset=utf-7", "<script>alert(1)</script>".encode("ascii"), "ASCII XSS with UTF-7 Content-Type"),
+    ("ct_win1252_as_utf8", "text/html; charset=utf-8", b"\x93\x94\x91\x92", "Windows-1252 quotes as UTF-8"),
+    ("ct_utf16_as_iso", "text/html; charset=iso-8859-1", "\u00e9\u00e8".encode("utf-16-le"), "UTF-16LE body with ISO-8859-1 Content-Type"),
+    ("ct_multipart_mismatch", "text/html; charset=iso-8859-1", b"<meta charset=\"utf-8\">\xe9", "Mixed meta charset with latin-1 byte"),
 ]
 
 
@@ -273,6 +282,51 @@ async def _test_content_type_charset(
                 category="content_type",
                 url=base_url,
                 payload=content_type,
+                status_baseline=b_status,
+                status_test=0,
+                size_baseline=b_size,
+                size_test=0,
+                status_changed=False,
+                size_changed=False,
+                vulnerable=False,
+                details="",
+                error=str(exc),
+            ))
+
+    for technique, content_type, body_bytes, desc in _MISMATCH_PAYLOADS:
+        try:
+            resp = await client.post(
+                base_url,
+                content=body_bytes,
+                headers={"Content-Type": content_type},
+                follow_redirects=False,
+            )
+            t_status = resp.status_code
+            t_size = len(resp.content)
+            status_changed = t_status != b_status
+            vulnerable = status_changed and t_status == 200
+
+            attempts.append(CharsetBypassAttempt(
+                technique=technique,
+                category="content_type",
+                url=base_url,
+                payload=f"{content_type} [{desc}]",
+                status_baseline=b_status,
+                status_test=t_status,
+                size_baseline=b_size,
+                size_test=t_size,
+                status_changed=status_changed,
+                size_changed=abs(t_size - b_size) > 50,
+                vulnerable=vulnerable,
+                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                error="",
+            ))
+        except httpx.RequestError as exc:
+            attempts.append(CharsetBypassAttempt(
+                technique=technique,
+                category="content_type",
+                url=base_url,
+                payload=f"{content_type} [{desc}]",
                 status_baseline=b_status,
                 status_test=0,
                 size_baseline=b_size,

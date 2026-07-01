@@ -8,6 +8,7 @@ from mytools.web.charsetbypass import (
     _BOM_BYTES,
     _CATEGORY_MAP,
     _CHARSETS,
+    _MISMATCH_PAYLOADS,
     _SQLI_PAYLOADS,
     _XSS_PAYLOADS,
     CharsetBypassAttempt,
@@ -283,7 +284,7 @@ class TestTestContentTypeCharset:
         attempts = await _test_content_type_charset(
             client, "https://example.com", (200, 1000, b""),
         )
-        assert len(attempts) == 4
+        assert len(attempts) == 10
 
 
 class TestTestBomCharset:
@@ -406,3 +407,87 @@ class TestMain:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()
+
+
+class TestMismatchPayloads:
+    """Testes para _MISMATCH_PAYLOADS."""
+
+    def test_count(self) -> None:
+        assert len(_MISMATCH_PAYLOADS) == 6
+
+    def test_has_utf8_as_latin1(self) -> None:
+        assert any(p[0] == "ct_utf8_as_latin1" for p in _MISMATCH_PAYLOADS)
+
+    def test_has_latin1_as_utf8(self) -> None:
+        assert any(p[0] == "ct_latin1_as_utf8" for p in _MISMATCH_PAYLOADS)
+
+    def test_has_utf7_xss(self) -> None:
+        assert any(p[0] == "ct_utf7_xss" for p in _MISMATCH_PAYLOADS)
+
+    def test_has_win1252_as_utf8(self) -> None:
+        assert any(p[0] == "ct_win1252_as_utf8" for p in _MISMATCH_PAYLOADS)
+
+    def test_has_utf16_as_iso(self) -> None:
+        assert any(p[0] == "ct_utf16_as_iso" for p in _MISMATCH_PAYLOADS)
+
+    def test_has_multipart_mismatch(self) -> None:
+        assert any(p[0] == "ct_multipart_mismatch" for p in _MISMATCH_PAYLOADS)
+
+    def test_all_have_content_type(self) -> None:
+        for _, ct, _, _ in _MISMATCH_PAYLOADS:
+            assert "charset=" in ct
+
+    def test_all_have_body_bytes(self) -> None:
+        for _, _, body, _ in _MISMATCH_PAYLOADS:
+            assert isinstance(body, bytes)
+            assert len(body) > 0
+
+    def test_all_have_descriptions(self) -> None:
+        for _, _, _, desc in _MISMATCH_PAYLOADS:
+            assert len(desc) > 0
+
+
+class TestContentTypeCategoryHasMismatch:
+    """Testes para verificar que content_type category inclui mismatch."""
+
+    def test_has_mismatch_techniques(self) -> None:
+        ct_techniques = _CATEGORY_MAP["content_type"]
+        assert "ct_utf8_as_latin1" in ct_techniques
+        assert "ct_latin1_as_utf8" in ct_techniques
+        assert "ct_utf7_xss" in ct_techniques
+        assert "ct_win1252_as_utf8" in ct_techniques
+        assert "ct_utf16_as_iso" in ct_techniques
+        assert "ct_multipart_mismatch" in ct_techniques
+
+
+class TestContentTypeCharsetWithMismatch:
+    """Testes para _test_content_type_charset com mismatch real."""
+
+    @pytest.mark.asyncio
+    async def test_returns_mismatch_attempts(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"ok"
+        client.post = AsyncMock(return_value=resp)
+
+        attempts = await _test_content_type_charset(
+            client, "https://example.com", (200, 1000, b""),
+        )
+        assert len(attempts) >= 10
+
+    @pytest.mark.asyncio
+    async def test_mismatch_payloads_present(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"ok"
+        client.post = AsyncMock(return_value=resp)
+
+        attempts = await _test_content_type_charset(
+            client, "https://example.com", (200, 1000, b""),
+        )
+        techniques = [a.technique for a in attempts]
+        assert "ct_utf8_as_latin1" in techniques
+        assert "ct_latin1_as_utf8" in techniques
+        assert "ct_utf7_xss" in techniques
