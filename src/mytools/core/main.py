@@ -32,6 +32,7 @@ from mytools.web import (
     pathtraversal,
     rtloverride,
     sourcemapdiscovery,
+    ssrfdetect,
     sstidetect,
     techfingerprint,
     webrecon,
@@ -87,7 +88,8 @@ Painel interativo central que permite alternar entre:
         44. Open Redirect - Detecta redirecionamentos abusivos
         45. CRLF Inject  - Injecao de headers via \\r\\n em HTTP
         46. SSTI Detect  - Server-Side Template Injection
-        47. ReconAll     - Todos os modulos contra um alvo
+        47. SSRF Detect  - Server-Side Request Forgery
+        48. ReconAll     - Todos os modulos contra um alvo
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -158,9 +160,10 @@ def menu() -> None:
     print(f"  {color('44', Cyber.GREEN, Cyber.BOLD)} {color('Open Redirect', Cyber.CYAN)} Detecta redirecionamentos abusivos")
     print(f"  {color('45', Cyber.GREEN, Cyber.BOLD)} {color('CRLF Inject', Cyber.CYAN)}  Injecao de headers via \\r\\n")
     print(f"  {color('46', Cyber.GREEN, Cyber.BOLD)} {color('SSTI Detect', Cyber.CYAN)} Server-Side Template Injection")
-    print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery")
+    print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1236,6 +1239,28 @@ def launch_sstdetect() -> None:
     )
 
 
+def launch_ssrfdetect() -> None:
+    """Inicia o módulo SSRF Detection em modo interativo."""
+    parser = ssrfdetect.build_parser()
+    run_interactive_shell(
+        parser, "ssrf> ", ssrfdetect.run_once,
+        description="SSRF — detecta Server-Side Request Forgery em web apps.",
+        example="https://target.com -c detect",
+        banner_fn=lambda: print(color(
+            "SSRF — detecta Server-Side Request Forgery em web apps",
+            Cyber.RED, Cyber.BOLD,
+        )),
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com\n"
+            "  https://target.com -c detect\n"
+            "  https://target.com -c cloud\n"
+            "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def main() -> int:
     """Loop principal do menu interativo. Retorna 0 ao sair."""
     if "--version" in sys.argv or "-V" in sys.argv:
@@ -1346,12 +1371,14 @@ def main() -> int:
                 launch_crlfinject()
             case "46" | "sstdetect" | "ssti":
                 launch_sstdetect()
-            case "47" | "reconall" | "all" | "full":
+            case "47" | "ssrfdetect" | "ssrf":
+                launch_ssrfdetect()
+            case "48" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "48" | "help" | "ajuda" | "h":
+            case "49" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "49" | "clear" | "limpar" | "cls":
+            case "50" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
