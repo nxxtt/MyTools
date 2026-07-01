@@ -38,6 +38,7 @@ from mytools.web import (
     webrecon,
     xxedetect,
     nosqliinject,
+    ldapiinject,
 )
 from mytools.whois import whoishistory
 
@@ -165,9 +166,10 @@ def menu() -> None:
     print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery")
     print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('XXE Detect', Cyber.CYAN)}   XML External Entity Detection")
     print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)")
-    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP")
+    print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1309,6 +1311,28 @@ def launch_nosqli() -> None:
     )
 
 
+def launch_ldap() -> None:
+    """Inicia o módulo LDAP Injection em modo interativo."""
+    parser = ldapiinject.build_parser()
+    run_interactive_shell(
+        parser, "ldap> ", ldapiinject.run_once,
+        description="LDAP Injection — detecta injecao LDAP em web apps.",
+        example="https://target.com -c detect",
+        banner_fn=lambda: print(color(
+            "LDAP Injection — detecta injecao LDAP em web apps",
+            Cyber.RED, Cyber.BOLD,
+        )),
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com\n"
+            "  https://target.com -c detect\n"
+            "  https://target.com -c auth_bypass\n"
+            "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def main() -> int:
     """Loop principal do menu interativo. Retorna 0 ao sair."""
     if "--version" in sys.argv or "-V" in sys.argv:
@@ -1425,12 +1449,14 @@ def main() -> int:
                 launch_xxedetect()
             case "49" | "nosqli" | "nosql":
                 launch_nosqli()
-            case "50" | "reconall" | "all" | "full":
+            case "50" | "ldap" | "ldapi":
+                launch_ldap()
+            case "51" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "51" | "help" | "ajuda" | "h":
+            case "52" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "52" | "clear" | "limpar" | "cls":
+            case "53" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

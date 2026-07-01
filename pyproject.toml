@@ -74,6 +74,7 @@ mytools-sstdetect = "mytools.web.sstidetect:main"
 mytools-ssrfdetect = "mytools.web.ssrfdetect:main"
 mytools-xxedetect = "mytools.web.xxedetect:main"
 mytools-nosqli = "mytools.web.nosqliinject:main"
+mytools-ldapi = "mytools.web.ldapiinject:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
