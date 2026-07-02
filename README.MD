@@ -93,6 +93,7 @@ Isso instala os comandos CLI:
 | `mytools-xxedetect` | XXE Detection |
 | `mytools-nosqli` | NoSQL Injection Detection |
 | `mytools-ldapi` | LDAP Injection Detection |
+| `mytools-xpathi` | XPath Injection Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -578,7 +579,17 @@ mytools-ldapi https://example.com -c auth_bypass
 mytools-ldapi https://example.com -c bypass
 ```
 
-### 51. ReconAll (`mytools-reconall`)
+### 51. XPath Injection (`mytools-xpathi`)
+Detecta injecao em consultas XPath.
+
+```bash
+mytools-xpathi https://example.com
+mytools-xpathi https://example.com -c detect
+mytools-xpathi https://example.com -c auth_bypass
+mytools-xpathi https://example.com -c extract
+```
+
+### 52. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -949,6 +960,7 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-xxedetect https://example.com` | XXE detection |
 | `mytools-nosqli https://example.com` | NoSQL injection detection |
 | `mytools-ldapi https://example.com` | LDAP injection detection |
+| `mytools-xpathi https://example.com` | XPath injection detection |
 | `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 
 ### Proxy e Rate Limiting
@@ -1008,6 +1020,7 @@ src/mytools/                    # Pacote principal
     xxedetect.py                # XXE Detection
     nosqliinject.py             # NoSQL Injection Detection
     ldapiinject.py              # LDAP Injection Detection
+    xpathinject.py              # XPath Injection Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -1043,7 +1056,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (2861 testes)
+tests/                          # Testes unitários (2938 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
