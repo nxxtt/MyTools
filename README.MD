@@ -104,6 +104,7 @@ Isso instala os comandos CLI:
 | `mytools-blindxss` | Blind XSS via Callback Detection |
 | `mytools-cors` | CORS Misconfiguration Detection |
 | `mytools-clickjack` | Clickjacking Detection |
+| `mytools-hostinject` | Host Header Injection Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -716,7 +717,18 @@ mytools-clickjack https://example.com -c csp
 mytools-clickjack https://example.com -c bypass
 ```
 
-### 63. ReconAll (`mytools-reconall`)
+### 63. Host Header Injection (`mytools-hostinject`)
+Testa manipulação de Host header para spoofing, SSRF, cache poisoning e bypass.
+
+```bash
+mytools-hostinject https://example.com
+mytools-hostinject https://example.com -c reflected
+mytools-hostinject https://example.com -c password_reset
+mytools-hostinject https://example.com -c bypass
+mytools-hostinject https://example.com --inject-host evil.com
+```
+
+### 64. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1158,6 +1170,7 @@ src/mytools/                    # Pacote principal
     blindxss.py                 # Blind XSS via Callback Detection
     corsmisconfig.py            # CORS Misconfiguration Detection
     clickjacking.py             # Clickjacking Detection
+    hostheaderinject.py          # Host Header Injection Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios

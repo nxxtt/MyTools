@@ -31,6 +31,7 @@ from mytools.web import (
     deserialinject,
     doubleurlencode,
     graphqlplayground,
+    hostheaderinject,
     httpparampollution,
     ldapiinject,
     methodoverride,
@@ -189,9 +190,10 @@ def menu() -> None:
     print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
     print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration")
     print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
-    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection")
+    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1605,6 +1607,30 @@ def launch_clickjack() -> None:
     )
 
 
+def launch_hostinject() -> None:
+    """Inicia o módulo Host Header Injection em modo interativo."""
+    parser = hostheaderinject.build_parser()
+    run_interactive_shell(
+        parser, "hostinject> ", hostheaderinject.run_once,
+        description="Host Header Injection — testa manipulação de Host header.",
+        example="https://target.com -c reflected",
+        banner_fn=lambda: print(color(
+            "Host Header Injection — manipulação de Host header",
+            Cyber.RED, Cyber.BOLD,
+        )),
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com\n"
+            "  https://target.com -c reflected\n"
+            "  https://target.com -c password_reset\n"
+            "  https://target.com -c bypass\n"
+            "  https://target.com --inject-host evil.com\n"
+            "  https://target.com --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def main() -> int:
     """Loop principal do menu interativo. Retorna 0 ao sair."""
     if "--version" in sys.argv or "-V" in sys.argv:
@@ -1745,12 +1771,14 @@ def main() -> int:
                 launch_cors()
             case "61" | "clickjack" | "clickjacking" | "cj":
                 launch_clickjack()
-            case "62" | "reconall" | "all" | "full":
+            case "62" | "hostinject" | "hostheaderinject" | "hhi":
+                launch_hostinject()
+            case "63" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "63" | "help" | "ajuda" | "h":
+            case "64" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "64" | "clear" | "limpar" | "cls":
+            case "65" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
