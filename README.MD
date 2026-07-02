@@ -98,6 +98,7 @@ Isso instala os comandos CLI:
 | `mytools-protopoll` | Prototype Pollution Detection |
 | `mytools-deserial` | Deserialization Injection Detection |
 | `mytools-cachepoison` | Cache Poisoning Detection |
+| `mytools-cachedec` | Web Cache Deception Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -637,7 +638,18 @@ mytools-cachepoison https://example.com -c encoding
 mytools-cachepoison https://example.com -c bypass
 ```
 
-### 56. ReconAll (`mytools-reconall`)
+### 56. Web Cache Deception (`mytools-cachedec`)
+Detecta paths que o cache armazena mas a app não deveria — extension, path, framework, encoding, bypass.
+
+```bash
+mytools-cachedec https://example.com
+mytools-cachedec https://example.com -c extension
+mytools-cachedec https://example.com -c path
+mytools-cachedec https://example.com -c framework
+mytools-cachedec https://example.com -c bypass
+```
+
+### 57. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1073,6 +1085,7 @@ src/mytools/                    # Pacote principal
     prototypepollution.py       # Prototype Pollution Detection
     deserialinject.py           # Deserialization Injection Detection
     cachepoisoning.py           # Cache Poisoning Detection
+    cachedeception.py           # Web Cache Deception Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -1108,7 +1121,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (2938 testes)
+tests/                          # Testes unitários (3331 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
