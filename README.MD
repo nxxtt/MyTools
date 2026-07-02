@@ -101,6 +101,7 @@ Isso instala os comandos CLI:
 | `mytools-cachedec` | Web Cache Deception Detection |
 | `mytools-methodoverride` | HTTP Method Override Detection |
 | `mytools-hpp` | HTTP Parameter Pollution Detection |
+| `mytools-blindxss` | Blind XSS via Callback Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -683,7 +684,17 @@ mytools-hpp https://example.com -c header
 mytools-hpp https://example.com -c bypass
 ```
 
-### 60. ReconAll (`mytools-reconall`)
+### 60. Blind XSS via Callback (`mytools-blindxss`)
+Injeta payloads que disparam webhook quando renderizados em painéis internos.
+
+```bash
+mytools-blindxss https://example.com --webhook https://hook.example.com
+mytools-blindxss https://example.com --webhook https://hook.example.com -c input
+mytools-blindxss https://example.com --webhook https://hook.example.com -c header
+mytools-blindxss https://example.com --webhook https://hook.example.com -c bypass
+```
+
+### 61. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1122,6 +1133,7 @@ src/mytools/                    # Pacote principal
     cachedeception.py           # Web Cache Deception Detection
     methodoverride.py           # HTTP Method Override Detection
     httpparampollution.py       # HTTP Parameter Pollution Detection
+    blindxss.py                 # Blind XSS via Callback Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios

