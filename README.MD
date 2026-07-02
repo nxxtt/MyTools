@@ -102,6 +102,7 @@ Isso instala os comandos CLI:
 | `mytools-methodoverride` | HTTP Method Override Detection |
 | `mytools-hpp` | HTTP Parameter Pollution Detection |
 | `mytools-blindxss` | Blind XSS via Callback Detection |
+| `mytools-cors` | CORS Misconfiguration Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -694,7 +695,17 @@ mytools-blindxss https://example.com --webhook https://hook.example.com -c heade
 mytools-blindxss https://example.com --webhook https://hook.example.com -c bypass
 ```
 
-### 61. ReconAll (`mytools-reconall`)
+### 61. CORS Misconfiguration (`mytools-cors`)
+Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
+
+```bash
+mytools-cors https://example.com
+mytools-cors https://example.com -c null_origin
+mytools-cors https://example.com -c credentials
+mytools-cors https://example.com -c reflected
+```
+
+### 62. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1134,6 +1145,7 @@ src/mytools/                    # Pacote principal
     methodoverride.py           # HTTP Method Override Detection
     httpparampollution.py       # HTTP Parameter Pollution Detection
     blindxss.py                 # Blind XSS via Callback Detection
+    corsmisconfig.py            # CORS Misconfiguration Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
