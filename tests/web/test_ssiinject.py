@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mytools.web.ssiinject import (
-    _BYPASS_PAYLOADS,
     _BLIND_PAYLOADS,
+    _BYPASS_PAYLOADS,
     _CATEGORY_MAP,
     _DETECT_PAYLOADS,
     _FILE_READ_PAYLOADS,
@@ -16,8 +16,8 @@ from mytools.web.ssiinject import (
     SSIiResult,
     _check_ssi_response,
     _test_baseline,
-    _test_bypass,
     _test_blind,
+    _test_bypass,
     _test_detect,
     _test_file_read,
     _test_rce,

@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mytools.web.prototypepollution import (
-    _BYPASS_PAYLOADS,
     _BLIND_PAYLOADS,
+    _BYPASS_PAYLOADS,
     _CATEGORY_MAP,
     _CONSTRUCTOR_PAYLOADS,
     _DETECT_PAYLOADS,
@@ -16,8 +16,8 @@ from mytools.web.prototypepollution import (
     PollResult,
     _check_poll_response,
     _test_baseline,
-    _test_bypass,
     _test_blind,
+    _test_bypass,
     _test_constructor,
     _test_detect,
     _test_impact,
