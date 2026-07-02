@@ -95,6 +95,7 @@ Isso instala os comandos CLI:
 | `mytools-ldapi` | LDAP Injection Detection |
 | `mytools-xpathi` | XPath Injection Detection |
 | `mytools-ssiinject` | SSI Injection Detection |
+| `mytools-protopoll` | Prototype Pollution Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -601,7 +602,18 @@ mytools-ssiinject https://example.com -c file_read
 mytools-ssiinject https://example.com -c bypass
 ```
 
-### 53. ReconAll (`mytools-reconall`)
+### 53. Prototype Pollution (`mytools-protopoll`)
+Detecta injecao em prototypes de objetos JS (`__proto__`, `constructor.prototype`).
+
+```bash
+mytools-protopoll https://example.com
+mytools-protopoll https://example.com -c detect
+mytools-protopoll https://example.com -c constructor
+mytools-protopoll https://example.com -c bypass
+mytools-protopoll https://example.com -c impact
+```
+
+### 54. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1034,6 +1046,7 @@ src/mytools/                    # Pacote principal
     ldapiinject.py              # LDAP Injection Detection
     xpathinject.py              # XPath Injection Detection
     ssiinject.py                # SSI Injection Detection
+    prototypepollution.py       # Prototype Pollution Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
