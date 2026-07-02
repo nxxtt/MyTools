@@ -25,6 +25,8 @@ from mytools.web import (
     crlfinjection,
     doubleurlencode,
     graphqlplayground,
+    ldapiinject,
+    nosqliinject,
     nullbyteinject,
     openapidiscovery,
     openredirect,
@@ -32,14 +34,13 @@ from mytools.web import (
     pathtraversal,
     rtloverride,
     sourcemapdiscovery,
+    ssiinject,
     ssrfdetect,
     sstidetect,
     techfingerprint,
     webrecon,
-    xxedetect,
-    nosqliinject,
-    ldapiinject,
     xpathinject,
+    xxedetect,
 )
 from mytools.whois import whoishistory
 
@@ -169,9 +170,10 @@ def menu() -> None:
     print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)")
     print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP")
     print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('XPath Inject', Cyber.CYAN)} Injecao em consultas XPath")
-    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('SSI Inject', Cyber.CYAN)}   Server-Side Injection (RCE/leitura)")
+    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('55', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1357,6 +1359,29 @@ def launch_xpath() -> None:
     )
 
 
+def launch_ssiinject() -> None:
+    """Inicia o módulo SSI Injection em modo interativo."""
+    parser = ssiinject.build_parser()
+    run_interactive_shell(
+        parser, "ssi> ", ssiinject.run_once,
+        description="SSI Injection — detecta Server-Side Injection (RCE, leitura de arquivos).",
+        example="https://target.com -c detect",
+        banner_fn=lambda: print(color(
+            "SSI Injection — detecta Server-Side Injection (RCE, leitura)",
+            Cyber.RED, Cyber.BOLD,
+        )),
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com\n"
+            "  https://target.com -c detect\n"
+            "  https://target.com -c rce\n"
+            "  https://target.com -c file_read\n"
+            "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def main() -> int:
     """Loop principal do menu interativo. Retorna 0 ao sair."""
     if "--version" in sys.argv or "-V" in sys.argv:
@@ -1477,12 +1502,14 @@ def main() -> int:
                 launch_ldap()
             case "51" | "xpath" | "xpathi":
                 launch_xpath()
-            case "52" | "reconall" | "all" | "full":
+            case "52" | "ssi" | "ssiinject":
+                launch_ssiinject()
+            case "53" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "53" | "help" | "ajuda" | "h":
+            case "54" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "54" | "clear" | "limpar" | "cls":
+            case "55" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

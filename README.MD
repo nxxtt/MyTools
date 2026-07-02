@@ -94,6 +94,7 @@ Isso instala os comandos CLI:
 | `mytools-nosqli` | NoSQL Injection Detection |
 | `mytools-ldapi` | LDAP Injection Detection |
 | `mytools-xpathi` | XPath Injection Detection |
+| `mytools-ssiinject` | SSI Injection Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -589,7 +590,18 @@ mytools-xpathi https://example.com -c auth_bypass
 mytools-xpathi https://example.com -c extract
 ```
 
-### 52. ReconAll (`mytools-reconall`)
+### 52. SSI Injection (`mytools-ssiinject`)
+Detecta Server-Side Injection (RCE, leitura de arquivos, bypass).
+
+```bash
+mytools-ssiinject https://example.com
+mytools-ssiinject https://example.com -c detect
+mytools-ssiinject https://example.com -c rce
+mytools-ssiinject https://example.com -c file_read
+mytools-ssiinject https://example.com -c bypass
+```
+
+### 53. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1021,6 +1033,7 @@ src/mytools/                    # Pacote principal
     nosqliinject.py             # NoSQL Injection Detection
     ldapiinject.py              # LDAP Injection Detection
     xpathinject.py              # XPath Injection Detection
+    ssiinject.py                # SSI Injection Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios

@@ -76,6 +76,7 @@ mytools-xxedetect = "mytools.web.xxedetect:main"
 mytools-nosqli = "mytools.web.nosqliinject:main"
 mytools-ldapi = "mytools.web.ldapiinject:main"
 mytools-xpathi = "mytools.web.xpathinject:main"
+mytools-ssiinject = "mytools.web.ssiinject:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
