@@ -105,6 +105,7 @@ Isso instala os comandos CLI:
 | `mytools-cors` | CORS Misconfiguration Detection |
 | `mytools-clickjack` | Clickjacking Detection |
 | `mytools-hostinject` | Host Header Injection Detection |
+| `mytools-headerinject` | Header Injection via URL Params |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -728,7 +729,17 @@ mytools-hostinject https://example.com -c bypass
 mytools-hostinject https://example.com --inject-host evil.com
 ```
 
-### 64. ReconAll (`mytools-reconall`)
+### 64. Header Injection via URL Params (`mytools-headerinject`)
+Testa se parâmetros de URL são refletidos como headers HTTP nas respostas.
+
+```bash
+mytools-headerinject https://example.com
+mytools-headerinject https://example.com -c param_reflected
+mytools-headerinject https://example.com -c header_overwrite
+mytools-headerinject https://example.com -c bypass
+```
+
+### 65. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1171,6 +1182,7 @@ src/mytools/                    # Pacote principal
     corsmisconfig.py            # CORS Misconfiguration Detection
     clickjacking.py             # Clickjacking Detection
     hostheaderinject.py          # Host Header Injection Detection
+    headerinject.py              # Header Injection via URL Params
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
