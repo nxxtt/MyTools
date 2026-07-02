@@ -85,6 +85,7 @@ mytools-methodoverride = "mytools.web.methodoverride:main"
 mytools-hpp = "mytools.web.httpparampollution:main"
 mytools-blindxss = "mytools.web.blindxss:main"
 mytools-cors = "mytools.web.corsmisconfig:main"
+mytools-clickjack = "mytools.web.clickjacking:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

@@ -25,6 +25,7 @@ from mytools.web import (
     cachepoisoning,
     cachedeception,
     charsetbypass,
+    clickjacking,
     corsmisconfig,
     crlfinjection,
     deserialinject,
@@ -187,9 +188,10 @@ def menu() -> None:
     print(f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution")
     print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
     print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration")
-    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
+    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1580,6 +1582,29 @@ def launch_cors() -> None:
     )
 
 
+def launch_clickjack() -> None:
+    """Inicia o módulo Clickjacking em modo interativo."""
+    parser = clickjacking.build_parser()
+    run_interactive_shell(
+        parser, "clickjack> ", clickjacking.run_once,
+        description="Clickjacking — testa X-Frame-Options/CSP e bypasses.",
+        example="https://target.com -c xframe",
+        banner_fn=lambda: print(color(
+            "Clickjacking — testa X-Frame-Options/CSP e bypasses",
+            Cyber.RED, Cyber.BOLD,
+        )),
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com\n"
+            "  https://target.com -c xframe\n"
+            "  https://target.com -c csp\n"
+            "  https://target.com -c bypass\n"
+            "  https://target.com --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def main() -> int:
     """Loop principal do menu interativo. Retorna 0 ao sair."""
     if "--version" in sys.argv or "-V" in sys.argv:
@@ -1718,12 +1743,14 @@ def main() -> int:
                 launch_blindxss()
             case "60" | "cors" | "corsmisconfig" | "corsmis":
                 launch_cors()
-            case "61" | "reconall" | "all" | "full":
+            case "61" | "clickjack" | "clickjacking" | "cj":
+                launch_clickjack()
+            case "62" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "62" | "help" | "ajuda" | "h":
+            case "63" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "63" | "clear" | "limpar" | "cls":
+            case "64" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

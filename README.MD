@@ -103,6 +103,7 @@ Isso instala os comandos CLI:
 | `mytools-hpp` | HTTP Parameter Pollution Detection |
 | `mytools-blindxss` | Blind XSS via Callback Detection |
 | `mytools-cors` | CORS Misconfiguration Detection |
+| `mytools-clickjack` | Clickjacking Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -705,7 +706,17 @@ mytools-cors https://example.com -c credentials
 mytools-cors https://example.com -c reflected
 ```
 
-### 62. ReconAll (`mytools-reconall`)
+### 62. Clickjacking (`mytools-clickjack`)
+Testa X-Frame-Options/CSP e bypasses em browsers legados.
+
+```bash
+mytools-clickjack https://example.com
+mytools-clickjack https://example.com -c xframe
+mytools-clickjack https://example.com -c csp
+mytools-clickjack https://example.com -c bypass
+```
+
+### 63. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1146,6 +1157,7 @@ src/mytools/                    # Pacote principal
     httpparampollution.py       # HTTP Parameter Pollution Detection
     blindxss.py                 # Blind XSS via Callback Detection
     corsmisconfig.py            # CORS Misconfiguration Detection
+    clickjacking.py             # Clickjacking Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
