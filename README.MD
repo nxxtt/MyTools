@@ -96,6 +96,7 @@ Isso instala os comandos CLI:
 | `mytools-xpathi` | XPath Injection Detection |
 | `mytools-ssiinject` | SSI Injection Detection |
 | `mytools-protopoll` | Prototype Pollution Detection |
+| `mytools-deserial` | Deserialization Injection Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -613,7 +614,18 @@ mytools-protopoll https://example.com -c bypass
 mytools-protopoll https://example.com -c impact
 ```
 
-### 54. ReconAll (`mytools-reconall`)
+### 54. Deserialization Injection (`mytools-deserial`)
+Detecta desserializacao em PHP/Java/Python (O:, pickle, ObjectInputStream).
+
+```bash
+mytools-deserial https://example.com
+mytools-deserial https://example.com -c php
+mytools-deserial https://example.com -c java
+mytools-deserial https://example.com -c python
+mytools-deserial https://example.com -c bypass
+```
+
+### 55. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1047,6 +1059,7 @@ src/mytools/                    # Pacote principal
     xpathinject.py              # XPath Injection Detection
     ssiinject.py                # SSI Injection Detection
     prototypepollution.py       # Prototype Pollution Detection
+    deserialinject.py           # Deserialization Injection Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
