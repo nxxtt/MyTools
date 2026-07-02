@@ -99,6 +99,7 @@ Isso instala os comandos CLI:
 | `mytools-deserial` | Deserialization Injection Detection |
 | `mytools-cachepoison` | Cache Poisoning Detection |
 | `mytools-cachedec` | Web Cache Deception Detection |
+| `mytools-methodoverride` | HTTP Method Override Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -649,7 +650,28 @@ mytools-cachedec https://example.com -c framework
 mytools-cachedec https://example.com -c bypass
 ```
 
-### 57. ReconAll (`mytools-reconall`)
+### 57. Web Cache Deception (`mytools-cachedec`)
+Detecta paths que o cache armazena mas a app não deveria — extension, path, framework, encoding, bypass.
+
+```bash
+mytools-cachedec https://example.com
+mytools-cachedec https://example.com -c extension
+mytools-cachedec https://example.com -c path
+mytools-cachedec https://example.com -c framework
+mytools-cachedec https://example.com -c bypass
+```
+
+### 58. HTTP Method Override (`mytools-methodoverride`)
+Detecta bypass de ACL via headers, params, body — X-HTTP-Method-Override, _method, etc.
+
+```bash
+mytools-methodoverride https://example.com
+mytools-methodoverride https://example.com -c header
+mytools-methodoverride https://example.com -c bypass
+mytools-methodoverride https://example.com -c verb
+```
+
+### 59. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1086,6 +1108,7 @@ src/mytools/                    # Pacote principal
     deserialinject.py           # Deserialization Injection Detection
     cachepoisoning.py           # Cache Poisoning Detection
     cachedeception.py           # Web Cache Deception Detection
+    methodoverride.py           # HTTP Method Override Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
