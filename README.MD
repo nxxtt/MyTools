@@ -100,6 +100,7 @@ Isso instala os comandos CLI:
 | `mytools-cachepoison` | Cache Poisoning Detection |
 | `mytools-cachedec` | Web Cache Deception Detection |
 | `mytools-methodoverride` | HTTP Method Override Detection |
+| `mytools-hpp` | HTTP Parameter Pollution Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -671,7 +672,18 @@ mytools-methodoverride https://example.com -c bypass
 mytools-methodoverride https://example.com -c verb
 ```
 
-### 59. ReconAll (`mytools-reconall`)
+### 59. HTTP Parameter Pollution (`mytools-hpp`)
+Detecta HPP em diferentes positions — query, body, header, JSON, bypass.
+
+```bash
+mytools-hpp https://example.com
+mytools-hpp https://example.com -c query
+mytools-hpp https://example.com -c body
+mytools-hpp https://example.com -c header
+mytools-hpp https://example.com -c bypass
+```
+
+### 60. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1109,6 +1121,7 @@ src/mytools/                    # Pacote principal
     cachepoisoning.py           # Cache Poisoning Detection
     cachedeception.py           # Web Cache Deception Detection
     methodoverride.py           # HTTP Method Override Detection
+    httpparampollution.py       # HTTP Parameter Pollution Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios

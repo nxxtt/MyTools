@@ -82,6 +82,7 @@ mytools-deserial = "mytools.web.deserialinject:main"
 mytools-cachepoison = "mytools.web.cachepoisoning:main"
 mytools-cachedec = "mytools.web.cachedeception:main"
 mytools-methodoverride = "mytools.web.methodoverride:main"
+mytools-hpp = "mytools.web.httpparampollution:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
