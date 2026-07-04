@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Modulo de auditoria de Cookie Security (Domain + Path + CSRF + SameSite DNS).
+"""Modulo de auditoria de Cookie Security (Domain + Path + CSRF + SameSite DNS + Quoting).
 
 Verifica se cookies de uma aplicacao web vazam para subdominios maliciosos,
 entre paths diferentes, sao bypassaveis via Double Submit Cookie, ou podem
@@ -13,18 +13,20 @@ Categorias de teste:
   - double_submit: Analise de Double Submit Cookie pattern (CSRF bypass)
   - samesite_dns: SameSite=Lax + DNS rebinding feasibility
   - csrf_subdomain: CSRF bypass via subdominios (cookie scope, takeover risk)
+  - cookie_quoting: Edge cases de quoting (aspas, backslashes, null bytes, separadores)
   - all: Todas as categorias
 
 Fluxo:
   1. Envia request para a URL alvo
   2. Extrai todos os headers Set-Cookie
-  3. Parseia atributos de cada cookie
+  3. Parseia atributos de cada cookie (RFC 6265 compliant)
   4. Verifica boundary de dominio, flags e path
   5. Para path_traversal: testa bypasses ativos com requests HTTP
   6. Para double_submit: analisa cookies CSRF para bypass
   7. Para samesite_dns: verifica se SameSite=Lax e bypassavel via DNS rebinding
   8. Para csrf_subdomain: verifica se protecao CSRF e bypassavel via subdominio
-  9. Retorna resultado consolidado com severidade
+  9. Para cookie_quoting: verifica edge cases de parsing (aspas, null bytes, etc)
+  10. Retorna resultado consolidado com severidade
 """
 import argparse
 import asyncio
@@ -101,6 +103,14 @@ _CATEGORY_MAP: dict[str, list[str]] = {
         "csrf_subdomain_takeover_risk",
         "csrf_subdomain_combined_risk",
     ],
+    "cookie_quoting": [
+        "quoting_semicolon_in_value",
+        "quoting_backslash_escape",
+        "quoting_null_byte",
+        "quoting_comma_separator",
+        "quoting_unbalanced_quotes",
+        "quoting_whitespace_in_value",
+    ],
 }
 
 _CSRF_COOKIE_NAMES: frozenset[str] = frozenset({
@@ -170,34 +180,104 @@ class CookieBoundaryResult:
 
 
 def _parse_cookie(raw: str) -> CookieInfo:
-    """Parseia um header Set-Cookie em CookieInfo."""
-    parts = raw.split(";")
-    first = parts[0].strip()
-    if "=" not in first:
+    """Parseia um header Set-Cookie em CookieInfo (RFC 6265 compliant)."""
+    pos = 0
+    length = len(raw)
+
+    while pos < length and raw[pos] in (' ', '\t'):
+        pos += 1
+
+    name_start = pos
+    while pos < length and raw[pos] not in ('=', ';', ' ', '\t'):
+        pos += 1
+    name = raw[name_start:pos]
+
+    if pos >= length or raw[pos] != '=':
         return CookieInfo(
-            name=first, value="", domain="", path="",
+            name=name, value="", domain="", path="",
             secure=False, httponly=False, samesite="", raw=raw,
         )
-    name, value = first.split("=", 1)
+    pos += 1
+
+    value = ""
+    if pos < length and raw[pos] == '"':
+        pos += 1
+        value_parts: list[str] = []
+        while pos < length:
+            ch = raw[pos]
+            if ch == '\\' and pos + 1 < length:
+                value_parts.append(raw[pos + 1])
+                pos += 2
+            elif ch == '"':
+                pos += 1
+                break
+            else:
+                value_parts.append(ch)
+                pos += 1
+        value = ''.join(value_parts)
+        while pos < length and raw[pos] != ';':
+            pos += 1
+    else:
+        value_start = pos
+        while pos < length and raw[pos] != ';':
+            pos += 1
+        value = raw[value_start:pos]
+
     domain = ""
     path = ""
     secure = False
     httponly = False
     samesite = ""
-    for part in parts[1:]:
-        part = part.strip().lower()
-        if part == "httponly":
+
+    while pos < length:
+        while pos < length and raw[pos] == ';':
+            pos += 1
+        while pos < length and raw[pos] in (' ', '\t'):
+            pos += 1
+
+        attr_start = pos
+        while pos < length and raw[pos] not in ('=', ';', ' ', '\t'):
+            pos += 1
+        attr_name = raw[attr_start:pos].lower()
+
+        if pos < length and raw[pos] == '=':
+            pos += 1
+            if pos < length and raw[pos] == '"':
+                pos += 1
+                val_parts = []
+                while pos < length:
+                    ch = raw[pos]
+                    if ch == '\\' and pos + 1 < length:
+                        val_parts.append(raw[pos + 1])
+                        pos += 2
+                    elif ch == '"':
+                        pos += 1
+                        break
+                    else:
+                        val_parts.append(ch)
+                        pos += 1
+                attr_value = ''.join(val_parts)
+            else:
+                val_start = pos
+                while pos < length and raw[pos] != ';':
+                    pos += 1
+                attr_value = raw[val_start:pos].strip()
+        else:
+            attr_value = ""
+
+        if attr_name == "httponly":
             httponly = True
-        elif part == "secure":
+        elif attr_name == "secure":
             secure = True
-        elif part.startswith("domain="):
-            domain = part.split("=", 1)[1].strip().strip('"')
-        elif part.startswith("path="):
-            path = part.split("=", 1)[1].strip().strip('"')
-        elif part.startswith("samesite="):
-            samesite = part.split("=", 1)[1].strip()
+        elif attr_name == "domain":
+            domain = attr_value
+        elif attr_name == "path":
+            path = attr_value
+        elif attr_name == "samesite":
+            samesite = attr_value.lower()
+
     return CookieInfo(
-        name=name.strip(), value=value, domain=domain, path=path,
+        name=name, value=value, domain=domain, path=path,
         secure=secure, httponly=httponly, samesite=samesite, raw=raw,
     )
 
@@ -780,6 +860,75 @@ async def _test_csrf_subdomain(
     return results
 
 
+def _test_cookie_quoting(cookies: list[CookieInfo]) -> list[CookieBoundaryAttempt]:
+    """Testa edge cases de quoting em cookies (aspas, backslashes, null bytes, separadores)."""
+    results: list[CookieBoundaryAttempt] = []
+
+    for cookie in cookies:
+        raw = cookie.raw
+        value = cookie.value
+
+        if ';' in value:
+            results.append(CookieBoundaryAttempt(
+                technique="quoting_semicolon_in_value", category="cookie_quoting",
+                cookie_name=cookie.name, attribute_tested="Value",
+                attribute_value=value[:50], vulnerable=True,
+                details=f"Cookie '{cookie.name}' contem ';' no valor — parsers podem dividir incorretamente",
+                error="",
+            ))
+
+        if '\\' in raw:
+            results.append(CookieBoundaryAttempt(
+                technique="quoting_backslash_escape", category="cookie_quoting",
+                cookie_name=cookie.name, attribute_tested="Raw",
+                attribute_value=raw[:50], vulnerable=True,
+                details=f"Cookie '{cookie.name}' contem backslash no header raw — risco de confusao de escape",
+                error="",
+            ))
+
+        if '\x00' in value:
+            results.append(CookieBoundaryAttempt(
+                technique="quoting_null_byte", category="cookie_quoting",
+                cookie_name=cookie.name, attribute_tested="Value",
+                attribute_value="contains \\x00", vulnerable=True,
+                details=f"Cookie '{cookie.name}' contem null byte — risco de truncamento entre parsers",
+                error="",
+            ))
+
+        if ',' in raw and ';' not in raw.split('=', 1)[-1] if '=' in raw else True:
+            name_value = raw.split('=', 1)[0] if '=' in raw else raw
+            rest = raw[len(name_value):] if '=' in raw else ""
+            if ',' in rest and ';' not in rest:
+                results.append(CookieBoundaryAttempt(
+                    technique="quoting_comma_separator", category="cookie_quoting",
+                    cookie_name=cookie.name, attribute_tested="Separator",
+                    attribute_value=",", vulnerable=True,
+                    details=f"Cookie '{cookie.name}' usa ',' como separador — nao conforme RFC 6265",
+                    error="",
+                ))
+
+        quote_count = raw.count('"')
+        if quote_count % 2 != 0:
+            results.append(CookieBoundaryAttempt(
+                technique="quoting_unbalanced_quotes", category="cookie_quoting",
+                cookie_name=cookie.name, attribute_tested="Quotes",
+                attribute_value=f"{quote_count} quotes", vulnerable=True,
+                details=f"Cookie '{cookie.name}' tem {quote_count} aspas (impar) — aspas desbalanceadas",
+                error="",
+            ))
+
+        if value != value.strip() and value.strip():
+            results.append(CookieBoundaryAttempt(
+                technique="quoting_whitespace_in_value", category="cookie_quoting",
+                cookie_name=cookie.name, attribute_tested="Value",
+                attribute_value=value[:50], vulnerable=True,
+                details=f"Cookie '{cookie.name}' tem whitespace no inicio/fim do valor",
+                error="",
+            ))
+
+    return results
+
+
 def print_results(result: CookieBoundaryResult) -> None:
     """Exibe os resultados do scan de Cookie Domain Boundary."""
     vuln = [a for a in result.attempts if a.vulnerable]
@@ -888,6 +1037,8 @@ async def run_scan(
                     all_attempts.extend(
                         await _test_csrf_subdomain(client, target, cookies),
                     )
+            elif cat == "cookie_quoting":
+                all_attempts.extend(_test_cookie_quoting(cookies))
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
         protected_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
@@ -928,7 +1079,7 @@ def banner_art() -> None:
  /___/_/_/_/\__//_/\_, //___/____/___/\___\_\
                   /___/
 """
-    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal, double_submit, samesite_dns, csrf_subdomain")()
+    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal, double_submit, samesite_dns, csrf_subdomain, cookie_quoting")()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -946,6 +1097,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  mytools-cookieboundary https://target.com -c double_submit\n"
             "  mytools-cookieboundary https://target.com -c samesite_dns\n"
             "  mytools-cookieboundary https://target.com -c csrf_subdomain\n"
+            "  mytools-cookieboundary https://target.com -c cookie_quoting\n"
             "  mytools-cookieboundary https://target.com --proxy http://127.0.0.1:8080"
         ),
     )
@@ -953,7 +1105,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-c", "--category",
         default="all",
-        choices=["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain"],
+        choices=["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain", "cookie_quoting"],
         help="Categoria de testes (default: todas)",
     )
     add_common_args(parser)

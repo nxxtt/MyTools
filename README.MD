@@ -763,7 +763,7 @@ mytools-log4shell https://example.com -c bypass
 ```
 
 ### 67. Cookie Domain Boundary (`mytools-cookieboundary`)
-Audita cookies de uma aplicação web: domain boundary, path traversal, Double Submit Cookie (CSRF), SameSite DNS bypass e CSRF via subdomínio.
+Audita cookies de uma aplicação web: domain boundary, path traversal, Double Submit Cookie (CSRF), SameSite DNS bypass, CSRF via subdomínio e cookie quoting edge cases.
 
 ```bash
 mytools-cookieboundary https://example.com
@@ -774,6 +774,7 @@ mytools-cookieboundary https://example.com -c path_traversal
 mytools-cookieboundary https://example.com -c double_submit
 mytools-cookieboundary https://example.com -c samesite_dns
 mytools-cookieboundary https://example.com -c csrf_subdomain
+mytools-cookieboundary https://example.com -c cookie_quoting
 mytools-cookieboundary https://example.com --proxy http://proxy:8080
 ```
 

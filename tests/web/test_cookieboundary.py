@@ -17,6 +17,7 @@ from mytools.web.cookieboundary import (
     _is_csrf_cookie,
     _is_public_suffix,
     _parse_cookie,
+    _test_cookie_quoting,
     _test_csrf_subdomain,
     _test_domain_attributes,
     _test_double_submit,
@@ -31,11 +32,11 @@ from mytools.web.cookieboundary import (
 
 # ─── Category Map ────────────────────────────────────────────────────────────
 class TestCategoryMap:
-    def test_has_seven_categories(self) -> None:
-        assert len(_CATEGORY_MAP) == 7
+    def test_has_eight_categories(self) -> None:
+        assert len(_CATEGORY_MAP) == 8
 
     def test_categories_are_correct(self) -> None:
-        expected = {"domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain"}
+        expected = {"domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain", "cookie_quoting"}
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_domain_has_five_techniques(self) -> None:
@@ -58,6 +59,9 @@ class TestCategoryMap:
 
     def test_csrf_subdomain_has_six_techniques(self) -> None:
         assert len(_CATEGORY_MAP["csrf_subdomain"]) == 6
+
+    def test_cookie_quoting_has_six_techniques(self) -> None:
+        assert len(_CATEGORY_MAP["cookie_quoting"]) == 6
 
 
 # ─── Parse Cookie ────────────────────────────────────────────────────────────
@@ -95,6 +99,49 @@ class TestParseCookie:
     def test_cookie_domain_quoted(self) -> None:
         c = _parse_cookie('id=1; Domain=".example.com"')
         assert c.domain == ".example.com"
+
+    def test_quoted_value_with_semicolons(self) -> None:
+        c = _parse_cookie('name="val;ue"; Path=/')
+        assert c.name == "name"
+        assert c.value == "val;ue"
+        assert c.path == "/"
+
+    def test_quoted_value_backslash_escape(self) -> None:
+        c = _parse_cookie(r'name="val\"ue"')
+        assert c.name == "name"
+        assert c.value == 'val"ue'
+
+    def test_quoted_value_double_backslash(self) -> None:
+        c = _parse_cookie(r'name="val\\""')
+        assert c.name == "name"
+        assert c.value == "val\\"
+
+    def test_quoted_value_with_flags(self) -> None:
+        c = _parse_cookie('name="val;ue"; Secure; HttpOnly')
+        assert c.value == "val;ue"
+        assert c.secure is True
+        assert c.httponly is True
+
+    def test_unbalanced_quotes(self) -> None:
+        c = _parse_cookie('name="value; Path=/')
+        assert c.name == "name"
+
+    def test_empty_quoted_value(self) -> None:
+        c = _parse_cookie('name=""; Path=/')
+        assert c.value == ""
+        assert c.path == "/"
+
+    def test_whitespace_in_value(self) -> None:
+        c = _parse_cookie("name=  abc  ; Path=/")
+        assert c.value == "  abc  "
+
+    def test_null_byte_in_value(self) -> None:
+        c = _parse_cookie("name=abc\x00def; Path=/")
+        assert c.value == "abc\x00def"
+
+    def test_domain_backslash_escape(self) -> None:
+        c = _parse_cookie(r'name=val; Domain="exam\.ple.com"')
+        assert c.domain == "exam.ple.com"
 
 
 # ─── Extract Target Domain ───────────────────────────────────────────────────
@@ -989,6 +1036,92 @@ class TestCsrfSubdomain:
         assert "csrf_subdomain_combined_risk" not in techniques
 
 
+# ─── Cookie Quoting ──────────────────────────────────────────────────────────
+class TestCookieQuoting:
+    def test_no_issues_returns_empty(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc123", domain="", path="/",
+            secure=True, httponly=True, samesite="strict", raw="session=abc123; Path=/; Secure; HttpOnly",
+        )]
+        result = _test_cookie_quoting(cookies)
+        assert result == []
+
+    def test_semicolon_in_value(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="val;ue", domain="", path="/",
+            secure=False, httponly=False, samesite="", raw='session="val;ue"',
+        )]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_semicolon_in_value" in techniques
+
+    def test_backslash_in_value(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value=r'val"ue', domain="", path="/",
+            secure=False, httponly=False, samesite="",
+            raw=r'session="val\"ue"',
+        )]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_backslash_escape" in techniques
+
+    def test_null_byte_in_value(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc\x00def", domain="", path="/",
+            secure=False, httponly=False, samesite="",
+            raw="session=abc\x00def",
+        )]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_null_byte" in techniques
+
+    def test_comma_separator(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="v", domain="", path="",
+            secure=False, httponly=False, samesite="",
+            raw="session=v, Path=/, Secure",
+        )]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_comma_separator" in techniques
+
+    def test_unbalanced_quotes(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="value", domain="", path="",
+            secure=False, httponly=False, samesite="",
+            raw='session="value; Path=/',
+        )]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_unbalanced_quotes" in techniques
+
+    def test_whitespace_in_value(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="  abc  ", domain="", path="/",
+            secure=False, httponly=False, samesite="",
+            raw="session=  abc  ; Path=/",
+        )]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_whitespace_in_value" in techniques
+
+    def test_multiple_cookies_mixed_issues(self) -> None:
+        cookies = [
+            CookieInfo(
+                name="a", value="v;1", domain="", path="",
+                secure=False, httponly=False, samesite="", raw='a="v;1"',
+            ),
+            CookieInfo(
+                name="b", value="x\x00y", domain="", path="",
+                secure=False, httponly=False, samesite="", raw="b=x\x00y",
+            ),
+        ]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_semicolon_in_value" in techniques
+        assert "quoting_null_byte" in techniques
+
+
 # ─── Build Parser ────────────────────────────────────────────────────────────
 class TestBuildParser:
     def test_has_url(self) -> None:
@@ -1008,7 +1141,7 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain"]:
+        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain", "cookie_quoting"]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 
