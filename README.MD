@@ -106,6 +106,7 @@ Isso instala os comandos CLI:
 | `mytools-clickjack` | Clickjacking Detection |
 | `mytools-hostinject` | Host Header Injection Detection |
 | `mytools-headerinject` | Header Injection via URL Params |
+| `mytools-loginjection` | Log Injection Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -739,7 +740,17 @@ mytools-headerinject https://example.com -c header_overwrite
 mytools-headerinject https://example.com -c bypass
 ```
 
-### 65. ReconAll (`mytools-reconall`)
+### 65. Log Injection (`mytools-loginjection`)
+Testa se o servidor é vulnerável a injeção de conteúdo em logs via headers HTTP.
+
+```bash
+mytools-loginjection https://example.com
+mytools-loginjection https://example.com -c user_agent
+mytools-loginjection https://example.com -c referer
+mytools-loginjection https://example.com -c bypass
+```
+
+### 66. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1183,6 +1194,7 @@ src/mytools/                    # Pacote principal
     clickjacking.py             # Clickjacking Detection
     hostheaderinject.py          # Host Header Injection Detection
     headerinject.py              # Header Injection via URL Params
+    loginjection.py              # Log Injection Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios

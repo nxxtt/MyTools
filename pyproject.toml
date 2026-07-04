@@ -88,6 +88,7 @@ mytools-cors = "mytools.web.corsmisconfig:main"
 mytools-clickjack = "mytools.web.clickjacking:main"
 mytools-hostinject = "mytools.web.hostheaderinject:main"
 mytools-headerinject = "mytools.web.headerinject:main"
+mytools-loginjection = "mytools.web.loginjection:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

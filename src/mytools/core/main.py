@@ -35,6 +35,7 @@ from mytools.web import (
     hostheaderinject,
     httpparampollution,
     ldapiinject,
+    loginjection,
     methodoverride,
     nosqliinject,
     nullbyteinject,
@@ -193,9 +194,10 @@ def menu() -> None:
     print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
     print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection")
     print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
-    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
+    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1656,6 +1658,29 @@ def launch_headerinject() -> None:
     )
 
 
+def launch_loginjection() -> None:
+    """Inicia o módulo Log Injection em modo interativo."""
+    parser = loginjection.build_parser()
+    run_interactive_shell(
+        parser, "loginjection> ", loginjection.run_once,
+        description="Log Injection — testa injecao de conteudo em logs via headers.",
+        example="https://target.com -c user_agent",
+        banner_fn=lambda: print(color(
+            "Log Injection — injecao em logs via headers",
+            Cyber.RED, Cyber.BOLD,
+        )),
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com\n"
+            "  https://target.com -c user_agent\n"
+            "  https://target.com -c referer\n"
+            "  https://target.com -c bypass\n"
+            "  https://target.com --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def main() -> int:
     """Loop principal do menu interativo. Retorna 0 ao sair."""
     if "--version" in sys.argv or "-V" in sys.argv:
@@ -1800,12 +1825,14 @@ def main() -> int:
                 launch_hostinject()
             case "63" | "headerinject" | "hdrinject" | "hdr":
                 launch_headerinject()
-            case "64" | "reconall" | "all" | "full":
+            case "64" | "loginjection" | "loginject" | "log":
+                launch_loginjection()
+            case "65" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "65" | "help" | "ajuda" | "h":
+            case "66" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "66" | "clear" | "limpar" | "cls":
+            case "67" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
