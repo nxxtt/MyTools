@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
-"""Modulo de auditoria de Cookie Domain Boundary.
+"""Modulo de auditoria de Cookie Security (Domain Boundary + Path Traversal).
 
-Verifica se cookies de uma aplicacao web vazam para subdominios maliciosos,
-analisando atributos Domain, Path, Secure, HttpOnly e SameSite.
+Verifica se cookies de uma aplicacao web vazam para subdominios maliciosos
+ou entre paths diferentes, analisando atributos Domain, Path, Secure,
+HttpOnly e SameSite, e testando bypasses ativos de Path.
 
 Categorias de teste:
   - domain: Analise do attribute Domain (overly broad, mismatch, wildcard)
   - flags: Flags Secure, HttpOnly, SameSite
-  - path: Analise do attribute Path
+  - path: Analise do attribute Path (estatica)
+  - path_traversal: Testes ativos de bypass de Path (encoding, case, traversal)
   - all: Todas as categorias
 
 Fluxo:
   1. Envia request para a URL alvo
   2. Extrai todos os headers Set-Cookie
   3. Parseia atributos de cada cookie
-  4. Verifica boundary de dominio e flags de seguranca
-  5. Retorna resultado consolidado com severidade
+  4. Verifica boundary de dominio, flags e path
+  5. Para path_traversal: testa bypasses ativos com requests HTTP
+  6. Retorna resultado consolidado com severidade
 """
 import argparse
+import contextlib
 import logging
 from dataclasses import asdict, dataclass
 from urllib.parse import urlparse
+
+import httpx
 
 from mytools.core.utils import (
     Cyber,
@@ -54,7 +60,27 @@ _CATEGORY_MAP: dict[str, list[str]] = {
         "path_absent",
         "path_overly_broad",
     ],
+    "path_traversal": [
+        "traversal_url_encoded",
+        "traversal_double_encoded",
+        "traversal_semicolon",
+        "traversal_backslash",
+        "traversal_case_variation",
+        "traversal_trailing_slash",
+        "traversal_prefix_match",
+        "traversal_overlong_utf8",
+        "traversal_tab_injection",
+    ],
 }
+
+_COOKIE_PATH_TRAVERSAL_PAYLOADS: list[tuple[str, str, str]] = [
+    ("traversal_url_encoded", "/..%2f", "URL-encoded slash traversal"),
+    ("traversal_double_encoded", "/..%252f", "Double-encoded slash traversal"),
+    ("traversal_semicolon", "/..;/", "Semicolon bypass"),
+    ("traversal_backslash", "/..%5c", "Backslash traversal"),
+    ("traversal_overlong_utf8", "/..%c0%af", "Overlong UTF-8 traversal"),
+    ("traversal_tab_injection", "/..%09", "Tab character injection"),
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,6 +316,109 @@ def _test_path_attributes(
     return results
 
 
+async def _test_path_traversal_active(
+    client: httpx.AsyncClient,
+    target: str,
+    cookies: list[CookieInfo],
+) -> list[CookieBoundaryAttempt]:
+    """Testa bypasses ativos de Path em cookies com escopo restrito."""
+    results: list[CookieBoundaryAttempt] = []
+    scoped = [c for c in cookies if c.path and c.path != "/"]
+    if not scoped:
+        return results
+
+    parsed = urlparse(target)
+    base = f"{parsed.scheme}://{parsed.netloc}"
+
+    for cookie in scoped:
+        cookie_path = cookie.path.rstrip("/")
+
+        for tech, suffix, desc in _COOKIE_PATH_TRAVERSAL_PAYLOADS:
+            bypass_url = f"{base}{cookie_path}{suffix}"
+            try:
+                resp = await client.get(bypass_url, follow_redirects=False)
+                resp_cookies = resp.headers.get_list("set-cookie")
+                leaked = any(cookie.name in sc for sc in resp_cookies)
+                results.append(CookieBoundaryAttempt(
+                    technique=tech, category="path_traversal",
+                    cookie_name=cookie.name, attribute_tested="Path",
+                    attribute_value=cookie.path, vulnerable=leaked,
+                    details=f"{desc}: {bypass_url}" if leaked else "",
+                    error="",
+                ))
+            except httpx.RequestError as e:
+                results.append(CookieBoundaryAttempt(
+                    technique=tech, category="path_traversal",
+                    cookie_name=cookie.name, attribute_tested="Path",
+                    attribute_value=cookie.path, vulnerable=False,
+                    details="", error=str(e)[:100],
+                ))
+
+        upper_path = cookie_path.upper()
+        if upper_path != cookie_path:
+            bypass_url = f"{base}{upper_path}"
+            try:
+                resp = await client.get(bypass_url, follow_redirects=False)
+                resp_cookies = resp.headers.get_list("set-cookie")
+                leaked = any(cookie.name in sc for sc in resp_cookies)
+                results.append(CookieBoundaryAttempt(
+                    technique="traversal_case_variation", category="path_traversal",
+                    cookie_name=cookie.name, attribute_tested="Path",
+                    attribute_value=cookie.path, vulnerable=leaked,
+                    details=f"Case variation: {bypass_url}" if leaked else "",
+                    error="",
+                ))
+            except httpx.RequestError as e:
+                results.append(CookieBoundaryAttempt(
+                    technique="traversal_case_variation", category="path_traversal",
+                    cookie_name=cookie.name, attribute_tested="Path",
+                    attribute_value=cookie.path, vulnerable=False,
+                    details="", error=str(e)[:100],
+                ))
+
+        trailing_url = f"{base}{cookie_path}/"
+        try:
+            resp = await client.get(trailing_url, follow_redirects=False)
+            resp_cookies = resp.headers.get_list("set-cookie")
+            leaked = any(cookie.name in sc for sc in resp_cookies)
+            results.append(CookieBoundaryAttempt(
+                technique="traversal_trailing_slash", category="path_traversal",
+                cookie_name=cookie.name, attribute_tested="Path",
+                attribute_value=cookie.path, vulnerable=leaked,
+                details=f"Trailing slash: {trailing_url}" if leaked else "",
+                error="",
+            ))
+        except httpx.RequestError as e:
+            results.append(CookieBoundaryAttempt(
+                technique="traversal_trailing_slash", category="path_traversal",
+                cookie_name=cookie.name, attribute_tested="Path",
+                attribute_value=cookie.path, vulnerable=False,
+                details="", error=str(e)[:100],
+            ))
+
+        prefix_url = f"{base}{cookie_path}2"
+        try:
+            resp = await client.get(prefix_url, follow_redirects=False)
+            resp_cookies = resp.headers.get_list("set-cookie")
+            leaked = any(cookie.name in sc for sc in resp_cookies)
+            results.append(CookieBoundaryAttempt(
+                technique="traversal_prefix_match", category="path_traversal",
+                cookie_name=cookie.name, attribute_tested="Path",
+                attribute_value=cookie.path, vulnerable=leaked,
+                details=f"Prefix match (RFC 6265): {prefix_url}" if leaked else "",
+                error="",
+            ))
+        except httpx.RequestError as e:
+            results.append(CookieBoundaryAttempt(
+                technique="traversal_prefix_match", category="path_traversal",
+                cookie_name=cookie.name, attribute_tested="Path",
+                attribute_value=cookie.path, vulnerable=False,
+                details="", error=str(e)[:100],
+            ))
+
+    return results
+
+
 def print_results(result: CookieBoundaryResult) -> None:
     """Exibe os resultados do scan de Cookie Domain Boundary."""
     vuln = [a for a in result.attempts if a.vulnerable]
@@ -378,6 +507,11 @@ async def run_scan(
                 all_attempts.extend(_test_flag_attributes(cookies))
             elif cat == "path":
                 all_attempts.extend(_test_path_attributes(cookies))
+            elif cat == "path_traversal":
+                with contextlib.suppress(Exception):
+                    all_attempts.extend(
+                        await _test_path_traversal_active(client, target, cookies),
+                    )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
         protected_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
@@ -418,7 +552,7 @@ def banner_art() -> None:
  /___/_/_/_/\__//_/\_, //___/____/___/\___\_\
                   /___/
 """
-    create_banner(art, "   cookieboundary: domain, flags, path")()
+    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal")()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -432,6 +566,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  mytools-cookieboundary https://target.com\n"
             "  mytools-cookieboundary https://target.com -c domain\n"
             "  mytools-cookieboundary https://target.com -c flags\n"
+            "  mytools-cookieboundary https://target.com -c path_traversal\n"
             "  mytools-cookieboundary https://target.com --proxy http://127.0.0.1:8080"
         ),
     )
@@ -439,7 +574,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-c", "--category",
         default="all",
-        choices=["all", "domain", "flags", "path"],
+        choices=["all", "domain", "flags", "path", "path_traversal"],
         help="Categoria de testes (default: todas)",
     )
     add_common_args(parser)
@@ -479,6 +614,7 @@ def main() -> int:
             "  https://target.com -c domain\n"
             "  https://target.com -c flags\n"
             "  https://target.com -c path\n"
+            "  https://target.com -c path_traversal\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
         ),
     )

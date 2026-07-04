@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Cookie Domain Boundary."""
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.cookieboundary import (
     _CATEGORY_MAP,
+    _COOKIE_PATH_TRAVERSAL_PAYLOADS,
     CookieBoundaryAttempt,
     CookieBoundaryResult,
     CookieInfo,
@@ -15,6 +17,7 @@ from mytools.web.cookieboundary import (
     _test_domain_attributes,
     _test_flag_attributes,
     _test_path_attributes,
+    _test_path_traversal_active,
     build_parser,
     print_results,
 )
@@ -22,11 +25,11 @@ from mytools.web.cookieboundary import (
 
 # ─── Category Map ────────────────────────────────────────────────────────────
 class TestCategoryMap:
-    def test_has_three_categories(self) -> None:
-        assert len(_CATEGORY_MAP) == 3
+    def test_has_four_categories(self) -> None:
+        assert len(_CATEGORY_MAP) == 4
 
     def test_categories_are_correct(self) -> None:
-        expected = {"domain", "flags", "path"}
+        expected = {"domain", "flags", "path", "path_traversal"}
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_domain_has_five_techniques(self) -> None:
@@ -37,6 +40,9 @@ class TestCategoryMap:
 
     def test_path_has_two_techniques(self) -> None:
         assert len(_CATEGORY_MAP["path"]) == 2
+
+    def test_path_traversal_has_nine_techniques(self) -> None:
+        assert len(_CATEGORY_MAP["path_traversal"]) == 9
 
 
 # ─── Parse Cookie ────────────────────────────────────────────────────────────
@@ -377,6 +383,129 @@ class TestPrintResults:
         assert "session" in output
 
 
+# ─── Cookie Path Traversal Payloads ──────────────────────────────────────────
+class TestCookiePathTraversalPayloads:
+    def test_has_six_payloads(self) -> None:
+        assert len(_COOKIE_PATH_TRAVERSAL_PAYLOADS) == 6
+
+    def test_all_have_technique(self) -> None:
+        for tech, _suffix, _desc in _COOKIE_PATH_TRAVERSAL_PAYLOADS:
+            assert tech.startswith("traversal_")
+
+    def test_all_suffixes_start_with_slash(self) -> None:
+        for _tech, suffix, _desc in _COOKIE_PATH_TRAVERSAL_PAYLOADS:
+            assert suffix.startswith("/")
+
+
+# ─── Test Path Traversal Active ──────────────────────────────────────────────
+class TestPathTraversalActive:
+    @pytest.mark.asyncio
+    async def test_no_scoped_cookies(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_client = AsyncMock()
+        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_scoped_cookie_no_leak(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/api",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.headers = MagicMock()
+        mock_resp.headers.get_list = MagicMock(return_value=[])
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        assert len(results) > 0
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) == 0
+
+    @pytest.mark.asyncio
+    async def test_scoped_cookie_leak(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/api",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.headers = MagicMock()
+        mock_resp.headers.get_list = MagicMock(return_value=["session=stolen; Path=/api"])
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        assert len(results) > 0
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/api",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+
+        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        assert len(results) > 0
+        errors = [r for r in results if r.error]
+        assert len(errors) > 0
+
+    @pytest.mark.asyncio
+    async def test_case_variation(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/Api",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.headers = MagicMock()
+        mock_resp.headers.get_list = MagicMock(return_value=["session=stolen"])
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        case_techs = [r for r in results if r.technique == "traversal_case_variation"]
+        assert len(case_techs) == 1
+
+    @pytest.mark.asyncio
+    async def test_trailing_slash(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/api",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.headers = MagicMock()
+        mock_resp.headers.get_list = MagicMock(return_value=["session=stolen"])
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        trail_techs = [r for r in results if r.technique == "traversal_trailing_slash"]
+        assert len(trail_techs) == 1
+
+    @pytest.mark.asyncio
+    async def test_prefix_match(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/api",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.headers = MagicMock()
+        mock_resp.headers.get_list = MagicMock(return_value=["session=stolen"])
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        prefix_techs = [r for r in results if r.technique == "traversal_prefix_match"]
+        assert len(prefix_techs) == 1
+
+
 # ─── Build Parser ────────────────────────────────────────────────────────────
 class TestBuildParser:
     def test_has_url(self) -> None:
@@ -396,7 +525,7 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "domain", "flags", "path"]:
+        for cat in ["all", "domain", "flags", "path", "path_traversal"]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 
