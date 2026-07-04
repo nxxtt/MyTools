@@ -22,6 +22,7 @@ from mytools.web.cookieboundary import (
     _test_flag_attributes,
     _test_path_attributes,
     _test_path_traversal_active,
+    _test_samesite_dns_bypass,
     build_parser,
     print_results,
 )
@@ -29,11 +30,11 @@ from mytools.web.cookieboundary import (
 
 # ─── Category Map ────────────────────────────────────────────────────────────
 class TestCategoryMap:
-    def test_has_five_categories(self) -> None:
-        assert len(_CATEGORY_MAP) == 5
+    def test_has_six_categories(self) -> None:
+        assert len(_CATEGORY_MAP) == 6
 
     def test_categories_are_correct(self) -> None:
-        expected = {"domain", "flags", "path", "path_traversal", "double_submit"}
+        expected = {"domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns"}
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_domain_has_five_techniques(self) -> None:
@@ -50,6 +51,9 @@ class TestCategoryMap:
 
     def test_double_submit_has_five_techniques(self) -> None:
         assert len(_CATEGORY_MAP["double_submit"]) == 5
+
+    def test_samesite_dns_has_six_techniques(self) -> None:
+        assert len(_CATEGORY_MAP["samesite_dns"]) == 6
 
 
 # ─── Parse Cookie ────────────────────────────────────────────────────────────
@@ -711,6 +715,139 @@ class TestDoubleSubmit:
         assert len(errors) > 0
 
 
+# ─── SameSite DNS Bypass ──────────────────────────────────────────────────────
+class TestSameSiteDnsBypass:
+    @pytest.mark.asyncio
+    async def test_no_lax_cookies_returns_empty(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_lax_cookie_detected(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Lax", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "samesite_lax_detected" in techniques
+
+    @pytest.mark.asyncio
+    async def test_missing_samesite_detected(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "samesite_missing_detected" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.dnsrebinding.scan_rebinding")
+    async def test_dns_rebindable_ttl(self, mock_scan: MagicMock) -> None:
+        from mytools.dns.dnsrebinding import RebindingResult
+        mock_scan.return_value = [RebindingResult(
+            domain="target.com", check="ttl", severity="high",
+            detail="TTL baixo",
+        )]
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Lax", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "dns_rebindable_ttl" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.dnsrebinding.scan_rebinding")
+    async def test_dns_rebindable_wildcard(self, mock_scan: MagicMock) -> None:
+        from mytools.dns.dnsrebinding import RebindingResult
+        mock_scan.return_value = [RebindingResult(
+            domain="target.com", check="wildcard", severity="medium",
+            detail="Wildcard detectado",
+        )]
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Lax", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "dns_rebindable_wildcard" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.dnsrebinding.scan_rebinding")
+    async def test_dns_rebindable_ip_flip(self, mock_scan: MagicMock) -> None:
+        from mytools.dns.dnsrebinding import RebindingResult
+        mock_scan.return_value = [RebindingResult(
+            domain="target.com", check="ip_flip", severity="critical",
+            detail="IP flip detectado",
+        )]
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Lax", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "dns_rebindable_ip_flip" in techniques
+        assert "samesite_dns_bypass_risk" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.dnsrebinding.scan_rebinding")
+    async def test_no_rebinding_returns_no_risk(self, mock_scan: MagicMock) -> None:
+        from mytools.dns.dnsrebinding import RebindingResult
+        mock_scan.return_value = [RebindingResult(
+            domain="target.com", check="ttl", severity="info",
+            detail="TTL normal",
+        )]
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Lax", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "samesite_lax_detected" in techniques
+        assert "samesite_dns_bypass_risk" not in techniques
+
+    @pytest.mark.asyncio
+    async def test_no_domain_returns_only_lax_checks(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Lax", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://", cookies)
+        techniques = [a.technique for a in result]
+        assert "samesite_lax_detected" in techniques
+        assert not any(t.startswith("dns_") for t in techniques)
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.dnsrebinding.scan_rebinding")
+    async def test_scan_rebinding_error(self, mock_scan: MagicMock) -> None:
+        mock_scan.side_effect = Exception("DNS timeout")
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Lax", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "samesite_lax_detected" in techniques
+        error_attempts = [a for a in result if a.error]
+        assert len(error_attempts) == 1
+        assert "DNS timeout" in error_attempts[0].error
+
+
 # ─── Build Parser ────────────────────────────────────────────────────────────
 class TestBuildParser:
     def test_has_url(self) -> None:
@@ -730,7 +867,7 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit"]:
+        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns"]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 

@@ -146,7 +146,7 @@
 76. Cookie Domain Boundary — Verificar se cookies vazam para subdomínios maliciosos
 77. Cookie Path Traversal — Testar se cookies vazam entre paths diferentes
 78. Double Submit Cookie — Verificar se Double Submit Cookie pattern é bypassável
-79. SameSite Bypass via DNS — Usar DNS rebinding para bypass SameSite=Lax
+79. SameSite Bypass via DNS — Usar DNS rebinding para bypass SameSite=Lax ✅
 80. CSRF via Subdomain — Usar subdomínio para bypass de CSRF protection
 81. Cookie Quoting Edge Cases — Aspas, backslashes, null bytes, separadores (; vs ,)
 
