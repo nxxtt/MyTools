@@ -107,6 +107,7 @@ Isso instala os comandos CLI:
 | `mytools-hostinject` | Host Header Injection Detection |
 | `mytools-headerinject` | Header Injection via URL Params |
 | `mytools-loginjection` | Log Injection Detection |
+| `mytools-log4shell` | Log4Shell (CVE-2021-44228) Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -750,7 +751,17 @@ mytools-loginjection https://example.com -c referer
 mytools-loginjection https://example.com -c bypass
 ```
 
-### 66. ReconAll (`mytools-reconall`)
+### 66. Log4Shell (`mytools-log4shell`)
+Testa JNDI injection em headers HTTP (CVE-2021-44228).
+
+```bash
+mytools-log4shell https://example.com
+mytools-log4shell https://example.com -c jndi_basic
+mytools-log4shell https://example.com -c header_injection
+mytools-log4shell https://example.com -c bypass
+```
+
+### 67. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1195,6 +1206,7 @@ src/mytools/                    # Pacote principal
     hostheaderinject.py          # Host Header Injection Detection
     headerinject.py              # Header Injection via URL Params
     loginjection.py              # Log Injection Detection
+    log4shell.py                 # Log4Shell (CVE-2021-44228) Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
