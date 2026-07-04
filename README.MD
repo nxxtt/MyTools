@@ -167,7 +167,7 @@ mytools-recon https://example.com --deep --crawl-limit 20  # Limite de páginas 
 ```
 
 ### 5. Deep Attack & Vulnerability Audit (`mytools-audit`)
-Auditoria red/blue com verificação de CORS, TLS, cookies, XSS, SQLi, CSRF, métodos HTTP perigosos e deep scan de arquivos sensíveis.
+Auditoria red/blue com verificação de CORS, TLS, cookies, XSS, SQLi, CSRF, métodos HTTP perigosos, deep scan de arquivos sensíveis e Session Fixation.
 
 ```bash
 mytools-audit https://example.com --deep
@@ -177,6 +177,7 @@ mytools-audit -l targets.txt --output-dir results/
 mytools-audit https://example.com --test-vulns                 # Testa XSS, SQLi e CSRF
 mytools-audit https://example.com --paths-file sensitive.txt  # Paths customizados
 mytools-audit https://example.com --test-methods               # Scan de métodos HTTP
+mytools-audit https://example.com --login-url /login           # Testa Session Fixation
 ```
 
 ### 6. DNS Zone Transfer (`mytools-dnsxfer`)

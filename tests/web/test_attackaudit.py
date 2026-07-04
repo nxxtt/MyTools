@@ -1514,3 +1514,80 @@ class TestAnalyzeUrlParams:
         long_b64 = "A" * 50 + "=="
         findings = analyze_url_params(f"https://example.com/?data={long_b64}")
         assert any("base64" in f.evidence.lower() or "base64" in f.item.lower() for f in findings)
+
+
+class TestExtractSessionId:
+    def test_php_session(self):
+        raw = {"set-cookie": ["PHPSESSID=abc123def456; Path=/"]}
+        from mytools.web.attackaudit import _extract_session_id
+        result = _extract_session_id(raw)
+        assert "PHPSESSID=abc123def456" in result
+
+    def test_jsessionid(self):
+        raw = {"set-cookie": ["JSESSIONID=node0abc123; Path=/"]}
+        from mytools.web.attackaudit import _extract_session_id
+        result = _extract_session_id(raw)
+        assert "JSESSIONID=node0abc123" in result
+
+    def test_asp_session(self):
+        raw = {"set-cookie": ["ASP.NET_SessionId=abc123; Path=/"]}
+        from mytools.web.attackaudit import _extract_session_id
+        result = _extract_session_id(raw)
+        assert "ASP.NET_SessionId=abc123" in result
+
+    def test_no_session_cookie(self):
+        raw = {"set-cookie": ["theme=dark; Path=/"]}
+        from mytools.web.attackaudit import _extract_session_id
+        result = _extract_session_id(raw)
+        assert result == ""
+
+    def test_empty_headers(self):
+        raw: dict[str, list[str]] = {}
+        from mytools.web.attackaudit import _extract_session_id
+        result = _extract_session_id(raw)
+        assert result == ""
+
+
+class TestCheckSessionFixation:
+    @pytest.mark.asyncio
+    async def test_vulnerable_fixation(self):
+        from mytools.web.attackaudit import check_session_fixation
+        async with httpx.AsyncClient() as client:
+            with patch("mytools.web.attackaudit.fetch") as mock_fetch:
+                mock_fetch.return_value = (200, {}, b"ok", {"set-cookie": ["PHPSESSID=abc123; Path=/"]})
+                vuln, details = await check_session_fixation(
+                    client, "https://test.com", "/login", timeout=5.0,
+                )
+                assert vuln is True
+                assert "fixo" in details.lower()
+
+    @pytest.mark.asyncio
+    async def test_no_session_id(self):
+        from mytools.web.attackaudit import check_session_fixation
+        async with httpx.AsyncClient() as client:
+            with patch("mytools.web.attackaudit.fetch") as mock_fetch:
+                mock_fetch.return_value = (200, {}, b"ok", {"set-cookie": ["theme=dark"]})
+                vuln, details = await check_session_fixation(
+                    client, "https://test.com", "/login", timeout=5.0,
+                )
+                assert vuln is False
+                assert "nenhum session" in details.lower()
+
+    @pytest.mark.asyncio
+    async def test_session_changed(self):
+        from mytools.web.attackaudit import check_session_fixation
+        async with httpx.AsyncClient() as client:
+            with patch("mytools.web.attackaudit.fetch") as mock_fetch:
+                call_count = 0
+                def side_effect(*args, **kwargs):
+                    nonlocal call_count
+                    call_count += 1
+                    if call_count == 1:
+                        return (200, {}, b"ok", {"set-cookie": ["PHPSESSID=abc123; Path=/"]})
+                    return (200, {}, b"ok", {"set-cookie": ["PHPSESSID=xyz789; Path=/"]})
+                mock_fetch.side_effect = side_effect
+                vuln, details = await check_session_fixation(
+                    client, "https://test.com", "/login", timeout=5.0,
+                )
+                assert vuln is False
+                assert "alterou" in details.lower()

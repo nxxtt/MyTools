@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -712,6 +713,7 @@ class AuditResult:
     sqli_errors: list[str] = field(default_factory=list)
     csrf_missing: int = 0
     method_results: list[MethodResult] = field(default_factory=list)
+    session_fixation: bool = False
 
 
 banner = create_banner(r"""
@@ -1076,6 +1078,71 @@ async def test_http_methods(
     return method_results
 
 
+async def check_session_fixation(
+    client: httpx.AsyncClient,
+    target: str,
+    login_url: str,
+    login_data: dict[str, str] | None = None,
+    timeout: float = 10.0,
+) -> tuple[bool, str]:
+    """Testa se o servidor e vulneravel a Session Fixation.
+
+    Fluxo:
+      1. GET na pagina principal -> captura session ID (pre-login)
+      2. POST no login_url com credenciais
+      3. GET na pagina principal novamente -> captura session ID (pos-login)
+      4. Compara: se session ID = fixa, retorna vulneravel
+
+    Retorna:
+      (vulnerable: bool, details: str)
+    """
+    parsed = urlparse(target)
+    base_url = f"{parsed.scheme}://{parsed.hostname}{f':{parsed.port}' if parsed.port and parsed.port not in (80, 443) else ''}"
+
+    try:
+        _status_before, _headers_before, _, raw_before = await fetch(client, target, timeout=timeout)
+        session_before = _extract_session_id(raw_before)
+        if not session_before:
+            return False, "Nenhum session ID encontrado na resposta pre-login"
+
+        login_full_url = login_url if login_url.startswith("http") else base_url + login_url
+        login_payload = login_data or {"username": "admin", "password": "admin"}
+        with contextlib.suppress(Exception):
+            await client.post(
+                login_full_url,
+                data=login_payload,
+                follow_redirects=True,
+                timeout=timeout,
+            )
+
+        _status_after, _headers_after, _, raw_after = await fetch(client, target, timeout=timeout)
+        session_after = _extract_session_id(raw_after)
+
+        if not session_after:
+            return False, "Nenhum session ID encontrado na resposta pos-login"
+
+        if session_before == session_after:
+            return True, f"Session ID fixo apos login: {session_before[:20]}..."
+        return False, "Session ID alterou apos login (nao fixo)"
+
+    except FetchError as e:
+        return False, f"Erro ao acessar alvo: {e}"
+
+
+def _extract_session_id(raw_headers: dict[str, list[str]]) -> str:
+    """Extrai session ID dos cookies Set-Cookie."""
+    session_names = ["phpsessid", "jsessionid", "asp.net_sessionid", "connect.sid", "session", "sid"]
+    set_cookies = raw_headers.get("set-cookie", [])
+    for cookie in set_cookies:
+        lowered = cookie.lower()
+        for name in session_names:
+            if lowered.startswith(name):
+                return cookie.split(";")[0].strip()
+        if "session" in lowered or "sid" in lowered:
+            return cookie.split(";")[0].strip()
+    return ""
+
+
 def build_findings(
     url: str,
     status: int,
@@ -1355,6 +1422,7 @@ async def run_audit(
     extra_headers: list[str] | None = None,
     paths: list[str] | None = None,
     inject_params: list[str] | None = None,
+    login_url: str | None = None,
 ) -> AuditResult:
     """Executa auditoria completa em uma URL alvo."""
     started = time.monotonic()
@@ -1461,6 +1529,18 @@ async def run_audit(
                 js_result = vuln_results[task_idx]
                 js_external_findings = js_result
 
+        session_fixation = False
+        if login_url:
+            print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando Session Fixation...")
+            sf_vulnerable, sf_details = await check_session_fixation(
+                client, target, login_url, timeout=timeout,
+            )
+            session_fixation = sf_vulnerable
+            if sf_vulnerable:
+                print(color("[!]", Cyber.RED, Cyber.BOLD), f"Session Fixation: {sf_details}")
+            else:
+                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Session Fixation: {sf_details}")
+
     findings = build_findings(
         target, status, headers, parser, methods, probes, tls_subject,
         tls_versions=tls_versions, xss_reflected=xss_reflected,
@@ -1492,6 +1572,7 @@ async def run_audit(
         sqli_errors=sqli_databases or [],
         csrf_missing=parser.forms_missing_csrf,
         method_results=method_results or [],
+        session_fixation=session_fixation,
     )
 
 
@@ -1521,6 +1602,8 @@ def print_result(result: AuditResult) -> None:
         print(f"{color('[!]', Cyber.RED, Cyber.BOLD)} SQLi erros: {color(', '.join(result.sqli_errors), Cyber.RED, Cyber.BOLD)}")
     if result.csrf_missing:
         print(f"{color('[!]', Cyber.YELLOW, Cyber.BOLD)} CSRF ausente: {color(str(result.csrf_missing), Cyber.YELLOW)} formulario(s)")
+    if result.session_fixation:
+        print(f"{color('[!]', Cyber.RED, Cyber.BOLD)} Session Fixation: {color('SIM', Cyber.RED, Cyber.BOLD)}")
     if result.method_results:
         print(color("\nHTTP Methods scan", Cyber.CYAN, Cyber.BOLD))
         for mr in result.method_results:
@@ -1585,6 +1668,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--params",
         help="Query params para injecao XSS/SQLi (separado por virgula). Ex: --params 'q,id,search'",
     )
+    parser.add_argument(
+        "--login-url",
+        dest="login_url",
+        help="URL do endpoint de login para testar Session Fixation. Ex: --login-url /login",
+    )
     parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) AttackAudit/{__version__}")
     return parser
 
@@ -1608,6 +1696,7 @@ async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -
         extra_headers=getattr(args, "header", None),
         paths=custom_paths,
         inject_params=inject_params,
+        login_url=getattr(args, "login_url", None),
     )
     if not quiet:
         print_result(result)
