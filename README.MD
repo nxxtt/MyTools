@@ -108,6 +108,7 @@ Isso instala os comandos CLI:
 | `mytools-headerinject` | Header Injection via URL Params |
 | `mytools-loginjection` | Log Injection Detection |
 | `mytools-log4shell` | Log4Shell (CVE-2021-44228) Detection |
+| `mytools-domclob` | DOM Clobbering via Named Access Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -699,6 +700,16 @@ mytools-blindxss https://example.com --webhook https://hook.example.com
 mytools-blindxss https://example.com --webhook https://hook.example.com -c input
 mytools-blindxss https://example.com --webhook https://hook.example.com -c header
 mytools-blindxss https://example.com --webhook https://hook.example.com -c bypass
+```
+
+### 60b. DOM Clobbering via Named Access (`mytools-domclob`)
+Detecta DOM Clobbering via id/name em elementos HTML que sobrescrevem propriedades JavaScript.
+
+```bash
+mytools-domclob https://example.com
+mytools-domclob https://example.com -c named_access
+mytools-domclob https://example.com -c form_child
+mytools-domclob https://example.com -c impact
 ```
 
 ### 61. CORS Misconfiguration (`mytools-cors`)

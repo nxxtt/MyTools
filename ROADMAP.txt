@@ -152,7 +152,7 @@
 
 ## XSS Aprofundado
 
-82. DOM Clobbering via Named Access — Usar <a name="id"> para sobrescrever variáveis JS
+82. DOM Clobbering via Named Access — Usar <a name="id"> para sobrescrever variáveis JS ✅
 83. Mutation XSS — XSS que só aparece após mutação do DOM pelo browser
 84. CSS Injection via Style — Injetar CSS para extrair dados (ex: background: url(...))
 85. XSS via SVG Scripts — <script> embutido em SVG
