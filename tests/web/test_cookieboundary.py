@@ -8,13 +8,17 @@ import pytest
 from mytools.web.cookieboundary import (
     _CATEGORY_MAP,
     _COOKIE_PATH_TRAVERSAL_PAYLOADS,
+    _CSRF_COOKIE_NAMES,
+    _CSRF_FIELD_NAMES,
     CookieBoundaryAttempt,
     CookieBoundaryResult,
     CookieInfo,
     _extract_target_domain,
+    _is_csrf_cookie,
     _is_public_suffix,
     _parse_cookie,
     _test_domain_attributes,
+    _test_double_submit,
     _test_flag_attributes,
     _test_path_attributes,
     _test_path_traversal_active,
@@ -25,11 +29,11 @@ from mytools.web.cookieboundary import (
 
 # ─── Category Map ────────────────────────────────────────────────────────────
 class TestCategoryMap:
-    def test_has_four_categories(self) -> None:
-        assert len(_CATEGORY_MAP) == 4
+    def test_has_five_categories(self) -> None:
+        assert len(_CATEGORY_MAP) == 5
 
     def test_categories_are_correct(self) -> None:
-        expected = {"domain", "flags", "path", "path_traversal"}
+        expected = {"domain", "flags", "path", "path_traversal", "double_submit"}
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_domain_has_five_techniques(self) -> None:
@@ -43,6 +47,9 @@ class TestCategoryMap:
 
     def test_path_traversal_has_nine_techniques(self) -> None:
         assert len(_CATEGORY_MAP["path_traversal"]) == 9
+
+    def test_double_submit_has_five_techniques(self) -> None:
+        assert len(_CATEGORY_MAP["double_submit"]) == 5
 
 
 # ─── Parse Cookie ────────────────────────────────────────────────────────────
@@ -506,6 +513,204 @@ class TestPathTraversalActive:
         assert len(prefix_techs) == 1
 
 
+# ─── CSRF Cookie Names ───────────────────────────────────────────────────────
+class TestCSRFCookieNames:
+    def test_has_expected_names(self) -> None:
+        assert "csrf_token" in _CSRF_COOKIE_NAMES
+        assert "xsrf-token" in _CSRF_COOKIE_NAMES
+        assert "csrftoken" in _CSRF_COOKIE_NAMES
+
+    def test_is_frozen(self) -> None:
+        assert isinstance(_CSRF_COOKIE_NAMES, frozenset)
+
+
+class TestCSRFCFieldNames:
+    def test_has_expected_names(self) -> None:
+        assert "csrf_token" in _CSRF_FIELD_NAMES
+        assert "authenticity_token" in _CSRF_FIELD_NAMES
+
+    def test_is_frozen(self) -> None:
+        assert isinstance(_CSRF_FIELD_NAMES, frozenset)
+
+
+# ─── Is CSRF Cookie ──────────────────────────────────────────────────────────
+class TestIsCsrfCookie:
+    def test_csrf_token(self) -> None:
+        assert _is_csrf_cookie("csrf_token") is True
+
+    def test_xsrf_token(self) -> None:
+        assert _is_csrf_cookie("XSRF-TOKEN") is True
+
+    def test_csrftoken(self) -> None:
+        assert _is_csrf_cookie("csrftoken") is True
+
+    def test_session_cookie(self) -> None:
+        assert _is_csrf_cookie("session_id") is False
+
+    def test_empty(self) -> None:
+        assert _is_csrf_cookie("") is False
+
+    def test_partial_match(self) -> None:
+        assert _is_csrf_cookie("my_csrf_token") is True
+
+
+# ─── Test Double Submit ──────────────────────────────────────────────────────
+class TestDoubleSubmit:
+    @pytest.mark.asyncio
+    async def test_no_csrf_cookies(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_client = AsyncMock()
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_csrf_cookie_no_httponly(self) -> None:
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc123", domain="", path="/",
+            secure=True, httponly=False, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {}
+        mock_resp.content = b"<html></html>"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        no_http = [r for r in results if r.technique == "ds_cookie_no_httponly"]
+        assert len(no_http) == 1
+        assert no_http[0].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_csrf_cookie_no_samesite(self) -> None:
+        cookies = [CookieInfo(
+            name="XSRF-TOKEN", value="xyz", domain="", path="/",
+            secure=True, httponly=True, samesite="", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {}
+        mock_resp.content = b"<html></html>"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        no_ss = [r for r in results if r.technique == "ds_cookie_no_samesite"]
+        assert len(no_ss) == 1
+        assert no_ss[0].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_csrf_cookie_samesite_none(self) -> None:
+        cookies = [CookieInfo(
+            name="csrf", value="val", domain="", path="/",
+            secure=True, httponly=True, samesite="None", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {}
+        mock_resp.content = b"<html></html>"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        ss_none = [r for r in results if r.technique == "ds_cookie_no_samesite"]
+        assert len(ss_none) == 1
+        assert ss_none[0].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_csrf_cookie_no_secure(self) -> None:
+        cookies = [CookieInfo(
+            name="csrftoken", value="tok", domain="", path="/",
+            secure=False, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {}
+        mock_resp.content = b"<html></html>"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        no_sec = [r for r in results if r.technique == "ds_cookie_no_secure"]
+        assert len(no_sec) == 1
+        assert no_sec[0].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_csrf_cookie_overly_broad_domain(self) -> None:
+        cookies = [CookieInfo(
+            name="csrf_token", value="v", domain=".com", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {}
+        mock_resp.content = b"<html></html>"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        broad = [r for r in results if r.technique == "ds_cookie_overly_broad_domain"]
+        assert len(broad) == 1
+        assert broad[0].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_csrf_pattern_confirmed(self) -> None:
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain="", path="/",
+            secure=True, httponly=False, samesite="Strict", raw="",
+        )]
+        form_html = b'<html><form><input type="hidden" name="csrf_token" value="abc"></form></html>'
+        mock_headers = MagicMock()
+        mock_headers.multi_items.return_value = []
+        mock_headers.get_list.return_value = []
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = mock_headers
+        mock_resp.content = form_html
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        pattern = [r for r in results if r.technique == "ds_token_in_cookie_vs_field"]
+        assert len(pattern) == 1
+        assert pattern[0].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_csrf_pattern_not_detected(self) -> None:
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain="", path="/",
+            secure=True, httponly=False, samesite="Strict", raw="",
+        )]
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {}
+        mock_resp.content = b"<html><body>No forms here</body></html>"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        pattern = [r for r in results if r.technique == "ds_token_in_cookie_vs_field"]
+        assert len(pattern) == 1
+        assert pattern[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        cookies = [CookieInfo(
+            name="csrf", value="v", domain="", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(side_effect=httpx.RequestError("timeout"))
+
+        results = await _test_double_submit(mock_client, "https://test.com", cookies)
+        assert len(results) > 0
+        errors = [r for r in results if r.error]
+        assert len(errors) > 0
+
+
 # ─── Build Parser ────────────────────────────────────────────────────────────
 class TestBuildParser:
     def test_has_url(self) -> None:
@@ -525,7 +730,7 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "domain", "flags", "path", "path_traversal"]:
+        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit"]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 

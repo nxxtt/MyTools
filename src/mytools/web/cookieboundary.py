@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Modulo de auditoria de Cookie Security (Domain Boundary + Path Traversal).
+"""Modulo de auditoria de Cookie Security (Domain + Path + Double Submit).
 
-Verifica se cookies de uma aplicacao web vazam para subdominios maliciosos
-ou entre paths diferentes, analisando atributos Domain, Path, Secure,
-HttpOnly e SameSite, e testando bypasses ativos de Path.
+Verifica se cookies de uma aplicacao web vazam para subdominios maliciosos,
+entre paths diferentes, ou sao bypassaveis via Double Submit Cookie pattern.
 
 Categorias de teste:
   - domain: Analise do attribute Domain (overly broad, mismatch, wildcard)
   - flags: Flags Secure, HttpOnly, SameSite
   - path: Analise do attribute Path (estatica)
   - path_traversal: Testes ativos de bypass de Path (encoding, case, traversal)
+  - double_submit: Analise de Double Submit Cookie pattern (CSRF bypass)
   - all: Todas as categorias
 
 Fluxo:
@@ -18,7 +18,8 @@ Fluxo:
   3. Parseia atributos de cada cookie
   4. Verifica boundary de dominio, flags e path
   5. Para path_traversal: testa bypasses ativos com requests HTTP
-  6. Retorna resultado consolidado com severidade
+  6. Para double_submit: analisa cookies CSRF para bypass
+  7. Retorna resultado consolidado com severidade
 """
 import argparse
 import contextlib
@@ -71,7 +72,27 @@ _CATEGORY_MAP: dict[str, list[str]] = {
         "traversal_overlong_utf8",
         "traversal_tab_injection",
     ],
+    "double_submit": [
+        "ds_cookie_no_httponly",
+        "ds_cookie_no_samesite",
+        "ds_cookie_overly_broad_domain",
+        "ds_cookie_no_secure",
+        "ds_token_in_cookie_vs_field",
+    ],
 }
+
+_CSRF_COOKIE_NAMES: frozenset[str] = frozenset({
+    "csrf_token", "_csrf", "csrf", "csrftoken", "xsrf-token",
+    "_xsrf", "_csrf_token", "csrfmiddlewaretoken",
+    "__requestverificationtoken", "x-csrf-token",
+    "x-xsrf-token", "csrf_secret", "csrf_protection",
+})
+
+_CSRF_FIELD_NAMES: frozenset[str] = frozenset({
+    "csrf_token", "_csrf", "csrf", "csrftoken", "_token",
+    "authenticity_token", "xsrf-token", "_xsrf", "_csrf_token",
+    "csrfmiddlewaretoken", "__requestverificationtoken",
+})
 
 _COOKIE_PATH_TRAVERSAL_PAYLOADS: list[tuple[str, str, str]] = [
     ("traversal_url_encoded", "/..%2f", "URL-encoded slash traversal"),
@@ -419,6 +440,95 @@ async def _test_path_traversal_active(
     return results
 
 
+def _is_csrf_cookie(cookie_name: str) -> bool:
+    """Verifica se o nome do cookie indica um token CSRF."""
+    lower = cookie_name.lower()
+    return any(csrf in lower for csrf in _CSRF_COOKIE_NAMES)
+
+
+async def _test_double_submit(
+    client: httpx.AsyncClient,
+    target: str,
+    cookies: list[CookieInfo],
+) -> list[CookieBoundaryAttempt]:
+    """Testa se o padrao Double Submit Cookie e bypassavel."""
+    results: list[CookieBoundaryAttempt] = []
+    csrf_cookies = [c for c in cookies if _is_csrf_cookie(c.name)]
+
+    if not csrf_cookies:
+        return results
+
+    for cookie in csrf_cookies:
+        results.append(CookieBoundaryAttempt(
+            technique="ds_cookie_no_httponly", category="double_submit",
+            cookie_name=cookie.name, attribute_tested="HttpOnly",
+            attribute_value=str(cookie.httponly), vulnerable=not cookie.httponly,
+            details=f"Cookie CSRF '{cookie.name}' legivel via JS (sem HttpOnly)"
+                    if not cookie.httponly else "",
+            error="",
+        ))
+
+        has_samesite = bool(cookie.samesite)
+        samesite_none = cookie.samesite.lower() == "none"
+        results.append(CookieBoundaryAttempt(
+            technique="ds_cookie_no_samesite", category="double_submit",
+            cookie_name=cookie.name, attribute_tested="SameSite",
+            attribute_value=cookie.samesite or "ausente",
+            vulnerable=not has_samesite or samesite_none,
+            details=f"Cookie CSRF '{cookie.name}' enviado cross-site"
+                    if not has_samesite or samesite_none else "",
+            error="",
+        ))
+
+        has_domain = bool(cookie.domain)
+        overly_broad = has_domain and cookie.domain.lstrip(".").count(".") <= 1
+        results.append(CookieBoundaryAttempt(
+            technique="ds_cookie_overly_broad_domain", category="double_submit",
+            cookie_name=cookie.name, attribute_tested="Domain",
+            attribute_value=cookie.domain or "ausente",
+            vulnerable=overly_broad,
+            details=f"Cookie CSRF '{cookie.name}' em domain amplo: {cookie.domain}"
+                    if overly_broad else "",
+            error="",
+        ))
+
+        results.append(CookieBoundaryAttempt(
+            technique="ds_cookie_no_secure", category="double_submit",
+            cookie_name=cookie.name, attribute_tested="Secure",
+            attribute_value=str(cookie.secure), vulnerable=not cookie.secure,
+            details=f"Cookie CSRF '{cookie.name}' sem Secure" if not cookie.secure else "",
+            error="",
+        ))
+
+    try:
+        _status, _headers, body, _raw = await fetch(client, target, timeout=10)
+        body_text = body.decode("utf-8", errors="replace").lower()
+        has_form = "<form" in body_text
+        has_csrf_field = any(
+            f'name="{field}"' in body_text or f"name='{field}'" in body_text
+            for field in _CSRF_FIELD_NAMES
+        )
+        pattern_confirmed = has_form and has_csrf_field
+        results.append(CookieBoundaryAttempt(
+            technique="ds_token_in_cookie_vs_field", category="double_submit",
+            cookie_name=csrf_cookies[0].name, attribute_tested="Pattern",
+            attribute_value="confirmed" if pattern_confirmed else "not_detected",
+            vulnerable=pattern_confirmed,
+            details="Double Submit Cookie pattern confirmado (cookie + campo hidden)"
+                    if pattern_confirmed else "",
+            error="",
+        ))
+    except Exception as e:
+        results.append(CookieBoundaryAttempt(
+            technique="ds_token_in_cookie_vs_field", category="double_submit",
+            cookie_name=csrf_cookies[0].name, attribute_tested="Pattern",
+            attribute_value="error", vulnerable=False,
+            details="", error=str(e)[:100],
+        ))
+
+    return results
+
+
 def print_results(result: CookieBoundaryResult) -> None:
     """Exibe os resultados do scan de Cookie Domain Boundary."""
     vuln = [a for a in result.attempts if a.vulnerable]
@@ -512,6 +622,11 @@ async def run_scan(
                     all_attempts.extend(
                         await _test_path_traversal_active(client, target, cookies),
                     )
+            elif cat == "double_submit":
+                with contextlib.suppress(Exception):
+                    all_attempts.extend(
+                        await _test_double_submit(client, target, cookies),
+                    )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
         protected_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
@@ -552,7 +667,7 @@ def banner_art() -> None:
  /___/_/_/_/\__//_/\_, //___/____/___/\___\_\
                   /___/
 """
-    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal")()
+    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal, double_submit")()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -567,6 +682,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  mytools-cookieboundary https://target.com -c domain\n"
             "  mytools-cookieboundary https://target.com -c flags\n"
             "  mytools-cookieboundary https://target.com -c path_traversal\n"
+            "  mytools-cookieboundary https://target.com -c double_submit\n"
             "  mytools-cookieboundary https://target.com --proxy http://127.0.0.1:8080"
         ),
     )
@@ -574,7 +690,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-c", "--category",
         default="all",
-        choices=["all", "domain", "flags", "path", "path_traversal"],
+        choices=["all", "domain", "flags", "path", "path_traversal", "double_submit"],
         help="Categoria de testes (default: todas)",
     )
     add_common_args(parser)
@@ -615,6 +731,7 @@ def main() -> int:
             "  https://target.com -c flags\n"
             "  https://target.com -c path\n"
             "  https://target.com -c path_traversal\n"
+            "  https://target.com -c double_submit\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
         ),
     )
