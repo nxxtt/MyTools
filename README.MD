@@ -762,7 +762,18 @@ mytools-log4shell https://example.com -c header_injection
 mytools-log4shell https://example.com -c bypass
 ```
 
-### 67. ReconAll (`mytools-reconall`)
+### 67. Cookie Domain Boundary (`mytools-cookieboundary`)
+Audita cookies de uma aplicação web, verificando se vazam para subdomínios maliciosos.
+
+```bash
+mytools-cookieboundary https://example.com
+mytools-cookieboundary https://example.com -c domain
+mytools-cookieboundary https://example.com -c flags
+mytools-cookieboundary https://example.com -c path
+mytools-cookieboundary https://example.com --proxy http://proxy:8080
+```
+
+### 68. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash

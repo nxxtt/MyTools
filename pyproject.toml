@@ -90,6 +90,7 @@ mytools-hostinject = "mytools.web.hostheaderinject:main"
 mytools-headerinject = "mytools.web.headerinject:main"
 mytools-loginjection = "mytools.web.loginjection:main"
 mytools-log4shell = "mytools.web.log4shell:main"
+mytools-cookieboundary = "mytools.web.cookieboundary:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
