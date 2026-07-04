@@ -17,6 +17,7 @@ from mytools.web.cookieboundary import (
     _is_csrf_cookie,
     _is_public_suffix,
     _parse_cookie,
+    _test_csrf_subdomain,
     _test_domain_attributes,
     _test_double_submit,
     _test_flag_attributes,
@@ -30,11 +31,11 @@ from mytools.web.cookieboundary import (
 
 # ─── Category Map ────────────────────────────────────────────────────────────
 class TestCategoryMap:
-    def test_has_six_categories(self) -> None:
-        assert len(_CATEGORY_MAP) == 6
+    def test_has_seven_categories(self) -> None:
+        assert len(_CATEGORY_MAP) == 7
 
     def test_categories_are_correct(self) -> None:
-        expected = {"domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns"}
+        expected = {"domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain"}
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_domain_has_five_techniques(self) -> None:
@@ -54,6 +55,9 @@ class TestCategoryMap:
 
     def test_samesite_dns_has_six_techniques(self) -> None:
         assert len(_CATEGORY_MAP["samesite_dns"]) == 6
+
+    def test_csrf_subdomain_has_six_techniques(self) -> None:
+        assert len(_CATEGORY_MAP["csrf_subdomain"]) == 6
 
 
 # ─── Parse Cookie ────────────────────────────────────────────────────────────
@@ -848,6 +852,143 @@ class TestSameSiteDnsBypass:
         assert "DNS timeout" in error_attempts[0].error
 
 
+# ─── CSRF Subdomain Bypass ────────────────────────────────────────────────────
+class TestCsrfSubdomain:
+    @pytest.mark.asyncio
+    async def test_no_csrf_cookies_returns_empty(self) -> None:
+        cookies = [CookieInfo(
+            name="session", value="abc", domain="test.com", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        assert result == []
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_csrf_cookie_wildcard_domain(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc123", domain=".target.com", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_wildcard_domain" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_csrf_cookie_broad_domain(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc123", domain="other.target.com", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_cookie_scope" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_csrf_cookie_no_httponly(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [CookieInfo(
+            name="XSRF-TOKEN", value="xyz", domain="", path="/",
+            secure=True, httponly=False, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_no_httponly" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_csrf_cookie_samesite_none(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain="", path="/",
+            secure=True, httponly=True, samesite="None", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_samesite_none" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_subdomains_discovered(self, mock_enum: MagicMock) -> None:
+        from mytools.dns.subdomainenum import SubdomainResult
+        mock_enum.return_value = [
+            SubdomainResult(subdomain="api.target.com", status="passive"),
+            SubdomainResult(subdomain="dev.target.com", status="passive"),
+        ]
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain="", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_takeover_risk" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_combined_risk(self, mock_enum: MagicMock) -> None:
+        from mytools.dns.subdomainenum import SubdomainResult
+        mock_enum.return_value = [
+            SubdomainResult(subdomain="api.target.com", status="passive"),
+        ]
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain=".target.com", path="/",
+            secure=True, httponly=False, samesite="None", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_combined_risk" in techniques
+
+    @pytest.mark.asyncio
+    async def test_no_domain_returns_early(self) -> None:
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain="", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://", cookies)
+        techniques = [a.technique for a in result]
+        assert not any(t.startswith("csrf_subdomain_") for t in techniques)
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_passive_enum_error(self, mock_enum: MagicMock) -> None:
+        mock_enum.side_effect = Exception("DNS timeout")
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain="", path="/",
+            secure=True, httponly=True, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        error_attempts = [a for a in result if a.error]
+        assert len(error_attempts) == 1
+        assert "DNS timeout" in error_attempts[0].error
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_single_risk_no_combined(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [CookieInfo(
+            name="csrf_token", value="abc", domain="", path="/",
+            secure=True, httponly=False, samesite="Strict", raw="",
+        )]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_no_httponly" in techniques
+        assert "csrf_subdomain_combined_risk" not in techniques
+
+
 # ─── Build Parser ────────────────────────────────────────────────────────────
 class TestBuildParser:
     def test_has_url(self) -> None:
@@ -867,7 +1008,7 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns"]:
+        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain"]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 

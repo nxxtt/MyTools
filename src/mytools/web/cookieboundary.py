@@ -12,6 +12,7 @@ Categorias de teste:
   - path_traversal: Testes ativos de bypass de Path (encoding, case, traversal)
   - double_submit: Analise de Double Submit Cookie pattern (CSRF bypass)
   - samesite_dns: SameSite=Lax + DNS rebinding feasibility
+  - csrf_subdomain: CSRF bypass via subdominios (cookie scope, takeover risk)
   - all: Todas as categorias
 
 Fluxo:
@@ -22,7 +23,8 @@ Fluxo:
   5. Para path_traversal: testa bypasses ativos com requests HTTP
   6. Para double_submit: analisa cookies CSRF para bypass
   7. Para samesite_dns: verifica se SameSite=Lax e bypassavel via DNS rebinding
-  8. Retorna resultado consolidado com severidade
+  8. Para csrf_subdomain: verifica se protecao CSRF e bypassavel via subdominio
+  9. Retorna resultado consolidado com severidade
 """
 import argparse
 import asyncio
@@ -90,6 +92,14 @@ _CATEGORY_MAP: dict[str, list[str]] = {
         "dns_rebindable_wildcard",
         "dns_rebindable_ip_flip",
         "samesite_dns_bypass_risk",
+    ],
+    "csrf_subdomain": [
+        "csrf_subdomain_cookie_scope",
+        "csrf_subdomain_no_httponly",
+        "csrf_subdomain_wildcard_domain",
+        "csrf_subdomain_samesite_none",
+        "csrf_subdomain_takeover_risk",
+        "csrf_subdomain_combined_risk",
     ],
 }
 
@@ -646,6 +656,130 @@ async def _test_samesite_dns_bypass(
     return results
 
 
+async def _test_csrf_subdomain(
+    client: httpx.AsyncClient,
+    target: str,
+    cookies: list[CookieInfo],
+) -> list[CookieBoundaryAttempt]:
+    """Testa se protecao CSRF e bypassavel via subdominios."""
+    results: list[CookieBoundaryAttempt] = []
+    csrf_cookies = [c for c in cookies if _is_csrf_cookie(c.name)]
+
+    if not csrf_cookies:
+        return results
+
+    parsed = urlparse(target)
+    domain = parsed.hostname or ""
+    base_domain = _extract_target_domain(target)
+
+    for cookie in csrf_cookies:
+        if cookie.domain:
+            is_wildcard = cookie.domain.startswith(".")
+            is_broad = is_wildcard or (base_domain in cookie.domain and cookie.domain != domain)
+            if is_wildcard:
+                results.append(CookieBoundaryAttempt(
+                    technique="csrf_subdomain_wildcard_domain", category="csrf_subdomain",
+                    cookie_name=cookie.name, attribute_tested="Domain",
+                    attribute_value=cookie.domain, vulnerable=True,
+                    details=f"Cookie '{cookie.name}' com Domain wildcard {cookie.domain} — acessivel por qualquer subdominio",
+                    error="",
+                ))
+            elif is_broad:
+                results.append(CookieBoundaryAttempt(
+                    technique="csrf_subdomain_cookie_scope", category="csrf_subdomain",
+                    cookie_name=cookie.name, attribute_tested="Domain",
+                    attribute_value=cookie.domain, vulnerable=True,
+                    details=f"Cookie '{cookie.name}' com Domain {cookie.domain} — compartilhado entre subdominios",
+                    error="",
+                ))
+
+        if not cookie.httponly:
+            results.append(CookieBoundaryAttempt(
+                technique="csrf_subdomain_no_httponly", category="csrf_subdomain",
+                cookie_name=cookie.name, attribute_tested="HttpOnly",
+                attribute_value="ausente", vulnerable=True,
+                details=f"Cookie '{cookie.name}' sem HttpOnly — JavaScript em subdominio pode ler token CSRF",
+                error="",
+            ))
+
+        if cookie.samesite.lower() == "none":
+            results.append(CookieBoundaryAttempt(
+                technique="csrf_subdomain_samesite_none", category="csrf_subdomain",
+                cookie_name=cookie.name, attribute_tested="SameSite",
+                attribute_value="None", vulnerable=True,
+                details=f"Cookie '{cookie.name}' SameSite=None — requests cross-site de subdominio permitidos",
+                error="",
+            ))
+
+    if not domain:
+        return results
+
+    try:
+        from mytools.dns.subdomainenum import passive_enumeration
+
+        subdomains = await asyncio.to_thread(
+            passive_enumeration, domain, ["crtsh", "otx", "urlscan"],
+        )
+    except Exception as e:
+        results.append(CookieBoundaryAttempt(
+            technique="csrf_subdomain_takeover_risk", category="csrf_subdomain",
+            cookie_name=csrf_cookies[0].name, attribute_tested="Subdomains",
+            attribute_value="error", vulnerable=False,
+            details="", error=str(e)[:100],
+        ))
+        return results
+
+    own_subdomains = [
+        s for s in subdomains
+        if s.subdomain.endswith(f".{domain}") and s.subdomain != domain
+    ]
+
+    if own_subdomains:
+        sub_list = ", ".join(s.subdomain for s in own_subdomains[:5])
+        more = f" (+{len(own_subdomains) - 5} mais)" if len(own_subdomains) > 5 else ""
+        results.append(CookieBoundaryAttempt(
+            technique="csrf_subdomain_takeover_risk", category="csrf_subdomain",
+            cookie_name=csrf_cookies[0].name, attribute_tested="Subdomains",
+            attribute_value=f"{len(own_subdomains)} found", vulnerable=True,
+            details=f"Subdominios descobertos: {sub_list}{more} — potencial para takeover/CSRF",
+            error="",
+        ))
+
+    has_cookie_scope = any(
+        a.technique in {"csrf_subdomain_cookie_scope", "csrf_subdomain_wildcard_domain"}
+        for a in results
+    )
+    has_no_httponly = any(a.technique == "csrf_subdomain_no_httponly" for a in results)
+    has_samesite_none = any(a.technique == "csrf_subdomain_samesite_none" for a in results)
+    has_subdomains = any(a.technique == "csrf_subdomain_takeover_risk" and a.vulnerable for a in results)
+
+    risk_count = sum([has_cookie_scope, has_no_httponly, has_samesite_none, has_subdomains])
+    if risk_count >= 2:
+        cookie_names = ", ".join(c.name for c in csrf_cookies)
+        indicators = []
+        if has_cookie_scope:
+            indicators.append("Domain broad/wildcard")
+        if has_no_httponly:
+            indicators.append("sem HttpOnly")
+        if has_samesite_none:
+            indicators.append("SameSite=None")
+        if has_subdomains:
+            indicators.append("subdominios descobertos")
+        results.append(CookieBoundaryAttempt(
+            technique="csrf_subdomain_combined_risk", category="csrf_subdomain",
+            cookie_name=csrf_cookies[0].name, attribute_tested="Combined Risk",
+            attribute_value="high" if risk_count >= 3 else "medium",
+            vulnerable=True,
+            details=(
+                f"CSRF cookies ({cookie_names}) com {risk_count} indicadores de bypass via subdominio: "
+                f"{', '.join(indicators)}"
+            ),
+            error="",
+        ))
+
+    return results
+
+
 def print_results(result: CookieBoundaryResult) -> None:
     """Exibe os resultados do scan de Cookie Domain Boundary."""
     vuln = [a for a in result.attempts if a.vulnerable]
@@ -749,6 +883,11 @@ async def run_scan(
                     all_attempts.extend(
                         await _test_samesite_dns_bypass(client, target, cookies),
                     )
+            elif cat == "csrf_subdomain":
+                with contextlib.suppress(Exception):
+                    all_attempts.extend(
+                        await _test_csrf_subdomain(client, target, cookies),
+                    )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
         protected_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
@@ -789,7 +928,7 @@ def banner_art() -> None:
  /___/_/_/_/\__//_/\_, //___/____/___/\___\_\
                   /___/
 """
-    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal, double_submit, samesite_dns")()
+    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal, double_submit, samesite_dns, csrf_subdomain")()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -806,6 +945,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  mytools-cookieboundary https://target.com -c path_traversal\n"
             "  mytools-cookieboundary https://target.com -c double_submit\n"
             "  mytools-cookieboundary https://target.com -c samesite_dns\n"
+            "  mytools-cookieboundary https://target.com -c csrf_subdomain\n"
             "  mytools-cookieboundary https://target.com --proxy http://127.0.0.1:8080"
         ),
     )
@@ -813,7 +953,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-c", "--category",
         default="all",
-        choices=["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns"],
+        choices=["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain"],
         help="Categoria de testes (default: todas)",
     )
     add_common_args(parser)
