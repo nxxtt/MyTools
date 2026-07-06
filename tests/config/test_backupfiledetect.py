@@ -103,8 +103,6 @@ class TestClassifyBackup:
     def test_in_all_types(self):
         for btype, paths in ALL_TYPES.items():
             for p in paths:
-                if p == "config.php.save":
-                    continue
                 assert _classify_backup(p) == btype
 
 

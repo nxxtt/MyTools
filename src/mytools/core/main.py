@@ -1865,6 +1865,7 @@ def main() -> int:
             case _:
                 print(color("Opcao invalida.", Cyber.RED))
                 input(color("Enter para continuar...", Cyber.GRAY))
+                continue
 
         clear_console()
 

@@ -24,6 +24,7 @@ Modulos disponiveis:
 """
 import argparse
 import asyncio
+import contextlib
 import os
 import time
 from collections.abc import Callable
@@ -56,19 +57,44 @@ from mytools.osint import darkwebmonitor, emailbreachcheck, googledorking, ipasn
 from mytools.vcs import vcsleak
 from mytools.web import (
     attackaudit,
+    blindxss,
+    bominjection,
+    cachedeception,
+    cachepoisoning,
+    charsetbypass,
+    clickjacking,
+    corsmisconfig,
+    crlfinjection,
+    deserialinject,
     doubleurlencode,
     graphqlplayground,
+    headerinject,
+    hostheaderinject,
+    httpparampollution,
+    ldapiinject,
+    log4shell,
+    loginjection,
+    methodoverride,
+    nosqliinject,
     nullbyteinject,
     openapidiscovery,
+    openredirect,
+    overlongencoding,
     pathtraversal,
+    prototypepollution,
     rtloverride,
     sourcemapdiscovery,
+    ssiinject,
+    ssrfdetect,
+    sstidetect,
     techfingerprint,
     webrecon,
+    xpathinject,
+    xxedetect,
 )
 from mytools.whois import whoishistory
 
-ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "openapidiscovery", "graphqlplayground", "sourcemapdiscovery", "vcsleak", "configfiledetect", "backupfiledetect", "googledorking", "emailbreachcheck", "socialengrecon", "pasteleak", "darkwebmonitor", "dnsrebinding", "dnswatorture", "dnsamplification", "dnstunnel", "dnssecvalidation", "nsecwalking",     "caacheck", "emailsecurity", "emailspoof", "smtpinjection", "smtpdowngrade", "emailtemplateinject", "emailattachmentbypass", "emailaddressbypass", "emaillinktracking", "nullbyteinject", "doubleurlencode", "pathtraversal", "overlongencoding", "bominjection", "charsetbypass", "openredirect", "crlfinjection", "sstidetect", "ssrfdetect", "xxedetect", "nosqliinject", "ldapiinject", "xpathinject", "ssiinject", "prototypepollution", "deserialinject", "cachepoisoning", "cachedeception", "methodoverride", "httpparampollution", "blindxss", "corsmisconfig", "clickjacking", "hostheaderinject", "headerinject", "loginjection", "log4shell", "rtloverride", "dirscanner", "webrecon", "attackaudit"]
+ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "openapidiscovery", "graphqlplayground", "sourcemapdiscovery", "vcsleak", "configfiledetect", "backupfiledetect", "googledorking", "emailbreachcheck", "socialengrecon", "pasteleak", "darkwebmonitor", "dnsrebinding", "dnswatorture", "dnsamplification", "dnstunnel", "dnssecvalidation", "nsecwalking",     "caacheck", "emailsecurity", "emailspoof", "smtpinjection", "smtpdowngrade", "emailtemplateinject", "emailattachmentbypass", "emailaddressbypass", "emaillinktracking", "nullbyteinject", "doubleurlencode", "pathtraversal", "overlongencoding", "bominjection", "charsetbypass", "openredirect", "crlfinjection", "sstidetect", "ssrfdetect", "xxedetect", "nosqliinject", "ldapiinject", "xpathinject", "ssiinject", "prototypepollution", "deserialinject", "cachepoisoning", "cachedeception", "methodoverride", "httpparampollution", "blindxss", "corsmisconfig", "clickjacking", "hostheaderinject", "headerinject",     "loginjection", "log4shell", "dirscanner", "webrecon", "attackaudit"]
 
 """Recon completo: executa portscanner, dirscanner, webrecon, attackaudit, dnstransfer e subenum contra um alvo."""
 
@@ -139,7 +165,16 @@ _ALL_MODS = (
     backupfiledetect, googledorking, emailbreachcheck, socialengrecon,
     pasteleak, darkwebmonitor, dnsrebinding, dnswatorture,
     dnsamplification, dnstunnel, dnssecvalidation, nsecwalking,
-    caacheck, emailsecurity, emailspoof, smtpinjection, smtpdowngrade, emailtemplateinject, emailattachmentbypass, emailaddressbypass, emaillinktracking, nullbyteinject, doubleurlencode, pathtraversal, rtloverride, webrecon, attackaudit,
+    caacheck, emailsecurity, emailspoof, smtpinjection, smtpdowngrade,
+    emailtemplateinject, emailattachmentbypass, emailaddressbypass, emaillinktracking,
+    nullbyteinject, doubleurlencode, pathtraversal, rtloverride,
+    overlongencoding, bominjection, charsetbypass, openredirect,
+    crlfinjection, sstidetect, ssrfdetect, xxedetect,
+    nosqliinject, ldapiinject, xpathinject, ssiinject,
+    prototypepollution, deserialinject, cachepoisoning, cachedeception,
+    methodoverride, httpparampollution, blindxss, corsmisconfig,
+    clickjacking, hostheaderinject, headerinject, loginjection, log4shell,
+    webrecon, attackaudit,
 )
 
 
@@ -150,7 +185,8 @@ def _get_parser_defaults() -> dict[str, object]:
         _PARSER_DEFAULTS = {}
         for mod in _ALL_MODS:
             parser = mod.build_parser()
-            _PARSER_DEFAULTS.update(vars(parser.parse_args([])))
+            with contextlib.suppress(SystemExit):
+                _PARSER_DEFAULTS.update(vars(parser.parse_args([])))
     return _PARSER_DEFAULTS
 
 
@@ -317,6 +353,82 @@ def run_all(args: argparse.Namespace) -> int:
     if "pathtraversal" not in skipped and is_url:
         modules.append(("pathtraversal", pathtraversal.run_once,
                         _make_args(target, {"url": target, "output": _out("pathtraversal")}, base_ns)))
+
+    if "overlongencoding" not in skipped and is_url:
+        modules.append(("overlongencoding", overlongencoding.run_once,
+                        _make_args(target, {"url": target, "output": _out("overlongencoding")}, base_ns)))
+    if "bominjection" not in skipped and is_url:
+        modules.append(("bominjection", bominjection.run_once,
+                        _make_args(target, {"url": target, "output": _out("bominjection")}, base_ns)))
+    if "charsetbypass" not in skipped and is_url:
+        modules.append(("charsetbypass", charsetbypass.run_once,
+                        _make_args(target, {"url": target, "output": _out("charsetbypass")}, base_ns)))
+    if "openredirect" not in skipped and is_url:
+        modules.append(("openredirect", openredirect.run_once,
+                        _make_args(target, {"url": target, "output": _out("openredirect")}, base_ns)))
+    if "crlfinjection" not in skipped and is_url:
+        modules.append(("crlfinjection", crlfinjection.run_once,
+                        _make_args(target, {"url": target, "output": _out("crlfinjection")}, base_ns)))
+    if "sstidetect" not in skipped and is_url:
+        modules.append(("sstidetect", sstidetect.run_once,
+                        _make_args(target, {"url": target, "output": _out("sstidetect")}, base_ns)))
+    if "ssrfdetect" not in skipped and is_url:
+        modules.append(("ssrfdetect", ssrfdetect.run_once,
+                        _make_args(target, {"url": target, "output": _out("ssrfdetect")}, base_ns)))
+    if "xxedetect" not in skipped and is_url:
+        modules.append(("xxedetect", xxedetect.run_once,
+                        _make_args(target, {"url": target, "output": _out("xxedetect")}, base_ns)))
+    if "nosqliinject" not in skipped and is_url:
+        modules.append(("nosqliinject", nosqliinject.run_once,
+                        _make_args(target, {"url": target, "output": _out("nosqliinject")}, base_ns)))
+    if "ldapiinject" not in skipped and is_url:
+        modules.append(("ldapiinject", ldapiinject.run_once,
+                        _make_args(target, {"url": target, "output": _out("ldapiinject")}, base_ns)))
+    if "xpathinject" not in skipped and is_url:
+        modules.append(("xpathinject", xpathinject.run_once,
+                        _make_args(target, {"url": target, "output": _out("xpathinject")}, base_ns)))
+    if "ssiinject" not in skipped and is_url:
+        modules.append(("ssiinject", ssiinject.run_once,
+                        _make_args(target, {"url": target, "output": _out("ssiinject")}, base_ns)))
+    if "prototypepollution" not in skipped and is_url:
+        modules.append(("prototypepollution", prototypepollution.run_once,
+                        _make_args(target, {"url": target, "output": _out("prototypepollution")}, base_ns)))
+    if "deserialinject" not in skipped and is_url:
+        modules.append(("deserialinject", deserialinject.run_once,
+                        _make_args(target, {"url": target, "output": _out("deserialinject")}, base_ns)))
+    if "cachepoisoning" not in skipped and is_url:
+        modules.append(("cachepoisoning", cachepoisoning.run_once,
+                        _make_args(target, {"url": target, "output": _out("cachepoisoning")}, base_ns)))
+    if "cachedeception" not in skipped and is_url:
+        modules.append(("cachedeception", cachedeception.run_once,
+                        _make_args(target, {"url": target, "output": _out("cachedeception")}, base_ns)))
+    if "methodoverride" not in skipped and is_url:
+        modules.append(("methodoverride", methodoverride.run_once,
+                        _make_args(target, {"url": target, "output": _out("methodoverride")}, base_ns)))
+    if "httpparampollution" not in skipped and is_url:
+        modules.append(("httpparampollution", httpparampollution.run_once,
+                        _make_args(target, {"url": target, "output": _out("httpparampollution")}, base_ns)))
+    if "blindxss" not in skipped and is_url:
+        modules.append(("blindxss", blindxss.run_once,
+                        _make_args(target, {"url": target, "output": _out("blindxss")}, base_ns)))
+    if "corsmisconfig" not in skipped and is_url:
+        modules.append(("corsmisconfig", corsmisconfig.run_once,
+                        _make_args(target, {"url": target, "output": _out("corsmisconfig")}, base_ns)))
+    if "clickjacking" not in skipped and is_url:
+        modules.append(("clickjacking", clickjacking.run_once,
+                        _make_args(target, {"url": target, "output": _out("clickjacking")}, base_ns)))
+    if "hostheaderinject" not in skipped and is_url:
+        modules.append(("hostheaderinject", hostheaderinject.run_once,
+                        _make_args(target, {"url": target, "output": _out("hostheaderinject")}, base_ns)))
+    if "headerinject" not in skipped and is_url:
+        modules.append(("headerinject", headerinject.run_once,
+                        _make_args(target, {"url": target, "output": _out("headerinject")}, base_ns)))
+    if "loginjection" not in skipped and is_url:
+        modules.append(("loginjection", loginjection.run_once,
+                        _make_args(target, {"url": target, "output": _out("loginjection")}, base_ns)))
+    if "log4shell" not in skipped and is_url:
+        modules.append(("log4shell", log4shell.run_once,
+                        _make_args(target, {"url": target, "output": _out("log4shell")}, base_ns)))
 
     if is_url:
         if "techfingerprint" not in skipped:

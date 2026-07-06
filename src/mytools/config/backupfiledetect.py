@@ -61,7 +61,6 @@ BAK_PATHS: list[str] = [
     "wp-config.php.old",
     ".env.old",
     "index.php.old",
-    "config.php.save",
     "wp-config.php.save",
     "config.php.backup",
     ".env.backup",
@@ -233,7 +232,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
             return True, "GZIP archive"
         if content[:3] == b"BZh":
             return True, "BZIP2 archive"
-        if content[:4] == LZMA_MAGIC or content[:5] == b"7z\xbc\xaf\x27\x1c":
+        if content[:4] == LZMA_MAGIC or content[:6] == b"7z\xbc\xaf\x27\x1c":
             return True, "7z/LZMA archive"
         return False, ""
 
@@ -246,6 +245,9 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
         return False, ""
 
     # bak, tilde, orig_tmp, save — qualquer conteudo nao vazio
+    if backup_type == "tilde" and len(content) > 10:
+        snippet = content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
+        return True, snippet
     if content:
         snippet = content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
         return True, snippet

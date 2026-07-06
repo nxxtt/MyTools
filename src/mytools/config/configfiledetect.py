@@ -93,10 +93,8 @@ CONFIG_PATHS: list[str] = [
 
 FRAMEWORK_PATHS: list[str] = [
     "wp-config.php",
-    ".env.local",
     "config/database.yml",
     "config/secrets.yml",
-    "config/config.json",
     "web.config",
     ".htaccess",
     "app/etc/local.xml",
@@ -163,7 +161,7 @@ ALL_CATEGORIES: dict[str, list[str]] = {
     "credentials": CREDENTIALS_PATHS,
 }
 
-ALL_PATHS = list({p for paths in ALL_CATEGORIES.values() for p in paths})
+ALL_PATHS = list(dict.fromkeys(p for paths in ALL_CATEGORIES.values() for p in paths))
 
 SENSITIVE_EXTENSIONS = frozenset({".env", ".bak", ".old", ".backup"})
 SENSITIVE_BASENAMES = frozenset({
@@ -176,11 +174,9 @@ SENSITIVE_BASENAMES = frozenset({
 
 # ── Content validators ────────────────────────────────────────────────────────
 
-_ENV_PATTERN = False  # resolved dynamically
-
 _SENSITIVE_PATTERNS: dict[str, list[str]] = {
     "env": ["=", "DB_", "API_KEY", "SECRET", "PASSWORD", "TOKEN", "MYSQL", "POSTGRES", "REDIS"],
-    "config": ["{", "}", ":", "config", "setting", "database", "host"],
+    "config": ["config", "setting", "database", "host", "port", "password"],
     "framework": ["DB_NAME", "DB_USER", "DB_PASSWORD", "wp_", "APP_KEY", "SECRET_KEY", "database", "password", "<configuration", "system.web"],
     "database": ["mysql", "postgres", "host", "port", "database", "user", "password", "mongodb", "redis"],
     "docker": ["services:", "version:", "image:", "container_name:", "build:", "volumes:", "FROM"],
@@ -233,7 +229,7 @@ def _is_sensitive(path: str) -> bool:
     _, ext = os.path.splitext(basename)
     if ext in SENSITIVE_EXTENSIONS:
         return True
-    return ext in {".bak", ".old", ".save", "~"}
+    return ext in {".bak", ".old", ".save"} or basename.endswith("~")
 
 
 def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
@@ -261,7 +257,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
         if path.endswith((".json",)):
             try:
                 data = json.loads(text)
-                if isinstance(data, dict) and len(data) > 0:
+                if isinstance(data, dict):
                     return True, f"JSON config ({len(data)} keys)"
             except (json.JSONDecodeError, ValueError):
                 pass

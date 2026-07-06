@@ -131,7 +131,7 @@ class TestValidateContent:
     def test_config_json_empty_obj(self):
         ok, detail = _validate_content("config.json", b"{}")
         assert ok is True
-        assert "{" in detail
+        assert "JSON config" in detail
 
     def test_config_json_invalid(self):
         ok, _ = _validate_content("config.json", b"not json")
