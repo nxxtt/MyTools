@@ -112,6 +112,7 @@ Isso instala os comandos CLI:
 | `mytools-mxss` | Mutation XSS Detection |
 | `mytools-cssinject` | CSS Injection via Style Detection |
 | `mytools-xssvectors` | XSS Vectors Detection |
+| `mytools-fileupload` | File Upload Attacks Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -755,6 +756,20 @@ mytools-xssvectors https://example.com -c base_redirect
 mytools-xssvectors https://example.com -c custom_elements
 mytools-xssvectors https://example.com -c shadow_dom
 mytools-xssvectors https://example.com -c slot_use
+```
+
+### 60f. File Upload Attacks (`mytools-fileupload`)
+Detecta polyglots, SVG XXE, ImageMagick, ZIP Slip, filename injection, content-type mismatch e multipart boundary abuse.
+
+```bash
+mytools-fileupload https://example.com/upload
+mytools-fileupload https://example.com -c polyglot
+mytools-fileupload https://example.com -c svg_xxe
+mytools-fileupload https://example.com -c image_magic
+mytools-fileupload https://example.com -c zip_slip
+mytools-fileupload https://example.com -c filename_inject
+mytools-fileupload https://example.com -c content_type
+mytools-fileupload https://example.com -c multipart_boundary
 ```
 
 ### 61. CORS Misconfiguration (`mytools-cors`)

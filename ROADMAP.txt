@@ -172,13 +172,13 @@
 
 ## File Upload Attacks
 
-99. Polyglot Upload — Upload de arquivos que são válidos em múltiplos formatos
-100. SVG XXE via Upload — Upload de SVG com XXE embutido
-101. Image Magic Overflow — Explorar vulnerabilidades em processamento de imagem
-102. ZIP Slip via Upload — Upload de ZIP com paths maliciosos
-103. Filename Injection — Injetar comandos no nome do arquivo
-104. Content-Type Mismatch — Upload com Content-Type diferente do conteúdo real
-105. Multipart Boundary Abuse — Manipular boundary do multipart para bypass
+99. Polyglot Upload — Upload de arquivos que são válidos em múltiplos formatos ✅
+100. SVG XXE via Upload — Upload de SVG com XXE embutido ✅
+101. Image Magic Overflow — Explorar vulnerabilidades em processamento de imagem ✅
+102. ZIP Slip via Upload — Upload de ZIP com paths maliciosos ✅
+103. Filename Injection — Injetar comandos no nome do arquivo ✅
+104. Content-Type Mismatch — Upload com Content-Type diferente do conteúdo real ✅
+105. Multipart Boundary Abuse — Manipular boundary do multipart para bypass ✅
 
 ## ═══════════════════════════════════════════════════════
 ## Tier 5 — Auth & Business Logic (22 itens)

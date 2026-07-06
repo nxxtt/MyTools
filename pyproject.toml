@@ -95,6 +95,7 @@ mytools-domclob = "mytools.web.domclobbering:main"
 mytools-mxss = "mytools.web.mxss:main"
 mytools-cssinject = "mytools.web.cssinject:main"
 mytools-xssvectors = "mytools.web.xssvectors:main"
+mytools-fileupload = "mytools.web.fileupload:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
