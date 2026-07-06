@@ -115,6 +115,8 @@ Isso instala os comandos CLI:
 | `mytools-xssvectors` | XSS Vectors Detection |
 | `mytools-fileupload` | File Upload Attacks Detection |
 | `mytools-jwt` | JWT Analysis |
+| `mytools-oauth` | OAuth 2.0 Misconfiguration Detection |
+| `mytools-saml` | SAML Attack Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -780,7 +782,31 @@ mytools-jwt eyJ... --wordlist secrets.txt
 mytools-jwt eyJ... -o resultado.json
 ```
 
-### 66. CORS Misconfiguration (`mytools-cors`)
+### 66. OAuth 2.0 Misconfiguration (`mytools-oauth`)
+Detecta misconfigurations em fluxos OAuth: state ausente, implicit flow, redirect URI bypass, PKCE bypass, refresh token rotation.
+
+```bash
+mytools-oauth https://target.com/authorize
+mytools-oauth https://target.com -c misconfig
+mytools-oauth https://target.com -c scope_escalation
+mytools-oauth https://target.com -c redirect_uri
+mytools-oauth https://target.com -c pkce_bypass
+mytools-oauth https://target.com -c refresh_token
+```
+
+### 67. SAML Attack Detection (`mytools-saml`)
+Detecta assertion replay e XML Signature Wrapping em implementacoes SAML.
+
+```bash
+mytools-saml --file response.xml
+mytools-saml --saml-response PHNhbWw+...
+mytools-saml --file response.xml --url https://target.com/acs
+mytools-saml --file response.xml -c assertion_replay
+mytools-saml --file response.xml -c xml_signature_wrapping
+mytools-saml --file response.xml -o resultado.json
+```
+
+### 68. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
 ```bash
@@ -790,7 +816,7 @@ mytools-cors https://example.com -c credentials
 mytools-cors https://example.com -c reflected
 ```
 
-### 67. Clickjacking (`mytools-clickjack`)
+### 69. Clickjacking (`mytools-clickjack`)
 Testa X-Frame-Options/CSP e bypasses em browsers legados.
 
 ```bash
@@ -800,7 +826,7 @@ mytools-clickjack https://example.com -c csp
 mytools-clickjack https://example.com -c bypass
 ```
 
-### 68. Host Header Injection (`mytools-hostinject`)
+### 70. Host Header Injection (`mytools-hostinject`)
 Testa manipulação de Host header para spoofing, SSRF, cache poisoning e bypass.
 
 ```bash
@@ -811,7 +837,7 @@ mytools-hostinject https://example.com -c bypass
 mytools-hostinject https://example.com --inject-host evil.com
 ```
 
-### 69. Header Injection via URL Params (`mytools-headerinject`)
+### 71. Header Injection via URL Params (`mytools-headerinject`)
 Testa se parâmetros de URL são refletidos como headers HTTP nas respostas.
 
 ```bash
@@ -821,7 +847,7 @@ mytools-headerinject https://example.com -c header_overwrite
 mytools-headerinject https://example.com -c bypass
 ```
 
-### 70. Log Injection (`mytools-loginjection`)
+### 72. Log Injection (`mytools-loginjection`)
 Testa se o servidor é vulnerável a injeção de conteúdo em logs via headers HTTP.
 
 ```bash
@@ -831,7 +857,7 @@ mytools-loginjection https://example.com -c referer
 mytools-loginjection https://example.com -c bypass
 ```
 
-### 71. Log4Shell (`mytools-log4shell`)
+### 73. Log4Shell (`mytools-log4shell`)
 Testa JNDI injection em headers HTTP (CVE-2021-44228).
 
 ```bash
@@ -841,7 +867,7 @@ mytools-log4shell https://example.com -c header_injection
 mytools-log4shell https://example.com -c bypass
 ```
 
-### 72. Cookie Domain Boundary (`mytools-cookieboundary`)
+### 74. Cookie Domain Boundary (`mytools-cookieboundary`)
 Audita cookies de uma aplicação web: domain boundary, path traversal, Double Submit Cookie (CSRF), SameSite DNS bypass, CSRF via subdomínio e cookie quoting edge cases.
 
 ```bash
@@ -857,7 +883,7 @@ mytools-cookieboundary https://example.com -c cookie_quoting
 mytools-cookieboundary https://example.com --proxy http://proxy:8080
 ```
 
-### 72. ReconAll (`mytools-reconall`)
+### 75. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash

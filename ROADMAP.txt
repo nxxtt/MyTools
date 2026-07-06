@@ -191,13 +191,13 @@
 
 ## OAuth / SAML
 
-107. OAuth Misconfig — Detectar configurações incorretas em fluxos OAuth
-108. OAuth Scope Escalation — Tentar obter scopes mais amplos que o necessário
-109. Redirect URI Manipulation — Testar bypasses de redirect URI validation
-110. PKCE Bypass — Verificar se PKCE é obrigatório em todas as flows
-111. Refresh Token Rotation Bypass — Verificar se refresh tokens são realmente invalidados
-112. SAML Assertion Replay — Testar se assertions podem ser reutilizadas
-113. SAML XML Signature Wrapping — Bypass de validação de assinatura XML
+107. [x] OAuth Misconfig — Detectar configurações incorretas em fluxos OAuth
+108. [x] OAuth Scope Escalation — Tentar obter scopes mais amplos que o necessário
+109. [x] Redirect URI Manipulation — Testar bypasses de redirect URI validation
+110. [x] PKCE Bypass — Verificar se PKCE é obrigatório em todas as flows
+111. [x] Refresh Token Rotation Bypass — Verificar se refresh tokens são realmente invalidados
+112. [x] SAML Assertion Replay — Testar se assertions podem ser reutilizadas
+113. [x] SAML XML Signature Wrapping — Bypass de validação de assinatura XML
 
 ## OIDC
 
