@@ -36,7 +36,7 @@ def test_category_map_keys() -> None:
 
 def test_total_techniques_matches_sum() -> None:
     total = sum(len(v) for v in _CATEGORY_MAP.values())
-    assert total == 36
+    assert total == 38
 
 
 def test_injection_payloads_count() -> None:
@@ -60,7 +60,7 @@ def test_token_exfil_payloads_count() -> None:
 
 
 def test_csp_bypass_payloads_count() -> None:
-    assert len(_CSP_BYPASS_PAYLOADS) == 5
+    assert len(_CSP_BYPASS_PAYLOADS) == 7
 
 
 def test_all_payloads_have_four_elements() -> None:

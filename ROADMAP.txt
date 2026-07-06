@@ -155,20 +155,20 @@
 82. DOM Clobbering via Named Access — Usar <a name="id"> para sobrescrever variáveis JS ✅
 83. Mutation XSS — XSS que só aparece após mutação do DOM pelo browser ✅
 84. CSS Injection via Style — Injetar CSS para extrair dados (ex: background: url(...)) ✅
-85. XSS via SVG Scripts — <script> embutido em SVG
-86. XSS via <math> / <svg> MathML — Vetores de XSS via MathML/SVG
-87. XSS via <details open ontoggle> — XSS sem interação do usuário
-88. XSS via <img src=x onerror> — Vetores clássicos mas eficazes
-89. XSS via <video> <source> — XSS via eventos de mídia
-90. XSS via <link> <a> CSS — XSS via CSS import
-91. XSS via <base> Tag — Manipular base URL para redirecionar requests
-92. XSS via javascript: URI — Navegação via javascript: em diferentes contextos
-93. XSS via data: URI — Injetar data:text/html em diferentes contextos
-94. XSS via <iframe srcdoc> — XSS via iframe srcdoc
-95. XSS via <template> — XSS via conteúdo de template elements
-96. XSS via Custom Elements — XSS via web components customizados
-97. XSS via Shadow DOM — XSS via shadow roots
-98. XSS via <slot> e <use> href — XSS via slot/use elements em shadow DOM
+85. XSS via SVG Scripts — <script> embutido em SVG ✅
+86. XSS via <math> / <svg> MathML — Vetores de XSS via MathML/SVG ✅
+87. XSS via <details open ontoggle> — XSS sem interação do usuário ✅
+88. XSS via <img src=x onerror> — Vetores clássicos mas eficazes ✅
+89. XSS via <video> <source> — XSS via eventos de mídia ✅
+90. XSS via <link> <a> CSS — XSS via CSS import ✅
+91. XSS via <base> Tag — Manipular base URL para redirecionar requests ✅
+92. XSS via javascript: URI — Navegação via javascript: em diferentes contextos ✅
+93. XSS via data: URI — Injetar data:text/html em diferentes contextos ✅
+94. XSS via <iframe srcdoc> — XSS via iframe srcdoc ✅
+95. XSS via <template> — XSS via conteúdo de template elements ✅
+96. XSS via Custom Elements — XSS via web components customizados ✅
+97. XSS via Shadow DOM — XSS via shadow roots ✅
+98. XSS via <slot> e <use> href — XSS via slot/use elements em shadow DOM ✅
 
 ## File Upload Attacks
 

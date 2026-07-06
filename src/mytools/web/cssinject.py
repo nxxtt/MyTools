@@ -88,6 +88,8 @@ _CATEGORY_MAP: dict[str, list[str]] = {
         "data_uri_css",
         "expression_legacy",
         "import_charset_bypass",
+        "link_import_xss",
+        "css_import_js",
     ],
 }
 
@@ -322,6 +324,18 @@ _CSP_BYPASS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
         "@import url(http://evil.com/style.css) screen;",
         "import_media",
         ["@import", "url"],
+    ),
+    (
+        "link_import_xss",
+        '<link rel=import href="data:text/html,<script>alert(1)</script>">',
+        "link_import",
+        ["link", "import", "script"],
+    ),
+    (
+        "css_import_js",
+        '@import "data:text/css,body{background:url(javascript:alert(1))}";',
+        "css_import_js",
+        ["@import", "data:", "javascript:"],
     ),
 ]
 

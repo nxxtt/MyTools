@@ -111,6 +111,7 @@ Isso instala os comandos CLI:
 | `mytools-domclob` | DOM Clobbering via Named Access Detection |
 | `mytools-mxss` | Mutation XSS Detection |
 | `mytools-cssinject` | CSS Injection via Style Detection |
+| `mytools-xssvectors` | XSS Vectors Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -739,6 +740,21 @@ mytools-cssinject https://example.com -c attribute_leak
 mytools-cssinject https://example.com -c selector_abuse
 mytools-cssinject https://example.com -c token_exfil
 mytools-cssinject https://example.com -c csp_bypass
+```
+
+### 60e. XSS Vectors (`mytools-xssvectors`)
+Detecta vetores de XSS via midia, URIs javascript/data, iframe srcdoc, base tag, custom elements, Shadow DOM e slot/use.
+
+```bash
+mytools-xssvectors https://example.com
+mytools-xssvectors https://example.com -c media_events
+mytools-xssvectors https://example.com -c uri_javascript
+mytools-xssvectors https://example.com -c uri_data
+mytools-xssvectors https://example.com -c iframe_vectors
+mytools-xssvectors https://example.com -c base_redirect
+mytools-xssvectors https://example.com -c custom_elements
+mytools-xssvectors https://example.com -c shadow_dom
+mytools-xssvectors https://example.com -c slot_use
 ```
 
 ### 61. CORS Misconfiguration (`mytools-cors`)

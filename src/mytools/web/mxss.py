@@ -53,6 +53,7 @@ _CATEGORY_MAP: dict[str, list[str]] = {
         "entity_xmp",
     ],
     "namespace_switch": [
+        "svg_script_direct",
         "svg_foreignobject",
         "svg_desc_script",
         "svg_title_script",
@@ -160,6 +161,12 @@ _ENTITY_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
 ]
 
 _NAMESPACE_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+    (
+        "svg_script_direct",
+        '<svg><script>alert(1)</script></svg>',
+        "svg_script",
+        ["svg", "script"],
+    ),
     (
         "svg_foreignobject",
         '<svg><foreignObject><img src=x onerror=alert(1)></foreignObject></svg>',

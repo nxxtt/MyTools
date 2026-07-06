@@ -38,7 +38,7 @@ def test_category_map_keys() -> None:
 
 def test_total_techniques_matches_sum() -> None:
     total = sum(len(v) for v in _CATEGORY_MAP.values())
-    assert total == 50
+    assert total == 51
 
 
 def test_entity_payloads_count() -> None:
@@ -46,7 +46,7 @@ def test_entity_payloads_count() -> None:
 
 
 def test_namespace_payloads_count() -> None:
-    assert len(_NAMESPACE_PAYLOADS) == 7
+    assert len(_NAMESPACE_PAYLOADS) == 8
 
 
 def test_mathml_payloads_count() -> None:
