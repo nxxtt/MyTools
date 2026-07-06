@@ -93,6 +93,7 @@ mytools-log4shell = "mytools.web.log4shell:main"
 mytools-cookieboundary = "mytools.web.cookieboundary:main"
 mytools-domclob = "mytools.web.domclobbering:main"
 mytools-mxss = "mytools.web.mxss:main"
+mytools-cssinject = "mytools.web.cssinject:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

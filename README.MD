@@ -110,6 +110,7 @@ Isso instala os comandos CLI:
 | `mytools-log4shell` | Log4Shell (CVE-2021-44228) Detection |
 | `mytools-domclob` | DOM Clobbering via Named Access Detection |
 | `mytools-mxss` | Mutation XSS Detection |
+| `mytools-cssinject` | CSS Injection via Style Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -725,6 +726,19 @@ mytools-mxss https://example.com -c rawtext_abuse
 mytools-mxss https://example.com -c comment_parse
 mytools-mxss https://example.com -c template_deprecated
 mytools-mxss https://example.com -c encoding_tricks
+```
+
+### 60d. CSS Injection via Style (`mytools-cssinject`)
+Detecta CSS Injection e técnicas de exfiltração de dados via style tag, style attribute, data extraction, attribute selectors, token exfiltração e CSP bypass.
+
+```bash
+mytools-cssinject https://example.com
+mytools-cssinject https://example.com -c injection_points
+mytools-cssinject https://example.com -c data_extraction
+mytools-cssinject https://example.com -c attribute_leak
+mytools-cssinject https://example.com -c selector_abuse
+mytools-cssinject https://example.com -c token_exfil
+mytools-cssinject https://example.com -c csp_bypass
 ```
 
 ### 61. CORS Misconfiguration (`mytools-cors`)
