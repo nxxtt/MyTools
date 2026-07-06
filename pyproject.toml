@@ -101,6 +101,7 @@ mytools-fileupload = "mytools.web.fileupload:main"
 mytools-jwt = "mytools.web.jwtanalysis:main"
 mytools-oauth = "mytools.web.oauth:main"
 mytools-saml = "mytools.web.saml:main"
+mytools-oidc = "mytools.web.oidc:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

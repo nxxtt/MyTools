@@ -201,8 +201,8 @@
 
 ## OIDC
 
-114. OIDC Discovery Abuse — Explorar endpoints de discovery para informações
-115. Token Substitution — Trocar tokens entre contas para testar validação
+114. [x] OIDC Discovery Abuse — Explorar endpoints de discovery para informações
+115. [x] Token Substitution — Trocar tokens entre contas para testar validação
 
 ## Business Logic — Payment
 
