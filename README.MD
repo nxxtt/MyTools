@@ -119,6 +119,7 @@ Isso instala os comandos CLI:
 | `mytools-saml` | SAML Attack Detection |
 | `mytools-oidc` | OIDC Attack Detection |
 | `mytools-bizlogic` | Business Logic Attack Detection |
+| `mytools-accountabuse` | Account Abuse Attack Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -829,7 +830,20 @@ mytools-bizlogic https://target.com -c race_condition
 mytools-bizlogic https://target.com --proxy http://127.0.0.1:8080
 ```
 
-### 70. CORS Misconfiguration (`mytools-cors`)
+### 70. Account Abuse Attack Detection (`mytools-accountabuse`)
+Detecta abusos em contas: enumeracao de cupons, loyalty points, gift cards, refund manipulation e subscription bypass.
+
+```bash
+mytools-accountabuse https://target.com/account
+mytools-accountabuse https://target.com -c coupon
+mytools-accountabuse https://target.com -c loyalty_points
+mytools-accountabuse https://target.com -c gift_card
+mytools-accountabuse https://target.com -c refund
+mytools-accountabuse https://target.com -c subscription
+mytools-accountabuse https://target.com --proxy http://127.0.0.1:8080
+```
+
+### 71. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
 ```bash
@@ -839,7 +853,7 @@ mytools-cors https://example.com -c credentials
 mytools-cors https://example.com -c reflected
 ```
 
-### 71. Clickjacking (`mytools-clickjack`)
+### 72. Clickjacking (`mytools-clickjack`)
 Testa X-Frame-Options/CSP e bypasses em browsers legados.
 
 ```bash
@@ -849,7 +863,7 @@ mytools-clickjack https://example.com -c csp
 mytools-clickjack https://example.com -c bypass
 ```
 
-### 72. Host Header Injection (`mytools-hostinject`)
+### 73. Host Header Injection (`mytools-hostinject`)
 Testa manipulação de Host header para spoofing, SSRF, cache poisoning e bypass.
 
 ```bash
@@ -860,7 +874,7 @@ mytools-hostinject https://example.com -c bypass
 mytools-hostinject https://example.com --inject-host evil.com
 ```
 
-### 73. Header Injection via URL Params (`mytools-headerinject`)
+### 74. Header Injection via URL Params (`mytools-headerinject`)
 Testa se parâmetros de URL são refletidos como headers HTTP nas respostas.
 
 ```bash
@@ -870,7 +884,7 @@ mytools-headerinject https://example.com -c header_overwrite
 mytools-headerinject https://example.com -c bypass
 ```
 
-### 74. Log Injection (`mytools-loginjection`)
+### 75. Log Injection (`mytools-loginjection`)
 Testa se o servidor é vulnerável a injeção de conteúdo em logs via headers HTTP.
 
 ```bash
@@ -880,7 +894,7 @@ mytools-loginjection https://example.com -c referer
 mytools-loginjection https://example.com -c bypass
 ```
 
-### 75. Log4Shell (`mytools-log4shell`)
+### 76. Log4Shell (`mytools-log4shell`)
 Testa JNDI injection em headers HTTP (CVE-2021-44228).
 
 ```bash
@@ -890,7 +904,7 @@ mytools-log4shell https://example.com -c header_injection
 mytools-log4shell https://example.com -c bypass
 ```
 
-### 76. Cookie Domain Boundary (`mytools-cookieboundary`)
+### 77. Cookie Domain Boundary (`mytools-cookieboundary`)
 Audita cookies de uma aplicação web: domain boundary, path traversal, Double Submit Cookie (CSRF), SameSite DNS bypass, CSRF via subdomínio e cookie quoting edge cases.
 
 ```bash
@@ -906,7 +920,7 @@ mytools-cookieboundary https://example.com -c cookie_quoting
 mytools-cookieboundary https://example.com --proxy http://proxy:8080
 ```
 
-### 77. ReconAll (`mytools-reconall`)
+### 78. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash

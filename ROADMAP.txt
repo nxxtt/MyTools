@@ -212,11 +212,11 @@ VISTAR NOVAMENTE
 
 ## Business Logic — Account
 
-119. Coupon Code Enumeration — Brute-force de cupons de desconto
-120. Loyalty Points Transfer — Transferir pontos entre contas (se não deveria)
-121. Gift Card Balance Check — Verificar saldo de gift cards sem autenticação
-122. Refund Amount Manipulation — Manipular valores de reembolso
-123. Subscription Bypass — Bypass de paywalls via manipulação de cookies/headers
+119. [x] Coupon Code Enumeration — Brute-force de cupons de desconto
+120. [x] Loyalty Points Transfer — Transferir pontos entre contas (se não deveria)
+121. [x] Gift Card Balance Check — Verificar saldo de gift cards sem autenticação
+122. [x] Refund Amount Manipulation — Manipular valores de reembolso
+123. [x] Subscription Bypass — Bypass de paywalls via manipulação de cookies/headers
 
 ## Multi-tenant
 
