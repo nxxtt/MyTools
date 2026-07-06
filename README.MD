@@ -109,6 +109,7 @@ Isso instala os comandos CLI:
 | `mytools-loginjection` | Log Injection Detection |
 | `mytools-log4shell` | Log4Shell (CVE-2021-44228) Detection |
 | `mytools-domclob` | DOM Clobbering via Named Access Detection |
+| `mytools-mxss` | Mutation XSS Detection |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -710,6 +711,20 @@ mytools-domclob https://example.com
 mytools-domclob https://example.com -c named_access
 mytools-domclob https://example.com -c form_child
 mytools-domclob https://example.com -c impact
+```
+
+### 60c. Mutation XSS (`mytools-mxss`)
+Detecta Mutation XSS via entidades HTML decodificadas, switches de namespace SVG/MathML, abuse de raw text, comment parsing, template deprecated e encoding tricks.
+
+```bash
+mytools-mxss https://example.com
+mytools-mxss https://example.com -c entity_decode
+mytools-mxss https://example.com -c namespace_switch
+mytools-mxss https://example.com -c mathml_inject
+mytools-mxss https://example.com -c rawtext_abuse
+mytools-mxss https://example.com -c comment_parse
+mytools-mxss https://example.com -c template_deprecated
+mytools-mxss https://example.com -c encoding_tricks
 ```
 
 ### 61. CORS Misconfiguration (`mytools-cors`)
