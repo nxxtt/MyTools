@@ -205,10 +205,10 @@
 115. [x] Token Substitution — Trocar tokens entre contas para testar validação
 
 ## Business Logic — Payment
-
-116. Integer Overflow em Preços — Testar overflow em cálculos de preço/desconto
-117. Negative Quantity Abuse — Enviar quantidades negativas para obter crédito
-118. Race Condition (Multi-Step) — Race conditions em fluxos de múltiplos passos (checkout, pagamento)
+VISTAR NOVAMENTE
+116. [x] Integer Overflow em Preços — Testar overflow em cálculos de preço/desconto
+117. [x] Negative Quantity Abuse — Enviar quantidades negativas para obter crédito
+118. [x] Race Condition (Multi-Step) — Race conditions em fluxos de múltiplos passos (checkout, pagamento)
 
 ## Business Logic — Account
 
