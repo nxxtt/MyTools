@@ -187,7 +187,7 @@
 
 ## JWT Security
 
-106. JWT Analysis — Analisar tokens: algoritmo fraco (none), key confusion, expiração, tenant claim
+106. [x] JWT Analysis — Analisar tokens: algoritmo fraco (none), key confusion, expiração, tenant claim
 
 ## OAuth / SAML
 

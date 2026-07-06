@@ -14,6 +14,8 @@ python-whois = ">=0.9.6"
 dnspython = ">=2.8.0"
 pyyaml = ">=6.0.3"
 pyreadline3 = {version = ">=3.5.6", markers = "sys_platform == 'win32'"}
+pyjwt = ">=2.13.0"
+cryptography = ">=49.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.1.1"
@@ -96,6 +98,7 @@ mytools-mxss = "mytools.web.mxss:main"
 mytools-cssinject = "mytools.web.cssinject:main"
 mytools-xssvectors = "mytools.web.xssvectors:main"
 mytools-fileupload = "mytools.web.fileupload:main"
+mytools-jwt = "mytools.web.jwtanalysis:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

@@ -114,6 +114,7 @@ Isso instala os comandos CLI:
 | `mytools-cssinject` | CSS Injection via Style Detection |
 | `mytools-xssvectors` | XSS Vectors Detection |
 | `mytools-fileupload` | File Upload Attacks Detection |
+| `mytools-jwt` | JWT Analysis |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -762,7 +763,24 @@ mytools-fileupload https://example.com -c content_type
 mytools-fileupload https://example.com -c multipart_boundary
 ```
 
-### 65. CORS Misconfiguration (`mytools-cors`)
+### 65. JWT Analysis (`mytools-jwt`)
+Analisa tokens JWT para vulnerabilidades: algoritmo fraco (none), key confusion, expiracao, claims, header injection e replay.
+
+```bash
+mytools-jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx
+mytools-jwt eyJ... -c weak_algorithm
+mytools-jwt eyJ... -c signature_bypass
+mytools-jwt eyJ... -c expiration
+mytools-jwt eyJ... -c claims
+mytools-jwt eyJ... -c header_injection
+mytools-jwt eyJ... -c replay
+mytools-jwt --file token.txt
+mytools-jwt eyJ... --url https://target.com/api
+mytools-jwt eyJ... --wordlist secrets.txt
+mytools-jwt eyJ... -o resultado.json
+```
+
+### 66. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
 ```bash
@@ -772,7 +790,7 @@ mytools-cors https://example.com -c credentials
 mytools-cors https://example.com -c reflected
 ```
 
-### 66. Clickjacking (`mytools-clickjack`)
+### 67. Clickjacking (`mytools-clickjack`)
 Testa X-Frame-Options/CSP e bypasses em browsers legados.
 
 ```bash
@@ -782,7 +800,7 @@ mytools-clickjack https://example.com -c csp
 mytools-clickjack https://example.com -c bypass
 ```
 
-### 67. Host Header Injection (`mytools-hostinject`)
+### 68. Host Header Injection (`mytools-hostinject`)
 Testa manipulação de Host header para spoofing, SSRF, cache poisoning e bypass.
 
 ```bash
@@ -793,7 +811,7 @@ mytools-hostinject https://example.com -c bypass
 mytools-hostinject https://example.com --inject-host evil.com
 ```
 
-### 68. Header Injection via URL Params (`mytools-headerinject`)
+### 69. Header Injection via URL Params (`mytools-headerinject`)
 Testa se parâmetros de URL são refletidos como headers HTTP nas respostas.
 
 ```bash
@@ -803,7 +821,7 @@ mytools-headerinject https://example.com -c header_overwrite
 mytools-headerinject https://example.com -c bypass
 ```
 
-### 69. Log Injection (`mytools-loginjection`)
+### 70. Log Injection (`mytools-loginjection`)
 Testa se o servidor é vulnerável a injeção de conteúdo em logs via headers HTTP.
 
 ```bash
@@ -813,7 +831,7 @@ mytools-loginjection https://example.com -c referer
 mytools-loginjection https://example.com -c bypass
 ```
 
-### 70. Log4Shell (`mytools-log4shell`)
+### 71. Log4Shell (`mytools-log4shell`)
 Testa JNDI injection em headers HTTP (CVE-2021-44228).
 
 ```bash
@@ -823,7 +841,7 @@ mytools-log4shell https://example.com -c header_injection
 mytools-log4shell https://example.com -c bypass
 ```
 
-### 71. Cookie Domain Boundary (`mytools-cookieboundary`)
+### 72. Cookie Domain Boundary (`mytools-cookieboundary`)
 Audita cookies de uma aplicação web: domain boundary, path traversal, Double Submit Cookie (CSRF), SameSite DNS bypass, CSRF via subdomínio e cookie quoting edge cases.
 
 ```bash
