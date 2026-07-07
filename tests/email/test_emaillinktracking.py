@@ -199,13 +199,22 @@ class TestDetectors:
         status, _ = _detect_web_beacon("", "normal content")
         assert status == "not_detected"
 
-    def test_link_rewrite_preserved(self) -> None:
-        status, _ = _detect_link_rewrite("https://legit.com/page", "", '<a href="https://legit.com/page">')
+    def test_link_rewrite_not_detected(self) -> None:
+        status, _ = _detect_link_rewrite("https://legit.com/page", "250 OK", '<a href="https://legit.com/page">')
         assert status == "not_detected"
 
-    def test_link_rewrite_detected(self) -> None:
-        status, _ = _detect_link_rewrite("https://legit.com/page", "", "redirect tracking click")
+    def test_link_rewrite_detected_redirect(self) -> None:
+        status, _ = _detect_link_rewrite("https://legit.com/page", "redirect to destination", "")
         assert status == "detected"
+
+    def test_link_rewrite_detected_tracking(self) -> None:
+        status, _ = _detect_link_rewrite("https://legit.com/page", "tracking pixel added", "")
+        assert status == "detected"
+
+    def test_link_rewrite_not_detected_best_effort(self) -> None:
+        status, details = _detect_link_rewrite("https://legit.com/page", "250 OK", "")
+        assert status == "not_detected"
+        assert "limitacao" in details
 
     def test_utm_detected(self) -> None:
         status, details = _detect_utm_params("utm_source=email&utm_medium=campaign")

@@ -160,6 +160,10 @@ class TestScanCaa:
         assert result.has_caa is False
         assert result.policy_status == "none"
 
-    def test_empty_domain(self) -> None:
+    @patch("mytools.dns.caacheck.dns.resolver.Resolver")
+    def test_empty_domain(self, mock_resolver_cls: MagicMock) -> None:
+        mock_resolver = MagicMock()
+        mock_resolver_cls.return_value = mock_resolver
+        mock_resolver.resolve.side_effect = dns.resolver.NoAnswer()
         result = scan_caa("")
         assert result.has_caa is False

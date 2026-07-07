@@ -141,7 +141,7 @@ def _check_private_ips(domain: str, answers: dns.resolver.Answer) -> list[Rebind
     return results
 
 
-def _check_cname_chain(domain: str, answers: dns.resolver.Answer) -> RebindingResult | None:
+def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.resolver.Resolver) -> RebindingResult | None:
     """Verifica CNAME chain por IPs privados ou TTL baixo."""
     try:
         chaining = answers.chaining_result
@@ -159,7 +159,7 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer) -> RebindingRe
 
     final_ip = ""
     try:
-        final_answers = dns.resolver.resolve(chaining.canonical_name, "A")
+        final_answers = resolver.resolve(chaining.canonical_name, "A")
         for rdata in final_answers:
             final_ip = rdata.address
             break
@@ -292,7 +292,7 @@ def scan_rebinding(
 
     results.extend(_check_private_ips(domain, answers))
 
-    cname_result = _check_cname_chain(domain, answers)
+    cname_result = _check_cname_chain(domain, answers, resolver)
     if cname_result:
         results.append(cname_result)
 

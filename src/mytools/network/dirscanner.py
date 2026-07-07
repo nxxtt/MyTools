@@ -177,7 +177,7 @@ def parse_range(value: str | None) -> tuple[int, int] | None:
 
 
 def _read_wordlist(wordlist: str) -> list[str]:
-    """Le o conteudo bruto de uma wordlist."""
+    """Le e filtra o conteudo de uma wordlist."""
     return read_target_lines(wordlist)
 
 
@@ -219,6 +219,9 @@ def load_paths(wordlist: str | None, extensions: list[str], case_variation: bool
     for raw_path in raw_paths:
         path = raw_path.strip().lstrip("/")
         if not path:
+            continue
+        if path.startswith(("http://", "https://")):
+            logger.warning("URL absoluta ignorada na wordlist: %s", raw_path)
             continue
         paths.add(path)
         if extensions and "." not in os.path.basename(path):

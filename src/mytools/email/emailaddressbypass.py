@@ -320,7 +320,7 @@ def banner_art() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Email Address Quoting Bypass — testa bypass de blocklists via local-parts citados.",
         epilog="Verifica se o servidor aceita enderecos RFC 5321/5322 citados que bypassam filtros.",

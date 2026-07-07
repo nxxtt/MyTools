@@ -9,6 +9,11 @@ template syntax (Handlebars, Jinja2, Mako, Tornado, Go):
   - SSTI Payloads: payloads de Server-Side Template Injection
   - Engine Detection: identifica motor de template usado
 
+LIMITACAO: A deteccao via SMTP e best-effort. O servidor SMTP apenas
+aceita ou rejeita emails — nao informa se um template engine processou
+o payload. A funcao _detect_engine_from_response verifica por padroes
+de erro que alguns servidores podem retornar, mas nao e confiavel.
+
 Fluxo:
   1. Conecta ao SMTP (porta 25/587)
   2. Envia emails com payloads de template injection
@@ -111,7 +116,7 @@ def _build_email(
     subject: str,
     body: str,
 ) -> str:
-    """Construi um email raw com subject e body customizados."""
+    """Constrói um email raw com subject e body customizados."""
     return (
         f"From: {from_addr}\r\n"
         f"To: {to_addr}\r\n"
@@ -152,7 +157,13 @@ def _detect_engine_from_response(
     response: str,
     payload_name: str,
 ) -> tuple[bool, str]:
-    """Detecta se o template foi processado baseado na resposta."""
+    """Detecta se o template foi processado baseado na resposta (best-effort).
+
+    LIMITACAO: Via SMTP nao e possivel confirmar se um template engine
+    processou o payload. Esta funcao verifica por keywords de erro que
+    alguns servidores retornam, mas a ausencia de deteccao nao significa
+    que o dominio e seguro.
+    """
     response_lower = response.lower()
 
     patterns: dict[str, list[str]] = {
@@ -344,7 +355,7 @@ def banner_art() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Email Template Injection — testa injecao de codigo em templates de email.",
         epilog="Verifica se templates de email processam expressoes injetadas.",

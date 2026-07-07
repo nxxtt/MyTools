@@ -229,13 +229,10 @@ def _detect_web_beacon(server_response: str, email_body: str) -> tuple[str, str]
 
 
 def _detect_link_rewrite(original: str, server_response: str, email_body: str) -> tuple[str, str]:
-    """Detecta se links foram reescritos pelo servidor."""
-    combined = server_response + email_body
-    if original in combined:
-        return "not_detected", "Link original preservado"
-    if "redirect" in combined or "tracking" in combined or "click" in combined:
-        return "detected", "Link possivelmente reescrito pelo servidor"
-    return "not_detected", "Nenhuma reescrita de link detectada"
+    """Detecta se links foram reescritos pelo servidor (best-effort via SMTP)."""
+    if "redirect" in server_response or "tracking" in server_response or "click" in server_response:
+        return "detected", "Possivel reescrita de link detectada na resposta SMTP"
+    return "not_detected", "Nao foi possivel detectar reescrita via SMTP (limitacao do protocolo)"
 
 
 def _detect_utm_params(email_body: str) -> tuple[str, str]:
@@ -499,7 +496,7 @@ def banner_art() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Email Link Tracking — detecta tracking pixels e link rewrites em emails.",
         epilog="Analisa se o servidor injeta mecanismos de tracking em emails de saida.",

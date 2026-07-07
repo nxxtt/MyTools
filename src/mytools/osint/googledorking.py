@@ -36,6 +36,7 @@ from mytools.core.utils import (
     fetch,
     init_scanner,
     print_table,
+    read_target_lines,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -342,6 +343,8 @@ async def scan_dorks(
 
 def print_results(queries: list[DorkQuery], quiet: bool = False) -> None:
     """Imprime dorks geradas, agrupadas por categoria."""
+    if quiet:
+        return
     if not queries:
         print(color("Nenhuma dork gerada.", Cyber.RED))
         return
@@ -442,34 +445,54 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False):
         print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(args.domain, Cyber.WHITE, Cyber.BOLD)}")
+        domain_display = args.domain or "(nenhum)"
+        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain_display, Cyber.WHITE, Cyber.BOLD)}")
         return 0
 
     categories = None if args.category in ("all", "custom") else [args.category]
 
-    queries = await scan_dorks(
-        domain=args.domain,
-        categories=categories,
-        custom_dorks=args.custom_dorks or None,
-        do_search=getattr(args, "do_search", False),
-        max_results=getattr(args, "max_results", 5),
-        user_agent=args.user_agent,
-        proxy=args.proxy,
-        verify=getattr(args, "verify", False),
-        timeout=args.timeout,
-        requests_per_second=args.delay,
-    )
+    domains = []
+    if args.domain:
+        domains.append(args.domain)
+    target_list = getattr(args, "target_list", None)
+    if target_list:
+        try:
+            domains.extend(read_target_lines(target_list))
+        except FileNotFoundError:
+            print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))
+            return 1
 
-    if not quiet:
-        print_results(queries, quiet=quiet)
+    if not domains:
+        print(color("[!] Informe um dominio ou arquivo de dominios.", Cyber.RED))
+        return 1
 
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(q) for q in queries],
-            ["category", "dork", "full_query", "google_url", "ddg_url", "results"],
-            quiet=quiet,
+    for domain in domains:
+        queries = await scan_dorks(
+            domain=domain,
+            categories=categories,
+            custom_dorks=args.custom_dorks or None,
+            do_search=getattr(args, "do_search", False),
+            max_results=getattr(args, "max_results", 5),
+            user_agent=args.user_agent,
+            proxy=args.proxy,
+            verify=getattr(args, "verify", False),
+            timeout=args.timeout,
+            requests_per_second=args.delay,
         )
+
+        if not queries:
+            logger.warning("DuckDuckGo: 0 resultados — classes CSS podem ter mudado")
+
+        if not quiet:
+            print_results(queries, quiet=quiet)
+
+        if args.output:
+            write_output(
+                args.output,
+                [asdict(q) for q in queries],
+                ["category", "dork", "full_query", "google_url", "ddg_url", "results"],
+                quiet=quiet,
+            )
     return 0
 
 

@@ -188,18 +188,10 @@ def scan_tunnel(
 
     for rt in DEFAULT_RECORD_TYPES:
         try:
-            answer = resolver.resolve(domain, rt)
+            resolver.resolve(domain, rt)
             total_queries += 1
             if rt == "TXT":
                 txt_count += 1
-            for rr in answer:
-                if rt == "TXT":
-                    for txt in rr.strings:
-                        txt_str = txt.decode("utf-8", errors="ignore") if isinstance(txt, bytes) else str(txt)
-                        parts = txt_str.split(".")
-                        for part in parts:
-                            if len(part) > 5:
-                                pass
         except dns.resolver.NXDOMAIN:
             nxdomain_count += 1
             total_queries += 1

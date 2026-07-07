@@ -144,7 +144,6 @@ BANNER_PROBES = MappingProxyType({
     80: b"HEAD / HTTP/1.0\r\n\r\n",
     8080: b"HEAD / HTTP/1.0\r\n\r\n",
     8000: b"HEAD / HTTP/1.0\r\n\r\n",
-    8443: b"HEAD / HTTP/1.0\r\n\r\n",
 })
 
 
@@ -156,7 +155,7 @@ def grab_banner(sock: socket.socket, port: int, timeout: float) -> str:
         if port in BANNER_PROBES:
             sock.sendall(BANNER_PROBES[port])
         data = sock.recv(120)
-    except TimeoutError, OSError:
+    except OSError:
         return ""
     return data.decode("utf-8", errors="replace").strip().replace("\r", " ").replace("\n", " ")
 
@@ -229,7 +228,7 @@ def scan_targets(
                 try:
                     finding = future.result()
                 except Exception:
-                    logger.debug("erro no scan_port", exc_info=True)
+                    logger.warning("erro no scan_port", exc_info=True)
                     continue
                 if finding:
                     findings.append(finding)

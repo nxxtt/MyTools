@@ -60,7 +60,7 @@ class TestExtractDomainName:
         assert _extract_domain_name("com") == "com"
 
     def test_co_uk(self):
-        assert _extract_domain_name("example.co.uk") == "co"
+        assert _extract_domain_name("example.co.uk") == "example"
 
 
 # ── _dedup_employees ─────────────────────────────────────────────────────────

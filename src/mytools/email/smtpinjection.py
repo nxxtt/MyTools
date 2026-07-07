@@ -79,14 +79,15 @@ def _connect_smtp(target: str, port: int, timeout: float, use_tls: bool) -> tupl
     except OSError as exc:
         raise ConnectionError(f"Erro de conexao: {exc}") from exc
 
-    banner = server.ehlo()[1].decode("utf-8", errors="replace") if server.ehlo() else ""
+    result = server.ehlo()
+    banner = result[1].decode("utf-8", errors="replace") if result else ""
 
     if use_tls and port != 465:
         try:
             server.starttls()
             server.ehlo()
             banner += " [STARTTLS]"
-        except smtplib.SMTPNotSupportedError:
+        except (smtplib.SMTPNotSupportedError, smtplib.SMTPException, OSError):
             logger.warning("STARTTLS nao suportado")
 
     return server, banner, banner
@@ -126,7 +127,7 @@ def _test_injection(
     except smtplib.SMTPResponseException as exc:
         status_code = exc.smtp_code
         err_msg = exc.smtp_error if isinstance(exc.smtp_error, str) else exc.smtp_error.decode("utf-8", errors="replace")
-        if status_code in (501, 502, 503, 550, 555):
+        if status_code in (501, 502, 503, 550, 554, 555, 556):
             return InjectionAttempt(
                 field=field,
                 payload_name=payload_name,
@@ -291,7 +292,7 @@ def banner_art() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="SMTP Header Injection — testa injecao CRLF em campos de email.",
         epilog="Verifica se o servidor SMTP permite injetar headers extras.",

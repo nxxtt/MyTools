@@ -345,7 +345,7 @@ def banner_art() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="SMTP Downgrade Attack — testa forcar downgrade de STARTTLS.",
         epilog="Verifica se o servidor SMTP pode ser forcado a operar em plaintext.",

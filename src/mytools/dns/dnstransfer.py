@@ -53,7 +53,6 @@ BANNER_ART = r"""
 |____/ \___/|_|       |_| \_/_/\_\
 """
 
-DNS_PORT = 53
 AXFR_TIMEOUT = 10
 
 

@@ -52,6 +52,7 @@ STATUS_OK = frozenset({200})
 AHMIA_URL = "https://ahmia.fi/search/?q={domain}"
 DARKSEARCH_URL = "https://darksearch.io/api/search?query={domain}"
 INTELX_URL = "https://2.intelx.io/intelligent/search"
+INTELX_RESULT_LIMIT = 20
 
 DEFAULT_SOURCES: list[str] = ["ahmia", "darksearch"]
 
@@ -230,6 +231,8 @@ async def _query_intelx(
             method="POST",
             max_retries=2,
             rate_limiter=rate_limiter,
+            headers={"x-key": api_key, "Content-Type": "application/json"},
+            content=json.dumps({"term": domain, "buckets": []}).encode(),
         )
     except FetchError as e:
         logger.debug("IntelX fetch error: %s", e)
@@ -239,7 +242,10 @@ async def _query_intelx(
         logger.debug("IntelX search status %d", status)
         return mentions
 
-    search_id = json.loads(body).get("id", "")
+    try:
+        search_id = json.loads(body).get("id", "")
+    except (json.JSONDecodeError, ValueError):
+        return mentions
     if not search_id:
         return mentions
 
@@ -247,7 +253,7 @@ async def _query_intelx(
     try:
         s2, _, body2, _ = await fetch(
             client,
-            f"https://2.intelx.io/intelligent/search/result?id={search_id}&x=20",
+            f"https://2.intelx.io/intelligent/search/result?id={quote(search_id)}&x={INTELX_RESULT_LIMIT}",
             timeout=timeout,
             max_retries=2,
             rate_limiter=rate_limiter,

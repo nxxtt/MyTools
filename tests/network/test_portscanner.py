@@ -1,5 +1,5 @@
 import argparse
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -115,7 +115,7 @@ class TestBannerProbes:
         assert 80 in BANNER_PROBES
         assert 8080 in BANNER_PROBES
         assert 8000 in BANNER_PROBES
-        assert 8443 in BANNER_PROBES
+        assert 8443 not in BANNER_PROBES
 
     def test_probes_are_bytes(self):
         for _port, probe in BANNER_PROBES.items():
@@ -260,15 +260,23 @@ class TestResolveTargetsIPv6:
 
 
 class TestCreateConnection:
-    def test_ipv4_connection_refused(self):
-        import pytest
-        with pytest.raises((ConnectionRefusedError, TimeoutError, OSError)):
+    @patch("mytools.network.portscanner.socket.socket")
+    def test_ipv4_connection_refused(self, mock_socket_cls):
+        mock_sock = MagicMock()
+        mock_sock.connect.side_effect = ConnectionRefusedError("refused")
+        mock_socket_cls.return_value = mock_sock
+        with pytest.raises(ConnectionRefusedError):
             _create_connection("192.0.2.1", 1, 0.1)
+        mock_sock.close.assert_called_once()
 
-    def test_ipv6_connection_refused(self):
-        import pytest
-        with pytest.raises((ConnectionRefusedError, TimeoutError, OSError)):
+    @patch("mytools.network.portscanner.socket.socket")
+    def test_ipv6_connection_refused(self, mock_socket_cls):
+        mock_sock = MagicMock()
+        mock_sock.connect.side_effect = ConnectionRefusedError("refused")
+        mock_socket_cls.return_value = mock_sock
+        with pytest.raises(ConnectionRefusedError):
             _create_connection("::1", 1, 0.1)
+        mock_sock.close.assert_called_once()
 
 
 class TestDryRun:

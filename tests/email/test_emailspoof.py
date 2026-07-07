@@ -125,6 +125,21 @@ class TestAnalyzeSpoofing:
         assert any("SPF +all" in v.name for v in result.vectors)
 
     @patch("mytools.email.emailspoof.scan_email_security")
+    def test_spf_bare_all(self, mock_scan: MagicMock) -> None:
+        mock_scan.return_value = EmailSecurityResult(
+            domain="open2.com",
+            spf=SpfRecord("v=spf1 all", "spf1", [], True, "", []),
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="critical",
+            issues=[],
+        )
+        result = analyze_spoofing("open2.com")
+        assert result.risk_score == "critical"
+        assert result.spf_status == "critical"
+        assert any("all sem qualificador" in v.name for v in result.vectors)
+
+    @patch("mytools.email.emailspoof.scan_email_security")
     def test_dmarc_none(self, mock_scan: MagicMock) -> None:
         mock_scan.return_value = EmailSecurityResult(
             domain="weak.com",

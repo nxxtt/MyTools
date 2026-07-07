@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mytools.email.emailsecurity import (
+    DNS_ERROR,
     DmarcRecord,
     EmailSecurityResult,
     SpfRecord,
@@ -82,6 +83,11 @@ class TestParseSpf:
         assert spf.has_all is False
         assert spf.all_qualifier == ""
 
+    def test_bare_all(self) -> None:
+        spf = _parse_spf("v=spf1 all")
+        assert spf.has_all is True
+        assert spf.all_qualifier == ""
+
 
 class TestParseDmarc:
     """Testes da funcao _parse_dmarc."""
@@ -104,6 +110,11 @@ class TestParseDmarc:
         dmarc = _parse_dmarc("v=DMARC1; p=reject; sp=quarantine")
         assert dmarc.policy == "reject"
         assert dmarc.sp == "quarantine"
+
+    def test_malformed_missing_p(self) -> None:
+        dmarc = _parse_dmarc("v=DMARC1")
+        assert dmarc.policy == "malformed"
+        assert dmarc.sp == "malformed"
 
 
 class TestParser:
@@ -185,3 +196,41 @@ class TestScanEmailSecurity:
         assert result.dmarc is not None
         assert len(result.dkim_selectors) > 0
         assert result.overall_status == "secure"
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_dns_error_spf(self, mock_txt: MagicMock) -> None:
+        mock_txt.return_value = DNS_ERROR
+        result = scan_email_security("test.com")
+        assert any("Erro DNS ao consultar SPF" in i for i in result.issues)
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_dns_error_dmarc(self, mock_txt: MagicMock) -> None:
+        def side_effect(domain: str, resolver: object) -> str | None:
+            if "_dmarc" in domain:
+                return DNS_ERROR
+            return "v=spf1 ~all"
+        mock_txt.side_effect = side_effect
+        result = scan_email_security("test.com")
+        assert any("Erro DNS ao consultar DMARC" in i for i in result.issues)
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_malformed_dmarc(self, mock_txt: MagicMock) -> None:
+        def side_effect(domain: str, resolver: object) -> str | None:
+            if "_dmarc" in domain:
+                return "v=DMARC1"
+            return "v=spf1 ~all"
+        mock_txt.side_effect = side_effect
+        result = scan_email_security("test.com")
+        assert result.dmarc is not None
+        assert result.dmarc.policy == "malformed"
+        assert result.overall_status == "warning"
+        assert any("DMARC invalido" in i for i in result.issues)
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_spf_bare_all(self, mock_txt: MagicMock) -> None:
+        mock_txt.return_value = "v=spf1 all"
+        result = scan_email_security("test.com")
+        assert result.spf is not None
+        assert result.spf.has_all is True
+        assert result.spf.all_qualifier == ""
+        assert any("all sem qualificador" in i for i in result.issues)

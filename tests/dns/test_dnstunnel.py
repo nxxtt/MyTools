@@ -235,3 +235,44 @@ class TestScanTunnel:
     def test_empty_domain(self) -> None:
         result = scan_tunnel("", num_queries=0)
         assert result.labels_analyzed == 0
+
+
+class TestDnsResolution:
+    """Testes da logica de resolucao DNS em scan_tunnel."""
+
+    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel.analyze_labels")
+    @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
+    def test_dns_resolution_increments_queries(
+        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+    ) -> None:
+        mock_resolver = MagicMock()
+        mock_resolver_cls.return_value = mock_resolver
+        mock_resolver.resolve.return_value = [MagicMock()]
+        mock_gen.return_value = ["test"]
+        mock_analyze.return_value = {
+            "avg_length": 4.0, "max_length": 6.0,
+            "avg_entropy": 2.0, "max_entropy": 2.5,
+            "base64_count": 0, "hex_count": 0,
+        }
+        result = scan_tunnel("example.com", num_queries=1)
+        assert result.labels_analyzed == 1
+
+    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel.analyze_labels")
+    @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
+    def test_nxdomain_increments_count(
+        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+    ) -> None:
+        import dns.resolver
+        mock_resolver = MagicMock()
+        mock_resolver_cls.return_value = mock_resolver
+        mock_resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
+        mock_gen.return_value = ["test"]
+        mock_analyze.return_value = {
+            "avg_length": 4.0, "max_length": 6.0,
+            "avg_entropy": 2.0, "max_entropy": 2.5,
+            "base64_count": 0, "hex_count": 0,
+        }
+        result = scan_tunnel("example.com", num_queries=1)
+        assert result.labels_analyzed == 1

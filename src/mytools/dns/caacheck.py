@@ -36,8 +36,6 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.caacheck")
 
-CAA_TAGS = {0: "issue", 1: "issuewild", 2: "iodef"}
-
 KNOWN_CAS = {
     "letsencrypt.org": "Let's Encrypt",
     "digicert.com": "DigiCert",
@@ -71,6 +69,7 @@ class CaaResult:
     authorized_cas: list[str]
     has_iodef: bool
     policy_status: str  # restrictive, permissive, open, none
+    error: str | None = None
 
 
 def _identify_ca(value: str) -> str:
@@ -108,6 +107,7 @@ def scan_caa(
     resolver.lifetime = timeout
 
     records: list[CaaRecord] = []
+    error: str | None = None
 
     try:
         answer = resolver.resolve(domain, "CAA")
@@ -116,13 +116,13 @@ def scan_caa(
             if rec:
                 records.append(rec)
     except dns.resolver.NoAnswer:
-        pass
+        error = "no_caa_records"
     except dns.resolver.NXDOMAIN:
-        pass
+        error = "domain_not_found"
     except dns.exception.Timeout:
-        pass
-    except dns.exception.DNSException:
-        pass
+        error = "dns_timeout"
+    except dns.exception.DNSException as e:
+        error = f"dns_error: {e}"
 
     has_caa = len(records) > 0
     has_iodef = any(r.tag == "iodef" for r in records)
@@ -150,6 +150,7 @@ def scan_caa(
         authorized_cas=authorized_cas,
         has_iodef=has_iodef,
         policy_status=policy,
+        error=error,
     )
 
 

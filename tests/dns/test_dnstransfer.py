@@ -10,7 +10,6 @@ import pytest
 from mytools.dns.dnstransfer import (
     AXFR_TIMEOUT,
     BANNER_ART,
-    DNS_PORT,
     XfrResult,
     build_parser,
     get_nameservers,
@@ -358,9 +357,6 @@ class TestBannerAndConstants:
 
     def test_axfr_timeout_positive(self):
         assert AXFR_TIMEOUT > 0
-
-    def test_dns_port_is_53(self):
-        assert DNS_PORT == 53
 
 
 class TestDryRun:

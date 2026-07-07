@@ -85,6 +85,14 @@ def analyze_spoofing(
                 description="Registro SPF nao termina com 'all' — regras podem ser ignoradas",
                 remediation="Adicione '-all' ou '~all' ao final do registro SPF",
             ))
+        elif base.spf.all_qualifier == "":
+            spf_status = "critical"
+            vectors.append(SpoofVector(
+                name="SPF all sem qualificador",
+                severity="critical",
+                description="SPF com 'all' sem qualificador — equivalente a +all, qualquer IP pode enviar",
+                remediation="Adicione '-all' (hard fail) ou '~all' (soft fail) ao registro SPF",
+            ))
         elif base.spf.all_qualifier == "+":
             spf_status = "critical"
             vectors.append(SpoofVector(
@@ -294,7 +302,7 @@ def banner() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Email Spoofing — analise de vulnerabilidade a spoofing de email.",
         epilog="Verifica se SPF/DKIM/DMARC protegem contra spoofing.",

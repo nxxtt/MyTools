@@ -12,10 +12,13 @@ Fluxo principal:
   4. Consolida e exibe tabela ou salva JSON
 """
 import argparse
+import asyncio
 import json
 import logging
 import time
 from dataclasses import asdict, dataclass
+
+import httpx
 
 from mytools.core.utils import (
     Cyber,
@@ -210,12 +213,11 @@ async def _query_batch(ips: list[str], timeout: float) -> list[IpAsnInfo]:
                 resp = await client.post(url, content=json.dumps(batch).encode(), timeout=timeout)
                 if resp.status_code == 200:
                     results.extend(_parse_ipapi_batch(resp.content))
-            except Exception:
+            except (httpx.RequestError, httpx.HTTPStatusError):
                 logger.debug("ip-api.com batch falhou para lote %d-%d", i, i + len(batch))
 
             # Respeitar rate limit do batch (15 req/min)
             if i + 100 < len(ips):
-                import asyncio
                 await asyncio.sleep(4.0)
 
         return results
@@ -239,8 +241,6 @@ def lookup_ip_asn(
 
     # Para poucos IPs, consulta individual via ipwho.is
     async def _lookup_all() -> list[IpAsnInfo]:
-        import asyncio
-
         sem = asyncio.Semaphore(3)
         results: list[IpAsnInfo] = []
 
@@ -314,7 +314,7 @@ def _load_ips_from_args(args: argparse.Namespace) -> list[str]:
     ips: list[str] = []
 
     if args.ips:
-        ips.extend(ip.strip() for args_ip in args.ips for ip in [args_ip] if ip.strip())
+        ips.extend(ip.strip() for ip in args.ips if ip.strip())
 
     if getattr(args, "ip_file", None):
         try:

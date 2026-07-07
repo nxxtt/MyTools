@@ -67,7 +67,8 @@ _SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("api_key_assign", re.compile(r"""(?:api[_-]?key|apikey)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
     ("secret_assign", re.compile(r"""(?:secret|secret[_-]?key)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
     ("token_assign", re.compile(r"""(?:auth[_-]?token|access[_-]?token)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
-    ("connection_string", re.compile(r"(?:mysql|postgres|mongodb|redis)://[^\s\"'<>]{10,}")),
+    ("connection_string", re.compile(
+        r"(?:mysql|postgres|mongodb|redis)://[^\s\"'<>]{10,}", re.IGNORECASE)),
 ]
 
 
@@ -124,8 +125,9 @@ def _dedup_leaks(leaks: list[LeakRecord]) -> list[LeakRecord]:
 
 
 def _contains_domain(content: str, domain: str) -> bool:
-    """Verifica se o conteudo menciona o dominio alvo."""
-    return domain.lower() in content.lower()
+    """Verifica se o conteudo menciona o dominio alvo (word boundary)."""
+    pattern = re.compile(rf"\b{re.escape(domain)}\b", re.IGNORECASE)
+    return bool(pattern.search(content))
 
 
 async def _query_github_gists(
@@ -137,25 +139,26 @@ async def _query_github_gists(
 ) -> list[LeakRecord]:
     """Busca gists publicos do GitHub por palavras-chave do dominio."""
     leaks: list[LeakRecord] = []
-    keywords = [domain, domain.split(".")[0]]
 
-    for _keyword in keywords:
-        url = f"{GITHUB_API}/gists/public?per_page={min(max_results, 100)}"
-        try:
-            await rate_limiter.wait()
-            status, _h, body, _ = await fetch(
-                client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
-            )
-        except FetchError as e:
-            logger.debug("GitHub Gists fetch error: %s", e)
-            continue
+    url = f"{GITHUB_API}/gists/public?per_page={min(max_results, 100)}"
+    try:
+        await rate_limiter.wait()
+        status, _h, body, _ = await fetch(
+            client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+        )
+    except FetchError as e:
+        logger.debug("GitHub Gists fetch error: %s", e)
+        return leaks
 
-        if status not in STATUS_OK:
-            logger.debug("GitHub Gists status %d", status)
-            continue
+    if status not in STATUS_OK:
+        logger.debug("GitHub Gists status %d", status)
+        return leaks
 
+    try:
         gists = json.loads(body)
-        for gist in gists[:max_results]:
+    except (json.JSONDecodeError, ValueError):
+        return leaks
+    for gist in gists[:max_results]:
             description = gist.get("description", "") or ""
             files = gist.get("files", {})
             gist_url = gist.get("html_url", "")
@@ -315,7 +318,7 @@ async def _query_github_code(
         f'"{domain}" "AKIA" OR "ghp_" OR "sk_"',
     ]
 
-    client.headers["Authorization"] = f"token {token}"
+    auth_headers = {"Authorization": f"token {token}"}
 
     for q in queries:
         url = f"{GITHUB_API}/search/code?q={quote(q)}&per_page={min(max_results, 30)}"
@@ -324,6 +327,7 @@ async def _query_github_code(
             await rate_limiter.wait()
             status, _h, body, _ = await fetch(
                 client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+                headers=auth_headers,
             )
         except FetchError as e:
             logger.debug("GitHub Code Search error: %s", e)
@@ -333,7 +337,10 @@ async def _query_github_code(
             logger.debug("GitHub Code Search status %d", status)
             continue
 
-        items = json.loads(body).get("items", [])
+        try:
+            items = json.loads(body).get("items", [])
+        except (json.JSONDecodeError, ValueError):
+            items = []
         for item in items[:max_results]:
             file_path = item.get("path", "")
             html_url = item.get("html_url", "")

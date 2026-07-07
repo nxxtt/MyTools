@@ -139,7 +139,7 @@ def _build_attachment_email(
     content_type: str,
     payload: bytes,
 ) -> MIMEMultipart:
-    """Construi email com anexo de teste."""
+    """Constrói email com anexo de teste."""
     msg = MIMEMultipart()
     msg["From"] = from_addr
     msg["To"] = to_addr
@@ -173,12 +173,14 @@ def _send_bypass_email(
         server.mail(from_addr)
         server.rcpt(to_addr)
         server.data(msg.as_string())
-        server.rset()
         return True, "accepted"
     except smtplib.SMTPResponseException as exc:
         return False, f"{exc.smtp_code} {exc.smtp_error}"
     except smtplib.SMTPException as exc:
         return False, str(exc)
+    finally:
+        with contextlib.suppress(smtplib.SMTPException):
+            server.rset()
 
 
 def scan_attachment_bypass(
@@ -345,7 +347,7 @@ def banner_art() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Email Attachment Bypass — testa bypass de filtros de anexos de email.",
         epilog="Verifica se o servidor aceita anexos maliciosos com tecnicas de bypass.",

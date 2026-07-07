@@ -80,10 +80,16 @@ class EmployeeInfo:
     profile_url: str = ""
 
 
+_COMPOUND_TLDS = {"co.uk", "com.au", "co.jp", "org.br", "co.nz", "com.br", "co.za"}
+
+
 def _extract_domain_name(domain: str) -> str:
     """Extrai nome da empresa do dominio (ex: example.com -> example)."""
     parts = domain.split(".")
     if len(parts) >= 2:
+        tld = ".".join(parts[-2:])
+        if tld in _COMPOUND_TLDS and len(parts) >= 3:
+            return parts[-3]
         return parts[-2]
     return domain
 
@@ -114,7 +120,7 @@ async def _query_github(
 
     try:
         repos = json.loads(body)
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         return []
 
     if not isinstance(repos, list):
@@ -145,7 +151,7 @@ async def _query_github(
 
         try:
             contributors = json.loads(body)
-        except Exception:
+        except (json.JSONDecodeError, ValueError):
             continue
 
         if not isinstance(contributors, list):
@@ -175,7 +181,7 @@ async def _query_github(
 
             try:
                 user = json.loads(body)
-            except Exception:
+            except (json.JSONDecodeError, ValueError):
                 continue
 
             if not isinstance(user, dict):
@@ -190,7 +196,7 @@ async def _query_github(
             if bio:
                 for sep in [" at ", " @ ", " @"]:
                     if sep in bio.lower():
-                        parts = bio.lower().split(sep, 1)
+                        parts = bio.split(sep, 1)
                         if len(parts) > 1:
                             position = parts[1].strip()[:50]
                             break
@@ -235,7 +241,7 @@ async def _query_hunter(
 
     try:
         data = json.loads(body)
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         return []
 
     emails_data = data.get("data", {}).get("emails", [])
@@ -289,7 +295,7 @@ async def _query_webpages(
 
         try:
             html = body.decode("utf-8", errors="replace")
-        except Exception:
+        except (json.JSONDecodeError, ValueError):
             continue
 
         soup = BeautifulSoup(html, "html.parser")
@@ -304,7 +310,7 @@ async def _query_webpages(
             if len(words) < 2 or len(words) > 5:
                 continue
             if all(w[0].isupper() for w in words if w and w[0].isalpha()):
-                position_tag = tag.find_next(["p", "span", "div", "em"])
+                position_tag = tag.find_next_sibling(["p", "span", "div", "em"])
                 position = ""
                 if position_tag:
                     pos_text = position_tag.get_text(strip=True)

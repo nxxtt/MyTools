@@ -133,6 +133,24 @@ class TestTestInjection:
         assert attempt.status == "blocked"
         assert "501" in attempt.server_response
 
+    def test_blocked_554(self) -> None:
+        import smtplib
+        exc = smtplib.SMTPDataError(554, b"Transaction failed")
+        server = self._make_server(sendmail_exc=exc)
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header",
+                                  "\r\nX-Injected: test")
+        assert attempt.status == "blocked"
+        assert "554" in attempt.server_response
+
+    def test_blocked_556(self) -> None:
+        import smtplib
+        exc = smtplib.SMTPDataError(556, b"Domain does not accept mail")
+        server = self._make_server(sendmail_exc=exc)
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header",
+                                  "\r\nX-Injected: test")
+        assert attempt.status == "blocked"
+        assert "556" in attempt.server_response
+
     def test_smtp_exception(self) -> None:
         import smtplib
         server = self._make_server(sendmail_exc=smtplib.SMTPException("fail"))

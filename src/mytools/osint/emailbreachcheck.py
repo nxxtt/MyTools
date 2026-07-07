@@ -42,7 +42,6 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.emailbreachcheck")
 
-STATUS_OK = frozenset({200, 404})
 
 XPOSEDORNOT_URL = "https://api.xposedornot.com/v1/check-email/{email}"
 XPOSEDORNOT_ANALYTICS_URL = "https://api.xposedornot.com/v1/breach-analytics?email={email}"
@@ -113,7 +112,7 @@ async def _query_xposedornot(
 
     try:
         data = json.loads(body)
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         return []
 
     breaches_raw = data.get("breaches", [])
@@ -168,7 +167,7 @@ async def _query_leakcheck(
 
     try:
         data = json.loads(body)
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         return []
 
     if not data.get("success") or not data.get("found"):
@@ -211,6 +210,7 @@ async def _query_hibp(
         status, _headers, body, _ = await fetch(
             client, url, timeout=timeout, max_retries=1,
             rate_limiter=rate_limiter,
+            headers={"hibp-api-key": api_key},
         )
     except FetchError:
         return []
@@ -222,7 +222,7 @@ async def _query_hibp(
 
     try:
         items = json.loads(body)
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         return []
 
     if not isinstance(items, list):

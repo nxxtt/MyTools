@@ -168,3 +168,36 @@ class TestScanDnssec:
         result = scan_dnssec("weak.com")
         assert result.algorithm_strength == "weak"
         assert any(c.check == "algorithm_strength" for c in result.checks)
+
+
+class TestAlgorithmSets:
+    """Testes dos sets de algoritmos DNSSEC."""
+
+    def test_weak_algorithms(self) -> None:
+        from mytools.dns.dnssecvalidation import WEAK_ALGORITHMS
+        assert 5 in WEAK_ALGORITHMS  # RSASHA1
+        assert 7 in WEAK_ALGORITHMS  # RSASHA1-NSEC3-SHA1
+        assert 8 not in WEAK_ALGORITHMS  # RSASHA256 should NOT be weak
+
+    def test_medium_algorithms(self) -> None:
+        from mytools.dns.dnssecvalidation import MEDIUM_ALGORITHMS
+        assert 8 in MEDIUM_ALGORITHMS  # RSASHA256
+        assert 10 in MEDIUM_ALGORITHMS  # RSASHA512
+
+    def test_strong_algorithms(self) -> None:
+        from mytools.dns.dnssecvalidation import STRONG_ALGORITHMS
+        assert 13 in STRONG_ALGORITHMS  # ECDSAP256SHA256
+        assert 14 in STRONG_ALGORITHMS  # ECDSAP384SHA384
+        assert 15 in STRONG_ALGORITHMS  # ED25519
+        assert 16 in STRONG_ALGORITHMS  # ED448
+
+    def test_algorithm_8_not_in_weak(self) -> None:
+        from mytools.dns.dnssecvalidation import MEDIUM_ALGORITHMS, WEAK_ALGORITHMS
+        assert 8 not in WEAK_ALGORITHMS
+        assert 8 in MEDIUM_ALGORITHMS
+
+    def test_no_overlap_between_sets(self) -> None:
+        from mytools.dns.dnssecvalidation import MEDIUM_ALGORITHMS, STRONG_ALGORITHMS, WEAK_ALGORITHMS
+        assert set() == WEAK_ALGORITHMS & MEDIUM_ALGORITHMS
+        assert set() == WEAK_ALGORITHMS & STRONG_ALGORITHMS
+        assert set() == MEDIUM_ALGORITHMS & STRONG_ALGORITHMS

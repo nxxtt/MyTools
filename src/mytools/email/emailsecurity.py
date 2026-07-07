@@ -34,6 +34,8 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.emailsecurity")
 
+DNS_ERROR = "__DNS_ERROR__"
+
 DEFAULT_SELECTORS = ["default", "google", "selector1", "selector2", "s1", "s2", "dkim", "mail"]
 
 SPF_ALL_PATTERN = re.compile(r"\+all|~all|\-all|\?all|all")
@@ -79,20 +81,23 @@ class EmailSecurityResult:
 
 
 def _query_txt(domain: str, resolver: dns.resolver.Resolver) -> str | None:
-    """Consulta TXT record de um dominio e retorna a primeira string."""
+    """Consulta TXT record de um dominio e retorna o conteudo concatenado."""
     try:
         answer = resolver.resolve(domain, "TXT")
         for rr in answer:
+            parts = []
             for txt in rr.strings:
                 if isinstance(txt, bytes):
-                    return txt.decode("utf-8", errors="ignore")
-                return str(txt)
+                    parts.append(txt.decode("utf-8", errors="ignore"))
+                else:
+                    parts.append(str(txt))
+            return "".join(parts)
     except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
         pass
     except dns.exception.Timeout:
-        pass
+        return DNS_ERROR
     except dns.exception.DNSException:
-        pass
+        return DNS_ERROR
     return None
 
 
@@ -108,7 +113,7 @@ def _parse_spf(raw: str) -> SpfRecord:
         clean = part.strip('"').lower()
         if clean.startswith("include:"):
             includes.append(clean[8:])
-        elif "all" in clean:
+        elif clean.endswith("all"):
             has_all = True
             match = SPF_ALL_PATTERN.search(clean)
             if match:
@@ -129,10 +134,13 @@ def _parse_spf(raw: str) -> SpfRecord:
 def _parse_dmarc(raw: str) -> DmarcRecord:
     """Parse do registro DMARC."""
     policy_match = DMARC_POLICY_PATTERN.search(raw)
-    policy = policy_match.group(1) if policy_match else "none"
-
-    sp_match = DMARC_SP_PATTERN.search(raw)
-    sp = sp_match.group(1) if sp_match else policy
+    if not policy_match:
+        policy = "malformed"
+        sp = "malformed"
+    else:
+        policy = policy_match.group(1)
+        sp_match = DMARC_SP_PATTERN.search(raw)
+        sp = sp_match.group(1) if sp_match else policy
 
     pct_match = DMARC_PCT_PATTERN.search(raw)
     pct = int(pct_match.group(1)) if pct_match else 100
@@ -165,7 +173,9 @@ def scan_email_security(
 
     spf_raw = _query_txt(domain, resolver)
     spf = None
-    if spf_raw and "v=spf1" in spf_raw.lower():
+    if spf_raw == DNS_ERROR:
+        issues.append("Erro DNS ao consultar SPF")
+    elif spf_raw and "v=spf1" in spf_raw.lower():
         spf = _parse_spf(spf_raw)
         if spf.all_qualifier == "+" and spf.has_all:
             issues.append("SPF usa +all — qualquer IP pode enviar email (critico)")
@@ -178,7 +188,9 @@ def scan_email_security(
 
     dmarc_raw = _query_txt(f"_dmarc.{domain}", resolver)
     dmarc = None
-    if dmarc_raw and "v=DMARC1" in dmarc_raw:
+    if dmarc_raw == DNS_ERROR:
+        issues.append("Erro DNS ao consultar DMARC")
+    elif dmarc_raw and "v=DMARC1" in dmarc_raw:
         dmarc = _parse_dmarc(dmarc_raw)
         if dmarc.policy == "none":
             issues.append("DMARC p=none — nao rejeita emails falhos (fraco)")
@@ -194,24 +206,29 @@ def scan_email_security(
     dkim_selectors: list[str] = []
     for sel in (selectors or DEFAULT_SELECTORS):
         dkim_raw = _query_txt(f"{sel}._domainkey.{domain}", resolver)
-        if dkim_raw and ("v=DKIM1" in dkim_raw or "p=" in dkim_raw):
+        if dkim_raw == DNS_ERROR or dkim_raw is None:
+            continue
+        if "v=DKIM1" in dkim_raw or "p=" in dkim_raw:
             dkim_selectors.append(sel)
 
     if not dkim_selectors:
         issues.append("Nenhum registro DKIM encontrado (seletores testados: " +
                        ", ".join(selectors or DEFAULT_SELECTORS) + ")")
 
-    # Critico: ausencia total, sem DMARC, DMARC none sem SPF, ou SPF +all
+    # Critico: ausencia total, SPF +all, ou DMARC none sem SPF
     if (not spf and not dmarc and not dkim_selectors) or \
-       (not dmarc) or \
-       (dmarc and dmarc.policy == "none" and not spf) or \
-       (spf and spf.has_all and spf.all_qualifier == "+"):
+       (spf and spf.has_all and spf.all_qualifier == "+") or \
+       (dmarc and dmarc.policy == "none" and not spf):
         status = "critical"
+    elif dmarc and dmarc.policy == "malformed":
+        status = "warning"
+        if not any("DMARC invalido" in i for i in issues):
+            issues.append("Registro DMARC invalido — tag p= ausente")
     elif dmarc and dmarc.policy == "reject" and spf and dkim_selectors:
         status = "secure"
     elif dmarc and dmarc.policy in ("quarantine", "reject") and spf:
         status = "good"
-    elif (dmarc and dmarc.policy == "none") or spf or dmarc:
+    elif not dmarc or (dmarc and dmarc.policy == "none"):
         status = "warning"
     else:
         status = "missing"
@@ -297,7 +314,7 @@ def banner() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
+    """Constrói o parser de argumentos da linha de comandos."""
     parser = argparse.ArgumentParser(
         description="Email Security — verifica DMARC, SPF e DKIM de um dominio.",
         epilog="Analiza configuracao de email security para protecao contra spoofing.",

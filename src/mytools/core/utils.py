@@ -354,6 +354,8 @@ async def fetch(
     allow_redirects: bool = False,
     max_retries: int = 3,
     rate_limiter: RateLimiter | None = None,
+    headers: dict[str, str] | None = None,
+    content: bytes | None = None,
 ) -> tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]:
     """Realiza uma requisicao HTTP async e retorna status, headers, corpo e raw_headers.
 
@@ -375,6 +377,8 @@ async def fetch(
                 url=url,
                 timeout=timeout,
                 follow_redirects=allow_redirects,
+                headers=headers,
+                content=content,
             )
             if response.status_code == 429 and rate_limiter is not None:
                 rate_limiter.notify_429()

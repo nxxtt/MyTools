@@ -197,10 +197,10 @@ def _prefetch_records(domain: str, resolver: dns.resolver.Resolver) -> list[Subd
                             f"{color(f"{fqdn} (via {rtype})", Cyber.WHITE, Cyber.BOLD)} -> {color(', '.join(ips), Cyber.CYAN)}",
                         )
                         prefetched.append(SubdomainResult(subdomain=fqdn, ip_addresses=ips, status="resolved"))
-                    except dns.exception.DNSException:
-                        pass
-        except dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.exception.DNSException:
-            continue
+                    except dns.exception.DNSException as e:
+                        logger.debug("prefetch A resolution failed for %s: %s", fqdn, e)
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.exception.DNSException) as e:
+            logger.debug("prefetch MX/CNAME lookup failed for %s: %s", domain, e)
 
     return prefetched
 
