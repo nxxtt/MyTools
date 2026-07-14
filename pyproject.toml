@@ -18,6 +18,10 @@ pyjwt = ">=2.13.0"
 cryptography = ">=49.0.0"
 keyring = ">=25.7.0"
 h2 = "4.3.0"
+grpcio = ">=1.82.1"
+grpcio-reflection = ">=1.82.1"
+protobuf = ">=7.35.1"
+thriftpy2 = ">=0.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.1.1"
@@ -114,6 +118,8 @@ mytools-wsattack = "mytools.web.websocketattack:main"
 mytools-tlsfp = "mytools.web.tlsfingerprint:main"
 mytools-certcheck = "mytools.web.certcheck:main"
 mytools-gqlattack = "mytools.web.graphqlattack:main"
+mytools-grpc = "mytools.web.grpcattack:main"
+mytools-thrift = "mytools.web.thriftattack:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

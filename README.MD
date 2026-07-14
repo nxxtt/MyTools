@@ -128,6 +128,8 @@ Isso instala os comandos CLI:
 | `mytools-tlsfp` | TLS Fingerprinting |
 | `mytools-certcheck` | Certificate Checks |
 | `mytools-gqlattack` | GraphQL Attack Testing |
+| `mytools-grpc` | gRPC Attack Testing |
+| `mytools-thrift` | Thrift Attack Testing |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -945,6 +947,27 @@ mytools-gqlattack https://target.com/graphql -c alias_overload persisted_abuse
 mytools-gqlattack https://target.com/graphql --timeout 10
 ```
 
+### 74.1. gRPC Attack Testing (`mytools-grpc`)
+Testa seguranca de endpoints gRPC: reflection abuse, server/client/bidirectional streaming, gRPC-Web bypass, protobuf field manipulation.
+
+```bash
+mytools-grpc grpc://target.com:50051
+mytools-grpc grpc://target.com:50051 -c reflection
+mytools-grpc grpc://target.com:50051 -c server_streaming bidirectional
+mytools-grpc grpc://target.com:50051 -c grpc_web protobuf
+mytools-grpc grpc://target.com:50051 --timeout 10
+```
+
+### 74.2. Thrift Attack Testing (`mytools-thrift`)
+Testa seguranca de servers Apache Thrift: method enumeration, binary protocol manipulation.
+
+```bash
+mytools-thrift thrift://target.com:9090
+mytools-thrift thrift://target.com:9090 -c method_enumeration
+mytools-thrift thrift://target.com:9090 -c binary_protocol
+mytools-thrift thrift://target.com:9090 --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1529,7 +1552,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4386 testes)
+tests/                          # Testes unitários (4431 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
