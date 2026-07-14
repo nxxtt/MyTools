@@ -136,6 +136,7 @@ Isso instala os comandos CLI:
 | `mytools-k8s` | Kubernetes Attack Testing |
 | `mytools-docker` | Docker Attack Testing |
 | `mytools-infra` | Infrastructure Attack Testing |
+| `mytools-iot` | IoT & Industrial Attack Testing |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -1028,6 +1029,15 @@ mytools-infra https://target.com -c infrastructure
 mytools-infra https://target.com --timeout 10
 ```
 
+### 74.9. IoT & Industrial Attack Testing (`mytools-iot`)
+Testa seguranca de dispositivos IoT e sistemas industriais: Modbus, OPC UA, BACnet, SNMP, MQTT.
+
+```bash
+mytools-iot 192.168.1.100:502
+mytools-iot 192.168.1.100:502 -c iot
+mytools-iot 192.168.1.100:502 --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1612,7 +1622,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4575 testes)
+tests/                          # Testes unitários (4621 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...

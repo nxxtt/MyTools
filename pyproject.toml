@@ -126,6 +126,7 @@ mytools-serverless = "mytools.web.serverlessattack:main"
 mytools-k8s = "mytools.web.k8sattack:main"
 mytools-docker = "mytools.web.dockerattack:main"
 mytools-infra = "mytools.web.infraattack:main"
+mytools-iot = "mytools.web.iotattack:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
