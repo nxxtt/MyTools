@@ -127,6 +127,7 @@ Isso instala os comandos CLI:
 | `mytools-wsattack` | WebSocket Security Testing |
 | `mytools-tlsfp` | TLS Fingerprinting |
 | `mytools-certcheck` | Certificate Checks |
+| `mytools-gqlattack` | GraphQL Attack Testing |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -933,6 +934,17 @@ mytools-certcheck https://target.com -c hsts_preload mixed_content
 mytools-certcheck https://target.com --timeout 10
 ```
 
+### 74.0. GraphQL Attack Testing (`mytools-gqlattack`)
+Testa seguranca de endpoints GraphQL: introspection, depth abuse, batch queries, alias overloading, schema stitching, persisted queries, resolver analysis e enumeration.
+
+```bash
+mytools-gqlattack https://target.com/graphql
+mytools-gqlattack https://target.com/graphql -c introspection
+mytools-gqlattack https://target.com/graphql -c depth_abuse batch_abuse
+mytools-gqlattack https://target.com/graphql -c alias_overload persisted_abuse
+mytools-gqlattack https://target.com/graphql --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1481,6 +1493,7 @@ src/mytools/                    # Pacote principal
     websocketattack.py           # WebSocket Security Testing
     tlsfingerprint.py            # TLS Fingerprinting
     certcheck.py                 # Certificate Checks
+    graphqlattack.py             # GraphQL Attack Testing
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -1516,7 +1529,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4355 testes)
+tests/                          # Testes unitários (4386 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
