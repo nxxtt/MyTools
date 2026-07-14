@@ -871,6 +871,18 @@ mytools-smuggle https://target.com --timeout 10
 mytools-smuggle https://target.com --proxy http://127.0.0.1:8080
 ```
 
+### 73.5. HTTP/2 Abuse (`mytools-http2abuse`)
+Testa abusos no protocolo HTTP/2: downgrade, fingerprint, stream abuse, reset, settings, priority, push.
+
+```bash
+mytools-http2abuse https://target.com
+mytools-http2abuse https://target.com -c h2_downgrade
+mytools-http2abuse https://target.com -c h2_fingerprint h2_reset_attack
+mytools-http2abuse https://target.com -c h2_settings_abuse h2_push_abuse
+mytools-http2abuse https://target.com --timeout 10
+mytools-http2abuse https://target.com --proxy http://127.0.0.1:8080
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1429,7 +1441,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4155 testes)
+tests/                          # Testes unitários (4186 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -1469,6 +1481,7 @@ poetry install --with dev
 
 ### Runtime
 - `httpx>=0.28.1` — HTTP client async com sessions, proxy, retry
+- `h2>=4.3.0` — Protocolo HTTP/2 puro Python (frames, HPACK, SETTINGS, RST_STREAM)
 - `beautifulsoup4>=4.15.0` — Parser HTML avançado
 - `python-whois>=0.9.6` — Consulta WHOIS
 - `dnspython>=2.8.0` — Resolução DNS, zone transfer e enumeração de subdomínios

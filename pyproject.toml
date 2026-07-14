@@ -17,6 +17,7 @@ pyreadline3 = {version = ">=3.5.6", markers = "sys_platform == 'win32'"}
 pyjwt = ">=2.13.0"
 cryptography = ">=49.0.0"
 keyring = ">=25.7.0"
+h2 = "4.3.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.1.1"
@@ -107,6 +108,7 @@ mytools-bizlogic = "mytools.web.businesslogic:main"
 mytools-accountabuse = "mytools.web.accountabuse:main"
 mytools-multitenant = "mytools.web.multitenant:main"
 mytools-smuggle = "mytools.web.httsmuggle:main"
+mytools-http2abuse = "mytools.web.http2abuse:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
