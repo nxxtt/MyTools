@@ -105,6 +105,7 @@ mytools-saml = "mytools.web.saml:main"
 mytools-oidc = "mytools.web.oidc:main"
 mytools-bizlogic = "mytools.web.businesslogic:main"
 mytools-accountabuse = "mytools.web.accountabuse:main"
+mytools-multitenant = "mytools.web.multitenant:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

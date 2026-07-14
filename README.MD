@@ -120,6 +120,7 @@ Isso instala os comandos CLI:
 | `mytools-oidc` | OIDC Attack Detection |
 | `mytools-bizlogic` | Business Logic Attack Detection |
 | `mytools-accountabuse` | Account Abuse Attack Detection |
+| `mytools-multitenant` | Multi-Tenant Security Testing |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -843,7 +844,21 @@ mytools-accountabuse https://target.com -c subscription
 mytools-accountabuse https://target.com --proxy http://127.0.0.1:8080
 ```
 
-### 72. CORS Misconfiguration (`mytools-cors`)
+### 72. Multi-Tenant Security Testing (`mytools-multitenant`)
+Testa isolamento entre tenants em aplicações SaaS/multi-tenant: manipulação de tenant ID, isolamento via subdomínios, acesso a recursos compartilhados, e cross-tenant SSRF.
+
+```bash
+mytools-multitenant https://app.example.com/api/v1/users
+mytools-multitenant https://app.example.com -c tenant_id
+mytools-multitenant https://app.example.com -c subdomain_isolation
+mytools-multitenant https://app.example.com -c shared_resource
+mytools-multitenant https://app.example.com -c cross_tenant_ssrf
+mytools-multitenant https://app.example.com -c tenant_id shared_resource
+mytools-multitenant https://app.example.com --timeout 30
+mytools-multitenant https://app.example.com --proxy http://127.0.0.1:8080
+```
+
+### 73. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
 ```bash
@@ -1401,7 +1416,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4075 testes)
+tests/                          # Testes unitários (4116 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
