@@ -125,6 +125,7 @@ Isso instala os comandos CLI:
 | `mytools-http2abuse` | HTTP/2 Abuse |
 | `mytools-headeredge` | Header & Parsing Edge Cases |
 | `mytools-wsattack` | WebSocket Security Testing |
+| `mytools-tlsfp` | TLS Fingerprinting |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -909,6 +910,17 @@ mytools-wsattack wss://target.com/ws -c ws_upgrade_abuse ws_message_inject
 mytools-wsattack wss://target.com/ws --timeout 10
 ```
 
+### 73.8. TLS Fingerprinting (`mytools-tlsfp`)
+Testa fingerprinting TLS via construcao raw de ClientHello: JA3/JA4 hash, replay de browsers, key exchange analysis e cipher audit. 100% raw sockets.
+
+```bash
+mytools-tlsfp https://target.com
+mytools-tlsfp https://target.com -c tls_fingerprint
+mytools-tlsfp https://target.com -c tls_replay cipher_audit
+mytools-tlsfp https://target.com -c key_exchange tls_fingerprint
+mytools-tlsfp https://target.com --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1295,6 +1307,7 @@ mytools-smuggle --version
 mytools-http2abuse --version
 mytools-headeredge --version
 mytools-wsattack --version
+mytools-tlsfp --version
 mytools-reconall --version
 mytools-cred --version
 ```
@@ -1454,6 +1467,7 @@ src/mytools/                    # Pacote principal
     http2abuse.py                # HTTP/2 Abuse
     headeredge.py                # Header & Parsing Edge Cases
     websocketattack.py           # WebSocket Security Testing
+    tlsfingerprint.py            # TLS Fingerprinting
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -1489,7 +1503,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4273 testes)
+tests/                          # Testes unitários (4319 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
