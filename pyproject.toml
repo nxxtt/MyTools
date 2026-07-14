@@ -110,6 +110,7 @@ mytools-multitenant = "mytools.web.multitenant:main"
 mytools-smuggle = "mytools.web.httsmuggle:main"
 mytools-http2abuse = "mytools.web.http2abuse:main"
 mytools-headeredge = "mytools.web.headeredge:main"
+mytools-wsattack = "mytools.web.websocketattack:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
