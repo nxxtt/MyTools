@@ -180,7 +180,7 @@ def _drain_settings(
         for ev in events:
             if isinstance(ev, h2.events.RemoteSettingsChanged):
                 for setting, changed in ev.changed_settings.items():
-                    name = setting.name if hasattr(setting, "name") else str(setting)
+                    name = str(getattr(setting, "name", setting))
                     server_settings[name] = changed.new_value
             if isinstance(ev, h2.events.ConnectionTerminated):
                 return server_settings
@@ -205,7 +205,7 @@ def _collect_server_settings(
     for ev in events:
         if isinstance(ev, h2.events.RemoteSettingsChanged):
             for setting, changed in ev.changed_settings.items():
-                name = setting.name if hasattr(setting, "name") else str(setting)
+                name = str(getattr(setting, "name", setting))
                 server_settings[name] = changed.new_value
     return server_settings
 
@@ -511,8 +511,9 @@ async def _test_h2_fingerprint(
         try:
             custom_preface = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
             sock.sendall(custom_preface)
-            f = h2.frame.SettingsFrame(0)
-            sock.sendall(f.serialize())
+            # Empty SETTINGS frame: length=0, type=0x04, flags=0, stream_id=0
+            empty_settings = b"\x00\x00\x00\x04\x00\x00\x00\x00\x00"
+            sock.sendall(empty_settings)
             sock.settimeout(timeout)
             data = sock.recv(65535)
             has_settings = b"\x00\x00\x00\x04\x00\x00\x00\x00\x00" in data
