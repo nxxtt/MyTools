@@ -130,6 +130,9 @@ Isso instala os comandos CLI:
 | `mytools-gqlattack` | GraphQL Attack Testing |
 | `mytools-grpc` | gRPC Attack Testing |
 | `mytools-thrift` | Thrift Attack Testing |
+| `mytools-lambda` | Lambda Attack Testing |
+| `mytools-edge` | Edge Functions Attack Testing |
+| `mytools-serverless` | Serverless Attack Testing |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -968,6 +971,33 @@ mytools-thrift thrift://target.com:9090 -c binary_protocol
 mytools-thrift thrift://target.com:9090 --timeout 10
 ```
 
+### 74.3. Lambda Attack Testing (`mytools-lambda`)
+Testa seguranca de endpoints AWS Lambda: env var leaks, layer enumeration, temp file persistence.
+
+```bash
+mytools-lambda https://target.com/api/endpoint
+mytools-lambda https://target.com/api/endpoint -c lambda
+mytools-lambda https://target.com/api/endpoint --timeout 10
+```
+
+### 74.4. Edge Functions Attack Testing (`mytools-edge`)
+Testa seguranca de edge functions: Azure, GCP, Vercel, Cloudflare.
+
+```bash
+mytools-edge https://target.com/api/endpoint
+mytools-edge https://target.com/api/endpoint -c cloud_providers
+mytools-edge https://target.com/api/endpoint --timeout 10
+```
+
+### 74.5. Serverless Attack Testing (`mytools-serverless`)
+Testa seguranca generica de endpoints serverless: cold start info leak, timeout abuse.
+
+```bash
+mytools-serverless https://target.com/api/endpoint
+mytools-serverless https://target.com/api/endpoint -c generic
+mytools-serverless https://target.com/api/endpoint --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1552,7 +1582,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4431 testes)
+tests/                          # Testes unitários (4509 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
