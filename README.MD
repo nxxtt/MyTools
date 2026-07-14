@@ -121,6 +121,7 @@ Isso instala os comandos CLI:
 | `mytools-bizlogic` | Business Logic Attack Detection |
 | `mytools-accountabuse` | Account Abuse Attack Detection |
 | `mytools-multitenant` | Multi-Tenant Security Testing |
+| `mytools-smuggle` | HTTP Request Smuggling |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -858,7 +859,19 @@ mytools-multitenant https://app.example.com --timeout 30
 mytools-multitenant https://app.example.com --proxy http://127.0.0.1:8080
 ```
 
-### 73. CORS Misconfiguration (`mytools-cors`)
+### 73. HTTP Request Smuggling (`mytools-smuggle`)
+Testa CL.TE, TE.CL, TE.TE, Chunked+CL e HTTP pipelining desync via raw sockets.
+
+```bash
+mytools-smuggle https://target.com
+mytools-smuggle https://target.com -c cl_te
+mytools-smuggle https://target.com -c te_cl te_te
+mytools-smuggle https://target.com -c pipeline
+mytools-smuggle https://target.com --timeout 10
+mytools-smuggle https://target.com --proxy http://127.0.0.1:8080
+```
+
+### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
 ```bash
@@ -1416,7 +1429,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4116 testes)
+tests/                          # Testes unitários (4155 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
