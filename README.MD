@@ -122,6 +122,8 @@ Isso instala os comandos CLI:
 | `mytools-accountabuse` | Account Abuse Attack Detection |
 | `mytools-multitenant` | Multi-Tenant Security Testing |
 | `mytools-smuggle` | HTTP Request Smuggling |
+| `mytools-http2abuse` | HTTP/2 Abuse |
+| `mytools-headeredge` | Header & Parsing Edge Cases |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -883,6 +885,18 @@ mytools-http2abuse https://target.com --timeout 10
 mytools-http2abuse https://target.com --proxy http://127.0.0.1:8080
 ```
 
+### 73.6. Header & Parsing Edge Cases (`mytools-headeredge`)
+Testa como servidores/proxies lidam com requests HTTP malformed: duplicate headers, versão malformada, null bytes, whitespace, case sensitivity, absolute URI e HTTP/0.9.
+
+```bash
+mytools-headeredge https://target.com
+mytools-headeredge https://target.com -c duplicate_headers
+mytools-headeredge https://target.com -c null_request_byte header_whitespace
+mytools-headeredge https://target.com -c malformed_version header_case
+mytools-headeredge https://target.com -c absolute_uri http09_request
+mytools-headeredge https://target.com --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1264,6 +1278,10 @@ mytools-openredirect --version
 mytools-crlfinject --version
 mytools-sstdetect --version
 mytools-ssrfdetect --version
+mytools-multitenant --version
+mytools-smuggle --version
+mytools-http2abuse --version
+mytools-headeredge --version
 mytools-reconall --version
 mytools-cred --version
 ```
@@ -1406,6 +1424,22 @@ src/mytools/                    # Pacote principal
     headerinject.py              # Header Injection via URL Params
     loginjection.py              # Log Injection Detection
     log4shell.py                 # Log4Shell (CVE-2021-44228) Detection
+    cookieboundary.py            # Cookie Domain Boundary Detection
+    domclobbering.py             # DOM Clobbering Detection
+    mxss.py                      # Mutation XSS Detection
+    cssinject.py                 # CSS Injection Detection
+    xssvectors.py                # XSS Vectors Detection
+    fileupload.py                # File Upload Attacks Detection
+    jwtanalysis.py               # JWT Analysis
+    oauth.py                     # OAuth 2.0 Misconfiguration Detection
+    saml.py                      # SAML Attack Detection
+    oidc.py                      # OIDC Attack Detection
+    businesslogic.py             # Business Logic Attack Detection
+    accountabuse.py              # Account Abuse Attack Detection
+    multitenant.py               # Multi-Tenant Security Testing
+    httsmuggle.py                # HTTP Request Smuggling
+    http2abuse.py                # HTTP/2 Abuse
+    headeredge.py                # Header & Parsing Edge Cases
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -1441,7 +1475,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4186 testes)
+tests/                          # Testes unitários (4233 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
