@@ -133,6 +133,9 @@ Isso instala os comandos CLI:
 | `mytools-lambda` | Lambda Attack Testing |
 | `mytools-edge` | Edge Functions Attack Testing |
 | `mytools-serverless` | Serverless Attack Testing |
+| `mytools-k8s` | Kubernetes Attack Testing |
+| `mytools-docker` | Docker Attack Testing |
+| `mytools-infra` | Infrastructure Attack Testing |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -998,6 +1001,33 @@ mytools-serverless https://target.com/api/endpoint -c generic
 mytools-serverless https://target.com/api/endpoint --timeout 10
 ```
 
+### 74.6. Kubernetes Attack Testing (`mytools-k8s`)
+Testa seguranca de clusters Kubernetes: API enumeration, Dashboard exposure.
+
+```bash
+mytools-k8s https://target.com:6443
+mytools-k8s https://target.com:6443 -c kubernetes
+mytools-k8s https://target.com:6443 --timeout 10
+```
+
+### 74.7. Docker Attack Testing (`mytools-docker`)
+Testa seguranca de Docker Registries: registry exposure, repository enumeration.
+
+```bash
+mytools-docker https://registry.target.com
+mytools-docker https://registry.target.com -c docker
+mytools-docker https://registry.target.com --timeout 10
+```
+
+### 74.8. Infrastructure Attack Testing (`mytools-infra`)
+Testa seguranca de infraestrutura: Terraform state, Vault, CI/CD, Elastic, Redis/MongoDB, Debug endpoints.
+
+```bash
+mytools-infra https://target.com
+mytools-infra https://target.com -c infrastructure
+mytools-infra https://target.com --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1582,7 +1612,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4509 testes)
+tests/                          # Testes unitários (4575 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
