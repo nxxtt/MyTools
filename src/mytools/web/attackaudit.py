@@ -855,6 +855,7 @@ async def check_xss_reflection(
     parametro refletir. Para paralelizar entre URLs, usar asyncio.gather
     na chamada externa.
     """
+    base_url = base_url.split("#")[0]
     if inject_params is None:
         url_params = _extract_query_params(base_url)
         inject_params = url_params if url_params else list(DEFAULT_INJECT_PARAMS)
@@ -900,6 +901,7 @@ async def check_sqli_errors(
     Executa todos os pares (param, payload) em paralelo via asyncio.gather
     com Semaphore(5) para limitar concorrencia.
     """
+    base_url = base_url.split("#")[0]
     parsed = urlparse(base_url)
 
     if inject_params is None:
@@ -1459,18 +1461,12 @@ async def run_audit(
         method_results: list[MethodResult] | None = None
         js_external_findings: list[Finding] = []
 
-        vuln_tasks = []
-        if test_vulns:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando XSS reflection e SQLi error-based em paralelo...")
-            vuln_tasks.append(check_xss_reflection(client, target, timeout, inject_params=inject_params))
-            vuln_tasks.append(check_sqli_errors(client, target, timeout, inject_params=inject_params))
-        if test_methods and probes:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando metodos HTTP...")
-            vuln_tasks.append(test_http_methods(client, probes, timeout, rate_limiter))
-        if parser.external_scripts:
-            vuln_tasks.append(analyze_js_files(client, target, list(parser.external_scripts), timeout, rate_limiter))
-
-        if vuln_tasks:
+        has_vuln_tests = test_vulns or (test_methods and probes) or bool(parser.external_scripts)
+        if has_vuln_tests:
+            if test_vulns:
+                print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando XSS reflection e SQLi error-based em paralelo...")
+            if test_methods and probes:
+                print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando metodos HTTP...")
             async def _safe_xss() -> tuple[bool, str]:
                 try:
                     return await check_xss_reflection(client, target, timeout, inject_params=inject_params)

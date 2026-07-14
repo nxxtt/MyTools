@@ -283,11 +283,17 @@ def _parse_cookie(raw: str) -> CookieInfo:
 
 
 def _extract_target_domain(url: str) -> str:
-    """Extrai o dominio base de uma URL."""
+    """Extrai o dominio base de uma URL, lidando com TLDs compostos."""
     parsed = urlparse(url)
     host = parsed.hostname or ""
     parts = host.split(".")
     if len(parts) >= 2:
+        # Pula partes de TLD composto (ex: co.uk, com.br)
+        for i in range(2, len(parts) + 1):
+            candidate = ".".join(parts[-i:])
+            if _is_public_suffix(candidate):
+                continue
+            return ".".join(parts[-i:])
         return ".".join(parts[-2:])
     return host
 

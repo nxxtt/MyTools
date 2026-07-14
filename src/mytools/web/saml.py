@@ -53,7 +53,7 @@ _SAML_NS = {
 def _decode_saml_response(encoded: str) -> str | None:
     """Decodifica SAML Response de base64."""
     try:
-        padded = encoded + "=" * (4 - len(encoded) % 4)
+        padded = encoded + "=" * ((4 - len(encoded) % 4) % 4)
         return base64.b64decode(padded).decode(errors="replace")
     except Exception:
         return None

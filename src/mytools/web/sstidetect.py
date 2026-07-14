@@ -217,7 +217,7 @@ async def _test_param_ssti(
     status_base, size_base, _ = baseline
 
     for param in _PARAMS[:5]:
-        for name, payload, expected in _DETECT_PAYLOADS[:8]:
+        for name, payload, expected in _DETECT_PAYLOADS:
             new_params = {k: v[0] if isinstance(v, list) else v for k, v in original_params.items()}
             new_params[param] = payload
             new_query = urlencode(new_params, doseq=True)
@@ -277,7 +277,7 @@ async def _test_header_ssti(
     status_base, size_base, _ = baseline
 
     for header in _HEADER_NAMES[:3]:
-        for name, payload, expected in _DETECT_PAYLOADS[:4]:
+        for name, payload, expected in _DETECT_PAYLOADS:
             try:
                 resp = await client.get(
                     base_url,
@@ -335,7 +335,7 @@ async def _test_body_ssti(
     attempts: list[SSTIAttempt] = []
     status_base, size_base, _ = baseline
 
-    for name, payload, expected in _DETECT_PAYLOADS[:5]:
+    for name, payload, expected in _DETECT_PAYLOADS:
         json_body = {"input": payload, "name": payload, "template": payload}
         try:
             resp = await client.post(
@@ -382,7 +382,7 @@ async def _test_body_ssti(
                 error=str(exc)[:100],
             ))
 
-    for name, payload, expected in _DETECT_PAYLOADS[:5]:
+    for name, payload, expected in _DETECT_PAYLOADS:
         form_data = {"input": payload, "name": payload, "template": payload}
         try:
             resp = await client.post(
@@ -605,69 +605,80 @@ async def run_scan(
     """Executa o scan SSTI."""
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
+    try:
 
-    print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
-    baseline = await _test_baseline(client, target)
-    if baseline[0] == 0:
-        print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
-        return 1
+        print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+        baseline = await _test_baseline(client, target)
+        if baseline[0] == 0:
+            print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+            return 1
 
-    print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+        print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
 
-    run_categories = categories or list(_CATEGORY_MAP.keys())
-    all_attempts: list[SSTIAttempt] = []
+        run_categories = categories or list(_CATEGORY_MAP.keys())
+        all_attempts: list[SSTIAttempt] = []
 
-    tasks: list[Awaitable[list[SSTIAttempt]]] = []
-    for cat in run_categories:
-        if cat == "detect":
-            tasks.append(_test_param_ssti(client, target, baseline))
-        elif cat == "header":
-            tasks.append(_test_header_ssti(client, target, baseline))
-        elif cat == "body":
-            tasks.append(_test_body_ssti(client, target, baseline))
-        elif cat == "bypass":
-            tasks.append(_test_bypass(client, target, baseline))
+        tasks: list[Awaitable[list[SSTIAttempt]]] = []
+        for cat in run_categories:
+            if cat == "detect":
+                tasks.append(_test_param_ssti(client, target, baseline))
+            elif cat == "header":
+                tasks.append(_test_header_ssti(client, target, baseline))
+            elif cat == "body":
+                tasks.append(_test_body_ssti(client, target, baseline))
+            elif cat == "bypass":
+                tasks.append(_test_bypass(client, target, baseline))
 
-    if tasks:
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results_list:
-            if isinstance(r, list):
-                all_attempts.extend(r)
+        if tasks:
+            sem = asyncio.Semaphore(concurrency)
 
-    engines_found = list({a.engine_detected for a in all_attempts if a.vulnerable and a.engine_detected})
+            async def _limited(coro: object) -> object:
+                async with sem:
+                    return await coro  # type: ignore[misc]
 
-    if engines_found and "exploit" in run_categories:
-        exploit_attempts = await _test_exploit(client, target, baseline, engines_found)
-        all_attempts.extend(exploit_attempts)
+            wrapped = [_limited(t) for t in tasks]
+            results_list = await asyncio.gather(*wrapped, return_exceptions=True)
+            for r in results_list:
+                if isinstance(r, list):
+                    all_attempts.extend(r)
 
-    blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-    issues: list[str] = []
-    for att in all_attempts:
-        if att.vulnerable:
-            issues.append(f"VULN: {att.technique} - {att.details}")
+        engines_found = list({a.engine_detected for a in all_attempts if a.vulnerable and a.engine_detected})
 
-    overall = "vulnerable" if engines_found else "secure"
+        if engines_found and "exploit" in run_categories:
+            exploit_attempts = await _test_exploit(client, target, baseline, engines_found)
+            all_attempts.extend(exploit_attempts)
 
-    result = SSTIResult(
-        target=target,
-        baseline_status=baseline[0],
-        baseline_size=baseline[1],
-        tls=tls,
-        attempts=all_attempts,
-        vulnerable_engines=engines_found,
-        blocked_techniques=blocked,
-        issues=issues,
-        overall_status=overall,
-    )
+        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        issues: list[str] = []
+        for att in all_attempts:
+            if att.vulnerable:
+                issues.append(f"VULN: {att.technique} - {att.details}")
 
-    print_results(result)
+        overall = "vulnerable" if engines_found else "secure"
 
-    if output_file:
-        write_output(output_file, asdict(result))
+        result = SSTIResult(
+            target=target,
+            baseline_status=baseline[0],
+            baseline_size=baseline[1],
+            tls=tls,
+            attempts=all_attempts,
+            vulnerable_engines=engines_found,
+            blocked_techniques=blocked,
+            issues=issues,
+            overall_status=overall,
+        )
 
-    logger.info("SSTI scan concluido: %d testes, engines=%s", len(all_attempts), engines_found)
-    return 1 if engines_found else 0
+        print_results(result)
 
+        if output_file:
+            write_output(output_file, asdict(result))
+
+        logger.info("SSTI scan concluido: %d testes, engines=%s", len(all_attempts), engines_found)
+        return 1 if engines_found else 0
+
+
+    finally:
+        await client.aclose()
 
 banner_art = create_banner(
     r"""

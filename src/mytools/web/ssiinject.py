@@ -17,6 +17,7 @@ Fluxo:
 import argparse
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
 
@@ -467,16 +468,29 @@ async def _test_blind(
     for technique, payload, _check_type, indicators in _BLIND_PAYLOADS:
         for param in _SSI_PARAMS[:4]:
             try:
+                t_start = time.monotonic()
                 resp = await client.get(
                     base_url,
                     params={param: payload},
                     follow_redirects=False,
                 )
+                t_elapsed = time.monotonic() - t_start
 
                 t_status = resp.status_code
                 t_size = len(resp.content)
                 status_changed = t_status != b_status
                 vulnerable = _check_ssi_response(resp.content, t_status, indicators)
+
+                if _check_type == "time" and t_elapsed >= 1.5:
+                    vulnerable = True
+
+                details = ""
+                if _check_type == "time" and t_elapsed >= 1.5:
+                    details = f"Sleep detectado: {t_elapsed:.1f}s"
+                elif status_changed:
+                    details = f"Status {b_status}->{t_status}"
+                else:
+                    details = "Sem mudanca"
 
                 attempts.append(SSIiAttempt(
                     technique=f"{technique}_{param}",
@@ -491,7 +505,7 @@ async def _test_blind(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=details,
                     error="",
                 ))
             except httpx.RequestError as exc:
@@ -621,66 +635,70 @@ async def run_scan(
     """Executa o scan SSI Injection."""
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
+    try:
 
-    print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
-    baseline = await _test_baseline(client, target)
-    if baseline[0] == 0:
-        print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
-        return 1
+        print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+        baseline = await _test_baseline(client, target)
+        if baseline[0] == 0:
+            print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+            return 1
 
-    print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+        print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
 
-    run_categories = categories or list(_CATEGORY_MAP.keys())
-    all_attempts: list[SSIiAttempt] = []
+        run_categories = categories or list(_CATEGORY_MAP.keys())
+        all_attempts: list[SSIiAttempt] = []
 
-    tasks: list[Awaitable[list[SSIiAttempt]]] = []
-    for cat in run_categories:
-        if cat == "detect":
-            tasks.append(_test_detect(client, target, baseline))
-        elif cat == "rce":
-            tasks.append(_test_rce(client, target, baseline))
-        elif cat == "file_read":
-            tasks.append(_test_file_read(client, target, baseline))
-        elif cat == "blind":
-            tasks.append(_test_blind(client, target, baseline))
-        elif cat == "bypass":
-            tasks.append(_test_bypass(client, target, baseline))
+        tasks: list[Awaitable[list[SSIiAttempt]]] = []
+        for cat in run_categories:
+            if cat == "detect":
+                tasks.append(_test_detect(client, target, baseline))
+            elif cat == "rce":
+                tasks.append(_test_rce(client, target, baseline))
+            elif cat == "file_read":
+                tasks.append(_test_file_read(client, target, baseline))
+            elif cat == "blind":
+                tasks.append(_test_blind(client, target, baseline))
+            elif cat == "bypass":
+                tasks.append(_test_bypass(client, target, baseline))
 
-    if tasks:
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results_list:
-            if isinstance(r, list):
-                all_attempts.extend(r)
+        if tasks:
+            results_list = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results_list:
+                if isinstance(r, list):
+                    all_attempts.extend(r)
 
-    vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-    issues: list[str] = []
-    for att in all_attempts:
-        if att.vulnerable:
-            issues.append(f"VULN: {att.technique} - {att.details}")
+        vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
+        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        issues: list[str] = []
+        for att in all_attempts:
+            if att.vulnerable:
+                issues.append(f"VULN: {att.technique} - {att.details}")
 
-    overall = "vulnerable" if vuln_techs else "secure"
+        overall = "vulnerable" if vuln_techs else "secure"
 
-    result = SSIiResult(
-        target=target,
-        baseline_status=baseline[0],
-        baseline_size=baseline[1],
-        tls=tls,
-        attempts=all_attempts,
-        vulnerable_techniques=vuln_techs,
-        blocked_techniques=blocked,
-        issues=issues,
-        overall_status=overall,
-    )
+        result = SSIiResult(
+            target=target,
+            baseline_status=baseline[0],
+            baseline_size=baseline[1],
+            tls=tls,
+            attempts=all_attempts,
+            vulnerable_techniques=vuln_techs,
+            blocked_techniques=blocked,
+            issues=issues,
+            overall_status=overall,
+        )
 
-    print_results(result)
+        print_results(result)
 
-    if output_file:
-        write_output(output_file, asdict(result))
+        if output_file:
+            write_output(output_file, asdict(result))
 
-    logger.info("SSI scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
-    return 1 if vuln_techs else 0
+        logger.info("SSI scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        return 1 if vuln_techs else 0
 
+
+    finally:
+        await client.aclose()
 
 banner_art = create_banner(
     r"""

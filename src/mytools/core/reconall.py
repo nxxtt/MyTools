@@ -178,7 +178,7 @@ _ALL_MODS = (
 )
 
 
-def _get_parser_defaults() -> dict[str, object]:
+def get_parser_defaults() -> dict[str, object]:
     """Retorna defaults dos parsers dos modulos filhos, cacheados."""
     global _PARSER_DEFAULTS
     if _PARSER_DEFAULTS is None:
@@ -196,7 +196,7 @@ def _build_base_ns(args: argparse.Namespace) -> argparse.Namespace:
     Elimina hardcode de 37+ atributos. Quando um modulo adiciona um arg,
     ele aparece automaticamente aqui via build_parser().parse_args([]).
     """
-    all_defaults = dict(_get_parser_defaults())
+    all_defaults = dict(get_parser_defaults())
 
     # Overrides do reconall — valores que difinem do default do parser
     all_defaults.update({

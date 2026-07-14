@@ -411,9 +411,8 @@ def _find_upload_endpoint(base_url: str, body_str: str) -> str | None:
             return base_url
     common_paths = ["/upload", "/api/upload", "/file/upload", "/attachments"]
     for path in common_paths:
-        candidate = urljoin(base_url, path)
-        if candidate.lower() not in lower:
-            continue
+        if path in lower:
+            return urljoin(base_url, path)
     return base_url
 
 

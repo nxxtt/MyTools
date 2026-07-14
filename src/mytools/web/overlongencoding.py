@@ -196,7 +196,7 @@ async def _test_overlong_url(
     for char, char_name in _SENSITIVE_CHARS.items():
         for enc_name, enc_fn in _OVERLONG_ENCODINGS.items():
             encoded = enc_fn(char)
-            for position in ["path", "query", "fragment"]:
+            for position in ["path", "query"]:
                 test_url = _build_overlong_url(url, encoded, position)
                 technique = f"overlong_{enc_name}_{position}"
 
@@ -451,8 +451,8 @@ async def scan_overlong_encoding(
         timeout=timeout,
         verify=verify,
     ) as client:
-        b_status, b_size, _ = await _test_baseline(client, url)
-        baseline = (b_status, b_size, b"")
+        b_status, b_size, b_body = await _test_baseline(client, url)
+        baseline = (b_status, b_size, b_body)
 
         sem = asyncio.Semaphore(concurrency)
 

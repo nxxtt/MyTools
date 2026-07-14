@@ -153,7 +153,7 @@ class TestValidateContent:
     def test_unknown_path(self):
         content = b"some content"
         ok, _ = _validate_content("robots.txt", content)
-        assert ok is True
+        assert ok is False
 
     def test_git_description_default(self):
         content = b"Unnamed repository; edit this file 'description' to name the repository."

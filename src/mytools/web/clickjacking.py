@@ -97,13 +97,13 @@ async def _test_xframe(
     ))
     results.append(ClickjackAttempt(
         technique="xframe_deny", category="xframe", header_tested="X-Frame-Options",
-        header_value=xfo, vulnerable=xfo_lower == "deny",
-        details="X-Frame-Options: DENY" if xfo_lower == "deny" else "", error="",
+        header_value=xfo, vulnerable=False,
+        details="X-Frame-Options: DENY — protecao ativa" if xfo_lower == "deny" else "", error="",
     ))
     results.append(ClickjackAttempt(
         technique="xframe_sameorigin", category="xframe", header_tested="X-Frame-Options",
-        header_value=xfo, vulnerable=xfo_lower == "sameorigin",
-        details="X-Frame-Options: SAMEORIGIN" if xfo_lower == "sameorigin" else "", error="",
+        header_value=xfo, vulnerable=False,
+        details="X-Frame-Options: SAMEORIGIN — protecao ativa" if xfo_lower == "sameorigin" else "", error="",
     ))
     results.append(ClickjackAttempt(
         technique="xframe_allow_from", category="xframe", header_tested="X-Frame-Options",

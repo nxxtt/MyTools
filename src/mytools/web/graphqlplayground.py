@@ -166,6 +166,7 @@ async def run_introspection(
     try:
         status, _headers, content, _ = await fetch(
             client, url, timeout=timeout, method="POST",
+            content=INTROSPECTION_QUERY.encode(),
             max_retries=retries, rate_limiter=rate_limiter,
         )
     except FetchError:

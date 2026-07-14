@@ -250,7 +250,14 @@ async def _test_detect(
     url: str,
     baseline: tuple[int, int, bytes],
 ) -> list[PollAttempt]:
-    """Testa payloads de deteccao de prototype pollution."""
+    """Testa payloads de deteccao de prototype pollution.
+
+    LIMITACAO: Este teste apenas verifica reflexao do payload na resposta,
+    nao prototype pollution real. Pollution real requer teste bifasico:
+    (1) enviar payload de pollution, (2) fazer request follow-up para
+    verificar se Object.prototype foi modificado no servidor.
+    Atualmente pode produzir falsos positivos por reflexao de input.
+    """
     b_status, b_size, _ = baseline
     results: list[PollAttempt] = []
 

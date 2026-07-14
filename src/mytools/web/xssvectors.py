@@ -19,6 +19,7 @@ Fluxo:
   5. Retorna resultado consolidado com severidade
 """
 import argparse
+import html
 import logging
 from dataclasses import asdict, dataclass
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -483,11 +484,13 @@ async def _test_xss_category(
             status_changed = t_status != b_status
             size_changed = abs(t_size - b_size) > 50
 
-            vulnerable = reflected
+            decoded = html.unescape(payload)
+            reflected_decoded = _check_xss_reflection(body_str, decoded) if decoded != payload else reflected
+            vulnerable = reflected and (decoded == payload or reflected_decoded)
 
             details = ""
-            if reflected:
-                details = f"Payload refletido no contexto {context}"
+            if vulnerable:
+                details = f"Payload refletido sem encoding no contexto {context}"
 
             results.append(XSSVectorAttempt(
                 technique=technique, category=category, context=context,

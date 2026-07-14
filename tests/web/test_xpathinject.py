@@ -55,17 +55,17 @@ class TestDetectPayloads:
     def test_has_always_true_string(self) -> None:
         assert any("always_true_string" in p[0] for p in _DETECT_PAYLOADS)
 
-    def test_has_always_true_num(self) -> None:
-        assert any("always_true_num" in p[0] for p in _DETECT_PAYLOADS)
+    def test_has_always_true_paren(self) -> None:
+        assert any("always_true_paren" in p[0] for p in _DETECT_PAYLOADS)
 
-    def test_has_always_true_comment(self) -> None:
-        assert any("always_true_comment" in p[0] for p in _DETECT_PAYLOADS)
+    def test_has_select_all(self) -> None:
+        assert any("select_all" in p[0] for p in _DETECT_PAYLOADS)
 
-    def test_has_always_true_or(self) -> None:
-        assert any("always_true_or" in p[0] for p in _DETECT_PAYLOADS)
+    def test_has_string_all(self) -> None:
+        assert any("string_all" in p[0] for p in _DETECT_PAYLOADS)
 
-    def test_has_always_true_and(self) -> None:
-        assert any("always_true_and" in p[0] for p in _DETECT_PAYLOADS)
+    def test_has_count_elements(self) -> None:
+        assert any("count_elements" in p[0] for p in _DETECT_PAYLOADS)
 
     def test_count(self) -> None:
         assert len(_DETECT_PAYLOADS) == 5
@@ -74,20 +74,20 @@ class TestDetectPayloads:
 class TestAuthBypassPayloads:
     """Testes para _AUTH_BYPASS_PAYLOADS."""
 
-    def test_has_admin_or(self) -> None:
-        assert any("admin_or" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
+    def test_has_admin_tautology(self) -> None:
+        assert any("admin_tautology" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
 
-    def test_has_admin_comment(self) -> None:
-        assert any("admin_comment" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
+    def test_has_admin_wildcard(self) -> None:
+        assert any("admin_wildcard" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
 
-    def test_has_nested_true(self) -> None:
-        assert any("nested_true" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
+    def test_has_admin_or_empty(self) -> None:
+        assert any("admin_or_empty" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
 
-    def test_has_double_quote(self) -> None:
-        assert any("double_quote" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
+    def test_has_admin_xpath_or(self) -> None:
+        assert any("admin_xpath_or" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
 
-    def test_has_admin_true_num(self) -> None:
-        assert any("admin_true_num" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
+    def test_has_admin_double_quote(self) -> None:
+        assert any("admin_double_quote" in p[0] for p in _AUTH_BYPASS_PAYLOADS)
 
     def test_count(self) -> None:
         assert len(_AUTH_BYPASS_PAYLOADS) == 5
@@ -96,20 +96,20 @@ class TestAuthBypassPayloads:
 class TestExtractPayloads:
     """Testes para _EXTRACT_PAYLOADS."""
 
-    def test_has_extract_version(self) -> None:
-        assert any("extract_version" in p[0] for p in _EXTRACT_PAYLOADS)
-
     def test_has_extract_user(self) -> None:
         assert any("extract_user" in p[0] for p in _EXTRACT_PAYLOADS)
 
-    def test_has_extract_database(self) -> None:
-        assert any("extract_database" in p[0] for p in _EXTRACT_PAYLOADS)
+    def test_has_extract_password(self) -> None:
+        assert any("extract_password" in p[0] for p in _EXTRACT_PAYLOADS)
 
-    def test_has_extract_node(self) -> None:
-        assert any("extract_node" in p[0] for p in _EXTRACT_PAYLOADS)
+    def test_has_extract_concat(self) -> None:
+        assert any("extract_concat" in p[0] for p in _EXTRACT_PAYLOADS)
 
-    def test_has_extract_all(self) -> None:
-        assert any("extract_all" in p[0] for p in _EXTRACT_PAYLOADS)
+    def test_has_extract_all_nodes(self) -> None:
+        assert any("extract_all_nodes" in p[0] for p in _EXTRACT_PAYLOADS)
+
+    def test_has_extract_node_name(self) -> None:
+        assert any("extract_node_name" in p[0] for p in _EXTRACT_PAYLOADS)
 
     def test_count(self) -> None:
         assert len(_EXTRACT_PAYLOADS) == 5

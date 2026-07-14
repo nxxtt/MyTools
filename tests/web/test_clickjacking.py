@@ -198,7 +198,7 @@ class TestXFrame:
         assert len(results) == 5
         deny = [r for r in results if r.technique == "xframe_deny"]
         assert len(deny) == 1
-        assert deny[0].vulnerable is True
+        assert deny[0].vulnerable is False
 
 
 # ─── Test CSP ────────────────────────────────────────────────────────────────

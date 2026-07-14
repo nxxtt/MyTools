@@ -233,8 +233,20 @@ def _check_cache_response(
     headers: dict[str, str],
     indicators: list[str],
 ) -> bool:
-    """Verifica se a resposta indica cache poisoning."""
+    """Verifica se a resposta indica cache poisoning via headers reais de cache."""
     if status == 0:
+        return False
+    cache_headers = {
+        "x-cache", "age", "cf-cache-status", "x-varnish", "via",
+        "x-cache-hits", "x-served-by", "x-drupal-cache", "x-fastly-debug",
+        "surrogate-control", "cdn-cache-status", "x-akamai-transformed",
+    }
+    has_cache_header = any(k.lower() in cache_headers for k in headers)
+    cache_hit = any(
+        "hit" in headers.get(k, "").lower()
+        for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits")
+    )
+    if not has_cache_header and not cache_hit:
         return False
     text = body.decode("utf-8", errors="ignore").lower()
     header_text = " ".join(f"{k}: {v}" for k, v in headers.items()).lower()

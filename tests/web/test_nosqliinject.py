@@ -127,8 +127,8 @@ class TestRedisPayloads:
     def test_has_keys(self) -> None:
         assert any("redis_keys" in p[0] for p in _REDIS_PAYLOADS)
 
-    def test_has_eval(self) -> None:
-        assert any("redis_eval" in p[0] for p in _REDIS_PAYLOADS)
+    def test_has_select(self) -> None:
+        assert any("redis_select" in p[0] for p in _REDIS_PAYLOADS)
 
     def test_has_flushall(self) -> None:
         assert any("redis_flushall" in p[0] for p in _REDIS_PAYLOADS)

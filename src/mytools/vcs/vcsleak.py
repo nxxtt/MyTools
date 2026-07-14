@@ -26,12 +26,12 @@ from mytools.core.utils import (
     RateLimiter,
     add_base_args,
     add_http_args,
+    apply_session_auth,
     color,
     create_async_client,
     create_banner,
     extract_hostname,
     fetch,
-    header_get,
     init_scanner,
     normalize_url,
     print_table,
@@ -43,7 +43,7 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.vcsleak")
 
-STATUS_OK = frozenset({200})
+STATUS_OK = frozenset({200, 301, 302, 307, 308})
 
 GIT_PATHS: list[str] = [
     ".git/HEAD",
@@ -173,7 +173,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
                 return True, text[:80]
             return False, ""
 
-        return True, content[:80].decode("utf-8", errors="replace").strip()
+        return False, ""
 
     if vcs_type == "svn":
         if path == ".svn/wc.db":
@@ -187,7 +187,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
                 first_line = text.split("\n")[0].strip()
                 return True, first_line[:80]
             return False, ""
-        return True, content[:80].decode("utf-8", errors="replace").strip()
+        return False, ""
 
     if vcs_type == "hg":
         validator = HG_VALIDATORS.get(path)
@@ -197,9 +197,9 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
                 first_line = text.split("\n")[0].strip()
                 return True, first_line[:80]
             return False, ""
-        return True, content[:80].decode("utf-8", errors="replace").strip()
+        return False, ""
 
-    return True, content[:80].decode("utf-8", errors="replace").strip()
+    return False, ""
 
 
 async def _probe_path(
@@ -211,11 +211,12 @@ async def _probe_path(
     retries: int = 2,
 ) -> VCSLeak | None:
     """Sonda um unico path e retorna VCSLeak se encontrar leak confirmado."""
-    full_url = urljoin(base_url, path)
+    base = base_url if base_url.endswith("/") else base_url + "/"
+    full_url = urljoin(base, path)
     await rate_limiter.wait()
 
     try:
-        head_status, head_headers, _, _ = await fetch(
+        head_status, _head_headers, _, _ = await fetch(
             client, full_url, timeout=timeout, method="HEAD",
             max_retries=1, rate_limiter=rate_limiter,
         )
@@ -226,25 +227,21 @@ async def _probe_path(
         pass
     elif head_status not in STATUS_OK:
         return None
-    else:
-        cl = header_get(head_headers, "content-length")
-        if cl:
-            try:
-                if int(cl) > 5 * 1024 * 1024:
-                    return None
-            except ValueError:
-                pass
 
     await rate_limiter.wait()
     try:
         status, _headers, content, _ = await fetch(
             client, full_url, timeout=timeout, method="GET",
             max_retries=retries, rate_limiter=rate_limiter,
+            allow_redirects=True,
         )
     except FetchError:
         return None
 
     if status not in STATUS_OK:
+        return None
+
+    if len(content) > 5 * 1024 * 1024:
         return None
 
     is_leak, detail = _validate_content(path, content)
@@ -272,11 +269,17 @@ async def scan_vcs(
     requests_per_second: float = 0.0,
     retries: int = 2,
     custom_paths: list[str] | None = None,
+    auth: dict[str, str] | None = None,
+    bearer_token: str | None = None,
+    cookie: str | None = None,
+    extra_headers: list[str] | None = None,
 ) -> list[VCSLeak]:
     """Busca leaks de VCS no alvo por probe assincrono."""
     started = time.monotonic()
     rate_limiter = RateLimiter(requests_per_second)
     client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
+    apply_session_auth(client, auth=auth, bearer_token=bearer_token,
+                       cookie=cookie, extra_headers=extra_headers)
 
     logger.info("scan vcs leak iniciado: %s", base_url)
 
@@ -301,7 +304,8 @@ async def scan_vcs(
             result = await _probe_path(client, rate_limiter, base_url, path, timeout, retries)
             async with completed_lock:
                 completed += 1
-                if completed % 20 == 0 or completed == total:
+                should_print = completed % 20 == 0 or completed == total
+                if should_print:
                     sys.stdout.write(f"\r  Progresso: {completed}/{total} paths testados...")
                     sys.stdout.flush()
             return result
@@ -439,6 +443,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
         return 0
 
+    if args.timeout <= 0:
+        print(color("[!] Timeout deve ser maior que 0.", Cyber.RED))
+        return 1
+
     all_leaks: list[VCSLeak] = []
     for url in urls:
         base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
@@ -454,6 +462,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             requests_per_second=args.delay,
             retries=args.retries,
             custom_paths=custom_paths,
+            auth=getattr(args, "auth", None),
+            bearer_token=getattr(args, "bearer_token", None),
+            cookie=getattr(args, "cookie", None),
+            extra_headers=getattr(args, "header", None),
         )
 
         if not quiet:

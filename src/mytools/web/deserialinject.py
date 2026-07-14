@@ -303,15 +303,14 @@ async def _test_java(
     for technique, payload, indicators in _JAVA_PAYLOADS:
         for param in _SSI_PARAMS[:3]:
             try:
-                json_data = {param: payload}
-                resp = await client.post(url, json=json_data, follow_redirects=True)
+                resp = await client.post(url, content=payload.encode() if isinstance(payload, str) else payload, follow_redirects=True)
                 vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
                 results.append(DeserialAttempt(
                     technique=technique,
                     category="java",
                     payload=payload,
                     param=param,
-                    method="post_json",
+                    method="post_raw",
                     status_baseline=b_status,
                     status_test=resp.status_code,
                     size_baseline=b_size,
@@ -328,7 +327,7 @@ async def _test_java(
                     category="java",
                     payload=payload,
                     param=param,
-                    method="post_json",
+                    method="post_raw",
                     status_baseline=b_status,
                     status_test=0,
                     size_baseline=b_size,
@@ -354,15 +353,14 @@ async def _test_python(
     for technique, payload, indicators in _PYTHON_PAYLOADS:
         for param in _SSI_PARAMS[:3]:
             try:
-                json_data = {param: payload}
-                resp = await client.post(url, json=json_data, follow_redirects=True)
+                resp = await client.post(url, content=payload.encode() if isinstance(payload, str) else payload, follow_redirects=True)
                 vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
                 results.append(DeserialAttempt(
                     technique=technique,
                     category="python",
                     payload=payload,
                     param=param,
-                    method="post_json",
+                    method="post_raw",
                     status_baseline=b_status,
                     status_test=resp.status_code,
                     size_baseline=b_size,
@@ -379,7 +377,7 @@ async def _test_python(
                     category="python",
                     payload=payload,
                     param=param,
-                    method="post_json",
+                    method="post_raw",
                     status_baseline=b_status,
                     status_test=0,
                     size_baseline=b_size,

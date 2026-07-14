@@ -265,7 +265,7 @@ class TestCheckDeceptionResponse:
         assert not _check_deception_response(b"ok", 0, {}, ["HIT"])
 
     def test_case_insensitive(self) -> None:
-        assert _check_deception_response(b"HIT", 200, {}, ["hit"])
+        assert _check_deception_response(b"HIT", 200, {"x-cache": "HIT"}, ["hit"])
 
     def test_header_match(self) -> None:
         assert _check_deception_response(b"", 200, {"x-cache": "HIT"}, ["hit"])

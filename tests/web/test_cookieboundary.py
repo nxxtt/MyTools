@@ -162,7 +162,7 @@ class TestExtractTargetDomain:
         assert _extract_target_domain("http://localhost") == "localhost"
 
     def test_co_uk(self) -> None:
-        assert _extract_target_domain("https://example.co.uk") == "co.uk"
+        assert _extract_target_domain("https://example.co.uk") == "example.co.uk"
 
 
 # ─── Is Public Suffix ────────────────────────────────────────────────────────

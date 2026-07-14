@@ -84,7 +84,7 @@ def _check_cors_headers(
     if origin.lower() == "null" and acao == "null":
         return True, f"ACAOrigin: null aceito, ACAC: {acac}"
 
-    # Wildcard com credenciais
+    # Wildcard com credenciais — real vulnerability
     if acao == "*" and acac == "true":
         return True, "Wildcard (*) com credenciais permitidas"
 
@@ -92,9 +92,13 @@ def _check_cors_headers(
     if acao == origin.lower():
         return True, f"Origin refletido diretamente: {origin}"
 
-    # Qualquer subdominio aceito
-    if acao.startswith("*"):
-        return True, f"Wildcard no ACAO: {acao}"
+    # Subdomain wildcard (*.domain.com) — potentially dangerous
+    if acao.startswith("*."):
+        return True, f"Wildcard de subdominio no ACAO: {acao}"
+
+    # Bare * without credentials — spec-compliant, not vulnerable
+    if acao == "*":
+        return False, ""
 
     return False, ""
 

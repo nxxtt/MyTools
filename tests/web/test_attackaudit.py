@@ -721,10 +721,16 @@ class TestCheckTLSVersions:
 
     @pytest.mark.asyncio
     async def test_https_returns_list(self):
-        result = await check_tls_versions("https://example.com", 2.0)
-        assert isinstance(result, list)
-        for item in result:
-            assert isinstance(item, TLSVersionResult)
+        mock_result = [
+            TLSVersionResult(protocol="TLS 1.2", supported=True),
+            TLSVersionResult(protocol="TLS 1.3", supported=True),
+        ]
+        with patch("mytools.web.attackaudit._check_tls_versions_sync", return_value=mock_result):
+            result = await check_tls_versions("https://example.com", 2.0)
+            assert isinstance(result, list)
+            assert len(result) == 2
+            for item in result:
+                assert isinstance(item, TLSVersionResult)
 
 
 class TestCheckXSSReflection:

@@ -292,8 +292,8 @@ class RateLimiter:
     """
 
     def __init__(self, requests_per_second: float = 0.0) -> None:
-        self._base_rps = requests_per_second
-        self._min_interval = 1.0 / requests_per_second if requests_per_second > 0 else 0.0
+        self._base_rps = max(requests_per_second, 0.0)
+        self._min_interval = 1.0 / self._base_rps if self._base_rps > 0 else 0.0
         self._last_request_time = 0.0
         self._backoff_multiplier: float = 1.0
 

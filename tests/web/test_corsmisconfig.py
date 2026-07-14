@@ -88,11 +88,10 @@ class TestCheckCORSHeaders:
         assert vuln is False
 
     def test_wildcard_without_credentials(self) -> None:
-        vuln, details = _check_cors_headers(
+        vuln, _details = _check_cors_headers(
             {"access-control-allow-origin": "*"}, "https://evil.com",
         )
-        assert vuln is True
-        assert "wildcard" in details.lower()
+        assert vuln is False
 
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────

@@ -6,10 +6,10 @@ import pytest
 
 from mytools.web.log4shell import (
     _CATEGORY_MAP,
-    _TOKEN,
     Log4ShellAttempt,
     Log4ShellResult,
     _build_jndi_payload,
+    _get_token,
     _test_baseline,
     _test_bypass,
     _test_data_exfil,
@@ -38,10 +38,15 @@ class TestCategoryMap:
 # ─── Token ───────────────────────────────────────────────────────────────────
 class TestToken:
     def test_token_length(self) -> None:
-        assert len(_TOKEN) == 12
+        token = _get_token()
+        assert len(token) == 12
 
     def test_token_is_alphanumeric(self) -> None:
-        assert _TOKEN.isalnum()
+        token = _get_token()
+        assert token.isalnum()
+
+    def test_token_is_cached(self) -> None:
+        assert _get_token() is _get_token()
 
 
 # ─── Build JNDI Payload ─────────────────────────────────────────────────────
@@ -156,7 +161,7 @@ class TestJndiObfuscated:
     async def test_vulnerable_obfuscated(self) -> None:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.content = f"Token: {_TOKEN}".encode()
+        mock_resp.content = f"Token: {_get_token()}".encode()
         mock_resp.headers = {"content-type": "text/html"}
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
@@ -174,7 +179,7 @@ class TestHeaderInjection:
     async def test_vulnerable_header(self) -> None:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.content = f"jndi:ldap://{_TOKEN}.log4shell-test.com".encode()
+        mock_resp.content = f"jndi:ldap://{_get_token()}.log4shell-test.com".encode()
         mock_resp.headers = {"content-type": "text/html"}
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
@@ -194,7 +199,7 @@ class TestDataExfil:
     async def test_vulnerable_exfil(self) -> None:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.content = f"exfil {_TOKEN} data".encode()
+        mock_resp.content = f"exfil {_get_token()} data".encode()
         mock_resp.headers = {"content-type": "text/html"}
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
@@ -212,7 +217,7 @@ class TestBypass:
     async def test_vulnerable_bypass(self) -> None:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.content = f"bypass {_TOKEN} found".encode()
+        mock_resp.content = f"bypass {_get_token()} found".encode()
         mock_resp.headers = {"content-type": "text/html"}
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)

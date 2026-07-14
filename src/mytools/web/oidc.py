@@ -110,7 +110,7 @@ async def _test_discovery_category(
         resp = await client.get(well_known_url, timeout=timeout, follow_redirects=True)
         body = resp.text
         data = _parse_json_response(body)
-        vulnerable = resp.status_code == 200 and data is not None
+        vulnerable = False  # well-known acessivel e comportamento normal, nao vulneravel
         results.append(OIDCAttempt(
             technique="well_known_enumeration", category="discovery",
             status_baseline=b_status, status_test=resp.status_code,

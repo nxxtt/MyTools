@@ -175,9 +175,10 @@ async def _test_category(
 ) -> list[AccountAttempt]:
     """Testa uma categoria de payloads."""
     results: list[AccountAttempt] = []
-    for technique, _, headers, keywords in payloads:
+    for technique, _, body_dict, keywords in payloads:
         try:
-            resp = await client.get(target, headers=headers, follow_redirects=True)
+            body_str = "&".join(f"{k}={v}" for k, v in body_dict.items())
+            resp = await client.post(target, content=body_str.encode(), follow_redirects=True)
             body = resp.text
             size = len(body)
             vuln = any(kw.lower() in body.lower() for kw in keywords)

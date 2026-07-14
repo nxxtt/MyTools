@@ -586,66 +586,70 @@ async def run_scan(
     """Executa o scan SSRF."""
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
+    try:
 
-    print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
-    baseline = await _test_baseline(client, target)
-    if baseline[0] == 0:
-        print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
-        return 1
+        print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+        baseline = await _test_baseline(client, target)
+        if baseline[0] == 0:
+            print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+            return 1
 
-    print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+        print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
 
-    run_categories = categories or list(_CATEGORY_MAP.keys())
-    all_attempts: list[SSRFAttempt] = []
+        run_categories = categories or list(_CATEGORY_MAP.keys())
+        all_attempts: list[SSRFAttempt] = []
 
-    tasks: list[Awaitable[list[SSRFAttempt]]] = []
-    for cat in run_categories:
-        if cat == "detect":
-            tasks.append(_test_detect(client, target, baseline))
-        elif cat == "internal":
-            tasks.append(_test_internal(client, target, baseline))
-        elif cat == "bypass":
-            tasks.append(_test_bypass(client, target, baseline))
-        elif cat == "cloud":
-            tasks.append(_test_cloud(client, target, baseline))
-        elif cat == "header":
-            tasks.append(_test_header(client, target, baseline))
+        tasks: list[Awaitable[list[SSRFAttempt]]] = []
+        for cat in run_categories:
+            if cat == "detect":
+                tasks.append(_test_detect(client, target, baseline))
+            elif cat == "internal":
+                tasks.append(_test_internal(client, target, baseline))
+            elif cat == "bypass":
+                tasks.append(_test_bypass(client, target, baseline))
+            elif cat == "cloud":
+                tasks.append(_test_cloud(client, target, baseline))
+            elif cat == "header":
+                tasks.append(_test_header(client, target, baseline))
 
-    if tasks:
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results_list:
-            if isinstance(r, list):
-                all_attempts.extend(r)
+        if tasks:
+            results_list = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results_list:
+                if isinstance(r, list):
+                    all_attempts.extend(r)
 
-    vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-    issues: list[str] = []
-    for att in all_attempts:
-        if att.vulnerable:
-            issues.append(f"VULN: {att.technique} - {att.details}")
+        vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
+        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        issues: list[str] = []
+        for att in all_attempts:
+            if att.vulnerable:
+                issues.append(f"VULN: {att.technique} - {att.details}")
 
-    overall = "vulnerable" if vuln_techs else "secure"
+        overall = "vulnerable" if vuln_techs else "secure"
 
-    result = SSRFResult(
-        target=target,
-        baseline_status=baseline[0],
-        baseline_size=baseline[1],
-        tls=tls,
-        attempts=all_attempts,
-        vulnerable_techniques=vuln_techs,
-        blocked_techniques=blocked,
-        issues=issues,
-        overall_status=overall,
-    )
+        result = SSRFResult(
+            target=target,
+            baseline_status=baseline[0],
+            baseline_size=baseline[1],
+            tls=tls,
+            attempts=all_attempts,
+            vulnerable_techniques=vuln_techs,
+            blocked_techniques=blocked,
+            issues=issues,
+            overall_status=overall,
+        )
 
-    print_results(result)
+        print_results(result)
 
-    if output_file:
-        write_output(output_file, asdict(result))
+        if output_file:
+            write_output(output_file, asdict(result))
 
-    logger.info("SSRF scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
-    return 1 if vuln_techs else 0
+        logger.info("SSRF scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        return 1 if vuln_techs else 0
 
+
+    finally:
+        await client.aclose()
 
 banner_art = create_banner(
     r"""

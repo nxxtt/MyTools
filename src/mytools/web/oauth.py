@@ -155,7 +155,10 @@ async def _test_misconfig_category(
         try:
             resp = await client.get(test_url, timeout=timeout, follow_redirects=True)
             body = resp.text
-            vulnerable = resp.status_code == 200 and len(body) > 0
+            body_lower = body.lower()
+            is_error = any(kw in body_lower for kw in ["error", "invalid", "denied", "unauthorized"])
+            has_auth_code = "code=" in body or "authorization_code" in body
+            vulnerable = resp.status_code == 200 and not is_error and not has_auth_code
             results.append(OAuthAttempt(
                 technique=technique, category="misconfig",
                 status_baseline=b_status, status_test=resp.status_code,
@@ -287,7 +290,10 @@ async def _test_pkce_bypass_category(
         try:
             resp = await client.get(test_url, timeout=timeout, follow_redirects=True)
             body = resp.text
-            vulnerable = resp.status_code == 200 and len(body) > 0
+            body_lower = body.lower()
+            is_error = any(kw in body_lower for kw in ["error", "invalid", "denied", "unsupported"])
+            has_auth_code = "code=" in body or "authorization_code" in body
+            vulnerable = resp.status_code == 200 and not is_error and not has_auth_code
             results.append(OAuthAttempt(
                 technique=technique, category="pkce_bypass",
                 status_baseline=b_status, status_test=resp.status_code,

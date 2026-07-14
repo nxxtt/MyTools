@@ -64,7 +64,7 @@ DEFAULT_SCRIPT_PATHS: list[str] = [
     "public/static/js/app.js",
     "_next/static/chunks/pages/_app.js",
     "_nuxt/dist/app/client.js",
-    "wp-content/themes/*/assets/js/app.js",
+    "wp-content/themes/flavor/assets/js/app.js",
     "vendor.js",
     "app.min.js",
     "main.min.js",

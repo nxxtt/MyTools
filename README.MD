@@ -1401,7 +1401,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4057 testes)
+tests/                          # Testes unitários (4075 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...

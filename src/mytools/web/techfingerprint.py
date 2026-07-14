@@ -434,10 +434,10 @@ async def _async_scan(url: str, timeout: float, user_agent: str | None = None) -
         body = body_bytes.decode("latin-1", errors="replace")
 
         # Extrai cookies do header Set-Cookie
-        cookies: list[str] = []
-        for key, val in resp_headers.items():
-            if key.lower() == "set-cookie":
-                cookies.append(val)
+        cookies: list[str] = [
+            val for key, val in resp_headers.items()
+            if key.lower() == "set-cookie"
+        ]
 
         return fingerprint(url, dict(resp_headers), body, cookies)
 

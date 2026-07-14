@@ -227,13 +227,23 @@ def _check_deception_response(
     headers: dict[str, str],
     indicators: list[str],
 ) -> bool:
-    """Verifica se a resposta indica cache deception."""
+    """Verifica se a resposta indica cache deception via headers reais de cache."""
     if status == 0:
         return False
-    cache_hit = headers.get("x-cache", "").lower()
-    cache_control = headers.get("cache-control", "").lower()
+    cache_headers = {
+        "x-cache", "age", "cf-cache-status", "x-varnish", "via",
+        "x-cache-hits", "x-served-by", "surrogate-control", "cdn-cache-status",
+    }
+    has_cache_header = any(k.lower() in cache_headers for k in headers)
+    cache_hit = any(
+        "hit" in headers.get(k, "").lower()
+        for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits")
+    )
+    if not has_cache_header and not cache_hit:
+        return False
     text = body.decode("utf-8", errors="ignore").lower()
-    combined = text + " " + cache_hit + " " + cache_control
+    header_text = " ".join(f"{k}: {v}" for k, v in headers.items()).lower()
+    combined = text + " " + header_text
     return any(ind.lower() in combined for ind in indicators)
 
 

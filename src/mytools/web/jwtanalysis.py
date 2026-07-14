@@ -148,7 +148,7 @@ async def _test_weak_algorithm_category(token: str, payload: dict[str, object], 
         "technique": "alg_none_with_typ",
         "category": "weak_algorithm",
         "vulnerable": False,
-        "details": "teste de alg:none com header typ=JWT — servidor deve rejeitar",
+        "details": "teste de alg:none com header typ=JWT — requer forge offline para confirmar",
         "error": "",
     })
 
@@ -230,7 +230,7 @@ async def _test_signature_bypass_category(token: str, payload: dict[str, object]
     return results
 
 
-async def _test_expiration_category(payload: dict[str, object]) -> list[dict[str, object]]:
+async def _test_expiration_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
     """Testa problemas de expiracao."""
     import time
     results: list[dict[str, object]] = []
@@ -262,8 +262,8 @@ async def _test_expiration_category(payload: dict[str, object]) -> list[dict[str
         results.append({
             "technique": "expired_token",
             "category": "expiration",
-            "vulnerable": True,
-            "details": "claim 'exp' ausente — token nunca expira",
+            "vulnerable": False,
+            "details": "claim 'exp' ausente — token sem expiracao definida",
             "error": "",
         })
 
@@ -336,7 +336,7 @@ async def _test_expiration_category(payload: dict[str, object]) -> list[dict[str
     return results
 
 
-async def _test_claims_category(payload: dict[str, object]) -> list[dict[str, object]]:
+async def _test_claims_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
     """Testa problemas de claims."""
     results: list[dict[str, object]] = []
     role = str(payload.get("role", "")).lower()
@@ -449,7 +449,7 @@ async def _test_header_injection_category(
     return results
 
 
-async def _test_replay_category(payload: dict[str, object]) -> list[dict[str, object]]:
+async def _test_replay_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
     """Testa vulnerabilidades de replay."""
     results: list[dict[str, object]] = []
 

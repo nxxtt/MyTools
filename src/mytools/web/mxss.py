@@ -565,10 +565,9 @@ async def _test_mxss_category(
             size_changed = abs(t_size - b_size) > 50
 
             vulnerable = (
-                reflected
-                or entity_info["decoded_reflected"]
-                or (reflected and entity_info["entities_decoded"])
-                or (reflected and namespace_ctxs)
+                bool(entity_info["decoded_reflected"])
+                or (reflected and bool(entity_info["entities_decoded"]))
+                or (reflected and bool(namespace_ctxs))
             )
 
             details = ""

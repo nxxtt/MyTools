@@ -523,8 +523,8 @@ async def scan_null_byte(
         timeout=timeout,
         verify=verify,
     ) as client:
-        b_status, b_size, _ = await _test_baseline(client, url)
-        baseline = (b_status, b_size, b"")
+        b_status, b_size, b_body = await _test_baseline(client, url)
+        baseline = (b_status, b_size, b_body)
 
         sem = asyncio.Semaphore(concurrency)
 

@@ -5,14 +5,14 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 
-from mytools.core.reconall import _get_parser_defaults
+from mytools.core.reconall import get_parser_defaults
 from mytools.core.utils import create_async_client
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def base_ns():
     """Namespace base com defaults de todos os modulos, construido uma vez por sessao."""
-    defaults = _get_parser_defaults()
+    defaults = get_parser_defaults()
     defaults.update({
         "output": None,
         "quiet": True,

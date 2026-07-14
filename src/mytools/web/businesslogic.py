@@ -211,19 +211,20 @@ async def _test_race_condition_category(
     concurrent_count = 5
     data = "qty=1&price=10"
 
+    base = checkout_url.rstrip("/")
     tests = [
-        ("concurrent_checkout", concurrent_count),
-        ("double_spend", concurrent_count),
-        ("race_purchase", concurrent_count),
-        ("race_refund", concurrent_count),
-        ("race_apply", concurrent_count),
+        ("concurrent_checkout", concurrent_count, checkout_url, "qty=1&price=10&coupon=SAVE50"),
+        ("double_spend", concurrent_count, f"{base}/pay", "qty=1&price=10&payment_id=txn_123"),
+        ("race_purchase", concurrent_count, checkout_url, "qty=2&price=20"),
+        ("race_refund", concurrent_count, f"{base}/refund", "order_id=123&refund=true"),
+        ("race_apply", concurrent_count, f"{base}/apply", "coupon=SAVE50&qty=1"),
     ]
 
-    for technique, count in tests:
+    for technique, count, endpoint, data in tests:
         try:
             tasks = [
                 client.post(
-                    checkout_url,
+                    endpoint,
                     content=data,
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                     timeout=timeout,

@@ -1,0 +1,190 @@
+==============================================================================
+PLANO OTIMIZADO — WEB MODULE BUG FIXES
+==============================================================================
+Data: 2026-07-13
+Total: 47 fixes em ~30 arquivos
+Testes antes: 4074 passando
+
+==============================================================================
+FASE 1 — BATCH MECÂNICOS (0 dependências, alta confiabilidade)
+==============================================================================
+
+| # | Fix | Arquivos | Risco | Descrição |
+|---|-----|----------|-------|-----------|
+| 1 | Baseline body (Bug #30) | 7 arquivos: nullbyteinject.py, doubleurlencode.py, pathtraversal.py, overlongencoding.py, bominjection.py, charsetbypass.py, openredirect.py | Baixo | s/_ =/b_body = + b"" → b_body. Mecânico, idêntico em todos. |
+| 2 | Client leak (Bug #16) | 7 arquivos: sstidetect.py, ssrfdetect.py, xxedetect.py, nosqliinject.py, ldapiinject.py, xpathinject.py, ssiinject.py | Baixo | Adicionar try/finally: await client.aclose(). Padrão repetido. |
+| 3 | Lock stdout (Bug #9) + RateLimiter (Bug #5) | vcsleak.py, utils.py | Baixo | Já feito na sessão anterior. Confirmar que está aplicado. |
+
+Subtotal: 15 arquivos, ~16 fixes
+
+==============================================================================
+FASE 2 — FIXES CRÍTICOS (funcionalidade quebrada)
+==============================================================================
+
+| # | Fix | Arquivo | Risco | Descrição |
+|---|-----|---------|-------|-----------|
+| 4 | Introspection query (Bug #2) | graphqlplayground.py | Baixo | 1 linha: adicionar content=INTROSPECTION_QUERY.encode() |
+| 5 | Java/Pickle bytes (Bugs #3+#4) | deserialinject.py | Médio | Converter payloads para bytes, trocar json= por content= |
+| 6 | jwt args (Bug #7) | jwtanalysis.py | Médio | Ajustar assinatura de 3 funções para aceitar (token, payload, header) |
+| 7 | jwt alg_none_with_typ (Bug #12) | jwtanalysis.py | Baixo | Marcar como "não implementado" em vez de hardcoded False |
+| 8 | jwt missing_exp (Bug #23) | jwtanalysis.py | Baixo | Condicional: emitir só quando exp is not None |
+| 9 | Coupon headers→body (Bug #11) | accountabuse.py | Médio | Trocar headers=headers por data=body_str |
+| 10 | Clickjacking invertido (Bug #39) | clickjacking.py | Baixo | DENY/SAMEORIGIN → vulnerable=False |
+| 11 | SAML padding (Bug #35) | saml.py | Baixo | ((4 - len%4) % 4) |
+
+Subtotal: 6 arquivos, 8 fixes
+
+==============================================================================
+FASE 3 — PAYLOADS INCORRETOS (falsos negativos garantidos)
+==============================================================================
+
+| # | Fix | Arquivo | Risco | Descrição |
+|---|-----|---------|-------|-----------|
+| 12 | XPath→SQL (Bug #5) | xpathinject.py | Médio | Substituir 4 payloads MySQL por XPath reais |
+| 13 | Redis→MongoDB (Bug #6) | nosqliinject.py | Médio | Substituir 5 payloads MongoDB por Redis reais |
+| 14 | UTF-7 (Bug #27) | xxedetect.py | Baixo | codecs.encode(payload, "utf-7") |
+
+Subtotal: 3 arquivos, 3 fixes
+
+==============================================================================
+FASE 4 — LÓGICA DE DETECÇÃO (falsos positivos/negativos)
+==============================================================================
+
+| # | Fix | Arquivo | Risco | Descrição |
+|---|-----|---------|-------|-----------|
+| 15 | mXSS reflexão (Bug #26) | mxss.py | Médio | Exigir decoded_reflected ou namespace_ctxs |
+| 16 | CORS wildcard (Bug #24) | corsmisconfig.py | Médio | Separar * de *.domain |
+| 17 | OAuth status==200 (Bug #41) | oauth.py | Médio | Detecção específica por categoria |
+| 18 | XSS encoding (Bug #40) | xssvectors.py | Médio | Verificar html.unescape antes de marcar vulnerable |
+| 19 | Race conditions idênticas (Bug #25) | businesslogic.py | Médio | Variar endpoint/payload por técnica |
+| 20 | SSTI concurrency (Bug #29) | sstidetect.py | Baixo | asyncio.Semaphore(concurrency) |
+| 21 | SSTI payloads 8/15 (Bug #28) | sstidetect.py | Baixo | Remover [:8] |
+| 22 | File upload common_paths (Bug #8) | fileupload.py | Baixo | if path.lower() in lower: |
+
+Subtotal: 8 arquivos, 8 fixes
+
+==============================================================================
+FASE 5 — OUT-OF-BAND (requer infraestrutura de callback)
+==============================================================================
+
+| # | Fix | Arquivo | Risco | Descrição |
+|---|-----|---------|-------|-----------|
+| 23 | Log4Shell callback (Bug #20) | log4shell.py | Alto | Adicionar polling de callback |
+| 24 | Log4Shell token (Bug #49) | log4shell.py | Baixo | Mover token para dentro de run_scan |
+| 25 | Blind XXE callback (Bug #21) | xxedetect.py | Alto | Adicionar polling |
+| 26 | Blind SSI timing (Bug #22) | ssiinject.py | Alto | Medir time.monotonic() |
+| 27 | Blind XSS callback (Bug #37) | blindxss.py | Alto | Polling de webhook |
+| 28 | Cache poisoning real (Bugs #9+#42) | cachepoisoning.py | Alto | Verificar cache hit (2x request) |
+| 29 | Cache deception real (Bug #10) | cachedeception.py | Alto | Mesmo fix do #9 |
+
+Subtotal: 5 arquivos, 7 fixes
+
+==============================================================================
+FASE 6 — DIVERSOS (sem padrão comum)
+==============================================================================
+
+| # | Fix | Arquivo | Risco | Descrição |
+|---|-----|---------|-------|-----------|
+| 30 | techfingerprint cookies (Bug #17) | techfingerprint.py | Baixo | Usar _raw_headers |
+| 31 | Sourcemap glob (Bug #18) | sourcemapdiscovery.py | Baixo | Remover path com * |
+| 32 | attackaudit dead code (Bug #32) | attackaudit.py | Baixo | Remover vuln_tasks |
+| 33 | attackaudit fragment (Bug #34) | attackaudit.py | Baixo | base_url.split("#")[0] |
+| 34 | Cookie boundary TLD (Bug #38) | cookieboundary.py | Médio | Usar compound TLDs |
+| 35 | OIDC .well-known (Bug #36) | oidc.py | Baixo | vulnerable=False |
+| 36 | Prototype pollution (Bug #19) | prototypepollution.py | Baixo | Docstring limitation |
+| 37 | SSTI concurrency unused (Bug #29) | sstidetect.py | Baixo | (já coberto #20) |
+| 38 | overlongencoding 126 req (Bug #31) | overlongencoding.py | Baixo | Adicionar batch delay |
+
+Subtotal: 8 arquivos, 8 fixes
+
+==============================================================================
+FASE 7 — TESTES
+==============================================================================
+
+| # | Fix | Arquivo | Risco | Descrição |
+|---|-----|---------|-------|-----------|
+| 39 | TLS real (Bug #46) | test_attackaudit.py | Baixo | Mockar check_tls_versions |
+
+Subtotal: 1 arquivo, 1 fix
+
+==============================================================================
+RESUMO DA EXECUÇÃO
+==============================================================================
+
+| Fase | Fixes | Arquivos | Depende de |
+|------|-------|----------|-----------|
+| 1 — Batch mecânicos | 16 | 15 | Nada |
+| 2 — Críticos | 8 | 6 | Fase 1 |
+| 3 — Payloads | 3 | 3 | Fase 1 |
+| 4 — Detecção | 8 | 8 | Fase 1 |
+| 5 — Out-of-band | 7 | 5 | Fase 1 |
+| 6 — Diversos | 8 | 8 | Nada |
+| 7 — Testes | 1 | 1 | Fase 2 |
+| **Total** | **47** | **~30** | |
+
+Fases 1-4 e 6-7 são independentes entre si (podem rodar em paralelo).
+Fase 5 depende de definição de infraestrutura de callback.
+
+==============================================================================
+ARQUIVOS AFETADOS (ORDEM AGRUPADA POR FASE)
+==============================================================================
+
+Fase 1:
+  src/mytools/web/nullbyteinject.py
+  src/mytools/web/doubleurlencode.py
+  src/mytools/web/pathtraversal.py
+  src/mytools/web/overlongencoding.py
+  src/mytools/web/bominjection.py
+  src/mytools/web/charsetbypass.py
+  src/mytools/web/openredirect.py
+  src/mytools/web/sstidetect.py
+  src/mytools/web/ssrfdetect.py
+  src/mytools/web/xxedetect.py
+  src/mytools/web/nosqliinject.py
+  src/mytools/web/ldapiinject.py
+  src/mytools/web/xpathinject.py
+  src/mytools/web/ssiinject.py
+  src/mytools/vcs/vcsleak.py (confirmar)
+  src/mytools/core/utils.py (confirmar)
+
+Fase 2:
+  src/mytools/web/graphqlplayground.py
+  src/mytools/web/deserialinject.py
+  src/mytools/web/jwtanalysis.py
+  src/mytools/web/accountabuse.py
+  src/mytools/web/clickjacking.py
+  src/mytools/web/saml.py
+
+Fase 3:
+  src/mytools/web/xpathinject.py (já na Fase 1)
+  src/mytools/web/nosqliinject.py (já na Fase 1)
+  src/mytools/web/xxedetect.py (já na Fase 1)
+
+Fase 4:
+  src/mytools/web/mxss.py
+  src/mytools/web/corsmisconfig.py
+  src/mytools/web/oauth.py
+  src/mytools/web/xssvectors.py
+  src/mytools/web/businesslogic.py
+  src/mytools/web/sstidetect.py (já na Fase 1)
+  src/mytools/web/fileupload.py
+
+Fase 5:
+  src/mytools/web/log4shell.py
+  src/mytools/web/xxedetect.py (já na Fase 1)
+  src/mytools/web/ssiinject.py (já na Fase 1)
+  src/mytools/web/blindxss.py
+  src/mytools/web/cachepoisoning.py
+  src/mytools/web/cachedeception.py
+
+Fase 6:
+  src/mytools/web/techfingerprint.py
+  src/mytools/web/sourcemapdiscovery.py
+  src/mytools/web/attackaudit.py
+  src/mytools/web/cookieboundary.py
+  src/mytools/web/oidc.py
+  src/mytools/web/prototypepollution.py
+  src/mytools/web/overlongencoding.py (já na Fase 1)
+
+Fase 7:
+  tests/web/test_attackaudit.py
