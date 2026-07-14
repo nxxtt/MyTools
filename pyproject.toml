@@ -112,6 +112,7 @@ mytools-http2abuse = "mytools.web.http2abuse:main"
 mytools-headeredge = "mytools.web.headeredge:main"
 mytools-wsattack = "mytools.web.websocketattack:main"
 mytools-tlsfp = "mytools.web.tlsfingerprint:main"
+mytools-certcheck = "mytools.web.certcheck:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]

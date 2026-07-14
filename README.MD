@@ -126,6 +126,7 @@ Isso instala os comandos CLI:
 | `mytools-headeredge` | Header & Parsing Edge Cases |
 | `mytools-wsattack` | WebSocket Security Testing |
 | `mytools-tlsfp` | TLS Fingerprinting |
+| `mytools-certcheck` | Certificate Checks |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -921,6 +922,17 @@ mytools-tlsfp https://target.com -c key_exchange tls_fingerprint
 mytools-tlsfp https://target.com --timeout 10
 ```
 
+### 73.9. Certificate Checks (`mytools-certcheck`)
+Testa configuracao de certificados TLS e seguranca: OCSP stapling, certificate chain, CT transparency, split-world detection, HSTS preload e mixed content.
+
+```bash
+mytools-certcheck https://target.com
+mytools-certcheck https://target.com -c ocsp_stapling
+mytools-certcheck https://target.com -c cert_chain ct_sct
+mytools-certcheck https://target.com -c hsts_preload mixed_content
+mytools-certcheck https://target.com --timeout 10
+```
+
 ### 74. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
@@ -1468,6 +1480,7 @@ src/mytools/                    # Pacote principal
     headeredge.py                # Header & Parsing Edge Cases
     websocketattack.py           # WebSocket Security Testing
     tlsfingerprint.py            # TLS Fingerprinting
+    certcheck.py                 # Certificate Checks
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -1503,7 +1516,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4319 testes)
+tests/                          # Testes unitários (4355 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
