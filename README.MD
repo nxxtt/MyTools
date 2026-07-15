@@ -71,6 +71,8 @@ Isso instala os comandos CLI:
 | `mytools-dnssec` | DNSSEC Validation |
 | `mytools-nsec` | NSEC Walking |
 | `mytools-caa` | CAA Record Check |
+| `mytools-doh` | DNS-over-HTTPS (DoH) Scan |
+| `mytools-dot` | DNS-over-TLS (DoT) Scan |
 | `mytools-secemail` | Email Security (DMARC/SPF/DKIM) |
 | `mytools-spoof` | Email Spoofing Analysis |
 | `mytools-smtpinject` | SMTP Header Injection |
@@ -429,7 +431,27 @@ mytools-caa example.com
 mytools-caa example.com -o caa.json
 ```
 
-### 30. Email Security (`mytools-secemail`)
+### 30. DNS-over-HTTPS (DoH) Scan (`mytools-doh`)
+Testa resolucao DNS via HTTPS (RFC 8484) contra multiplos providers.
+
+```bash
+mytools-doh example.com
+mytools-doh example.com -T AAAA
+mytools-doh example.com -p google cloudflare
+mytools-doh example.com --timeout 10
+```
+
+### 31. DNS-over-TLS (DoT) Scan (`mytools-dot`)
+Testa resolucao DNS via TLS (RFC 7858) na porta 853.
+
+```bash
+mytools-dot example.com
+mytools-dot example.com -T AAAA
+mytools-dot example.com -r google cloudflare
+mytools-dot example.com --timeout 10
+```
+
+### 32. Email Security (`mytools-secemail`)
 Verifica configuração DMARC/SPF/DKIM de email.
 
 ```bash
@@ -1622,7 +1644,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4621 testes)
+tests/                          # Testes unitários (4684 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
