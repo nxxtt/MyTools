@@ -34,6 +34,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_exploit_info,
     print_table,
     run_main_loop,
     safe_asyncio_run,
@@ -72,6 +73,8 @@ class EmailBreach:
     pwn_count: int = 0
     data_classes: str = ""
     source: str = ""
+    exploit: str = ""
+    tool: str = ""
 
 
 def _classify_severity(breach_count: int, data_classes: str) -> str:
@@ -125,6 +128,8 @@ async def _query_xposedornot(
             if isinstance(b, str):
                 breaches.append(EmailBreach(
                     email=email, breach_name=b, source="xposedornot",
+                    exploit=f"https://haveibeenpwned.com/account/{email}",
+                    tool="xposedornot",
                 ))
             elif isinstance(b, dict):
                 breaches.append(EmailBreach(
@@ -134,11 +139,15 @@ async def _query_xposedornot(
                     pwn_count=b.get("pwn_count", 0),
                     data_classes=b.get("data_classes", ""),
                     source="xposedornot",
+                    exploit=f"https://haveibeenpwned.com/account/{email}",
+                    tool="xposedornot",
                 ))
     elif isinstance(breaches_raw, dict):
         for name in breaches_raw:
             breaches.append(EmailBreach(
                 email=email, breach_name=name, source="xposedornot",
+                exploit=f"https://haveibeenpwned.com/account/{email}",
+                tool="xposedornot",
             ))
 
     return breaches
@@ -183,10 +192,14 @@ async def _query_leakcheck(
                     breach_name=src.get("name", "unknown"),
                     breach_date=src.get("date", ""),
                     source="leakcheck",
+                    exploit=f"https://haveibeenpwned.com/account/{email}",
+                    tool="leakcheck",
                 ))
             elif isinstance(src, str):
                 breaches.append(EmailBreach(
                     email=email, breach_name=src, source="leakcheck",
+                    exploit=f"https://haveibeenpwned.com/account/{email}",
+                    tool="leakcheck",
                 ))
 
     return breaches
@@ -237,6 +250,8 @@ async def _query_hibp(
             pwn_count=item.get("PwnCount", 0),
             data_classes=", ".join(item.get("DataClasses", [])),
             source="hibp",
+            exploit=f"https://haveibeenpwned.com/account/{email}",
+            tool="hibp",
         ))
 
     return breaches
@@ -376,6 +391,9 @@ def print_results(breaches: list[EmailBreach]) -> None:
         alignments=["left", "left", "left", "right", "left", "left"],
         row_styles_fn=_row_styles,
     )
+
+    for b in breaches:
+        print_exploit_info(b.exploit, b.tool)
 
 
 def build_parser() -> argparse.ArgumentParser:

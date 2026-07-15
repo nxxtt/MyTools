@@ -31,6 +31,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -117,6 +118,8 @@ class GraphQLAttackAttempt:
     query_type: str
     schema_types: int
     response_code: int
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -410,6 +413,8 @@ async def _test_introspection(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=200,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -487,6 +492,8 @@ async def _test_depth_abuse(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=status if tech in ("nested_query_dos", "circular_ref", "fragment_spread", "directive_overload", "alias_chain_dos") else 200,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -563,6 +570,8 @@ async def _test_batch_abuse(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=status_code,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -632,6 +641,8 @@ async def _test_alias_overload(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=status if tech in ("alias_count_bypass",) else 200,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -697,6 +708,8 @@ async def _test_schema_stitching(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=200,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -780,6 +793,8 @@ async def _test_persisted_abuse(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=200,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -866,6 +881,8 @@ async def _test_resolver_analysis(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=200,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -963,6 +980,8 @@ async def _test_persisted_enum(
                 endpoint=endpoint_url,
                 query_type=schema_info.get("query_type", ""),
                 schema_types=types_count, response_code=200,
+                exploit="introspection_query",
+                tool="graphql-playground",
             ))
         except Exception as exc:
             results.append(GraphQLAttackAttempt(
@@ -1018,6 +1037,7 @@ def print_results(result: GraphQLAttackResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
 

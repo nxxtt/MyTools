@@ -27,6 +27,7 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -83,6 +84,8 @@ async def _test_user_agent(
                 details = f"User-Agent refletido no body: {header_value[:80]}"
 
             results.append(LogInjectAttempt(
+            exploit="%0a[IMPORTANT] fake log entry",
+            tool="curl",
                 technique=technique,
                 category="user_agent",
                 header_name=header_name,
@@ -132,6 +135,8 @@ async def _test_referer(
                 details = f"Referer refletido no body: {header_value[:80]}"
 
             results.append(LogInjectAttempt(
+            exploit="%0a[IMPORTANT] fake log entry",
+            tool="curl",
                 technique=technique,
                 category="referer",
                 header_name=header_name,
@@ -181,6 +186,8 @@ async def _test_custom_header(
                 details = f"Custom header refletido no body: {header_name}: {header_value}"
 
             results.append(LogInjectAttempt(
+            exploit="%0a[IMPORTANT] fake log entry",
+            tool="curl",
                 technique=technique,
                 category="custom_header",
                 header_name=header_name,
@@ -231,6 +238,8 @@ async def _test_url_path(
                 details = f"Path payload refletido no body: {path}"
 
             results.append(LogInjectAttempt(
+            exploit="%0a[IMPORTANT] fake log entry",
+            tool="curl",
                 technique=technique,
                 category="url_path",
                 header_name="URL",
@@ -280,6 +289,8 @@ async def _test_bypass(
                 details = f"Bypass via {header_name}: payload refletido"
 
             results.append(LogInjectAttempt(
+            exploit="%0a[IMPORTANT] fake log entry",
+            tool="curl",
                 technique=technique,
                 category="bypass",
                 header_name=header_name,
@@ -313,6 +324,8 @@ class LogInjectAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -354,6 +367,7 @@ def print_results(result: LogInjectResult) -> None:
             print(color(f"      Status: {a.status}", Cyber.WHITE))
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
+            print_exploit_info(a.exploit, a.tool)
         print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
     else:
         print(color("\n  [-] Nenhum Log Injection detectado", Cyber.YELLOW))

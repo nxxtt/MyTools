@@ -35,6 +35,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_exploit_info,
     print_table,
     read_target_lines,
     run_main_loop,
@@ -175,6 +176,8 @@ class DorkQuery:
     google_url: str
     ddg_url: str
     results: list[dict[str, str]] = field(default_factory=list)
+    exploit: str = ""
+    tool: str = ""
 
 
 def _build_full_query(dork: str, domain: str) -> str:
@@ -209,6 +212,8 @@ def generate_dorks(domain: str, categories: list[str] | None = None) -> list[Dor
                 full_query=full,
                 google_url=_build_google_url(full),
                 ddg_url=_build_ddg_url(full),
+                exploit=f"https://www.google.com/search?q={quote_plus(full)}",
+                tool="google",
             ))
 
     return queries
@@ -224,6 +229,8 @@ def add_custom_dorks(domain: str, custom_dorks: list[str], queries: list[DorkQue
             full_query=full,
             google_url=_build_google_url(full),
             ddg_url=_build_ddg_url(full),
+            exploit=f"https://www.google.com/search?q={quote_plus(full)}",
+            tool="google",
         ))
     return queries
 
@@ -318,6 +325,8 @@ async def scan_dorks(
                     google_url=q.google_url,
                     ddg_url=q.ddg_url,
                     results=results,
+                    exploit=f"https://www.google.com/search?q={quote_plus(q.full_query)}",
+                    tool="google",
                 )
                 async with completed_lock:
                     completed += 1
@@ -396,6 +405,9 @@ def print_results(queries: list[DorkQuery], quiet: bool = False) -> None:
                         url = r.get("url", "")[:70]
                         print(f"      {color('→', Cyber.GRAY)} {color(title, Cyber.WHITE)}")
                         print(f"        {color(url, Cyber.CYAN)}")
+
+    for q in queries:
+        print_exploit_info(q.exploit, q.tool)
 
 
 def build_parser() -> argparse.ArgumentParser:

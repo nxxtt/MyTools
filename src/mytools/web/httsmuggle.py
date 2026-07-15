@@ -29,6 +29,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -160,6 +161,8 @@ class SmuggleAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -444,6 +447,8 @@ async def _test_cl_te(
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
                     technique=technique,
                     category="cl_te",
                     method="POST",
@@ -521,6 +526,8 @@ async def _test_te_cl(
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
                     technique=technique,
                     category="te_cl",
                     method="POST",
@@ -599,6 +606,8 @@ async def _test_te_te(
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
                     technique=technique,
                     category="te_te",
                     method="POST",
@@ -675,6 +684,8 @@ async def _test_chunked_cl(
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
                     technique=technique,
                     category="chunked_cl",
                     method="POST",
@@ -756,6 +767,8 @@ async def _test_pipeline(
                     details = f"Slow response ({elapsed:.1f}s)"
 
                 results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
                     technique=technique,
                     category="pipeline",
                     method="GET",
@@ -839,6 +852,7 @@ def print_results(result: SmuggleResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
 

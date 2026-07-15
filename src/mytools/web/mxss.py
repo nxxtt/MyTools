@@ -34,6 +34,7 @@ from mytools.core.utils import (
     create_async_client,
     create_banner,
     fetch,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -472,6 +473,8 @@ class MXSSAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -579,6 +582,8 @@ async def _test_mxss_category(
                 details += f" (contexts: {', '.join(namespace_ctxs)})"
 
             results.append(MXSSAttempt(
+            exploit="mutation_xss_payload",
+            tool="XSStrike",
                 technique=technique, category=category, context=context,
                 payload=payload[:200], method="GET",
                 status_baseline=b_status, status_test=t_status,
@@ -636,6 +641,7 @@ def print_results(result: MXSSResult) -> None:
                 print(color(f"      Namespaces: {', '.join(a.namespace_contexts)}", Cyber.WHITE))
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
+            print_exploit_info(a.exploit, a.tool)
         print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
     else:
         print(color("\n  [+] Nenhuma vulnerabilidade de Mutation XSS detectada", Cyber.GREEN))

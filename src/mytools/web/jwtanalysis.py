@@ -32,6 +32,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -509,6 +510,8 @@ class JWTAnalysisAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -552,6 +555,7 @@ def print_results(result: JWTAnalysisResult) -> None:
             print(color(f"    [{a.category}] {a.technique}", Cyber.RED))
             if a.details:
                 print(color(f"      {a.details}", Cyber.GRAY))
+            print_exploit_info(a.exploit, a.tool)
         print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
     else:
         print(color("\n  [+] Nenhuma vulnerabilidade de JWT detectada", Cyber.GREEN))
@@ -596,6 +600,8 @@ async def run_scan(
                 raw = await tester(token, payload, header)
             for item in raw:
                 all_attempts.append(JWTAnalysisAttempt(
+                exploit="jwt_tool <token> -C -d <dict>",
+                tool="jwt_tool",
                     technique=str(item["technique"]),
                     category=str(item["category"]),
                     vulnerable=bool(item["vulnerable"]),

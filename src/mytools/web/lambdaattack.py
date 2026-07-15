@@ -23,6 +23,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -95,6 +96,8 @@ class LambdaAttackAttempt:
     response_code: int
     leaked_vars: list[str]
     leak_count: int
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +136,8 @@ def _make_attempt(
     endpoint: str, code: int, leaked_vars: list[str] | None = None,
 ) -> LambdaAttackAttempt:
     return LambdaAttackAttempt(
+    exploit="curl <TARGET>/api/endpoint",
+    tool="curl",
         technique=tech, category=cat, description=desc,
         vulnerable=vuln, details=details, error=error,
         endpoint=endpoint, response_code=code,
@@ -325,6 +330,7 @@ def print_results(result: LambdaAttackResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()

@@ -25,6 +25,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -176,6 +177,8 @@ class InfraAttackAttempt:
     endpoint: str
     service_type: str
     response_code: int
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +227,8 @@ def _make_attempt(
     endpoint: str, service_type: str, code: int,
 ) -> InfraAttackAttempt:
     return InfraAttackAttempt(
+    exploit="curl <TARGET>:9200/_cat/indices",
+    tool="curl",
         technique=tech, category=cat, description=desc,
         vulnerable=vuln, details=details, error=error,
         endpoint=endpoint, service_type=service_type, response_code=code,
@@ -540,6 +545,7 @@ def print_results(result: InfraAttackResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()

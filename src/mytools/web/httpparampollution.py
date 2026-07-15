@@ -28,6 +28,7 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -236,6 +237,8 @@ class HPPAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,6 +303,8 @@ async def _test_query(
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(HPPAttempt(
+                exploit="duplicate_param_payload",
+                tool="wfuzz",
                     technique=technique,
                     category="query",
                     param_name=param_name,
@@ -358,6 +363,8 @@ async def _test_body(
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(HPPAttempt(
+                exploit="duplicate_param_payload",
+                tool="wfuzz",
                     technique=technique,
                     category="body",
                     param_name=param_name,
@@ -415,6 +422,8 @@ async def _test_header(
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(HPPAttempt(
+                exploit="duplicate_param_payload",
+                tool="wfuzz",
                     technique=technique,
                     category="header",
                     param_name=header_name,
@@ -474,6 +483,8 @@ async def _test_json(
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(HPPAttempt(
+                exploit="duplicate_param_payload",
+                tool="wfuzz",
                     technique=technique,
                     category="json",
                     param_name=field_name,
@@ -527,6 +538,8 @@ async def _test_bypass(
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(HPPAttempt(
+                exploit="duplicate_param_payload",
+                tool="wfuzz",
                     technique=technique,
                     category="bypass",
                     param_name=param_name,
@@ -591,6 +604,7 @@ def print_results(result: HPPResult) -> None:
             print(color(f"      Status: {a.status_baseline} -> {a.status_test}", Cyber.WHITE))
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
+            print_exploit_info(a.exploit, a.tool)
         print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
     else:
         print(color("\n  [-] Nenhuma HTTP Parameter Pollution detectada", Cyber.YELLOW))

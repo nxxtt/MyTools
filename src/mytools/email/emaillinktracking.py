@@ -35,6 +35,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -164,6 +165,8 @@ class TrackingResult:
     clean_techniques: list[str]
     issues: list[str]
     overall_status: str  # tracking_detected, clean, warning
+    exploit: str = ""
+    tool: str = ""
 
 
 def _connect_smtp(target: str, port: int, timeout: float) -> tuple[smtplib.SMTP, bool]:
@@ -430,6 +433,8 @@ def scan_link_tracking(
         clean_techniques=clean,
         issues=issues,
         overall_status=overall,
+        exploit="email_link_tracking_detected" if overall == "tracking_detected" else "",
+        tool="curl",
     )
 
 
@@ -466,6 +471,8 @@ def print_results(result: TrackingResult) -> None:
         elif a.status == "error":
             print(f"      Erro: {a.error[:80]}")
         print()
+
+    print_exploit_info(result.exploit, result.tool)
 
     if result.issues:
         print(color("  Observacoes:", Cyber.YELLOW, Cyber.BOLD))

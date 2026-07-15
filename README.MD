@@ -140,6 +140,7 @@ Isso instala os comandos CLI:
 | `mytools-docker` | Docker Attack Testing |
 | `mytools-infra` | Infrastructure Attack Testing |
 | `mytools-iot` | IoT & Industrial Attack Testing |
+| `mytools-analysis` | Attack Path Visualization & Exploit Suggestions |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 
@@ -1527,6 +1528,65 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-nosqli https://example.com` | NoSQL injection detection |
 | `mytools-ldapi https://example.com` | LDAP injection detection |
 | `mytools-xpathi https://example.com` | XPath injection detection |
+| `mytools-dwt example.com` | DNS Water Torture |
+| `mytools-amp example.com` | DNS Amplification Detection |
+| `mytools-tunnel example.com` | DNS Tunnel Detection |
+| `mytools-nsec example.com` | NSEC Walking |
+| `mytools-caa example.com` | CAA Record Check |
+| `mytools-doh example.com` | DNS over HTTPS (DoH) scan |
+| `mytools-dot example.com` | DNS over TLS (DoT) scan |
+| `mytools-spoof example.com` | Email Spoofing Analysis |
+| `mytools-smtpinject example.com` | SMTP Header Injection |
+| `mytools-smtpdown example.com` | SMTP Downgrade Attack |
+| `mytools-templeti example.com` | Email Template Injection |
+| `mytools-attachbypass example.com` | Email Attachment Bypass |
+| `mytools-addrbypass example.com` | Email Address Bypass |
+| `mytools-linktrack example.com` | Email Link Tracking |
+| `mytools-ssiinject https://example.com` | SSI Injection Detection |
+| `mytools-protopoll https://example.com` | Prototype Pollution Detection |
+| `mytools-deserial https://example.com` | Deserialization Injection |
+| `mytools-cachepoison https://example.com` | Cache Poisoning Detection |
+| `mytools-cachedec https://example.com` | Web Cache Deception |
+| `mytools-methodoverride https://example.com` | HTTP Method Override |
+| `mytools-hpp https://example.com` | HTTP Parameter Pollution |
+| `mytools-blindxss https://example.com` | Blind XSS via Callback |
+| `mytools-cors https://example.com` | CORS Misconfiguration |
+| `mytools-clickjack https://example.com` | Clickjacking Detection |
+| `mytools-hostinject https://example.com` | Host Header Injection |
+| `mytools-headerinject https://example.com` | Header Injection via URL |
+| `mytools-loginjection https://example.com` | Log Injection Detection |
+| `mytools-log4shell https://example.com` | Log4Shell Detection |
+| `mytools-cookieboundary https://example.com` | Cookie Domain Boundary |
+| `mytools-domclob https://example.com` | DOM Clobbering Detection |
+| `mytools-mxss https://example.com` | Mutation XSS Detection |
+| `mytools-cssinject https://example.com` | CSS Injection Detection |
+| `mytools-xssvectors https://example.com` | XSS Vectors Detection |
+| `mytools-fileupload https://example.com` | File Upload Attacks |
+| `mytools-jwt https://example.com` | JWT Analysis |
+| `mytools-oauth https://example.com` | OAuth 2.0 Misconfiguration |
+| `mytools-saml https://example.com` | SAML Attack Detection |
+| `mytools-oidc https://example.com` | OIDC Attack Detection |
+| `mytools-bizlogic https://example.com` | Business Logic Attacks |
+| `mytools-accountabuse https://example.com` | Account Abuse Detection |
+| `mytools-multitenant https://example.com` | Multi-Tenant Security |
+| `mytools-smuggle https://example.com` | HTTP Request Smuggling |
+| `mytools-http2abuse https://example.com` | HTTP/2 Abuse |
+| `mytools-headeredge https://example.com` | Header & Parsing Edge Cases |
+| `mytools-wsattack wss://example.com` | WebSocket Security Testing |
+| `mytools-tlsfp https://example.com` | TLS Fingerprinting |
+| `mytools-certcheck https://example.com` | Certificate Checks |
+| `mytools-gqlattack https://example.com` | GraphQL Attack Testing |
+| `mytools-grpc target:50051` | gRPC Security Testing |
+| `mytools-thrift target:9090` | Thrift Security Testing |
+| `mytools-timing https://example.com` | Timing Attack Detection |
+| `mytools-lambda https://example.com` | AWS Lambda Security |
+| `mytools-edge https://example.com` | Edge Functions Security |
+| `mytools-serverless https://example.com` | Serverless Framework Security |
+| `mytools-k8s https://k8s-api:6443` | Kubernetes Security Testing |
+| `mytools-docker localhost:2375` | Docker Security Testing |
+| `mytools-infra https://cloud.example.com` | Cloud Infrastructure Testing |
+| `mytools-iot http://device:80` | IoT/Industrial Security |
+| `mytools-analysis findings.json` | Attack path visualization |
 | `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 
 ### Proxy e Rate Limiting
@@ -1558,7 +1618,7 @@ mytools
 src/mytools/                    # Pacote principal
   __init__.py                   # __version__
   core/                         # Infraestrutura compartilhada
-    utils.py                    # Cores, HTTP async, helpers, output
+    utils.py                    # Cores, HTTP async, helpers, output (print_exploit_info)
     cred.py                     # Gerenciador de credenciais (keyring)
     main.py                     # Menu interativo central
     reconall.py                 # Orquestrador: executa todos os módulos
@@ -1568,6 +1628,7 @@ src/mytools/                    # Pacote principal
   web/                          # Web e HTTP
     webrecon.py                 # Reconhecimento passivo + CVE + WHOIS
     attackaudit.py              # Auditoria ofensiva/defensiva
+    attackanalysis.py           # Attack path visualization (networkx + matplotlib)
     openapidiscovery.py         # OpenAPI/Swagger Discovery
     graphqlplayground.py        # GraphQL Playground Exposure
     sourcemapdiscovery.py       # Source Map Discovery
@@ -1621,6 +1682,16 @@ src/mytools/                    # Pacote principal
     tlsfingerprint.py            # TLS Fingerprinting
     certcheck.py                 # Certificate Checks
     graphqlattack.py             # GraphQL Attack Testing
+    grpcattack.py                # gRPC Security Testing
+    thriftattack.py              # Thrift Security Testing
+    timingattack.py              # Timing Attack Detection
+    lambdaattack.py              # AWS Lambda Security Testing
+    edgefunctions.py             # Edge Functions (Cloudflare Workers) Security
+    serverlessattack.py          # Serverless Framework Security Testing
+    k8sattack.py                 # Kubernetes Security Testing
+    dockerattack.py              # Docker Security Testing
+    infraattack.py               # Cloud Infrastructure Security Testing
+    iotattack.py                 # IoT & Industrial Protocol Testing
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -1632,6 +1703,8 @@ src/mytools/                    # Pacote principal
     nsecwalking.py              # NSEC Walking
     caacheck.py                 # CAA Record Check
     dnsrebinding.py             # DNS Rebinding Detection
+    dohscan.py                  # DNS over HTTPS (DoH) scan
+    dotscan.py                  # DNS over TLS (DoT) scan
   whois/                        # WHOIS
     whoishistory.py             # Histórico WHOIS (OSINT)
   osint/                        # OSINT e reconhecimento
@@ -1656,7 +1729,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4707 testes)
+tests/                          # Testes unitários (4738 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -1669,6 +1742,31 @@ tests/                          # Testes unitários (4707 testes)
 
 pyproject.toml                  # Configuração do projeto
 ```
+
+### Attack Analysis & Exploits
+```
+attackanalysis.py               # Attack path visualization (networkx + matplotlib)
+```
+
+### 75. Attack Path Visualization (`mytools-analysis`)
+Gera grafos de ataque baseados em findings de segurança. Exporta PNG/SVG e DOT format.
+
+```bash
+mytools-analysis findings.json
+mytools-analysis findings.json --target example.com --png attack_path.png
+mytools-analysis findings.json --svg attack_path.svg --dot attack_path.dot
+mytools-analysis findings.json --exploits-only
+```
+
+**Funcionalidades:**
+- Constrói grafo direcionado com networkx (nós = vulnerabilidades, arestas = relacionamentos)
+- Renderiza PNG/SVG com matplotlib (cores por severidade)
+- Exporta DOT format para Graphviz
+- Consolida exploits de todos os findings
+- Cores: critical=vermelho, high=laranja, medium=amarelo, low=azul, info=cinza
+
+**Campo `exploit` e `tool` em 75+ módulos:**
+Todos os módulos de detecção agora incluem campo `exploit` com comandos/payloads utilizáveis e campo `tool` com a ferramenta recomendada quando a vulnerabilidade é detectada. Formato usa placeholder `<TARGET>`. A saída CLI mostra ambos os campos em destaque (Exploit: amarelo, Ferramenta: cyan).
 
 ---
 
@@ -1700,8 +1798,16 @@ poetry install --with dev
 - `beautifulsoup4>=4.15.0` — Parser HTML avançado
 - `python-whois>=0.9.6` — Consulta WHOIS
 - `dnspython>=2.8.0` — Resolução DNS, zone transfer e enumeração de subdomínios
+- `pyjwt>=2.13.0` — Decodificação e análise de JWT
+- `cryptography>=49.0.0` — Operações criptográficas (certificados, chaves)
 - `pyyaml>=6.0.3` — Parse de YAML (OpenAPI specs)
 - `pyreadline3>=3.5.6` — Readline para Windows (apenas Windows)
+- `networkx>=3.6.1` — Grafos e visualização de caminhos de ataque
+- `matplotlib>=3.11.0` — Renderização de grafos (PNG/SVG)
+- `grpcio>=1.82.1` — gRPC client/server (HTTP/2, protobuf)
+- `grpcio-reflection>=1.82.1` — gRPC server reflection (introspecção de services)
+- `protobuf>=7.35.1` — Protocol Buffers (serialização gRPC)
+- `thriftpy2>=0.6.0` — Thrift protocol (RPC, deserialization)
 
 ### Dev
 - `pytest>=9.1.1` — Framework de testes

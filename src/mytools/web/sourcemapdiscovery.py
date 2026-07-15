@@ -38,6 +38,7 @@ from mytools.core.utils import (
     header_get,
     init_scanner,
     normalize_url,
+    print_exploit_info,
     print_table,
     resolve_target_urls,
     run_main_loop,
@@ -108,6 +109,8 @@ class SourceMapInfo:
     sources: list[str] = field(default_factory=list)
     sources_count: int = 0
     names_count: int = 0
+    exploit: str = ""
+    tool: str = ""
 
 
 def extract_script_urls(html: str, base_url: str) -> list[str]:
@@ -381,6 +384,9 @@ def print_results(maps: list[SourceMapInfo]) -> None:
         alignments=["right", "right", "right", "left", "left"],
         row_styles_fn=_row_styles,
     )
+
+    for m in maps:
+        print_exploit_info(m.exploit, m.tool)
 
 
 def print_sources_detail(maps: list[SourceMapInfo]) -> None:

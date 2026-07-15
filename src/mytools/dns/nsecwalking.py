@@ -39,6 +39,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -78,6 +79,8 @@ class NsecResult:
     entries: list[NsecEntry]
     max_hops: int
     hops_used: int
+    exploit: str = ""
+    tool: str = ""
 
 
 def _parse_nsec_types(nsec_rdata: object) -> list[str]:
@@ -200,6 +203,8 @@ def scan_nsec(
         entries=entries,
         max_hops=max_hops,
         hops_used=hops,
+        exploit=f"dig NSEC {domain}" if (not has_nsec3 and hops > 0) else "",
+        tool="dnsenum",
     )
 
 
@@ -233,6 +238,8 @@ def print_results(result: NsecResult) -> None:
     else:
         print(color("  [-] Nenhum registro NSEC encontrado", Cyber.RED))
         print(color("  [-] Zona pode nao ter DNSSEC ou usar NSEC3", Cyber.YELLOW))
+
+    print_exploit_info(result.exploit, result.tool)
 
 
 def banner() -> None:

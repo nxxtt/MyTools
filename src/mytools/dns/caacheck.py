@@ -29,6 +29,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -70,6 +71,8 @@ class CaaResult:
     has_iodef: bool
     policy_status: str  # restrictive, permissive, open, none
     error: str | None = None
+    exploit: str = ""
+    tool: str = ""
 
 
 def _identify_ca(value: str) -> str:
@@ -188,6 +191,8 @@ def print_results(result: CaaResult) -> None:
         print(color("  [!] Politica permissiva — multiplas CAs autorizadas", Cyber.YELLOW))
     else:
         print(color("  [!] Politica aberta — muitas CAs autorizadas", Cyber.YELLOW))
+
+    print_exploit_info(result.exploit, result.tool)
 
 
 def banner() -> None:

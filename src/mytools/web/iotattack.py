@@ -20,6 +20,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -123,6 +124,8 @@ class IoTAttackAttempt:
     protocol: str
     port: int
     device_info: dict[str, Any]
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +158,8 @@ def _make_attempt(
     endpoint: str, protocol: str, port: int, device_info: dict[str, Any] | None = None,
 ) -> IoTAttackAttempt:
     return IoTAttackAttempt(
+        exploit="protocol_specific_payload",
+        tool="metasploit",
         technique=tech, category=cat, description=desc,
         vulnerable=vuln, details=details, error=error,
         endpoint=endpoint, protocol=protocol, port=port,
@@ -631,6 +636,7 @@ def print_results(result: IoTAttackResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()

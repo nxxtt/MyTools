@@ -33,6 +33,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_exploit_info,
     print_table,
     run_main_loop,
     safe_asyncio_run,
@@ -78,6 +79,8 @@ class EmployeeInfo:
     department: str = ""
     source: str = ""
     profile_url: str = ""
+    exploit: str = ""
+    tool: str = ""
 
 
 _COMPOUND_TLDS = {"co.uk", "com.au", "co.jp", "org.br", "co.nz", "com.br", "co.za"}
@@ -209,6 +212,8 @@ async def _query_github(
                     position=position,
                     source="github",
                     profile_url=profile,
+                    exploit=f"site:linkedin.com/in {name}" if name else "",
+                    tool="linkedin",
                 ))
 
     return employees
@@ -260,6 +265,8 @@ async def _query_hunter(
             seniority=item.get("seniority", ""),
             department=item.get("department", ""),
             source="hunter",
+            exploit=f"site:linkedin.com/in {item.get('first_name', '')} {item.get('last_name', '')}".strip() if (item.get('first_name') or item.get('last_name')) else "",
+            tool="linkedin",
         ))
 
     return employees
@@ -327,6 +334,8 @@ async def _query_webpages(
                     position=position,
                     source="web",
                     profile_url=url,
+                    exploit=f"site:linkedin.com/in {text}",
+                    tool="linkedin",
                 ))
 
     return employees
@@ -443,6 +452,9 @@ def print_results(employees: list[EmployeeInfo]) -> None:
         alignments=["left", "left", "left", "left", "left"],
         row_styles_fn=_row_styles,
     )
+
+    for e in employees:
+        print_exploit_info(e.exploit, e.tool)
 
 
 def build_parser() -> argparse.ArgumentParser:

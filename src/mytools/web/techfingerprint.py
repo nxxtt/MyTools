@@ -30,6 +30,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_exploit_info,
     print_table,
     run_main_loop,
     safe_asyncio_run,
@@ -202,6 +203,8 @@ class TechFingerprint:
     confidence: str = "medium"
     evidence: str = ""
     category: str = ""
+    exploit: str = ""
+    tool: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -500,6 +503,9 @@ def _print_results(url: str, results: list[TechFingerprint]) -> None:
     print()
     for cat, techs in sorted(categories.items()):
         print(color(f"  {cat.upper()}: ", Cyber.CYAN, Cyber.BOLD) + ", ".join(techs))
+
+    for r in results:
+        print_exploit_info(r.exploit, r.tool)
 
 
 def run_once(args: argparse.Namespace) -> int:

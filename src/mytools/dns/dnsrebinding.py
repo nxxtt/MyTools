@@ -40,6 +40,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -72,6 +73,8 @@ class RebindingResult:
     severity: str
     detail: str
     records: list[str] = field(default_factory=list)
+    exploit: str = ""
+    tool: str = ""
 
 
 def _is_private_ip(ip_str: str) -> bool:
@@ -97,24 +100,32 @@ def _check_ttl(domain: str, answers: dns.resolver.Answer) -> RebindingResult | N
             domain=domain, check="ttl", severity="critical",
             detail="TTL=0 — indicador forte de rebinding",
             records=[f"TTL={ttl}"],
+            exploit="rebinding_payload",
+            tool="rbndr.us",
         )
     if ttl <= 2:
         return RebindingResult(
             domain=domain, check="ttl", severity="high",
             detail=f"TTL={ttl}s — possivel rebinding",
             records=[f"TTL={ttl}"],
+            exploit="rebinding_payload",
+            tool="rbndr.us",
         )
     if ttl <= 5:
         return RebindingResult(
             domain=domain, check="ttl", severity="medium",
             detail=f"TTL={ttl}s — suspeito, investigar",
             records=[f"TTL={ttl}"],
+            exploit="rebinding_payload",
+            tool="rbndr.us",
         )
     if ttl <= 30:
         return RebindingResult(
             domain=domain, check="ttl", severity="low",
             detail=f"TTL={ttl}s — baixo mas possivelmente legitimo",
             records=[f"TTL={ttl}"],
+            exploit="",
+            tool="rbndr.us",
         )
     return None
 
@@ -130,12 +141,16 @@ def _check_private_ips(domain: str, answers: dns.resolver.Answer) -> list[Rebind
                 domain=domain, check="private_ip", severity="critical",
                 detail=f"IP {ip_str} e endpoint de metadata cloud (AWS/GCP/Azure)",
                 records=[ip_str],
+                exploit="rebinding_payload",
+                tool="rbndr.us",
             ))
         elif _is_private_ip(ip_str):
             results.append(RebindingResult(
                 domain=domain, check="private_ip", severity="critical",
                 detail=f"IP {ip_str} e reservado/privado (RFC1918)",
                 records=[ip_str],
+                exploit="rebinding_payload",
+                tool="rbndr.us",
             ))
 
     return results
@@ -171,6 +186,8 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
             domain=domain, check="cname_chain", severity="high",
             detail=f"CNAME chain ({chain_depth} hops) resolve para IP privado {final_ip}",
             records=[*cname_names, final_ip],
+            exploit="rebinding_payload",
+            tool="rbndr.us",
         )
 
     if min_ttl is not None and min_ttl <= 5:
@@ -178,6 +195,8 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
             domain=domain, check="cname_chain", severity="medium",
             detail=f"CNAME chain com TTL minimo={min_ttl}s ({chain_depth} hops)",
             records=cname_names,
+            exploit="rebinding_payload",
+            tool="rbndr.us",
         )
 
     if chain_depth >= 4:
@@ -185,6 +204,8 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
             domain=domain, check="cname_chain", severity="low",
             detail=f"CNAME chain profunda ({chain_depth} hops) — pode ocultar destino",
             records=cname_names,
+            exploit="",
+            tool="rbndr.us",
         )
 
     return None
@@ -217,6 +238,8 @@ def _check_wildcard(domain: str, resolver: dns.resolver.Resolver) -> RebindingRe
         domain=domain, check="wildcard", severity="medium",
         detail=f"Wildcard DNS detectado — subdominios aleatorios resolvem para {len(unique_ips)} IP(s)",
         records=unique_ips[:5],
+        exploit="rebinding_payload",
+        tool="rbndr.us",
     )
 
 
@@ -242,6 +265,8 @@ def _check_ip_flip(domain: str, resolver: dns.resolver.Resolver, queries: int = 
             domain=domain, check="ip_flip", severity="critical",
             detail=f"IP flip detectado — publicos: {seen_public}, privados: {seen_private}",
             records=list(seen_public | seen_private),
+            exploit="rebinding_payload",
+            tool="rbndr.us",
         )
 
     return None
@@ -266,24 +291,32 @@ def scan_rebinding(
         return [RebindingResult(
             domain=domain, check="resolve", severity="info",
             detail="Dominio nao existe (NXDOMAIN)",
+            exploit="",
+            tool="rbndr.us",
         )]
     except dns.resolver.NoAnswer:
         logger.warning("Dominio %s nao retorna registros A", domain)
         return [RebindingResult(
             domain=domain, check="resolve", severity="info",
             detail="Sem registros A para o dominio",
+            exploit="",
+            tool="rbndr.us",
         )]
     except dns.exception.Timeout:
         logger.warning("Timeout resolvendo %s", domain)
         return [RebindingResult(
             domain=domain, check="resolve", severity="info",
             detail="Timeout na resolucao DNS",
+            exploit="",
+            tool="rbndr.us",
         )]
     except dns.exception.DNSException as e:
         logger.warning("Erro DNS resolvendo %s: %s", domain, e)
         return [RebindingResult(
             domain=domain, check="resolve", severity="info",
             detail=f"Erro DNS: {e}",
+            exploit="",
+            tool="rbndr.us",
         )]
 
     ttl_result = _check_ttl(domain, answers)
@@ -331,6 +364,7 @@ def print_results(results: list[RebindingResult]) -> None:
             print(f"  {color(r.severity.upper(), sev_color, Cyber.BOLD)} | {r.detail}")
             if r.records:
                 print(f"    Registros: {', '.join(r.records)}")
+            print_exploit_info(r.exploit, r.tool)
 
     if infos:
         print(color(f"\n[*] {len(infos)} info(s):", Cyber.CYAN))

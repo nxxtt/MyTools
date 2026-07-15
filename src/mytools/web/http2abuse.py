@@ -34,6 +34,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -225,6 +226,8 @@ class HTTP2Attempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +267,8 @@ async def _test_h2_downgrade(
             h2_ok = alpn == "h2"
             details = f"ALPN negotiated: {alpn}"
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="alpn_downgrade",
                 category="h2_downgrade",
                 description="Testa se server aceita downgrade via ALPN",
@@ -313,6 +318,8 @@ async def _test_h2_downgrade(
                         if k == ":status":
                             status = int(v)
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="http1_on_h2",
                 category="h2_downgrade",
                 description="Envia HTTP/1.1 user-agent em conexao h2",
@@ -359,6 +366,8 @@ async def _test_h2_downgrade(
                         if k == ":status":
                             status = int(v)
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="connect_abuse",
                 category="h2_downgrade",
                 description="CONNECT method em conexao h2",
@@ -395,6 +404,8 @@ async def _test_h2_downgrade(
             )
             upgraded = resp.status_code == 101
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="upgrade_h2c",
                 category="h2_downgrade",
                 description="Testa Upgrade: h2c em conexao HTTP/1.1",
@@ -518,6 +529,8 @@ async def _test_h2_fingerprint(
             data = sock.recv(65535)
             has_settings = b"\x00\x00\x00\x04\x00\x00\x00\x00\x00" in data
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="preface_probe",
                 category="h2_fingerprint",
                 description="Envia preface customizado e analisa resposta",
@@ -604,6 +617,8 @@ async def _test_h2_stream_abuse(
                     break
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="concurrent_flood",
                 category="h2_stream_abuse",
                 description="Abre streams alem do limite MAX_CONCURRENT_STREAMS",
@@ -651,6 +666,8 @@ async def _test_h2_stream_abuse(
                     break
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="half_open_streams",
                 category="h2_stream_abuse",
                 description="Abre streams sem enviar DATA (half-closed local)",
@@ -701,6 +718,8 @@ async def _test_h2_stream_abuse(
                 except Exception:
                     break
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="resource_exhaustion",
                 category="h2_stream_abuse",
                 description="Criacao/destruicao rapida de streams",
@@ -753,6 +772,8 @@ async def _test_h2_stream_abuse(
                 if isinstance(ev, h2.events.StreamReset):
                     status = -1
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="large_header_stream",
                 category="h2_stream_abuse",
                 description="Envia stream com header de 8KB",
@@ -815,6 +836,8 @@ async def _test_h2_reset_attack(
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="rst_after_headers",
                 category="h2_reset_attack",
                 description="RST_STREAM imediatamente apos HEADERS",
@@ -861,6 +884,8 @@ async def _test_h2_reset_attack(
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="rst_data_partial",
                 category="h2_reset_attack",
                 description="RST_STREAM apos HEADERS + DATA parcial",
@@ -908,6 +933,8 @@ async def _test_h2_reset_attack(
                 conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="rst_selective",
                 category="h2_reset_attack",
                 description="RST seletivo de streams em conexao multiplexada",
@@ -956,6 +983,8 @@ async def _test_h2_reset_attack(
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="rst_timing_window",
                 category="h2_reset_attack",
                 description="RST com timing para explorar gap de processamento",
@@ -1041,6 +1070,8 @@ async def _test_h2_settings_abuse(
                 )
                 vulnerable = got_ack and not got_goaway
                 results.append(HTTP2Attempt(
+                exploit="h2_rapid_reset_command",
+                tool="h2load",
                     technique=technique,
                     category="h2_settings_abuse",
                     description=f"Enviado SETTINGS: {desc}",
@@ -1107,6 +1138,8 @@ async def _test_h2_priority_attack(
                 for ev in events
             )
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="exclusive_flag",
                 category="h2_priority_attack",
                 description="PRIORITY com exclusive=True para monopolizar bandwidth",
@@ -1154,6 +1187,8 @@ async def _test_h2_priority_attack(
             sock.sendall(conn.data_to_send())
             events = _recv_events(sock, conn, timeout)
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="deep_tree",
                 category="h2_priority_attack",
                 description="Arvore de dependencia profunda (10 niveis)",
@@ -1213,6 +1248,8 @@ async def _test_h2_priority_attack(
             )
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="circular_dep",
                 category="h2_priority_attack",
                 description="Tenta criar dependencia circular de prioridade",
@@ -1267,6 +1304,8 @@ async def _test_h2_priority_attack(
             )
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="weight_extreme",
                 category="h2_priority_attack",
                 description="PRIORITY com weights extremos (256 vs 1)",
@@ -1331,6 +1370,8 @@ async def _test_h2_push_abuse(
             )
             vulnerable = got_ack and not got_goaway
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="settings_enable_push",
                 category="h2_push_abuse",
                 description="Envia SETTINGS com ENABLE_PUSH=1 (proibido RFC 9113)",
@@ -1392,6 +1433,8 @@ async def _test_h2_push_abuse(
                                 pass
                 sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="rst_consumption",
                 category="h2_push_abuse",
                 description="Recebe PUSH_PROMISE e envia RST_STREAM imediatamente",
@@ -1450,6 +1493,8 @@ async def _test_h2_push_abuse(
                     if isinstance(ev, h2.events.DataReceived):
                         total_data += len(ev.data)
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="amplification",
                 category="h2_push_abuse",
                 description="Multiplas requests para testar push amplification",
@@ -1502,6 +1547,8 @@ async def _test_h2_push_abuse(
                             if k == ":path":
                                 push_paths.append(v if isinstance(v, str) else v.decode())
             results.append(HTTP2Attempt(
+            exploit="h2_rapid_reset_command",
+            tool="h2load",
                 technique="path_manipulation",
                 category="h2_push_abuse",
                 description="Analisa paths fornecidos via PUSH_PROMISE",
@@ -1573,6 +1620,7 @@ def print_results(result: HTTP2Result) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
 

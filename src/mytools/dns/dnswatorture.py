@@ -50,6 +50,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -92,6 +93,8 @@ class WaterTortureResult:
     loss_rate: float
     duration_s: float
     qps: float
+    exploit: str = ""
+    tool: str = ""
 
 
 def _gen_random_label(length: int = DEFAULT_LABEL_LENGTH) -> str:
@@ -250,6 +253,8 @@ def run_water_torture(
         loss_rate=round(loss, 4),
         duration_s=round(elapsed, 2),
         qps=round(qps, 2),
+        exploit=f"dig -f <wordlist> {domain} @{nameserver}" if loss > 0.1 else "",
+        tool="dig",
     )
 
 
@@ -287,6 +292,8 @@ def print_results(result: WaterTortureResult) -> None:
         print(color("\n  [!] Loss rate > 5% — possivel rate limiting detectado", Cyber.YELLOW))
     else:
         print(color("\n  [+] Loss rate normal — servidor resistente", Cyber.GREEN))
+
+    print_exploit_info(result.exploit, result.tool)
 
 
 def banner() -> None:

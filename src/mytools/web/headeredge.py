@@ -29,6 +29,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -218,6 +219,8 @@ class HeaderEdgeAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,6 +323,8 @@ async def _test_duplicate_headers(
                 status, response = _send_raw(sock, request.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) or (len(response) != b_size)
                 results.append(HeaderEdgeAttempt(
+                exploit="header_smuggling_payload",
+                tool="curl",
                     technique=technique,
                     category="duplicate_headers",
                     raw_request=raw_req,
@@ -380,6 +385,8 @@ async def _test_malformed_version(
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
                 results.append(HeaderEdgeAttempt(
+                exploit="header_smuggling_payload",
+                tool="curl",
                     technique=technique,
                     category="malformed_version",
                     raw_request=raw_req,
@@ -460,6 +467,8 @@ async def _test_null_request_byte(
                 status, response = _send_raw(sock, raw_req, timeout)
                 vulnerable = (status != b_status) and status != 0
                 results.append(HeaderEdgeAttempt(
+                exploit="header_smuggling_payload",
+                tool="curl",
                     technique=technique,
                     category="null_request_byte",
                     raw_request=repr(raw_req),
@@ -540,6 +549,8 @@ async def _test_header_whitespace(
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
                 results.append(HeaderEdgeAttempt(
+                exploit="header_smuggling_payload",
+                tool="curl",
                     technique=technique,
                     category="header_whitespace",
                     raw_request=raw_req,
@@ -620,6 +631,8 @@ async def _test_header_case(
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
                 results.append(HeaderEdgeAttempt(
+                exploit="header_smuggling_payload",
+                tool="curl",
                     technique=technique,
                     category="header_case",
                     raw_request=raw_req,
@@ -706,6 +719,8 @@ async def _test_absolute_uri(
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
                 results.append(HeaderEdgeAttempt(
+                exploit="header_smuggling_payload",
+                tool="curl",
                     technique=technique,
                     category="absolute_uri",
                     raw_request=raw_req,
@@ -786,6 +801,8 @@ async def _test_http09_request(
                 status, response = _send_raw(sock, raw_req, timeout)
                 vulnerable = (status != b_status) and status != 0
                 results.append(HeaderEdgeAttempt(
+                exploit="header_smuggling_payload",
+                tool="curl",
                     technique=technique,
                     category="http09_request",
                     raw_request=repr(raw_req),
@@ -856,6 +873,7 @@ def print_results(result: HeaderEdgeResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
 

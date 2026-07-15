@@ -421,6 +421,14 @@ def severity_color(severity: str) -> str:
     return getattr(Cyber, color_name)
 
 
+def print_exploit_info(exploit: str, tool: str) -> None:
+    """Imprime exploit e ferramenta recomendada se disponíveis."""
+    if exploit:
+        print(color(f"      Exploit: {exploit}", Cyber.YELLOW))
+    if tool:
+        print(color(f"      Ferramenta: {tool}", Cyber.CYAN))
+
+
 def header_get(headers: Mapping[str, str], name: str) -> str:
     """Obtém o valor de um header HTTP, ignorando maiúsculas/minúsculas."""
     name_lower = name.lower()

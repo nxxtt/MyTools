@@ -29,6 +29,7 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -214,6 +215,8 @@ class SSIiAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +301,8 @@ async def _test_detect(
                         vulnerable=vulnerable,
                         details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
                         error="",
+                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                        tool="curl",
                     ))
                 except httpx.RequestError as exc:
                     attempts.append(SSIiAttempt(
@@ -366,6 +371,8 @@ async def _test_rce(
                         vulnerable=vulnerable,
                         details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
                         error="",
+                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                        tool="curl",
                     ))
                 except httpx.RequestError as exc:
                     attempts.append(SSIiAttempt(
@@ -434,6 +441,8 @@ async def _test_file_read(
                         vulnerable=vulnerable,
                         details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
                         error="",
+                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                        tool="curl",
                     ))
                 except httpx.RequestError as exc:
                     attempts.append(SSIiAttempt(
@@ -507,6 +516,8 @@ async def _test_blind(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
+                    exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                    tool="curl",
                 ))
             except httpx.RequestError as exc:
                 attempts.append(SSIiAttempt(
@@ -567,6 +578,8 @@ async def _test_bypass(
                     vulnerable=vulnerable,
                     details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
                     error="",
+                    exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                    tool="curl",
                 ))
             except httpx.RequestError as exc:
                 attempts.append(SSIiAttempt(
@@ -604,6 +617,9 @@ def print_results(result: SSIiResult) -> None:
         print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
+            a = next((a for a in result.attempts if a.technique == tech), None)
+            if a:
+                print_exploit_info(a.exploit, a.tool)
         print(color("\n  Severidade: ALTA", Cyber.RED, Cyber.BOLD))
     else:
         print(color("\n  [+] Nenhuma SSI Injection detectada", Cyber.GREEN, Cyber.BOLD))

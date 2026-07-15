@@ -29,6 +29,7 @@ from mytools.core.utils import (
     create_async_client,
     create_banner,
     fetch,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -236,6 +237,8 @@ class TenantAttempt:
     vulnerable: bool
     details: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +301,8 @@ def _make_attempt(
 ) -> TenantAttempt:
     """Cria TenantAttempt com campos derivados preenchidos."""
     return TenantAttempt(
+    exploit="tenant_id_switch_payload",
+    tool="curl",
         technique=technique,
         category=category,
         tenant_id=tenant_id,
@@ -1075,6 +1080,7 @@ def print_results(result: TenantResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
 

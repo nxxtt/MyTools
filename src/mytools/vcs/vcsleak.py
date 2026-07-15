@@ -34,6 +34,7 @@ from mytools.core.utils import (
     fetch,
     init_scanner,
     normalize_url,
+    print_exploit_info,
     print_table,
     resolve_target_urls,
     run_main_loop,
@@ -127,6 +128,8 @@ class VCSLeak:
     status: int = 0
     detail: str = ""
     raw_size: int = 0
+    exploit: str = ""
+    tool: str = ""
 
 
 def _classify_path(path: str) -> str:
@@ -256,6 +259,8 @@ async def _probe_path(
         status=status,
         detail=detail,
         raw_size=len(content),
+        exploit="git clone <TARGET>/.git",
+        tool="git",
     )
 
 
@@ -378,6 +383,13 @@ def print_results(leaks: list[VCSLeak]) -> None:
         alignments=["left", "right", "right", "left", "left"],
         row_styles_fn=_row_styles,
     )
+
+    if leaks:
+        print(color("\n  Exploits disponíveis:", Cyber.CYAN))
+        for leak in leaks:
+            if leak.exploit:
+                print(color(f"    {leak.path}: {leak.exploit}", Cyber.YELLOW))
+                print_exploit_info(leak.exploit, leak.tool)
 
 
 def build_parser() -> argparse.ArgumentParser:

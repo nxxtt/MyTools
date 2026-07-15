@@ -42,6 +42,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -82,6 +83,8 @@ class LeakRecord:
     matched_pattern: str
     matched_text: str
     found_at: str
+    exploit: str = ""
+    tool: str = ""
 
 
 def _mask_secret(text: str) -> str:
@@ -107,6 +110,8 @@ def _scan_content(content: str, source: str, url: str, filename: str) -> list[Le
                     matched_pattern=pattern_name,
                     matched_text=_mask_secret(matched_text),
                     found_at=now,
+                    exploit=f"curl {url}",
+                    tool="curl",
                 )
             )
     return leaks
@@ -435,6 +440,7 @@ def print_results(leaks: list[LeakRecord]) -> None:
                 f" | {leak.matched_text}"
             )
             print(f"      {color(leak.url, Cyber.GRAY)}")
+            print_exploit_info(leak.exploit, leak.tool)
 
 
 def banner() -> None:

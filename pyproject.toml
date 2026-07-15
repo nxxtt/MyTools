@@ -7,7 +7,7 @@ readme = "README.MD"
 packages = [{include = "mytools", from = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.14,<3.16"
+python = ">=3.14.2,<3.16"
 httpx = ">=0.28.1"
 beautifulsoup4 = ">=4.15.0"
 python-whois = ">=0.9.6"
@@ -22,6 +22,8 @@ grpcio = ">=1.82.1"
 grpcio-reflection = ">=1.82.1"
 protobuf = ">=7.35.1"
 thriftpy2 = ">=0.6.0"
+networkx = ">=3.6.1"
+matplotlib = ">=3.11.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.1.1"
@@ -130,6 +132,7 @@ mytools-k8s = "mytools.web.k8sattack:main"
 mytools-docker = "mytools.web.dockerattack:main"
 mytools-infra = "mytools.web.infraattack:main"
 mytools-iot = "mytools.web.iotattack:main"
+mytools-analysis = "mytools.web.attackanalysis:main"
 mytools-reconall = "mytools.core.reconall:main"
 
 [build-system]
@@ -159,3 +162,4 @@ reportMissingImports = false
 reportMissingTypeStubs = false
 reportUnnecessaryTypeIgnoreComment = false
 useLibraryCodeForTypes = true
+reportMissingModuleSource = false

@@ -29,6 +29,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_exploit_info,
     print_table,
     run_main_loop,
     write_output,
@@ -65,6 +66,8 @@ class IpAsnInfo:
     is_hosting: bool = False
     is_proxy: bool = False
     source: str = ""
+    exploit: str = ""
+    tool: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +98,8 @@ def _parse_ipwhois(body: bytes) -> IpAsnInfo | None:
         country_code=data.get("country_code", ""),
         city=data.get("city", ""),
         source="ipwhois",
+        exploit=f"https://bgp.he.net/ip/{data.get('ip', '')}" if asn else "",
+        tool="bgp.he.net",
     )
 
 
@@ -124,6 +129,8 @@ def _parse_ipapi(body: bytes) -> IpAsnInfo | None:
         is_hosting=data.get("hosting", False),
         is_proxy=data.get("proxy", False),
         source="ipapi",
+        exploit=f"https://bgp.he.net/ip/{data.get('query', '')}" if data.get("as") else "",
+        tool="bgp.he.net",
     )
 
 
@@ -157,6 +164,8 @@ def _parse_ipapi_batch(body: bytes) -> list[IpAsnInfo]:
             is_hosting=item.get("hosting", False),
             is_proxy=item.get("proxy", False),
             source="ipapi",
+            exploit=f"https://bgp.he.net/ip/{item.get('query', '')}" if item.get("as") else "",
+            tool="bgp.he.net",
         ))
 
     return results
@@ -307,6 +316,9 @@ def _print_results(results: list[IpAsnInfo]) -> None:
             (Cyber.RED,),
         ],
     )
+
+    for r in results:
+        print_exploit_info(r.exploit, r.tool)
 
 
 def _load_ips_from_args(args: argparse.Namespace) -> list[str]:

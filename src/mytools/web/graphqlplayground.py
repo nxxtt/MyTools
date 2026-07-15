@@ -38,6 +38,7 @@ from mytools.core.utils import (
     header_get,
     init_scanner,
     normalize_url,
+    print_exploit_info,
     print_table,
     resolve_target_urls,
     run_main_loop,
@@ -106,6 +107,7 @@ class GraphqlEndpoint:
     mutation_type: str = ""
     subscription_type: str = ""
     raw_size: int = 0
+    exploit: str = ""
 
 
 def detect_tool(body: str, headers: Mapping[str, str]) -> str:
@@ -382,6 +384,9 @@ def print_results(endpoints: list[GraphqlEndpoint]) -> None:
         alignments=["left", "right", "left", "right", "left"],
         row_styles_fn=_row_styles,
     )
+
+    for ep in endpoints:
+        print_exploit_info(ep.exploit, ep.tool)
 
 
 def print_schema_details(ep: GraphqlEndpoint) -> None:

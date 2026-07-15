@@ -21,6 +21,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -107,6 +108,8 @@ class K8sAttackAttempt:
     endpoint: str
     api_version: str
     response_code: int
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +168,8 @@ def _make_attempt(
     endpoint: str, api_version: str, code: int,
 ) -> K8sAttackAttempt:
     return K8sAttackAttempt(
+    exploit="kubectl get secrets --all-namespaces",
+    tool="kubectl",
         technique=tech, category=cat, description=desc,
         vulnerable=vuln, details=details, error=error,
         endpoint=endpoint, api_version=api_version, response_code=code,
@@ -282,6 +287,7 @@ def print_results(result: K8sAttackResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()

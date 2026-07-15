@@ -35,6 +35,7 @@ from mytools.core.utils import (
     header_get,
     init_scanner,
     normalize_url,
+    print_exploit_info,
     read_target_lines,
     resolve_target_urls,
     run_main_loop,
@@ -668,6 +669,7 @@ class Finding:
     evidence: str
     recommendation: str
     exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -1621,9 +1623,7 @@ def print_result(result: AuditResult) -> None:
         print(f"{sev} {color(finding.category.ljust(11), Cyber.GRAY)} {color(finding.item, Cyber.WHITE, Cyber.BOLD)}")
         print(f"         evidencia: {color(finding.evidence, Cyber.YELLOW)}")
         print(f"         defesa:    {color(finding.recommendation, Cyber.GREEN)}")
-        if finding.exploit:
-            for line in finding.exploit.split("\n"):
-                print(f"         exploit:    {color(line, Cyber.RED)}")
+        print_exploit_info(finding.exploit, finding.tool)
 
 
 def _save_audit_output(path: str, result: AuditResult, quiet: bool = False) -> None:

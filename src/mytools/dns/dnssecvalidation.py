@@ -37,6 +37,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -80,6 +81,8 @@ class DnssecResult:
     algorithm_strength: str
     checks: list[DnssecCheck]
     overall_status: str  # secure, insecure, broken
+    exploit: str = ""
+    tool: str = ""
 
 
 def _check_dnskey(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, list[DnssecCheck]]:
@@ -448,6 +451,8 @@ def print_results(result: DnssecResult) -> None:
     else:
         print(color("  [-] DNSSEC nao configurado — zona nao assinada", Cyber.RED))
         print(color("  [-] Recomendacao: implementar DNSSEC para protecao contra spoofing", Cyber.YELLOW))
+
+    print_exploit_info(result.exploit, result.tool)
 
 
 def banner() -> None:

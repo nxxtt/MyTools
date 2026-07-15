@@ -34,6 +34,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -121,6 +122,8 @@ class DotScanResult:
     dot_supported: bool
     overall_status: str
     error: str
+    exploit: str = ""
+    tool: str = ""
 
 
 def _build_dns_query(domain: str, rdtype_str: str) -> bytes:
@@ -318,6 +321,8 @@ async def scan_dot(
         dot_supported=dot_supported,
         overall_status=overall,
         error=trad_error,
+        exploit=f"curl https://dns.google/dns-query?name={domain}" if all_filtering else "",
+        tool="curl",
     )
 
 
@@ -354,6 +359,8 @@ def print_results(result: DotScanResult) -> None:
     else:
         print(color("  [!] DoT nao suportado ou sem resposta", Cyber.YELLOW))
     print()
+
+    print_exploit_info(result.exploit, result.tool)
 
 
 def build_parser() -> argparse.ArgumentParser:

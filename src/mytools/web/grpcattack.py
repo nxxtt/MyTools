@@ -32,6 +32,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -60,6 +61,8 @@ class GrpcAttackAttempt:
     services_found: int
     methods_found: int
     response_code: int
+    exploit: str = ""
+    tool: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +165,8 @@ def _make_attempt(
         vulnerable=vuln, details=details, error=error,
         endpoint=endpoint, services_found=_svc_count(refl),
         methods_found=_method_count(refl), response_code=code,
+        exploit="grpcurl reflection <TARGET>",
+        tool="grpcurl",
     )
 
 
@@ -375,6 +380,7 @@ def print_results(result: GrpcAttackResult) -> None:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
+                print_exploit_info(a.exploit, a.tool)
         else:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()

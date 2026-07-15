@@ -34,6 +34,7 @@ from mytools.core.utils import (
     header_get,
     init_scanner,
     normalize_url,
+    print_exploit_info,
     print_table,
     resolve_target_urls,
     run_main_loop,
@@ -183,6 +184,8 @@ class BackupFile:
     status: int = 0
     detail: str = ""
     raw_size: int = 0
+    exploit: str = ""
+    tool: str = ""
 
 
 def _classify_backup(path: str) -> str:
@@ -319,6 +322,8 @@ async def _probe_path(
         status=status,
         detail=detail,
         raw_size=len(content),
+        exploit="curl <TARGET>/backup.zip",
+        tool="curl",
     )
 
 
@@ -449,6 +454,13 @@ def print_results(backups: list[BackupFile]) -> None:
         alignments=["left", "right", "right", "left", "left"],
         row_styles_fn=_row_styles,
     )
+
+    if backups:
+        print(color("\n  Exploits disponíveis:", Cyber.CYAN))
+        for b in backups:
+            if b.exploit:
+                print(color(f"    {b.path}: {b.exploit}", Cyber.YELLOW))
+                print_exploit_info(b.exploit, b.tool)
 
 
 def build_parser() -> argparse.ArgumentParser:

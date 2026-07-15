@@ -27,6 +27,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -78,6 +79,8 @@ class EmailSecurityResult:
     dmarc: DmarcRecord | None
     overall_status: str  # secure, good, warning, critical, missing
     issues: list[str]
+    exploit: str = ""
+    tool: str = ""
 
 
 def _query_txt(domain: str, resolver: dns.resolver.Resolver) -> str | None:
@@ -240,6 +243,8 @@ def scan_email_security(
         dmarc=dmarc,
         overall_status=status,
         issues=issues,
+        exploit=f"dig TXT {domain}" if not spf else (f"dig TXT _dmarc.{domain}" if not dmarc else ""),
+        tool="dig",
     )
 
 
@@ -287,6 +292,7 @@ def print_results(result: EmailSecurityResult) -> None:
         print(color("  Problemas:", Cyber.YELLOW, Cyber.BOLD))
         for issue in result.issues:
             print(f"    {color('[!]', Cyber.YELLOW)} {issue}")
+        print_exploit_info(result.exploit, result.tool)
 
     print()
     if result.overall_status == "secure":

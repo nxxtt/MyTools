@@ -40,6 +40,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -75,6 +76,8 @@ class DarkWebMention:
     date_seen: str
     domain: str
     severity: str
+    exploit: str = ""
+    tool: str = ""
 
 
 def _classify_severity(text: str) -> str:
@@ -150,6 +153,8 @@ async def _query_ahmia(
                 date_seen=now,
                 domain=domain,
                 severity=severity,
+                exploit=result_url,
+                tool="ahmia",
             )
         )
 
@@ -202,6 +207,8 @@ async def _query_darksearch(
                 date_seen=date_str,
                 domain=domain,
                 severity=severity,
+                exploit=link,
+                tool="darksearch",
             )
         )
 
@@ -282,6 +289,8 @@ async def _query_intelx(
                 date_seen=now,
                 domain=domain,
                 severity=severity,
+                exploit=f"https://intelx.io/{selector}",
+                tool="intelx",
             )
         )
 
@@ -363,6 +372,7 @@ def print_results(mentions: list[DarkWebMention]) -> None:
                 f" | {color(mention.title[:60], Cyber.WHITE)}"
             )
             print(f"      {color(mention.url, Cyber.GRAY)}")
+            print_exploit_info(mention.exploit, mention.tool)
 
 
 def banner() -> None:
