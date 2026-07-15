@@ -132,6 +132,7 @@ Isso instala os comandos CLI:
 | `mytools-gqlattack` | GraphQL Attack Testing |
 | `mytools-grpc` | gRPC Attack Testing |
 | `mytools-thrift` | Thrift Attack Testing |
+| `mytools-timing` | Timing Attack Testing |
 | `mytools-lambda` | Lambda Attack Testing |
 | `mytools-edge` | Edge Functions Attack Testing |
 | `mytools-serverless` | Serverless Attack Testing |
@@ -997,7 +998,18 @@ mytools-thrift thrift://target.com:9090 -c binary_protocol
 mytools-thrift thrift://target.com:9090 --timeout 10
 ```
 
-### 74.3. Lambda Attack Testing (`mytools-lambda`)
+### 74.3. Timing Attack Testing (`mytools-timing`)
+Testa timing side-channels: login user enumeration, token comparison, cache detection, DNS timing.
+
+```bash
+mytools-timing https://target.com/login
+mytools-timing https://target.com/login --usernames admin root user test
+mytools-timing https://target.com/login --token abc123def456
+mytools-timing https://target.com/login --cache-rounds 10
+mytools-timing https://target.com/login --dns-domains example.com google.com
+```
+
+### 74.4. Lambda Attack Testing (`mytools-lambda`)
 Testa seguranca de endpoints AWS Lambda: env var leaks, layer enumeration, temp file persistence.
 
 ```bash
@@ -1644,7 +1656,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4684 testes)
+tests/                          # Testes unitários (4707 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
