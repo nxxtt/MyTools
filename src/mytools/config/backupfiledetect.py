@@ -419,15 +419,16 @@ def print_results(backups: list[BackupFile]) -> None:
     print(color("\n  Backup Files Encontrados", Cyber.CYAN, Cyber.BOLD))
 
     hdrs = ("TIPO", "STATUS", "TAMANHO", "DETALHE", "URL")
-    rows = []
-    for b in backups:
-        rows.append((
+    rows = [
+        (
             b.backup_type.upper(),
             str(b.status),
             str(b.raw_size),
             b.detail[:60],
             b.url,
-        ))
+        )
+        for b in backups
+    ]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         t = row[0].lower()

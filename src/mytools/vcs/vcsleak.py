@@ -355,15 +355,13 @@ def print_results(leaks: list[VCSLeak]) -> None:
     print(color("\n  VCS Leaks Encontrados", Cyber.CYAN, Cyber.BOLD))
 
     hdrs = ("VCS", "STATUS", "TAMANHO", "DETALHE", "URL")
-    rows = []
-    for leak in leaks:
-        rows.append((
-            leak.vcs_type.upper(),
-            str(leak.status),
-            str(leak.raw_size),
-            leak.detail[:60],
-            leak.url,
-        ))
+    rows = [(
+        leak.vcs_type.upper(),
+        str(leak.status),
+        str(leak.raw_size),
+        leak.detail[:60],
+        leak.url,
+    ) for leak in leaks]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         vcs = row[0].lower()

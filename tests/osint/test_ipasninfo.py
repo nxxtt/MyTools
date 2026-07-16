@@ -21,7 +21,7 @@ class TestIpAsnInfo:
     def test_frozen(self):
         r = IpAsnInfo(ip="8.8.8.8", asn="AS15169")
         with pytest.raises(AttributeError):
-            r.asn = "AS0000"
+            r.asn = "AS0000"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         r = IpAsnInfo(ip="1.1.1.1")

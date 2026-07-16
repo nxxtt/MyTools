@@ -158,19 +158,11 @@ def parse_source_map(content: bytes) -> SourceMapInfo | None:
     if "sources" not in data and "mappings" not in data:
         return None
 
-    sources: list[str] = []
     raw_sources = data.get("sources", [])
-    if isinstance(raw_sources, list):
-        for s in raw_sources:
-            if isinstance(s, str):
-                sources.append(s)
+    sources: list[str] = [s for s in raw_sources if isinstance(s, str)] if isinstance(raw_sources, list) else []
 
-    names: list[str] = []
     raw_names = data.get("names", [])
-    if isinstance(raw_names, list):
-        for n in raw_names:
-            if isinstance(n, str):
-                names.append(n)
+    names: list[str] = [n for n in raw_names if isinstance(n, str)] if isinstance(raw_names, list) else []
 
     return SourceMapInfo(
         url="",
@@ -358,15 +350,13 @@ def print_results(maps: list[SourceMapInfo]) -> None:
     print(color("\n  Source Maps Encontrados", Cyber.CYAN, Cyber.BOLD))
 
     hdrs = ("TAMANHO", "SOURCES", "NAMES", "JS ORIGINAL", "URL")
-    rows = []
-    for m in maps:
-        rows.append((
-            f"{m.raw_size}",
-            str(m.sources_count),
-            str(m.names_count),
-            m.js_url or "-",
-            m.url,
-        ))
+    rows = [(
+        f"{m.raw_size}",
+        str(m.sources_count),
+        str(m.names_count),
+        m.js_url or "-",
+        m.url,
+    ) for m in maps]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         return [

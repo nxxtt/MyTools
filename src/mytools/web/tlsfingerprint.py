@@ -972,7 +972,7 @@ async def _test_cipher_audit(
 
     # Audit current cipher
     cipher_meta = _CIPHER_INFO.get(0, ("UNKNOWN", 0, False, "?"))
-    for _cid, meta in _CIPHER_INFO.items():
+    for meta in _CIPHER_INFO.values():
         if meta[0] == current_cipher:
             cipher_meta = meta
             break

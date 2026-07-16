@@ -328,7 +328,7 @@ class TestFindingDataclass:
     def test_frozen(self):
         f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T")
         with pytest.raises(AttributeError):
-            f.status = 404
+            f.status = 404  # type: ignore[reportAttributeAccessIssue]
 
     def test_custom_method(self):
         f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T", method="POST")

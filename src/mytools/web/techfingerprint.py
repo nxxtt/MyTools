@@ -18,6 +18,7 @@ import logging
 import re
 import time
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from mytools.core.utils import (
@@ -515,7 +516,7 @@ def run_once(args: argparse.Namespace) -> int:
     urls = list(args.urls) if args.urls else []
     if getattr(args, "url_list", None):
         try:
-            with open(args.url_list) as fh:
+            with Path(args.url_list).open() as fh:
                 for line in fh:
                     line = line.strip()
                     if line and not line.startswith("#"):

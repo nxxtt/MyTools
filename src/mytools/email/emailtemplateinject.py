@@ -159,11 +159,11 @@ def _detect_engine_from_response(
         "freemarker": ["freemarker", "templateexception"],
     }
 
-    detected_engines: list[str] = []
-    for engine, keywords in patterns.items():
-        for kw in keywords:
-            if kw in response_lower:
-                detected_engines.append(engine)
+    detected_engines: list[str] = [
+        engine
+        for engine, keywords in patterns.items()
+        if any(kw in response_lower for kw in keywords)
+    ]
 
     if detected_engines:
         return True, ",".join(detected_engines)

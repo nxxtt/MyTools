@@ -24,7 +24,7 @@ class TestXfrResult:
     def test_frozen(self):
         result = XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False)
         with pytest.raises(AttributeError):
-            result.domain = "other.com"
+            result.domain = "other.com"  # type: ignore[reportAttributeAccessIssue]
 
     def test_default_values(self):
         result = XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False)
@@ -116,7 +116,7 @@ class TestResolveNsToIp:
     @patch("mytools.dns.dnstransfer.dns.resolver.resolve")
     def test_resolves_ip(self, mock_resolve):
         rr = MagicMock()
-        rr.__str__ = lambda self: "1.2.3.4"
+        type(rr).__str__ = MagicMock(return_value="1.2.3.4")  # type: ignore[reportAttributeAccessIssue]
         mock_resolve.return_value = [rr]
 
         ip = resolve_ns_to_ip("ns1.example.com")
@@ -151,11 +151,11 @@ class TestTryZoneTransfer:
         mock_node = MagicMock()
 
         mock_rdataset = MagicMock()
-        mock_rdataset.rdtype = dns.rdatatype.A
-        mock_rdataset.__iter__ = lambda self: iter([MagicMock(__str__=lambda s: "1.2.3.4")])
+        mock_rdataset.rdtype = dns.rdatatype.A  # type: ignore[reportAttributeAccessIssue]
+        mock_rdataset.__iter__ = lambda self: iter([MagicMock(__str__=lambda s: "1.2.3.4")])  # type: ignore[reportAttributeAccessIssue]
 
         mock_node.rdatasets = [mock_rdataset]
-        mock_zone.nodes = {dns.name.from_text("example.com."): mock_node}
+        mock_zone.nodes = {dns.name.from_text("example.com."): mock_node}  # type: ignore[reportAttributeAccessIssue]
         mock_axfr.return_value = mock_zone
 
         result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)

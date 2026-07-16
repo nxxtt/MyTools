@@ -344,10 +344,7 @@ async def _test_modbus_scan(host: str, port: int, timeout: float) -> IoTAttackAt
                             })
                     elif resp_fc in _MODBUS_FC:
                         data_len = response[8] if len(response) > 8 else 0
-                        regs = []
-                        for i in range(9, min(9 + data_len, len(response)), 2):
-                            if i + 1 < len(response):
-                                regs.append(struct.unpack(">H", response[i:i + 2])[0])
+                        regs = [struct.unpack(">H", response[i:i + 2])[0] for i in range(9, min(9 + data_len, len(response)), 2) if i + 1 < len(response)]
                         device_info["functions_supported"].append(_MODBUS_FC[resp_fc])
                         device_info["registers"][f"fc{resp_fc:02x}_unit{unit_id}"] = regs
                         device_info["device_id"] = unit_id
@@ -661,9 +658,7 @@ async def run_scan(
         try:
             raw = await tester(host, port, timeout)
             all_attempts.extend(raw)
-            for a in raw:
-                if a.vulnerable:
-                    protocols_found.append(a.protocol)
+            protocols_found.extend(a.protocol for a in raw if a.vulnerable)
         except Exception as e:
             all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], f"{host}:{port}", "unknown", port))
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]

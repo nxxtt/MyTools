@@ -2,12 +2,12 @@
 import argparse
 import asyncio
 import logging
-import os
 import sys
 import time
 import unicodedata
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from urllib.parse import urljoin
 
 import httpx
@@ -224,19 +224,19 @@ def load_paths(wordlist: str | None, extensions: list[str], case_variation: bool
             logger.warning("URL absoluta ignorada na wordlist: %s", raw_path)
             continue
         paths.add(path)
-        if extensions and "." not in os.path.basename(path):
+        if extensions and "." not in Path(path).name:
             for extension in extensions:
                 paths.add(f"{path}.{extension}")
         if case_variation:
             for variation in _generate_case_variations(path):
                 paths.add(variation)
-                if extensions and "." not in os.path.basename(variation):
+                if extensions and "." not in Path(variation).name:
                     for extension in extensions:
                         paths.add(f"{variation}.{extension}")
         if unicode_norm:
             for variation in _generate_unicode_variations(path):
                 paths.add(variation)
-                if extensions and "." not in os.path.basename(variation):
+                if extensions and "." not in Path(variation).name:
                     for extension in extensions:
                         paths.add(f"{variation}.{extension}")
 
@@ -544,7 +544,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         all_findings.extend(findings)
         if output_dir:
             hostname = extract_hostname(url)
-            out_path = os.path.join(output_dir, f"{hostname}.json")
+            out_path = str(Path(output_dir) / f"{hostname}.json")
             write_output(
                 out_path,
                 [asdict(f) for f in findings],

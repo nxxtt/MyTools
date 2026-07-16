@@ -25,7 +25,7 @@ class TestConfigLeak:
     def test_frozen(self):
         leak = ConfigLeak(category="env", url="http://x.com/.env", path=".env")
         with pytest.raises(AttributeError):
-            leak.category = "config"
+            leak.category = "config"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         leak = ConfigLeak(category="env", url="http://x.com/.env", path=".env")

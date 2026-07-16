@@ -25,9 +25,9 @@ Modulos disponiveis:
 import argparse
 import asyncio
 import contextlib
-import os
 import time
 from collections.abc import Callable
+from pathlib import Path
 from urllib.parse import urlparse
 
 from mytools.config import backupfiledetect, configfiledetect
@@ -229,12 +229,12 @@ def run_all(args: argparse.Namespace) -> int:
     base_ns = _build_base_ns(args)
 
     if args.output_dir:
-        os.makedirs(args.output_dir, exist_ok=True)
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     def _out(module_name: str) -> str | None:
         if not args.output_dir:
             return None
-        return os.path.join(args.output_dir, f"{module_name}.json")
+        return str(Path(args.output_dir) / f"{module_name}.json")
 
     modules: list[tuple[str, Callable[[argparse.Namespace], int], argparse.Namespace]] = []
 

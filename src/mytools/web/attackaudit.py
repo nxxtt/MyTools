@@ -3,7 +3,6 @@ import argparse
 import asyncio
 import contextlib
 import logging
-import os
 import re
 import secrets
 import socket
@@ -13,6 +12,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import override
 from urllib.parse import parse_qs, urljoin, urlparse
 
@@ -1199,13 +1199,12 @@ def build_findings(
 
     if tls_versions:
         weak_versions = [tv for tv in tls_versions if tv.supported and tv.protocol in ("SSLv3", "TLS 1.0", "TLS 1.1")]
-        for tv in weak_versions:
-            findings.append(Finding(
+        findings.extend(Finding(
                 "high", "transport", f"Versao TLS obsoleta: {tv.protocol}",
                 f"{tv.protocol} esta habilitado no servidor.",
                 f"Desabilite {tv.protocol} e use no minimo TLS 1.2.",
                 f"openssl s_client -connect {parsed.hostname}:{parsed.port or 443} -{tv.protocol.lower().replace(' ', '').replace('.', '')} </dev/null 2>/dev/null",
-            ))
+            ) for tv in weak_versions)
 
     for header, recommendation in SECURITY_HEADERS_RECS.items():
         if header not in lower_headers:
@@ -1392,13 +1391,12 @@ def build_findings(
             ))
 
         medium_methods = [mr for mr in method_results if mr.status in {200, 201, 204} and mr.method == "PATCH"]
-        for mr in medium_methods:
-            findings.append(Finding(
+        findings.extend(Finding(
                 "medium", "methods", "Metodo PATCH aceito",
                 f"{mr.status} {mr.url}",
                 "Verifique autenticacao/autorizacao e restrinja metodos nao utilizados.",
                 f"curl -X PATCH {mr.url} -d 'field=newvalue'",
-            ))
+            ) for mr in medium_methods)
 
     return findings
 
@@ -1744,7 +1742,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         all_results.append(result)
         if output_dir:
             hostname = extract_hostname(url)
-            out_path = os.path.join(output_dir, f"{hostname}.json")
+            out_path = str(Path(output_dir) / f"{hostname}.json")
             _save_audit_output(out_path, result, quiet=quiet)
 
     if args.output:

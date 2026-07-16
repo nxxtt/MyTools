@@ -404,16 +404,14 @@ def print_api_summary(specs: list[ApiSpecInfo]) -> None:
     print(color("\n  Specs Encontradas", Cyber.CYAN, Cyber.BOLD))
 
     headers = ("FORMATO", "ENDPOINTS", "SCHEMAS", "VERSAO", "TITULO", "URL")
-    rows = []
-    for spec in specs:
-        rows.append((
-            spec.format.upper(),
-            str(len(spec.endpoints)),
-            str(len(spec.schemas)),
-            spec.version or "-",
-            (spec.title[:40] + "...") if len(spec.title) > 40 else (spec.title or "-"),
-            spec.url,
-        ))
+    rows = [(
+        spec.format.upper(),
+        str(len(spec.endpoints)),
+        str(len(spec.schemas)),
+        spec.version or "-",
+        (spec.title[:40] + "...") if len(spec.title) > 40 else (spec.title or "-"),
+        spec.url,
+    ) for spec in specs]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         return [
@@ -449,14 +447,12 @@ def print_api_endpoints(spec: ApiSpecInfo) -> None:
         return
 
     headers = ("METHOD", "PATH", "TAGS", "SUMMARY")
-    rows = []
-    for ep in spec.endpoints:
-        rows.append((
-            ep.method,
-            ep.path,
-            ", ".join(ep.tags[:3]) if ep.tags else "-",
-            (ep.summary[:50] + "...") if len(ep.summary) > 50 else (ep.summary or "-"),
-        ))
+    rows = [(
+        ep.method,
+        ep.path,
+        ", ".join(ep.tags[:3]) if ep.tags else "-",
+        (ep.summary[:50] + "...") if len(ep.summary) > 50 else (ep.summary or "-"),
+    ) for ep in spec.endpoints]
 
     method_colors = {
         "GET": (Cyber.GREEN,),

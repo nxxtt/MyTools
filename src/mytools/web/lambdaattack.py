@@ -232,9 +232,7 @@ async def _test_layer_enumeration(
             layer_matches = _LAYER_ARN_PATTERN.findall(resp.text)
             layers_found.extend(layer_matches)
             body_lower = resp.text.lower()
-            for keyword in ("/opt/", "layer", "layers", "/opt/lib/", "/opt/python/"):
-                if keyword in body_lower:
-                    layers_found.append(keyword)
+            layers_found.extend(keyword for keyword in ("/opt/", "layer", "layers", "/opt/lib/", "/opt/python/") if keyword in body_lower)
         except Exception:
             pass
 

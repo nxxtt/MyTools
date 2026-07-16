@@ -17,6 +17,7 @@ import logging
 import sys
 import time
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from urllib.parse import urljoin
 
 import httpx
@@ -221,15 +222,13 @@ def _classify_path(path: str) -> str:
 
 def _is_sensitive(path: str) -> bool:
     """Verifica se o arquivo e potencialmente sensivel."""
-    import os
-
-    basename = os.path.basename(path)
+    basename = Path(path).name
 
     if basename in SENSITIVE_BASENAMES:
         return True
     if basename.startswith(".env"):
         return True
-    _, ext = os.path.splitext(basename)
+    ext = Path(basename).suffix
     if ext in SENSITIVE_EXTENSIONS:
         return True
     return ext in {".bak", ".old", ".save"} or basename.endswith("~")
@@ -466,15 +465,16 @@ def print_results(leaks: list[ConfigLeak]) -> None:
     print(color("\n  Config Files Encontrados", Cyber.CYAN, Cyber.BOLD))
 
     hdrs = ("CATEGORIA", "STATUS", "TAMANHO", "DETALHE", "URL")
-    rows = []
-    for leak in leaks:
-        rows.append((
+    rows = [
+        (
             leak.category.upper(),
             str(leak.status),
             str(leak.raw_size),
             leak.detail[:60],
             leak.url,
-        ))
+        )
+        for leak in leaks
+    ]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         cat = row[0].lower()

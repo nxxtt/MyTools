@@ -489,7 +489,7 @@ class TestBuildParser:
         parser = build_parser()
         for action in parser._actions:
             if action.dest == "category":
-                assert set(action.choices) == set(_CATEGORY_MAP.keys())
+                assert set(action.choices or []) == set(_CATEGORY_MAP.keys())
 
 
 class TestMain:

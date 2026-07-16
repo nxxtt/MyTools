@@ -89,7 +89,7 @@ class TestParser:
 
 class TestPayloads:
     def test_all_payloads_have_required_fields(self) -> None:
-        for _name, (filename, content_type, payload) in _ATTACH_BYPASS_PAYLOADS.items():
+        for (filename, content_type, payload) in _ATTACH_BYPASS_PAYLOADS.values():
             assert isinstance(filename, str) and filename
             assert isinstance(content_type, str) and "/" in content_type
             assert isinstance(payload, bytes) and len(payload) > 0
@@ -122,16 +122,16 @@ class TestBuildAttachmentEmail:
         msg = _build_attachment_email(
             "a@b.com", "c@d.com", "shell.php.jpg", "application/octet-stream", b"x",
         )
-        part = msg.get_payload()[1]
-        disp = part["Content-Disposition"]
+        part = msg.get_payload()[1]  # type: ignore[reportArgumentType]
+        disp = part["Content-Disposition"]  # type: ignore[reportArgumentType]
         assert "shell.php.jpg" in disp
 
     def test_content_type_override(self) -> None:
         msg = _build_attachment_email(
             "a@b.com", "c@d.com", "test.php", "image/jpeg", b"php_code",
         )
-        part = msg.get_payload()[1]
-        assert "image/jpeg" in part["Content-Type"]
+        part = msg.get_payload()[1]  # type: ignore[reportArgumentType]
+        assert "image/jpeg" in part["Content-Type"]  # type: ignore[reportArgumentType]
 
 
 class TestConnectSmtp:

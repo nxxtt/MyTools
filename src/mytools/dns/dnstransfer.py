@@ -135,8 +135,7 @@ def try_zone_transfer(
         records: list[str] = []
         for name, node in zone.nodes.items():  # pyright: ignore[reportGeneralTypeIssues]
             for rdataset in node.rdatasets:
-                for rdata in rdataset:
-                    records.append(f"{name} {dns.rdatatype.to_text(rdataset.rdtype)} {rdata}")
+                records.extend(f"{name} {dns.rdatatype.to_text(rdataset.rdtype)} {rdata}" for rdata in rdataset)
 
         return XfrResult(
             domain=domain,

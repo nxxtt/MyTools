@@ -3,11 +3,11 @@ import argparse
 import asyncio
 import ipaddress
 import logging
-import os
 import re
 import time
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -566,16 +566,16 @@ async def lookup_cves(
                 logger.debug("NVD lookup failed for %s: %s", keyword, error)
                 return []
 
-            findings: list[CVEFinding] = []
-            for result in results:
-                findings.append(CVEFinding(
+            findings: list[CVEFinding] = [
+                CVEFinding(
                     cve_id=result["id"],
                     description=result["description"][:200],
                     score=result["score"],
                     severity=result["severity"],
                     technology=tech_name,
                     version=version,
-                ))
+                ) for result in results
+            ]
             return findings
 
     tasks = [_query_one(tech, ver) for tech, ver in versions]
@@ -1067,7 +1067,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         all_results.append(result)
         if output_dir:
             hostname = extract_hostname(url)
-            out_path = os.path.join(output_dir, f"{hostname}.json")
+            out_path = str(Path(output_dir) / f"{hostname}.json")
             write_output(out_path, asdict(result), quiet=quiet)
 
     if args.output:

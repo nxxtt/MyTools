@@ -27,6 +27,7 @@ import logging
 import random
 import string
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 import dns.exception
 import dns.name
@@ -225,8 +226,7 @@ def _check_wildcard(domain: str, resolver: dns.resolver.Resolver) -> RebindingRe
         try:
             answers = resolver.resolve(test_domain, "A")
             resolved_any = True
-            for rdata in answers:
-                resolved_ips.append(rdata.address)
+            resolved_ips.extend(rdata.address for rdata in answers)
         except dns.exception.DNSException:
             continue
 
@@ -413,7 +413,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if not domain and target_list:
         try:
-            with open(target_list, encoding="utf-8") as f:
+            with Path(target_list).open(encoding="utf-8") as f:
                 domains = [line.strip() for line in f if line.strip()]
         except FileNotFoundError:
             print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))

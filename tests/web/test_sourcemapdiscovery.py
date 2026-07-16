@@ -18,7 +18,7 @@ class TestSourceMapInfo:
     def test_frozen(self):
         info = SourceMapInfo(url="http://x.com/app.js.map", status=200)
         with pytest.raises(AttributeError):
-            info.url = "nope"
+            info.url = "nope"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         info = SourceMapInfo(url="http://x.com/app.js.map")

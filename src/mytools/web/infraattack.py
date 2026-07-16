@@ -236,12 +236,12 @@ def _make_attempt(
 
 
 def _extract_secrets(body: str) -> list[str]:
-    found: list[str] = []
-    for pattern in _SECRET_PATTERNS:
-        matches = re.findall(pattern, body)
-        for match in matches:
-            if len(match) > 3 and match not in ("true", "false", "null", "undefined", "xxx"):
-                found.append(f"{pattern.split('(')[0].split('(?i)')[-1].strip()}: {match[:20]}...")
+    found: list[str] = [
+        f"{pattern.split('(')[0].split('(?i)')[-1].strip()}: {match[:20]}..."
+        for pattern in _SECRET_PATTERNS
+        for match in re.findall(pattern, body)
+        if len(match) > 3 and match not in ("true", "false", "null", "undefined", "xxx")
+    ]
     return list(set(found))
 
 
@@ -263,9 +263,10 @@ async def _test_terraform_state_leak(
                     if "resources" in data or "terraform_version" in data or "serial" in data:
                         leaked_files.append(state_path)
                         body = json.dumps(data)
-                        for pattern in _TERRAFORM_SECRET_PATTERNS:
-                            if re.search(pattern, body, re.IGNORECASE):
-                                secrets_found.append(pattern)
+                        secrets_found.extend(
+                            pattern for pattern in _TERRAFORM_SECRET_PATTERNS
+                            if re.search(pattern, body, re.IGNORECASE)
+                        )
                 except (json.JSONDecodeError, ValueError):
                     if "terraform" in resp.text.lower():
                         leaked_files.append(state_path)
@@ -470,9 +471,10 @@ async def _test_debug_mode_detection(
         headers_str = " ".join(f"{k}: {v}" for k, v in resp.headers.items())
         combined = resp.text + " " + headers_str
 
-        for sig_info in _DEBUG_MODE_SIGNATURES:
-            if re.search(sig_info["pattern"], combined, re.IGNORECASE):
-                detected_modes.append(sig_info["desc"])
+        detected_modes.extend(
+            sig_info["desc"] for sig_info in _DEBUG_MODE_SIGNATURES
+            if re.search(sig_info["pattern"], combined, re.IGNORECASE)
+        )
     except Exception:
         pass
 
@@ -482,9 +484,10 @@ async def _test_debug_mode_detection(
             full_url = url.rstrip("/") + path
             resp = await client.get(full_url)
             if resp.status_code == 200:
-                for sig_info in _DEBUG_MODE_SIGNATURES:
-                    if re.search(sig_info["pattern"], resp.text, re.IGNORECASE):
-                        detected_modes.append(f"{sig_info['desc']} ({path})")
+                detected_modes.extend(
+                    f"{sig_info['desc']} ({path})" for sig_info in _DEBUG_MODE_SIGNATURES
+                    if re.search(sig_info["pattern"], resp.text, re.IGNORECASE)
+                )
         except Exception:
             pass
 

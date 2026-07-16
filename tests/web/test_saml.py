@@ -126,7 +126,7 @@ def test_attempt_dataclass_frozen() -> None:
         vulnerable=True, details="test", error="",
     )
     with pytest.raises(AttributeError):
-        a.vulnerable = False
+        a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_attempt_dataclass_slots() -> None:
@@ -146,7 +146,7 @@ def test_result_dataclass_frozen() -> None:
         issues=[], overall_status="safe",
     )
     with pytest.raises(AttributeError):
-        r.target = "changed"
+        r.target = "changed"  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_result_dataclass_slots() -> None:

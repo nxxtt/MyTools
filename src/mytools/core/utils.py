@@ -44,7 +44,7 @@ def _read_version() -> str:
     """Le a versao de pyproject.toml (single source of truth)."""
     try:
         pyproject = Path(__file__).parent.parent.parent.parent / "pyproject.toml"
-        with open(pyproject, "rb") as fh:
+        with pyproject.open("rb") as fh:
             data = tomllib.load(fh)
         return data["tool"]["poetry"]["version"]
     except FileNotFoundError, KeyError, ValueError:
@@ -553,10 +553,10 @@ def write_output(
     quiet: bool = False,
 ) -> None:
     """Salva dados em arquivo JSON ou CSV."""
-    extension = os.path.splitext(path)[1].lower()
+    extension = Path(path).suffix.lower()
     if extension not in (".json", ".csv"):
         raise ValueError(f"extensao nao suportada: {extension!r} (use .json ou .csv)")
-    with open(path, "w", encoding="utf-8", newline="") as file_handle:
+    with Path(path).open("w", encoding="utf-8", newline="") as file_handle:
         if extension == ".json":
             json.dump(data, file_handle, indent=2)
             file_handle.write("\n")
@@ -698,9 +698,7 @@ def apply_session_auth(
     if bearer_token:
         client.headers["Authorization"] = f"Bearer {resolve_cred(bearer_token)}"
     if extra_headers:
-        resolved = []
-        for h in extra_headers:
-            resolved.append(resolve_cred(h))
+        resolved = [resolve_cred(h) for h in extra_headers]
         client.headers.update(parse_extra_headers(resolved))
     if cookie:
         client.headers["Cookie"] = resolve_cred(cookie)
@@ -722,9 +720,7 @@ async def apply_session_auth_async(
     if bearer_token:
         client.headers["Authorization"] = f"Bearer {await resolve_cred_async(bearer_token)}"
     if extra_headers:
-        resolved = []
-        for h in extra_headers:
-            resolved.append(await resolve_cred_async(h))
+        resolved = [await resolve_cred_async(h) for h in extra_headers]
         client.headers.update(parse_extra_headers(resolved))
     if cookie:
         client.headers["Cookie"] = await resolve_cred_async(cookie)
@@ -746,7 +742,7 @@ def read_target_lines(filepath: str, *, lowercase: bool = False, sort_dedup: boo
         sort_dedup: Se True, ordena e remove duplicatas.
     """
     try:
-        with open(filepath, encoding="utf-8", errors="replace") as fh:
+        with Path(filepath).open(encoding="utf-8", errors="replace") as fh:
             lines = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
     except FileNotFoundError:
         raise ValueError(f"arquivo nao encontrado: {filepath}") from None
@@ -795,8 +791,8 @@ def resolve_target_urls(args: argparse.Namespace) -> list[str]:
 
 def ensure_output_dir(output_dir: str | None) -> None:
     """Cria o diretorio de saida se nao existir."""
-    if output_dir and not os.path.isdir(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
+    if output_dir and not Path(output_dir).is_dir():
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
 
 NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"

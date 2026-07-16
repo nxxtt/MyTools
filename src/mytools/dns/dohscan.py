@@ -129,13 +129,12 @@ def _parse_dns_response(wire_data: bytes) -> list[DohRecord]:
     try:
         response = dns.message.from_wire(wire_data)
         for rrset in response.answer:
-            for rdata in rrset:
-                records.append(DohRecord(
-                    name=str(rrset.name),
-                    rdtype=dns.rdatatype.to_text(rrset.rdtype),
-                    ttl=rrset.ttl,
-                    rdata=str(rdata),
-                ))
+            records.extend(DohRecord(
+                name=str(rrset.name),
+                rdtype=dns.rdatatype.to_text(rrset.rdtype),
+                ttl=rrset.ttl,
+                rdata=str(rdata),
+            ) for rdata in rrset)
     except Exception:
         pass
     return records
@@ -150,13 +149,12 @@ def _traditional_resolve(domain: str, rdtype_str: str, timeout: float) -> tuple[
     start = time.monotonic()
     try:
         answer = resolver.resolve(domain, rdtype_str.upper())
-        for rdata in answer:
-            records.append(DohRecord(
-                name=str(answer.qname),
-                rdtype=rdtype_str.upper(),
-                ttl=answer.rrset.ttl if answer.rrset else 0,
-                rdata=str(rdata),
-            ))
+        records.extend(DohRecord(
+            name=str(answer.qname),
+            rdtype=rdtype_str.upper(),
+            ttl=answer.rrset.ttl if answer.rrset else 0,
+            rdata=str(rdata),
+        ) for rdata in answer)
     except dns.resolver.NoAnswer:
         error = "no_answer"
     except dns.resolver.NXDOMAIN:

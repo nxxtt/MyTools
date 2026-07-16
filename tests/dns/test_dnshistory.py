@@ -22,7 +22,7 @@ class TestDnsHistoryRecord:
     def test_frozen(self):
         r = DnsHistoryRecord(record_type="a", value="1.2.3.4", source="dnslytics")
         with pytest.raises(AttributeError):
-            r.value = "5.6.7.8"
+            r.value = "5.6.7.8"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         r = DnsHistoryRecord(record_type="a", value="1.2.3.4")

@@ -27,6 +27,7 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from urllib.parse import quote
 
 import httpx
@@ -495,7 +496,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if not domain and target_list:
         try:
-            with open(target_list, encoding="utf-8") as f:
+            with Path(target_list).open(encoding="utf-8") as f:
                 domains = [line.strip() for line in f if line.strip()]
         except FileNotFoundError:
             print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))

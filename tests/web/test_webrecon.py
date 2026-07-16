@@ -151,7 +151,7 @@ class TestReconResultDataclass:
             elapsed=0.0,
         )
         with pytest.raises(AttributeError):
-            r.status = 404
+            r.status = 404  # type: ignore[reportAttributeAccessIssue]
 
 
 class TestDetectTechnologies:
@@ -451,7 +451,7 @@ class TestCVEFindingDataclass:
             score=10.0, severity="CRITICAL", technology="Apache", version="2.14",
         )
         with pytest.raises(AttributeError):
-            f.score = 5.0
+            f.score = 5.0  # type: ignore[reportAttributeAccessIssue]
 
 
 class TestLookupCves:
@@ -610,16 +610,20 @@ class TestEmailPattern:
         assert isinstance(EMAIL_PATTERN, re.Pattern)
 
     def test_matches_basic_email(self):
-        assert EMAIL_PATTERN.search("user@example.com").group() == "user@example.com"
+        assert (m := EMAIL_PATTERN.search("user@example.com")) is not None
+        assert m.group() == "user@example.com"
 
     def test_matches_email_with_dots(self):
-        assert EMAIL_PATTERN.search("first.last@example.com").group() == "first.last@example.com"
+        assert (m := EMAIL_PATTERN.search("first.last@example.com")) is not None
+        assert m.group() == "first.last@example.com"
 
     def test_matches_email_with_plus(self):
-        assert EMAIL_PATTERN.search("user+tag@example.com").group() == "user+tag@example.com"
+        assert (m := EMAIL_PATTERN.search("user+tag@example.com")) is not None
+        assert m.group() == "user+tag@example.com"
 
     def test_matches_email_with_subdomain(self):
-        assert EMAIL_PATTERN.search("user@mail.example.com").group() == "user@mail.example.com"
+        assert (m := EMAIL_PATTERN.search("user@mail.example.com")) is not None
+        assert m.group() == "user@mail.example.com"
 
     def test_no_match_invalid(self):
         assert EMAIL_PATTERN.search("notanemail") is None
@@ -768,12 +772,12 @@ class TestWhoisResultDataclass:
         )
         assert w.domain == "example.com"
         assert w.registrar == "GoDaddy"
-        assert len(w.name_servers) == 2
+        assert len(w.name_servers or []) == 2
 
     def test_frozen(self):
         w = WhoisResult(domain="example.com")
         with pytest.raises(AttributeError):
-            w.domain = "other.com"
+            w.domain = "other.com"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults_none(self):
         w = WhoisResult(domain="test.com")

@@ -79,45 +79,55 @@ def _parse_dnslytics(body: bytes, domain: str) -> list[DnsHistoryRecord]:
     records: list[DnsHistoryRecord] = []
     nested = data.get("data", {})
 
-    for item in nested.get("ipv4", []):
-        records.append(DnsHistoryRecord(
+    records = [
+        DnsHistoryRecord(
             record_type="a",
             value=item.get("ip", ""),
             last_seen=item.get("updatedate"),
             source="dnslytics",
-        ))
+        )
+        for item in nested.get("ipv4", [])
+    ]
 
-    for item in nested.get("ipv6", []):
-        records.append(DnsHistoryRecord(
+    records.extend([
+        DnsHistoryRecord(
             record_type="aaaa",
             value=item.get("ip", ""),
             last_seen=item.get("updatedate"),
             source="dnslytics",
-        ))
+        )
+        for item in nested.get("ipv6", [])
+    ])
 
-    for item in nested.get("dns", []):
-        records.append(DnsHistoryRecord(
+    records.extend([
+        DnsHistoryRecord(
             record_type="ns",
             value=item.get("dns", ""),
             last_seen=item.get("updatedate"),
             source="dnslytics",
-        ))
+        )
+        for item in nested.get("dns", [])
+    ])
 
-    for item in nested.get("mx", []):
-        records.append(DnsHistoryRecord(
+    records.extend([
+        DnsHistoryRecord(
             record_type="mx",
             value=item.get("mx", ""),
             last_seen=item.get("updatedate"),
             source="dnslytics",
-        ))
+        )
+        for item in nested.get("mx", [])
+    ])
 
-    for item in nested.get("spf", []):
-        records.append(DnsHistoryRecord(
+    records.extend([
+        DnsHistoryRecord(
             record_type="txt",
             value=item.get("record", ""),
             last_seen=item.get("updatedate"),
             source="dnslytics",
-        ))
+        )
+        for item in nested.get("spf", [])
+    ])
 
     return records
 
@@ -171,16 +181,17 @@ def _parse_viewdns(body: bytes, domain: str) -> list[DnsHistoryRecord]:
     except ValueError:
         return []
 
-    records: list[DnsHistoryRecord] = []
-    for item in data.get("response", {}).get("records", []):
-        records.append(DnsHistoryRecord(
+    records: list[DnsHistoryRecord] = [
+        DnsHistoryRecord(
             record_type="a",
             value=item.get("ip", ""),
             last_seen=item.get("lastseen"),
             location=item.get("location"),
             owner=item.get("owner"),
             source="viewdns",
-        ))
+        )
+        for item in data.get("response", {}).get("records", [])
+    ]
 
     return records
 

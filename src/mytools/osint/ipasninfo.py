@@ -17,6 +17,7 @@ import json
 import logging
 import time
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import httpx
 
@@ -261,9 +262,7 @@ def lookup_ip_asn(
         async with asyncio.TaskGroup() as tg:
             futures = [tg.create_task(t) for t in tasks]
         gathered = [f.result() for f in futures]
-        for r in gathered:
-            if isinstance(r, IpAsnInfo):
-                results.append(r)
+        results = [r for r in gathered if isinstance(r, IpAsnInfo)]
         return results
 
     return safe_asyncio_run(_lookup_all())
@@ -330,7 +329,7 @@ def _load_ips_from_args(args: argparse.Namespace) -> list[str]:
 
     if getattr(args, "ip_file", None):
         try:
-            with open(args.ip_file) as fh:
+            with Path(args.ip_file).open() as fh:
                 for line in fh:
                     line = line.strip()
                     if line and not line.startswith("#"):

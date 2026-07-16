@@ -18,7 +18,7 @@ class TestGraphqlEndpoint:
     def test_frozen(self):
         ep = GraphqlEndpoint(url="http://x.com/graphql", tool="graphiql", status=200)
         with pytest.raises(AttributeError):
-            ep.tool = "nope"
+            ep.tool = "nope"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         ep = GraphqlEndpoint(url="http://x.com/graphql", tool="graphql", status=200)
@@ -128,7 +128,7 @@ class TestParseIntrospection:
                 }
             }
         }
-        types, query, mutation, subscription = parse_introspection(data)
+        types, query, mutation, subscription = parse_introspection(data)  # type: ignore[reportArgumentType]
         assert len(types) == 2
         assert "Query (OBJECT)" in types
         assert "User (OBJECT)" in types
@@ -158,7 +158,7 @@ class TestParseIntrospection:
                 }
             }
         }
-        types, _, _, _ = parse_introspection(data)
+        types, _, _, _ = parse_introspection(data)  # type: ignore[reportArgumentType]
         assert len(types) == 1
         assert types[0] == "Post (OBJECT)"
 
@@ -170,13 +170,13 @@ class TestParseIntrospection:
                 }
             }
         }
-        types, query, _mutation, _subscription = parse_introspection(data)
+        types, query, _mutation, _subscription = parse_introspection(data)  # type: ignore[reportArgumentType]
         assert types == ["Item (OBJECT)"]
         assert query == ""
 
     def test_malformed_types(self):
         data = {"data": {"__schema": {"types": "not a list"}}}
-        types, _, _, _ = parse_introspection(data)
+        types, _, _, _ = parse_introspection(data)  # type: ignore[reportArgumentType]
         assert types == []
 
 

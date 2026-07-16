@@ -182,7 +182,7 @@ class TestProbeDataclass:
     def test_frozen(self):
         p = Probe(url="http://x.com/.env", status=200, size=50, location="")
         with pytest.raises(AttributeError):
-            p.status = 404
+            p.status = 404  # type: ignore[reportAttributeAccessIssue]
 
 
 class TestFindingDataclass:
@@ -193,7 +193,7 @@ class TestFindingDataclass:
     def test_frozen(self):
         f = Finding("high", "transport", "item", "evidence", "rec")
         with pytest.raises(AttributeError):
-            f.severity = "low"
+            f.severity = "low"  # type: ignore[reportAttributeAccessIssue]
 
 
 class TestTLSVersionResult:
@@ -211,7 +211,7 @@ class TestTLSVersionResult:
     def test_frozen(self):
         r = TLSVersionResult(protocol="TLS 1.3", supported=True)
         with pytest.raises(AttributeError):
-            r.supported = False
+            r.supported = False  # type: ignore[reportAttributeAccessIssue]
 
 
 class TestAuditResultDataclass:
@@ -422,7 +422,7 @@ class TestSQLiPatterns:
         assert "sqlite" in SQL_ERROR_PATTERNS
 
     def test_patterns_are_regex(self):
-        for _db, patterns in SQL_ERROR_PATTERNS.items():
+        for patterns in SQL_ERROR_PATTERNS.values():
             for pattern in patterns:
                 assert isinstance(pattern, re.Pattern)
 
@@ -452,7 +452,7 @@ class TestErrorInfoPatterns:
             assert len(ERROR_INFO_PATTERNS[category]) > 0
 
     def test_patterns_are_regex(self):
-        for _cat, patterns in ERROR_INFO_PATTERNS.items():
+        for patterns in ERROR_INFO_PATTERNS.values():
             for pattern in patterns:
                 assert isinstance(pattern, re.Pattern)
 
@@ -596,12 +596,12 @@ class TestAnalyzeHeadersFindings:
 
     def test_waf_signatures_structure(self):
         assert isinstance(_WAF_SIGNATURES, dict)
-        for _name, rules in _WAF_SIGNATURES.items():
+        for rules in _WAF_SIGNATURES.values():
             assert "headers" in rules or "cookies" in rules
 
     def test_verbose_error_headers_structure(self):
         assert isinstance(_VERBOSE_ERROR_HEADERS, dict)
-        for _header, (sev, cat, rec) in _VERBOSE_ERROR_HEADERS.items():
+        for (sev, cat, rec) in _VERBOSE_ERROR_HEADERS.values():
             assert sev in ("low", "medium", "high", "critical", "info")
             assert cat in ("fingerprint", "info_leak")
             assert isinstance(rec, str)
@@ -677,14 +677,14 @@ class TestAnalyzeHiddenFields:
 
     def test_sensitive_structure(self):
         assert isinstance(_SENSITIVE_HIDDEN_FIELDS, dict)
-        for _name, (sev, cat, patterns) in _SENSITIVE_HIDDEN_FIELDS.items():
+        for (sev, cat, patterns) in _SENSITIVE_HIDDEN_FIELDS.values():
             assert sev in ("low", "medium", "high", "critical", "info")
             assert cat in ("exposure", "info_leak")
             assert len(patterns) > 0
 
     def test_value_patterns_structure(self):
         assert isinstance(_SENSITIVE_VALUE_PATTERNS, dict)
-        for _name, (sev, cat, _pattern) in _SENSITIVE_VALUE_PATTERNS.items():
+        for (sev, cat, _pattern) in _SENSITIVE_VALUE_PATTERNS.values():
             assert sev in ("low", "medium", "high", "critical", "info")
             assert cat in ("exposure", "info_leak")
 
@@ -841,7 +841,7 @@ class TestSecurityHeadersConstant:
         assert set(SECURITY_HEADERS_RECS.keys()) == expected
 
     def test_values_are_strings(self):
-        for _header, rec in SECURITY_HEADERS_RECS.items():
+        for rec in SECURITY_HEADERS_RECS.values():
             assert isinstance(rec, str)
             assert len(rec) > 0
 
@@ -917,7 +917,7 @@ class TestMethodResultDataclass:
     def test_frozen(self):
         r = MethodResult(url="https://example.com/api", method="DELETE", status=204, size=0)
         with pytest.raises(AttributeError):
-            r.status = 404
+            r.status = 404  # type: ignore[reportAttributeAccessIssue]
 
 
 class TestMethodsToTest:

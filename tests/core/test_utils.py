@@ -1,7 +1,7 @@
 import argparse
 import logging
-import os
 import time
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -312,7 +312,7 @@ class TestSetupLogging:
         logger.info("test message")
         for handler in logging.getLogger("mytools").handlers:
             handler.flush()
-        assert os.path.exists(log_file)
+        assert Path(log_file).exists()
 
     def test_log_file_sets_info_level(self, tmp_path):
         log_file = str(tmp_path / "test.log")
@@ -747,13 +747,13 @@ class TestWriteOutput:
         from mytools.core.utils import write_output
         path = str(tmp_path / "result.json")
         write_output(path, {"key": "value"}, quiet=True)
-        assert os.path.exists(path)
+        assert Path(path).exists()
 
     def test_csv_extension(self, tmp_path):
         from mytools.core.utils import write_output
         path = str(tmp_path / "result.csv")
         write_output(path, [{"a": "1"}], fieldnames=["a"], quiet=True)
-        assert os.path.exists(path)
+        assert Path(path).exists()
 
     def test_invalid_extension_raises(self, tmp_path):
         from mytools.core.utils import write_output
@@ -806,7 +806,7 @@ class TestEnsureOutputDir:
     def test_creates_dir(self, tmp_path):
         new_dir = str(tmp_path / "output")
         ensure_output_dir(new_dir)
-        assert os.path.isdir(new_dir)
+        assert Path(new_dir).is_dir()
 
     def test_none_is_noop(self):
         ensure_output_dir(None)
@@ -953,7 +953,7 @@ class TestWriteOutputMalformed:
 
         path = str(tmp_path / "empty.csv")
         write_output(path, [], fieldnames=["a", "b"], quiet=True)
-        with open(path, encoding="utf-8") as f:
+        with Path(path).open(encoding="utf-8") as f:
             content = f.read()
         assert "a,b" in content
 

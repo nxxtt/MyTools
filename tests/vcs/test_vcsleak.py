@@ -19,7 +19,7 @@ class TestVCSLeak:
     def test_frozen(self):
         leak = VCSLeak(vcs_type="git", url="http://x.com/.git/HEAD", path=".git/HEAD")
         with pytest.raises(AttributeError):
-            leak.vcs_type = "hg"
+            leak.vcs_type = "hg"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         leak = VCSLeak(vcs_type="git", url="http://x.com/.git/HEAD", path=".git/HEAD")

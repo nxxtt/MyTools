@@ -20,7 +20,7 @@ class TestWhoisHistoryRecord:
     def test_frozen(self):
         r = WhoisHistoryRecord(domain="example.com", date="2024-01-01")
         with pytest.raises(AttributeError):
-            r.date = "2025-01-01"
+            r.date = "2025-01-01"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         r = WhoisHistoryRecord(domain="example.com", date="2024-01-01")

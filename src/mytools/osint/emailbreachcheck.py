@@ -19,6 +19,7 @@ import logging
 import sys
 import time
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from urllib.parse import quote
 
 import httpx
@@ -143,12 +144,11 @@ async def _query_xposedornot(
                     tool="xposedornot",
                 ))
     elif isinstance(breaches_raw, dict):
-        for name in breaches_raw:
-            breaches.append(EmailBreach(
-                email=email, breach_name=name, source="xposedornot",
-                exploit=f"https://haveibeenpwned.com/account/{email}",
-                tool="xposedornot",
-            ))
+        breaches.extend(EmailBreach(
+            email=email, breach_name=name, source="xposedornot",
+            exploit=f"https://haveibeenpwned.com/account/{email}",
+            tool="xposedornot",
+        ) for name in breaches_raw)
 
     return breaches
 
@@ -241,9 +241,8 @@ async def _query_hibp(
     if not isinstance(items, list):
         return []
 
-    breaches: list[EmailBreach] = []
-    for item in items:
-        breaches.append(EmailBreach(
+    breaches: list[EmailBreach] = [
+        EmailBreach(
             email=email,
             breach_name=item.get("Name", "unknown"),
             breach_date=item.get("BreachDate", ""),
@@ -252,7 +251,8 @@ async def _query_hibp(
             source="hibp",
             exploit=f"https://haveibeenpwned.com/account/{email}",
             tool="hibp",
-        ))
+        ) for item in items
+    ]
 
     return breaches
 
@@ -363,16 +363,16 @@ def print_results(breaches: list[EmailBreach]) -> None:
     print(color("\n  Vazamentos Encontrados", Cyber.RED, Cyber.BOLD))
 
     hdrs = ("EMAIL", "VAZAMENTO", "DATA", "REGISTROS", "DADOS", "FONTE")
-    rows: list[tuple[str, ...]] = []
-    for b in breaches:
-        rows.append((
+    rows: list[tuple[str, ...]] = [
+        (
             b.email,
             b.breach_name[:30],
             b.breach_date or "-",
             str(b.pwn_count) if b.pwn_count else "-",
             b.data_classes[:30] or "-",
             b.source,
-        ))
+        ) for b in breaches
+    ]
 
     def _row_styles(_row: tuple[str, ...]) -> list[tuple[str, ...]]:
         return [
@@ -433,7 +433,7 @@ def _load_emails(args: argparse.Namespace) -> list[str]:
     email_file = getattr(args, "email_file", None)
     if email_file:
         try:
-            with open(email_file, encoding="utf-8") as f:
+            with Path(email_file).open(encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line and "@" in line:

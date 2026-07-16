@@ -426,15 +426,15 @@ def print_results(employees: list[EmployeeInfo]) -> None:
     print(color("\n  Funcionarios Encontrados", Cyber.CYAN, Cyber.BOLD))
 
     hdrs = ("NOME", "EMAIL", "CARGO", "SENIORIDADE", "FONTE")
-    rows: list[tuple[str, ...]] = []
-    for e in employees:
-        rows.append((
+    rows: list[tuple[str, ...]] = [
+        (
             e.name or "-",
             e.email or "-",
             (e.position or "-")[:30],
             e.seniority or "-",
             e.source,
-        ))
+        ) for e in employees
+    ]
 
     def _row_styles(_row: tuple[str, ...]) -> list[tuple[str, ...]]:
         return [

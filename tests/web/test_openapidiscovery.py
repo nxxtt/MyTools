@@ -19,7 +19,7 @@ class TestEndpointInfo:
     def test_frozen(self):
         ep = EndpointInfo(method="GET", path="/users")
         with pytest.raises(AttributeError):
-            ep.method = "POST"
+            ep.method = "POST"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         ep = EndpointInfo(method="GET", path="/users")
@@ -45,7 +45,7 @@ class TestApiSpecInfo:
     def test_frozen(self):
         spec = ApiSpecInfo(url="http://x.com/o.json", format="json")
         with pytest.raises(AttributeError):
-            spec.title = "nope"
+            spec.title = "nope"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         spec = ApiSpecInfo(url="http://x.com/o.json", format="json")
@@ -128,14 +128,14 @@ class TestParseOpenapiV3:
                 }
             }
         }
-        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)
+        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)  # type: ignore[reportArgumentType]
         assert len(endpoints) == 1
         assert len(endpoints[0].parameters) == 2
         assert endpoints[0].parameters[0] == "page (query)"
 
     def test_non_dict_methods(self):
         spec = {"paths": {"/x": "not a dict"}}
-        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)
+        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)  # type: ignore[reportArgumentType]
         assert endpoints == []
 
 
@@ -348,7 +348,7 @@ class TestParseSpecEdgeCases:
 
     def test_v3_with_malformed_parameters(self):
         spec = {"paths": {"/x": {"get": {"parameters": "not a list"}}}}
-        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)
+        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)  # type: ignore[reportArgumentType]
         assert endpoints[0].parameters == []
 
     def test_parse_spec_dict_not_dict(self):

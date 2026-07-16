@@ -118,7 +118,7 @@ class TestBannerProbes:
         assert 8443 not in BANNER_PROBES
 
     def test_probes_are_bytes(self):
-        for _port, probe in BANNER_PROBES.items():
+        for probe in BANNER_PROBES.values():
             assert isinstance(probe, bytes)
             assert b"HEAD" in probe
 
@@ -133,7 +133,7 @@ class TestFindingDataclass:
     def test_frozen(self):
         f = Finding(host="localhost", address="127.0.0.1", port=80, state="open", service="http")
         with pytest.raises(AttributeError):
-            f.port = 443
+            f.port = 443  # type: ignore[reportAttributeAccessIssue]
 
 
 class TestBuildParser:

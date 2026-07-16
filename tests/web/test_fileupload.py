@@ -100,7 +100,7 @@ def test_attempt_dataclass_frozen() -> None:
         vulnerable=True, details="test", error="",
     )
     with pytest.raises(AttributeError):
-        a.vulnerable = False
+        a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_attempt_dataclass_slots() -> None:
@@ -126,7 +126,7 @@ def test_result_dataclass_frozen() -> None:
         overall_status="safe",
     )
     with pytest.raises(AttributeError):
-        r.target = "changed"
+        r.target = "changed"  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_result_dataclass_slots() -> None:
@@ -154,8 +154,7 @@ def test_no_duplicate_payload_names_across_lists() -> None:
         _POLYGLOT_PAYLOADS, _SVG_XXE_PAYLOADS, _IMAGIC_PAYLOADS,
         _ZIP_SLIP_PAYLOADS, _FILENAME_PAYLOADS, _CONTENT_TYPE_PAYLOADS,
     ):
-        for p in lst:
-            all_names.append(p[0])
+        all_names.extend(p[0] for p in lst)
     assert len(all_names) == len(set(all_names))
 
 

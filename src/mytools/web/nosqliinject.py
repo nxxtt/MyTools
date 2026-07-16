@@ -701,10 +701,7 @@ async def run_scan(
 
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
         blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-        issues: list[str] = []
-        for att in all_attempts:
-            if att.vulnerable:
-                issues.append(f"VULN: {att.technique} - {att.details}")
+        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
 
         overall = "vulnerable" if vuln_techs else "secure"
 

@@ -54,7 +54,7 @@ class TestSubdomainResult:
     def test_frozen(self):
         result = SubdomainResult(subdomain="www.example.com")
         with pytest.raises(AttributeError):
-            result.subdomain = "other.com"
+            result.subdomain = "other.com"  # type: ignore[reportAttributeAccessIssue]
 
     def test_defaults(self):
         result = SubdomainResult(subdomain="www.example.com")
@@ -140,7 +140,7 @@ class TestResolveSubdomain:
         mock_resolver = MagicMock()
         MockResolver.return_value = mock_resolver
         rdata = MagicMock()
-        rdata.__str__ = lambda self: "1.2.3.4"
+        type(rdata).__str__ = MagicMock(return_value="1.2.3.4")  # type: ignore[reportAttributeAccessIssue]
         mock_resolver.resolve.return_value = [rdata]
 
         result = _resolve_subdomain("www", "example.com", 3.0, mock_resolver)
@@ -153,9 +153,9 @@ class TestResolveSubdomain:
         mock_resolver = MagicMock()
         MockResolver.return_value = mock_resolver
         r1 = MagicMock()
-        r1.__str__ = lambda self: "5.6.7.8"
+        type(r1).__str__ = MagicMock(return_value="5.6.7.8")  # type: ignore[reportAttributeAccessIssue]
         r2 = MagicMock()
-        r2.__str__ = lambda self: "1.2.3.4"
+        type(r2).__str__ = MagicMock(return_value="1.2.3.4")  # type: ignore[reportAttributeAccessIssue]
         mock_resolver.resolve.return_value = [r1, r2]
 
         result = _resolve_subdomain("www", "example.com", 3.0, mock_resolver)

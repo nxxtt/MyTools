@@ -598,16 +598,15 @@ async def run_scan(
                 raw = await tester(token, payload, header, target, timeout)
             else:
                 raw = await tester(token, payload, header)
-            for item in raw:
-                all_attempts.append(JWTAnalysisAttempt(
+            all_attempts.extend(JWTAnalysisAttempt(
                 exploit="jwt_tool <token> -C -d <dict>",
                 tool="jwt_tool",
-                    technique=str(item["technique"]),
-                    category=str(item["category"]),
-                    vulnerable=bool(item["vulnerable"]),
-                    details=str(item["details"]),
-                    error=str(item["error"]),
-                ))
+                technique=str(item["technique"]),
+                category=str(item["category"]),
+                vulnerable=bool(item["vulnerable"]),
+                details=str(item["details"]),
+                error=str(item["error"]),
+            ) for item in raw)
         except Exception as e:
             all_attempts.append(JWTAnalysisAttempt(
                 technique=f"{cat}_error",

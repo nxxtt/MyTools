@@ -82,7 +82,7 @@ class TestBuildTestEmail:
         msg = _build_test_email("a@b.com", "c@d.com")
         payload = msg.get_payload()
         assert len(payload) == 1
-        assert payload[0].get_content_type() == "text/html"
+        assert payload[0].get_content_type() == "text/html"  # type: ignore[reportArgumentType]
 
 
 class TestCategoryMap:
