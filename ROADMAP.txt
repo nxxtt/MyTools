@@ -376,9 +376,9 @@ VISTAR NOVAMENTE
 
 ## Anti-detection & Stealth
 
-208. Stealth Mode avançado — Jitter, random delay, source port randomization, fragmentation
-209. Anti-detection — Evitar assinaturas de IDS/IPS/WAF (fragmentation, encoding)
-210. Proxy rotation — Rotacionar entre múltiplos proxies automaticamente
-211. Tor support — Scans via rede Tor (.onion e IPs públicos)
-212. Rate limit auto-adjust — Detectar 429 e ajustar automaticamente
-213. Custom User-Agent rotation — Rodar com múltiplos user-agents para evitar bloqueio
+208. [x] Stealth Mode avançado — Jitter, random delay, source port randomization, fragmentation
+209. [x] Anti-detection — Evitar assinaturas de IDS/IPS/WAF (fragmentation, encoding)
+210. [x] Proxy rotation — Rotacionar entre múltiplos proxies automaticamente
+211. [x] Tor support — Scans via rede Tor (.onion e IPs públicos)
+212. [x] Rate limit auto-adjust — Detectar 429 e ajustar automaticamente
+213. [x] Custom User-Agent rotation — Rodar com múltiplos user-agents para evitar bloqueio

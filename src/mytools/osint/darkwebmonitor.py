@@ -34,6 +34,7 @@ from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
+    __version__,
     add_base_args,
     add_http_args,
     color,
@@ -312,7 +313,7 @@ async def scan_darkweb(
     """Executa scan de dark web em todas as fontes configuradas."""
     rate_limiter = RateLimiter(requests_per_second)
     client = create_async_client(
-        user_agent=user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MyTools",
+        user_agent=user_agent or f"MyTools/{__version__}",
         proxy=proxy,
         verify=verify,
     )

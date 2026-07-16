@@ -26,6 +26,7 @@ import csv
 import json
 import logging
 import os
+import random
 import shlex
 import sys
 import time
@@ -153,6 +154,7 @@ def run_main_loop(
         return 1
 
     try:
+        validate_stealth_args(args)
         if not quiet:
             banner_fn()
         return run_fn(args)
@@ -288,18 +290,23 @@ class RateLimiter:
     - _backoff_multiplier: multiplica o intervalo quando recebe 429
     - Em 429, dobramos o multiplicador (max 16x) para respeitar rate limit
     - wait() calcula o proximo slot valido e dorme se necessario
+    - Jitter opcional para variar delays entre requests
+    - Auto-recovery: backoff diminui gradualmente em responses 2xx
     - Not thread-safe (projetado para uso dentro de um event loop asyncio)
     """
 
-    def __init__(self, requests_per_second: float = 0.0) -> None:
+    def __init__(self, requests_per_second: float = 0.0, jitter: float = 0.0) -> None:
         self._base_rps = max(requests_per_second, 0.0)
         self._min_interval = 1.0 / self._base_rps if self._base_rps > 0 else 0.0
         self._last_request_time = 0.0
         self._backoff_multiplier: float = 1.0
+        self._jitter = max(jitter, 0.0)
 
     async def wait(self) -> None:
         """Bloqueia ate que o intervalo minimo entre requests tenha passado."""
         effective_interval = self._min_interval * self._backoff_multiplier
+        if self._jitter > 0 and effective_interval > 0:
+            effective_interval *= (1.0 + random.uniform(-self._jitter, self._jitter))
         if effective_interval <= 0:
             self._last_request_time = time.monotonic()
             return
@@ -316,9 +323,23 @@ class RateLimiter:
         """Notifica que um 429 foi recebido, aumentando o delay."""
         self._backoff_multiplier = min(self._backoff_multiplier * 2.0, 16.0)
 
+    def notify_ok(self) -> None:
+        """Notifica que um 2xx foi recebido, reduzindo backoff gradualmente."""
+        if self._backoff_multiplier > 1.0:
+            self._backoff_multiplier = max(self._backoff_multiplier * 0.8, 1.0)
+
     def reset_backoff(self) -> None:
         """Reseta o multiplicador de backoff para 1.0."""
         self._backoff_multiplier = 1.0
+
+    def get_effective_rps(self) -> float:
+        """Retorna RPS efetivo atual (considerando backoff e jitter)."""
+        if self._min_interval <= 0:
+            return 0.0
+        effective = self._min_interval * self._backoff_multiplier
+        if effective <= 0:
+            return 0.0
+        return 1.0 / effective
 
 
 def create_async_client(
@@ -326,9 +347,27 @@ def create_async_client(
     proxy: str | None = None,
     timeout: float = 5.0,
     verify: bool = False,
+    impersonate: str | None = None,
 ) -> httpx.AsyncClient:
-    """Cria um cliente HTTP async com headers padrao."""
+    """Cria um cliente HTTP async com headers padrao.
+
+    Suporta TLS fingerprint impersonation via curl-cffi quando disponivel.
+    """
     headers = {"User-Agent": user_agent}
+
+    # TLS fingerprint impersonation via curl-cffi
+    if impersonate:
+        try:
+            from curl_cffi.requests import AsyncSession
+
+            session = AsyncSession(impersonate=impersonate, verify=verify, timeout=timeout, proxy=proxy)
+            session.headers.update(headers)
+            return session  # type: ignore[return-value]
+        except ImportError:
+            logger.debug("curl-cffi nao instalado, usando httpx padrao")
+        except Exception as error:
+            logger.debug("falha ao criar cliente curl-cffi: %s", error)
+
     return httpx.AsyncClient(
         headers=headers,
         proxy=proxy,
@@ -676,10 +715,129 @@ def add_http_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--header", action="append", default=[], help="Header customizado (pode usar mais de um). Ex: 'X-Token: abc'")
 
 
+def _detect_module_type() -> str:
+    """Auto-detecta tipo do modulo chamador via sys._getframe().
+
+    Returns:
+        'web', 'dns', 'email', 'osint', 'network', 'vcs', 'config', ou 'core'.
+    """
+    frame = sys._getframe(1)
+    module_name = frame.f_globals.get("__name__", "")
+    if "web" in module_name:
+        return "web"
+    if "dns" in module_name:
+        return "dns"
+    if "email" in module_name:
+        return "email"
+    if "osint" in module_name:
+        return "osint"
+    if "network" in module_name:
+        return "network"
+    if "vcs" in module_name:
+        return "vcs"
+    if "config" in module_name:
+        return "config"
+    return "core"
+
+
+# Compatibilidade de flags stealth por tipo de modulo
+_STEALTH_COMPAT: dict[str, set[str]] = {
+    "web": {"proxy", "delay", "random-delay", "jitter", "user-agent-rotate", "impersonate", "fragment", "tor", "waf-evasion", "pad-headers", "rate-limit"},
+    "dns": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
+    "email": {"proxy", "delay", "random-delay", "jitter", "fragment", "tor", "waf-evasion", "pad-headers", "rate-limit"},
+    "osint": {"proxy", "delay", "random-delay", "jitter", "user-agent-rotate", "tor", "rate-limit"},
+    "network": {"proxy", "delay", "random-delay", "jitter", "fragment-tcp", "tor", "src-port-random", "rate-limit"},
+    "vcs": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
+    "config": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
+    "core": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
+}
+
+
+def add_stealth_args(parser: argparse.ArgumentParser, module_type: str | None = None) -> None:
+    """Adiciona argumentos stealth anti-detection ao parser.
+
+    Apenas flags compativel com o tipo de modulo sao adicionadas.
+    Flags incompatíveis NAO aparecem no -h.
+    """
+    if module_type is None:
+        module_type = _detect_module_type()
+    compat = _STEALTH_COMPAT.get(module_type, _STEALTH_COMPAT["core"])
+
+    if "random-delay" in compat:
+        parser.add_argument("--random-delay", action="store_true", help="Delay aleatorio entre requests (0-2s).")
+    if "jitter" in compat:
+        parser.add_argument("--jitter", type=float, default=0.0, help="Variacao aleatoria no delay (0.0-1.0). Ex: 0.2 = ±20%%.")
+    if "user-agent-rotate" in compat:
+        parser.add_argument("--user-agent-rotate", action="store_true", help="Rotaciona User-Agent a cada request.")
+    if "impersonate" in compat:
+        parser.add_argument(
+            "--impersonate",
+            choices=["chrome", "firefox", "safari", "edge", "mobile"],
+            help="TLS fingerprint de browser real (requer curl-cffi).",
+        )
+    if "fragment" in compat:
+        parser.add_argument("--fragment", type=int, default=0, help="Fragmenta headers HTTP em chunks (evasao L7). Valor: tamanho do chunk.")
+    if "fragment-tcp" in compat:
+        parser.add_argument("--fragment-tcp", type=int, default=0, help="Fragmenta payload TCP em chunks (evasao L4). Valor: tamanho do chunk.")
+    if "tor" in compat:
+        parser.add_argument("--tor", action="store_true", help="Redireciona requests via Tor (SOCKS5).")
+    if "waf-evasion" in compat:
+        parser.add_argument("--waf-evasion", action="store_true", help="Aplica encoding anti-WAF em URLs e headers.")
+    if "pad-headers" in compat:
+        parser.add_argument("--pad-headers", type=int, default=0, help="Adiciona headers padding (minimo total). Valor: count minimo.")
+    if "src-port-random" in compat:
+        parser.add_argument("--src-port-random", action="store_true", help="Randomiza porta de origem TCP.")
+    if "rate-limit" in compat:
+        parser.add_argument("--rate-limit", type=float, default=0.0, help="Rate limit global (requests/segundo). 0 = sem limite.")
+
+
+def validate_stealth_args(args: argparse.Namespace, module_type: str | None = None) -> None:
+    """Valida flags stealth, abortando se incompativel com o tipo de modulo.
+
+    Raises:
+        SystemExit: se flag incompativel for usada (erro de usage, code 2).
+    """
+    if module_type is None:
+        module_type = _detect_module_type()
+    compat = _STEALTH_COMPAT.get(module_type, _STEALTH_COMPAT["core"])
+
+    stealth_flags = [
+        "random_delay", "jitter", "user_agent_rotate", "impersonate",
+        "fragment", "fragment_tcp", "tor", "waf_evasion", "pad_headers",
+        "src_port_random", "rate_limit",
+    ]
+    flag_to_compat = {
+        "random_delay": "random-delay",
+        "jitter": "jitter",
+        "user_agent_rotate": "user-agent-rotate",
+        "impersonate": "impersonate",
+        "fragment": "fragment",
+        "fragment_tcp": "fragment-tcp",
+        "tor": "tor",
+        "waf_evasion": "waf-evasion",
+        "pad_headers": "pad-headers",
+        "src_port_random": "src-port-random",
+        "rate_limit": "rate-limit",
+    }
+
+    for flag in stealth_flags:
+        value = getattr(args, flag, None)
+        if value is None or value is False or value == 0 or value == 0.0:
+            continue
+        compat_name = flag_to_compat.get(flag, flag)
+        if compat_name not in compat:
+            print(
+                color(f"Erro: --{compat_name.replace('_', '-')} nao e compativel com modulo {module_type}", Cyber.RED),
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
-    """Adiciona argumentos compartilhados (base + HTTP) a um parser."""
+    """Adiciona argumentos compartilhados (base + HTTP + stealth) a um parser."""
     add_base_args(parser)
     add_http_args(parser)
+    add_stealth_args(parser)
 
 
 def apply_session_auth(
@@ -990,6 +1148,7 @@ def run_interactive_shell(
             args = parser.parse_args(shlex.split(raw))
             if validate_fn:
                 validate_fn(args)
+            validate_stealth_args(args)
             run_fn(args)
         except FetchError as error:
             print(color(f"Erro: {error}", Cyber.RED))

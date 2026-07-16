@@ -461,7 +461,7 @@ mytools-secemail example.com
 mytools-secemail example.com -o emailsec.json
 ```
 
-### 31. Email Spoofing (`mytools-spoof`)
+### 33. Email Spoofing (`mytools-spoof`)
 Análise de vulnerabilidade a spoofing via SPF/DKIM/DMARC.
 
 ```bash
@@ -469,7 +469,7 @@ mytools-spoof example.com
 mytools-spoof example.com -o spoof.json
 ```
 
-### 32. SMTP Injection (`mytools-smtpinject`)
+### 34. SMTP Injection (`mytools-smtpinject`)
 Testa injeção CRLF em campos de email via SMTP.
 
 ```bash
@@ -478,7 +478,7 @@ mytools-smtpinject mail.example.com --port 25
 mytools-smtpinject mail.example.com --from-addr admin@test.com
 ```
 
-### 33. SMTP Downgrade (`mytools-smtpdown`)
+### 35. SMTP Downgrade (`mytools-smtpdown`)
 Testa se servidor SMTP pode ser forçado a operar em plaintext (STARTTLS stripping).
 
 ```bash
@@ -487,7 +487,7 @@ mytools-smtpdown mail.example.com --port 25
 mytools-smtpdown mail.example.com --from-addr admin@test.com
 ```
 
-### 34. Email Template Injection (`mytools-templeti`)
+### 36. Email Template Injection (`mytools-templeti`)
 Testa injeção de código em templates de email (Jinja2, Handlebars, Mako, Tornado).
 
 ```bash
@@ -496,7 +496,7 @@ mytools-templeti mail.example.com --port 25
 mytools-templeti mail.example.com --from-addr admin@test.com
 ```
 
-### 35. Email Attachment Bypass (`mytools-attachbypass`)
+### 37. Email Attachment Bypass (`mytools-attachbypass`)
 Testa bypass de filtros de anexos de email (tipos perigosos, extensões duplas).
 
 ```bash
@@ -504,7 +504,7 @@ mytools-attachbypass mail.example.com
 mytools-attachbypass mail.example.com --technique double-extension
 ```
 
-### 36. Email Address Bypass (`mytools-addrbypass`)
+### 38. Email Address Bypass (`mytools-addrbypass`)
 Testa bypass de blocklists de email usando técnicas de encoding e formatação.
 
 ```bash
@@ -513,7 +513,7 @@ mytools-addrbypass user@example.com --technique unicode
 mytools-addrbypass -f emails.txt -o results.json
 ```
 
-### 37. Email Link Tracking (`mytools-linktrack`)
+### 39. Email Link Tracking (`mytools-linktrack`)
 Detecta tracking pixels e rewrites de links em emails.
 
 ```bash
@@ -521,7 +521,7 @@ mytools-linktrack https://example.com
 mytools-linktrack https://example.com --deep
 ```
 
-### 38. Null Byte Injection (`mytools-nullbyte`)
+### 40. Null Byte Injection (`mytools-nullbyte`)
 Testa injecao de null bytes (%00) em URLs, headers e parâmetros HTTP.
 
 ```bash
@@ -530,7 +530,7 @@ mytools-nullbyte https://example.com -c url
 mytools-nullbyte https://example.com -c header
 ```
 
-### 39. Double URL Encoding Bypass (`mytools-dblurl`)
+### 41. Double URL Encoding Bypass (`mytools-dblurl`)
 Testa bypass de filtros via encoding duplo de URLs.
 
 ```bash
@@ -538,7 +538,7 @@ mytools-dblurl https://example.com
 mytools-dblurl https://example.com -c param
 ```
 
-### 40. Path Traversal via Encoding (`mytools-ptraversal`)
+### 42. Path Traversal via Encoding (`mytools-ptraversal`)
 Testa path traversal via encoding de URLs.
 
 ```bash
@@ -546,7 +546,7 @@ mytools-ptraversal https://example.com
 mytools-ptraversal https://example.com -c path
 ```
 
-### 41. RTL Override Bypass (`mytools-rtlo`)
+### 43. RTL Override Bypass (`mytools-rtlo`)
 Usa Right-to-Left Override para confundir display de URLs.
 
 ```bash
@@ -556,7 +556,7 @@ mytools-rtlo https://example.com --type zero-width
 mytools-rtlo https://example.com --type combining
 ```
 
-### 42. Overlong UTF-8 Encoding (`mytools-overlong`)
+### 44. Overlong UTF-8 Encoding (`mytools-overlong`)
 Usa overlong encoding para bypass de filtros.
 
 ```bash
@@ -564,7 +564,7 @@ mytools-overlong https://example.com
 mytools-overlong https://example.com -c url
 ```
 
-### 43. BOM Injection (`mytools-bominject`)
+### 45. BOM Injection (`mytools-bominject`)
 Injeta Byte Order Mark em início de arquivos/requests.
 
 ```bash
@@ -572,7 +572,7 @@ mytools-bominject https://example.com
 mytools-bominject https://example.com -c url
 ```
 
-### 44. Charset Detection Bypass (`mytools-charsetbypass`)
+### 46. Charset Detection Bypass (`mytools-charsetbypass`)
 Força detecção de charset errada para bypass.
 
 ```bash
@@ -580,7 +580,7 @@ mytools-charsetbypass https://example.com
 mytools-charsetbypass https://example.com -c meta
 ```
 
-### 45. Open Redirect (`mytools-openredirect`)
+### 47. Open Redirect (`mytools-openredirect`)
 Detecta redirecionamentos abusivos em web apps.
 
 ```bash
@@ -589,7 +589,7 @@ mytools-openredirect https://example.com -c param
 mytools-openredirect https://example.com -c bypass
 ```
 
-### 46. CRLF Injection (`mytools-crlfinject`)
+### 48. CRLF Injection (`mytools-crlfinject`)
 Detecta injecao de headers via \r\n em HTTP.
 
 ```bash
@@ -598,7 +598,7 @@ mytools-crlfinject https://example.com -c param
 mytools-crlfinject https://example.com -c header
 ```
 
-### 47. SSTI Detection (`mytools-sstdetect`)
+### 49. SSTI Detection (`mytools-sstdetect`)
 Detecta Server-Side Template Injection em web apps.
 
 ```bash
@@ -607,7 +607,7 @@ mytools-sstdetect https://example.com -c detect
 mytools-sstdetect https://example.com -c exploit
 ```
 
-### 48. SSRF Detection (`mytools-ssrfdetect`)
+### 50. SSRF Detection (`mytools-ssrfdetect`)
 Detecta Server-Side Request Forgery em web apps.
 
 ```bash
@@ -617,7 +617,7 @@ mytools-ssrfdetect https://example.com -c cloud
 mytools-ssrfdetect https://example.com -c bypass
 ```
 
-### 49. XXE Detection (`mytools-xxedetect`)
+### 51. XXE Detection (`mytools-xxedetect`)
 Detecta XML External Entity em web apps via uploads de XML (SVG, SOAP, DOCX, RSS).
 
 ```bash
@@ -627,7 +627,7 @@ mytools-xxedetect https://example.com -c file_read
 mytools-xxedetect https://example.com -c bypass
 ```
 
-### 50. NoSQL Injection (`mytools-nosqli`)
+### 52. NoSQL Injection (`mytools-nosqli`)
 Detecta injecao NoSQL em web apps (MongoDB, Redis, CouchDB).
 
 ```bash
@@ -637,7 +637,7 @@ mytools-nosqli https://example.com -c mongodb
 mytools-nosqli https://example.com -c bypass
 ```
 
-### 51. LDAP Injection (`mytools-ldapi`)
+### 53. LDAP Injection (`mytools-ldapi`)
 Detecta injecao em filtros LDAP via parametros de busca.
 
 ```bash
@@ -647,7 +647,7 @@ mytools-ldapi https://example.com -c auth_bypass
 mytools-ldapi https://example.com -c bypass
 ```
 
-### 52. XPath Injection (`mytools-xpathi`)
+### 54. XPath Injection (`mytools-xpathi`)
 Detecta injecao em consultas XPath.
 
 ```bash
@@ -657,7 +657,7 @@ mytools-xpathi https://example.com -c auth_bypass
 mytools-xpathi https://example.com -c extract
 ```
 
-### 53. SSI Injection (`mytools-ssiinject`)
+### 55. SSI Injection (`mytools-ssiinject`)
 Detecta Server-Side Injection (RCE, leitura de arquivos, bypass).
 
 ```bash
@@ -668,7 +668,7 @@ mytools-ssiinject https://example.com -c file_read
 mytools-ssiinject https://example.com -c bypass
 ```
 
-### 54. Prototype Pollution (`mytools-protopoll`)
+### 56. Prototype Pollution (`mytools-protopoll`)
 Detecta injecao em prototypes de objetos JS (`__proto__`, `constructor.prototype`).
 
 ```bash
@@ -679,7 +679,7 @@ mytools-protopoll https://example.com -c bypass
 mytools-protopoll https://example.com -c impact
 ```
 
-### 55. Deserialization Injection (`mytools-deserial`)
+### 57. Deserialization Injection (`mytools-deserial`)
 Detecta desserializacao em PHP/Java/Python (O:, pickle, ObjectInputStream).
 
 ```bash
@@ -690,7 +690,7 @@ mytools-deserial https://example.com -c python
 mytools-deserial https://example.com -c bypass
 ```
 
-### 56. Cache Poisoning (`mytools-cachepoison`)
+### 58. Cache Poisoning (`mytools-cachepoison`)
 Detecta cache key poisoning via headers nao-normalizados (X-Forwarded-Host, path).
 
 ```bash
@@ -701,7 +701,7 @@ mytools-cachepoison https://example.com -c encoding
 mytools-cachepoison https://example.com -c bypass
 ```
 
-### 57. Web Cache Deception (`mytools-cachedec`)
+### 59. Web Cache Deception (`mytools-cachedec`)
 Detecta paths que o cache armazena mas a app não deveria — extension, path, framework, encoding, bypass.
 
 ```bash
@@ -712,7 +712,7 @@ mytools-cachedec https://example.com -c framework
 mytools-cachedec https://example.com -c bypass
 ```
 
-### 58. HTTP Method Override (`mytools-methodoverride`)
+### 60. HTTP Method Override (`mytools-methodoverride`)
 Detecta bypass de ACL via headers, params, body — X-HTTP-Method-Override, _method, etc.
 
 ```bash
@@ -722,7 +722,7 @@ mytools-methodoverride https://example.com -c bypass
 mytools-methodoverride https://example.com -c verb
 ```
 
-### 59. HTTP Parameter Pollution (`mytools-hpp`)
+### 61. HTTP Parameter Pollution (`mytools-hpp`)
 Detecta HPP em diferentes positions — query, body, header, JSON, bypass.
 
 ```bash
@@ -733,7 +733,7 @@ mytools-hpp https://example.com -c header
 mytools-hpp https://example.com -c bypass
 ```
 
-### 60. Blind XSS via Callback (`mytools-blindxss`)
+### 62. Blind XSS via Callback (`mytools-blindxss`)
 Injeta payloads que disparam webhook quando renderizados em painéis internos.
 
 ```bash
@@ -743,7 +743,7 @@ mytools-blindxss https://example.com --webhook https://hook.example.com -c heade
 mytools-blindxss https://example.com --webhook https://hook.example.com -c bypass
 ```
 
-### 61. DOM Clobbering via Named Access (`mytools-domclob`)
+### 63. DOM Clobbering via Named Access (`mytools-domclob`)
 Detecta DOM Clobbering via id/name em elementos HTML que sobrescrevem propriedades JavaScript.
 
 ```bash
@@ -753,7 +753,7 @@ mytools-domclob https://example.com -c form_child
 mytools-domclob https://example.com -c impact
 ```
 
-### 62. Mutation XSS (`mytools-mxss`)
+### 64. Mutation XSS (`mytools-mxss`)
 Detecta Mutation XSS via entidades HTML decodificadas, switches de namespace SVG/MathML, abuse de raw text, comment parsing, template deprecated e encoding tricks.
 
 ```bash
@@ -767,7 +767,7 @@ mytools-mxss https://example.com -c template_deprecated
 mytools-mxss https://example.com -c encoding_tricks
 ```
 
-### 63. CSS Injection via Style (`mytools-cssinject`)
+### 65. CSS Injection via Style (`mytools-cssinject`)
 Detecta CSS Injection e técnicas de exfiltração de dados via style tag, style attribute, data extraction, attribute selectors, token exfiltração e CSP bypass.
 
 ```bash
@@ -780,7 +780,7 @@ mytools-cssinject https://example.com -c token_exfil
 mytools-cssinject https://example.com -c csp_bypass
 ```
 
-### 64. XSS Vectors (`mytools-xssvectors`)
+### 66. XSS Vectors (`mytools-xssvectors`)
 Detecta vetores de XSS via midia, URIs javascript/data, iframe srcdoc, base tag, custom elements, Shadow DOM e slot/use.
 
 ```bash
@@ -795,7 +795,7 @@ mytools-xssvectors https://example.com -c shadow_dom
 mytools-xssvectors https://example.com -c slot_use
 ```
 
-### 65. File Upload Attacks (`mytools-fileupload`)
+### 67. File Upload Attacks (`mytools-fileupload`)
 Detecta polyglots, SVG XXE, ImageMagick, ZIP Slip, filename injection, content-type mismatch e multipart boundary abuse.
 
 ```bash
@@ -809,7 +809,7 @@ mytools-fileupload https://example.com -c content_type
 mytools-fileupload https://example.com -c multipart_boundary
 ```
 
-### 66. JWT Analysis (`mytools-jwt`)
+### 68. JWT Analysis (`mytools-jwt`)
 Analisa tokens JWT para vulnerabilidades: algoritmo fraco (none), key confusion, expiracao, claims, header injection e replay.
 
 ```bash
@@ -826,7 +826,7 @@ mytools-jwt eyJ... --wordlist secrets.txt
 mytools-jwt eyJ... -o resultado.json
 ```
 
-### 67. OAuth 2.0 Misconfiguration (`mytools-oauth`)
+### 69. OAuth 2.0 Misconfiguration (`mytools-oauth`)
 Detecta misconfigurations em fluxos OAuth: state ausente, implicit flow, redirect URI bypass, PKCE bypass, refresh token rotation.
 
 ```bash
@@ -838,7 +838,7 @@ mytools-oauth https://target.com -c pkce_bypass
 mytools-oauth https://target.com -c refresh_token
 ```
 
-### 68. SAML Attack Detection (`mytools-saml`)
+### 70. SAML Attack Detection (`mytools-saml`)
 Detecta assertion replay e XML Signature Wrapping em implementacoes SAML.
 
 ```bash
@@ -850,7 +850,7 @@ mytools-saml --file response.xml -c xml_signature_wrapping
 mytools-saml --file response.xml -o resultado.json
 ```
 
-### 69. OIDC Attack Detection (`mytools-oidc`)
+### 71. OIDC Attack Detection (`mytools-oidc`)
 Detecta discovery abuse e token substitution em implementacoes OpenID Connect.
 
 ```bash
@@ -860,7 +860,7 @@ mytools-oidc https://target.com -c token_substitution
 mytools-oidc https://target.com --proxy http://127.0.0.1:8080
 ```
 
-### 70. Business Logic Attack Detection (`mytools-bizlogic`)
+### 72. Business Logic Attack Detection (`mytools-bizlogic`)
 Detecta integer overflow em precos, negative quantity abuse e race conditions em checkout/pagamento.
 
 ```bash
@@ -871,7 +871,7 @@ mytools-bizlogic https://target.com -c race_condition
 mytools-bizlogic https://target.com --proxy http://127.0.0.1:8080
 ```
 
-### 71. Account Abuse Attack Detection (`mytools-accountabuse`)
+### 73. Account Abuse Attack Detection (`mytools-accountabuse`)
 Detecta abusos em contas: enumeracao de cupons, loyalty points, gift cards, refund manipulation e subscription bypass.
 
 ```bash
@@ -884,7 +884,7 @@ mytools-accountabuse https://target.com -c subscription
 mytools-accountabuse https://target.com --proxy http://127.0.0.1:8080
 ```
 
-### 72. Multi-Tenant Security Testing (`mytools-multitenant`)
+### 74. Multi-Tenant Security Testing (`mytools-multitenant`)
 Testa isolamento entre tenants em aplicações SaaS/multi-tenant: manipulação de tenant ID, isolamento via subdomínios, acesso a recursos compartilhados, e cross-tenant SSRF.
 
 ```bash
@@ -898,7 +898,7 @@ mytools-multitenant https://app.example.com --timeout 30
 mytools-multitenant https://app.example.com --proxy http://127.0.0.1:8080
 ```
 
-### 73. HTTP Request Smuggling (`mytools-smuggle`)
+### 75. HTTP Request Smuggling (`mytools-smuggle`)
 Testa CL.TE, TE.CL, TE.TE, Chunked+CL e HTTP pipelining desync via raw sockets.
 
 ```bash
@@ -910,7 +910,7 @@ mytools-smuggle https://target.com --timeout 10
 mytools-smuggle https://target.com --proxy http://127.0.0.1:8080
 ```
 
-### 73.5. HTTP/2 Abuse (`mytools-http2abuse`)
+### 75.5. HTTP/2 Abuse (`mytools-http2abuse`)
 Testa abusos no protocolo HTTP/2: downgrade, fingerprint, stream abuse, reset, settings, priority, push.
 
 ```bash
@@ -922,7 +922,7 @@ mytools-http2abuse https://target.com --timeout 10
 mytools-http2abuse https://target.com --proxy http://127.0.0.1:8080
 ```
 
-### 73.6. Header & Parsing Edge Cases (`mytools-headeredge`)
+### 75.6. Header & Parsing Edge Cases (`mytools-headeredge`)
 Testa como servidores/proxies lidam com requests HTTP malformed: duplicate headers, versão malformada, null bytes, whitespace, case sensitivity, absolute URI e HTTP/0.9.
 
 ```bash
@@ -934,7 +934,7 @@ mytools-headeredge https://target.com -c absolute_uri http09_request
 mytools-headeredge https://target.com --timeout 10
 ```
 
-### 73.7. WebSocket Security Testing (`mytools-wsattack`)
+### 75.7. WebSocket Security Testing (`mytools-wsattack`)
 Testa endpoints WebSocket para vulnerabilidades: CSWSH, hijacking, upgrade abuse, message injection, DoS e compression bomb. 100% raw sockets.
 
 ```bash
@@ -945,7 +945,7 @@ mytools-wsattack wss://target.com/ws -c ws_upgrade_abuse ws_message_inject
 mytools-wsattack wss://target.com/ws --timeout 10
 ```
 
-### 73.8. TLS Fingerprinting (`mytools-tlsfp`)
+### 75.8. TLS Fingerprinting (`mytools-tlsfp`)
 Testa fingerprinting TLS via construcao raw de ClientHello: JA3/JA4 hash, replay de browsers, key exchange analysis e cipher audit. 100% raw sockets.
 
 ```bash
@@ -956,7 +956,7 @@ mytools-tlsfp https://target.com -c key_exchange tls_fingerprint
 mytools-tlsfp https://target.com --timeout 10
 ```
 
-### 73.9. Certificate Checks (`mytools-certcheck`)
+### 75.9. Certificate Checks (`mytools-certcheck`)
 Testa configuracao de certificados TLS e seguranca: OCSP stapling, certificate chain, CT transparency, split-world detection, HSTS preload e mixed content.
 
 ```bash
@@ -967,7 +967,7 @@ mytools-certcheck https://target.com -c hsts_preload mixed_content
 mytools-certcheck https://target.com --timeout 10
 ```
 
-### 74.0. GraphQL Attack Testing (`mytools-gqlattack`)
+### 76.0. GraphQL Attack Testing (`mytools-gqlattack`)
 Testa seguranca de endpoints GraphQL: introspection, depth abuse, batch queries, alias overloading, schema stitching, persisted queries, resolver analysis e enumeration.
 
 ```bash
@@ -978,7 +978,7 @@ mytools-gqlattack https://target.com/graphql -c alias_overload persisted_abuse
 mytools-gqlattack https://target.com/graphql --timeout 10
 ```
 
-### 74.1. gRPC Attack Testing (`mytools-grpc`)
+### 76.1. gRPC Attack Testing (`mytools-grpc`)
 Testa seguranca de endpoints gRPC: reflection abuse, server/client/bidirectional streaming, gRPC-Web bypass, protobuf field manipulation.
 
 ```bash
@@ -989,7 +989,7 @@ mytools-grpc grpc://target.com:50051 -c grpc_web protobuf
 mytools-grpc grpc://target.com:50051 --timeout 10
 ```
 
-### 74.2. Thrift Attack Testing (`mytools-thrift`)
+### 76.2. Thrift Attack Testing (`mytools-thrift`)
 Testa seguranca de servers Apache Thrift: method enumeration, binary protocol manipulation.
 
 ```bash
@@ -999,7 +999,7 @@ mytools-thrift thrift://target.com:9090 -c binary_protocol
 mytools-thrift thrift://target.com:9090 --timeout 10
 ```
 
-### 74.3. Timing Attack Testing (`mytools-timing`)
+### 76.3. Timing Attack Testing (`mytools-timing`)
 Testa timing side-channels: login user enumeration, token comparison, cache detection, DNS timing.
 
 ```bash
@@ -1010,7 +1010,7 @@ mytools-timing https://target.com/login --cache-rounds 10
 mytools-timing https://target.com/login --dns-domains example.com google.com
 ```
 
-### 74.4. Lambda Attack Testing (`mytools-lambda`)
+### 76.4. Lambda Attack Testing (`mytools-lambda`)
 Testa seguranca de endpoints AWS Lambda: env var leaks, layer enumeration, temp file persistence.
 
 ```bash
@@ -1019,7 +1019,7 @@ mytools-lambda https://target.com/api/endpoint -c lambda
 mytools-lambda https://target.com/api/endpoint --timeout 10
 ```
 
-### 74.4. Edge Functions Attack Testing (`mytools-edge`)
+### 76.5. Edge Functions Attack Testing (`mytools-edge`)
 Testa seguranca de edge functions: Azure, GCP, Vercel, Cloudflare.
 
 ```bash
@@ -1028,7 +1028,7 @@ mytools-edge https://target.com/api/endpoint -c cloud_providers
 mytools-edge https://target.com/api/endpoint --timeout 10
 ```
 
-### 74.5. Serverless Attack Testing (`mytools-serverless`)
+### 76.6. Serverless Attack Testing (`mytools-serverless`)
 Testa seguranca generica de endpoints serverless: cold start info leak, timeout abuse.
 
 ```bash
@@ -1037,7 +1037,7 @@ mytools-serverless https://target.com/api/endpoint -c generic
 mytools-serverless https://target.com/api/endpoint --timeout 10
 ```
 
-### 74.6. Kubernetes Attack Testing (`mytools-k8s`)
+### 76.7. Kubernetes Attack Testing (`mytools-k8s`)
 Testa seguranca de clusters Kubernetes: API enumeration, Dashboard exposure.
 
 ```bash
@@ -1046,7 +1046,7 @@ mytools-k8s https://target.com:6443 -c kubernetes
 mytools-k8s https://target.com:6443 --timeout 10
 ```
 
-### 74.7. Docker Attack Testing (`mytools-docker`)
+### 76.8. Docker Attack Testing (`mytools-docker`)
 Testa seguranca de Docker Registries: registry exposure, repository enumeration.
 
 ```bash
@@ -1055,7 +1055,7 @@ mytools-docker https://registry.target.com -c docker
 mytools-docker https://registry.target.com --timeout 10
 ```
 
-### 74.8. Infrastructure Attack Testing (`mytools-infra`)
+### 76.9. Infrastructure Attack Testing (`mytools-infra`)
 Testa seguranca de infraestrutura: Terraform state, Vault, CI/CD, Elastic, Redis/MongoDB, Debug endpoints.
 
 ```bash
@@ -1064,7 +1064,7 @@ mytools-infra https://target.com -c infrastructure
 mytools-infra https://target.com --timeout 10
 ```
 
-### 74.9. IoT & Industrial Attack Testing (`mytools-iot`)
+### 76.10. IoT & Industrial Attack Testing (`mytools-iot`)
 Testa seguranca de dispositivos IoT e sistemas industriais: Modbus, OPC UA, BACnet, SNMP, MQTT.
 
 ```bash
@@ -1073,7 +1073,7 @@ mytools-iot 192.168.1.100:502 -c iot
 mytools-iot 192.168.1.100:502 --timeout 10
 ```
 
-### 74. CORS Misconfiguration (`mytools-cors`)
+### 77. CORS Misconfiguration (`mytools-cors`)
 Testa null origin, subdomain wildcard, credenciais com *, reflected origin.
 
 ```bash
@@ -1083,7 +1083,7 @@ mytools-cors https://example.com -c credentials
 mytools-cors https://example.com -c reflected
 ```
 
-### 73. Clickjacking (`mytools-clickjack`)
+### 78. Clickjacking (`mytools-clickjack`)
 Testa X-Frame-Options/CSP e bypasses em browsers legados.
 
 ```bash
@@ -1093,7 +1093,7 @@ mytools-clickjack https://example.com -c csp
 mytools-clickjack https://example.com -c bypass
 ```
 
-### 74. Host Header Injection (`mytools-hostinject`)
+### 79. Host Header Injection (`mytools-hostinject`)
 Testa manipulação de Host header para spoofing, SSRF, cache poisoning e bypass.
 
 ```bash
@@ -1104,7 +1104,7 @@ mytools-hostinject https://example.com -c bypass
 mytools-hostinject https://example.com --inject-host evil.com
 ```
 
-### 75. Header Injection via URL Params (`mytools-headerinject`)
+### 80. Header Injection via URL Params (`mytools-headerinject`)
 Testa se parâmetros de URL são refletidos como headers HTTP nas respostas.
 
 ```bash
@@ -1114,7 +1114,7 @@ mytools-headerinject https://example.com -c header_overwrite
 mytools-headerinject https://example.com -c bypass
 ```
 
-### 76. Log Injection (`mytools-loginjection`)
+### 81. Log Injection (`mytools-loginjection`)
 Testa se o servidor é vulnerável a injeção de conteúdo em logs via headers HTTP.
 
 ```bash
@@ -1124,7 +1124,7 @@ mytools-loginjection https://example.com -c referer
 mytools-loginjection https://example.com -c bypass
 ```
 
-### 77. Log4Shell (`mytools-log4shell`)
+### 82. Log4Shell (`mytools-log4shell`)
 Testa JNDI injection em headers HTTP (CVE-2021-44228).
 
 ```bash
@@ -1134,7 +1134,7 @@ mytools-log4shell https://example.com -c header_injection
 mytools-log4shell https://example.com -c bypass
 ```
 
-### 78. Cookie Domain Boundary (`mytools-cookieboundary`)
+### 83. Cookie Domain Boundary (`mytools-cookieboundary`)
 Audita cookies de uma aplicação web: domain boundary, path traversal, Double Submit Cookie (CSRF), SameSite DNS bypass, CSRF via subdomínio e cookie quoting edge cases.
 
 ```bash
@@ -1150,7 +1150,7 @@ mytools-cookieboundary https://example.com -c cookie_quoting
 mytools-cookieboundary https://example.com --proxy http://proxy:8080
 ```
 
-### 79. ReconAll (`mytools-reconall`)
+### 84. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1619,6 +1619,7 @@ src/mytools/                    # Pacote principal
   __init__.py                   # __version__
   core/                         # Infraestrutura compartilhada
     utils.py                    # Cores, HTTP async, helpers, output (print_exploit_info)
+    stealth.py                  # Anti-detection: proxy, UA rotation, Tor, jitter, WAF evasion
     cred.py                     # Gerenciador de credenciais (keyring)
     main.py                     # Menu interativo central
     reconall.py                 # Orquestrador: executa todos os módulos
@@ -1729,7 +1730,7 @@ src/mytools/                    # Pacote principal
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
 
-tests/                          # Testes unitários (4738 testes)
+tests/                          # Testes unitários (4787 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -1748,7 +1749,7 @@ pyproject.toml                  # Configuração do projeto
 attackanalysis.py               # Attack path visualization (networkx + matplotlib)
 ```
 
-### 75. Attack Path Visualization (`mytools-analysis`)
+### 85. Attack Path Visualization (`mytools-analysis`)
 Gera grafos de ataque baseados em findings de segurança. Exporta PNG/SVG e DOT format.
 
 ```bash
@@ -1767,6 +1768,51 @@ mytools-analysis findings.json --exploits-only
 
 **Campo `exploit` e `tool` em 75+ módulos:**
 Todos os módulos de detecção agora incluem campo `exploit` com comandos/payloads utilizáveis e campo `tool` com a ferramenta recomendada quando a vulnerabilidade é detectada. Formato usa placeholder `<TARGET>`. A saída CLI mostra ambos os campos em destaque (Exploit: amarelo, Ferramenta: cyan).
+
+### Stealth & Anti-Detection
+Flags globais disponíveis em **todos** os módulos via `add_common_args()`. Compatibilidade automática: flags incompatíveis com o tipo de módulo não aparecem no `-h`.
+
+```bash
+# Tor + random delay
+mytools-cors https://target.com --tor --random-delay
+
+# TLS fingerprint impersonation + jitter
+mytools-recon https://target.com --impersonate chrome --jitter 0.3
+
+# WAF evasion + header padding
+mytools-ssrf https://target.com --waf-evasion --pad-headers 15
+
+# Fragmentation L7
+mytools-xss https://target.com --fragment 8
+
+# Proxy rotation
+mytools-port 10.0.0.1 --proxy http://p1:8080 --proxy http://p2:8080
+
+# Rate limiting
+mytools-dir https://target.com --rate-limit 5.0
+```
+
+**Flags disponíveis por módulo:**
+
+| Flag | web | dns | email | osint | network |
+|---|---|---|---|---|---|
+| `--proxy` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--random-delay` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--jitter` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--user-agent-rotate` | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `--impersonate` | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `--fragment` | ✅ | ❌ | ✅ | ❌ | ❌ |
+| `--fragment-tcp` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `--tor` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--waf-evasion` | ✅ | ❌ | ✅ | ❌ | ❌ |
+| `--pad-headers` | ✅ | ❌ | ✅ | ❌ | ❌ |
+| `--src-port-random` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `--rate-limit` | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+**Pré-requisitos:**
+- `curl-cffi>=0.15.0` — TLS fingerprint impersonation (Chrome, Firefox, Safari, Edge)
+- `httpx-socks[asyncio]>=0.11.0` — Tor SOCKS5 proxy
+- Tor daemon rodando na porta 9050 (para `--tor`)
 
 ---
 
@@ -1808,6 +1854,8 @@ poetry install --with dev
 - `grpcio-reflection>=1.82.1` — gRPC server reflection (introspecção de services)
 - `protobuf>=7.35.1` — Protocol Buffers (serialização gRPC)
 - `thriftpy2>=0.6.0` — Thrift protocol (RPC, deserialization)
+- `curl-cffi>=0.15.0` — TLS fingerprint impersonation (Chrome, Firefox, Safari, Edge)
+- `httpx-socks[asyncio]>=0.11.0` — Tor SOCKS5 proxy (async)
 
 ### Dev
 - `pytest>=9.1.1` — Framework de testes

@@ -16,7 +16,11 @@ Fluxo:
   3. Classifica cada variante: vulnerable, blocked, safe, error
   4. Retorna resultado consolidado
 """
-import argparseimport loggingimport unicodedatafrom dataclasses import asdict, dataclassfrom urllib.parse import urlparseimport httpxfrom mytools.core.utils import (    Cyber,    FetchError,    add_common_args,    color,    create_async_client,    fetch,    init_scanner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.rtloverride")
+import argparseimport loggingimport unicodedatafrom dataclasses import asdict, dataclassfrom urllib.parse import urlparseimport httpxfrom mytools.core.utils import (
+    Cyber,
+    FetchError,
+    __version__,
+    add_common_args,    color,    create_async_client,    fetch,    init_scanner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.rtloverride")
 
 _RTL_CHARS: dict[str, str] = {
     "rlo": "\u202e",
@@ -320,7 +324,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="rtl",
         help="Tipo de caractere: rtl, zero-width, combining, all. Padrao: rtl",
     )
-    parser.set_defaults(user_agent="Mozilla/5.0 (X11; Linux x86_64) RTLOverride/1.0")
+    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) RTLOverride/{__version__}")
     return parser
 
 

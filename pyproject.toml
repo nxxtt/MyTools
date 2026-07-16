@@ -24,6 +24,8 @@ protobuf = ">=7.35.1"
 thriftpy2 = ">=0.6.0"
 networkx = ">=3.6.1"
 matplotlib = ">=3.11.0"
+curl-cffi = ">=0.15.0"
+httpx-socks = {version = ">=0.11.0", extras = ["asyncio"]}
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=9.1.1"
