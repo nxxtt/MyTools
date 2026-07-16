@@ -33,10 +33,13 @@ import time
 import tomllib
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import httpx
+
+if TYPE_CHECKING:
+    from curl_cffi.requests import BrowserTypeLiteral
 
 logger = logging.getLogger("mytools")
 
@@ -347,7 +350,7 @@ def create_async_client(
     proxy: str | None = None,
     timeout: float = 5.0,
     verify: bool = False,
-    impersonate: str | None = None,
+    impersonate: BrowserTypeLiteral | None = None,
 ) -> httpx.AsyncClient:
     """Cria um cliente HTTP async com headers padrao.
 
