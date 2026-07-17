@@ -1,0 +1,57 @@
+# Kubernetes API Paths
+# Usado por k8sattack.py
+# Última atualização: 2026-07-16
+
+api_paths:
+  - ["/version", "Version info"]
+  - ["/healthz", "Health check"]
+  - ["/readyz", "Readiness check"]
+  - ["/livez", "Liveness check"]
+  - ["/metrics", "Metrics endpoint"]
+  - ["/api", "API versions"]
+  - ["/api/v1", "Core API v1"]
+  - ["/apis", "API groups"]
+  - ["/api/v1/namespaces", "Namespaces"]
+  - ["/api/v1/pods", "Pods"]
+  - ["/api/v1/services", "Services"]
+  - ["/api/v1/secrets", "Secrets"]
+  - ["/api/v1/configmaps", "ConfigMaps"]
+  - ["/api/v1/namespaces/default/pods", "Default namespace pods"]
+  - ["/api/v1/namespaces/kube-system/pods", "kube-system pods"]
+  - ["/apis/apps/v1/deployments", "Deployments"]
+  - ["/apis/apps/v1/daemonsets", "DaemonSets"]
+  - ["/apis/apps/v1/statefulsets", "StatefulSets"]
+  - ["/apis/batch/v1/jobs", "Jobs"]
+  - ["/apis/batch/v1/cronjobs", "CronJobs"]
+  - ["/apis/networking.k8s.io/v1/networkpolicies", "NetworkPolicies"]
+  - ["/apis/rbac.authorization.k8s.io/v1/clusterroles", "ClusterRoles"]
+  - ["/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", "ClusterRoleBindings"]
+  - ["/apis/storage.k8s.io/v1/storageclasses", "StorageClasses"]
+
+dashboard_paths:
+  - ["/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/", "Dashboard proxy"]
+  - ["/api/v1/namespaces/kube-system/services/kubernetes-dashboard:/proxy/", "Dashboard (HTTP)"]
+  - ["/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/", "Dashboard (HTTP alt)"]
+  - ["/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/", "Dashboard (HTTPS)"]
+  - ["/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/login", "Dashboard login"]
+  - ["/api/v1/namespaces/kube-system/services/kubernetes-dashboard:/proxy/#/login", "Dashboard login (HTTP)"]
+  - ["/ui", "Dashboard UI"]
+
+auth_headers:
+  - {}
+  - {"Authorization": "Bearer "}
+  - {"Authorization": "Bearer null"}
+  - {"Authorization": "Bearer undefined"}
+  - {"Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"}
+
+signatures:
+  - "Welcome to Kubernetes"
+  - "Kubernetes Dashboard"
+  - "kubernetes-dashboard"
+  - "kubectl"
+  - "kube-apiserver"
+  - "etcd"
+  - "kubelet"
+  - "container-runtime"
+  - "cri-o"
+  - "docker"

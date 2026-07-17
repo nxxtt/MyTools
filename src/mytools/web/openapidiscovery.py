@@ -47,32 +47,25 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.openapidiscovery")
 
-DEFAULT_PATHS: list[str] = [
-    "swagger.json",
-    "swagger/v1/swagger.json",
-    "swagger/v2/swagger.json",
-    "v1/swagger.json",
-    "v2/swagger.json",
-    "api/swagger.json",
-    "api/v1/swagger.json",
-    "api/v2/swagger.json",
-    "openapi.json",
-    "openapi.yaml",
-    "openapi/v1.json",
-    "openapi/v1.yaml",
-    "api-docs",
-    "api-docs/",
-    "api/docs",
-    "swagger-ui.html",
-    "swagger-ui/",
-    "redoc/",
-    "docs/",
-    "apidoc/",
-    "api/swagger-ui.html",
-    "swagger-resources",
-    "swagger-resources/configuration/ui",
-    "swagger-resources/configuration/security",
+_DEFAULT_PATHS_OPENAPI: list[str] = [
+    "swagger.json", "swagger/v1/swagger.json", "swagger/v2/swagger.json",
+    "v1/swagger.json", "v2/swagger.json", "api/swagger.json",
+    "api/v1/swagger.json", "api/v2/swagger.json",
+    "openapi.json", "openapi.yaml", "openapi/v1.json", "openapi/v1.yaml",
+    "api-docs", "api-docs/", "api/docs",
+    "swagger-ui.html", "swagger-ui/", "redoc/", "docs/", "apidoc/",
+    "api/swagger-ui.html", "swagger-resources",
+    "swagger-resources/configuration/ui", "swagger-resources/configuration/security",
 ]
+
+
+def _load_openapi_paths() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "openapi_paths", default={"paths": _DEFAULT_PATHS_OPENAPI})
+    return data.get("paths", _DEFAULT_PATHS_OPENAPI)
+
+
+DEFAULT_PATHS = _load_openapi_paths()
 
 STATUS_OK = frozenset({200, 301, 302, 307, 308})
 

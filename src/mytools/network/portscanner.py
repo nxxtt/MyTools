@@ -45,13 +45,13 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.portscanner")
 
 
-DEFAULT_PORTS = [
+_DEFAULT_PORTS_DEFAULT: list[int] = [
     20, 21, 22, 23, 25, 53, 80, 110, 119, 123, 135, 139, 143, 161, 194, 389,
     443, 445, 465, 587, 636, 993, 995, 1433, 1521, 2049, 3306, 3389, 5432,
     5900, 6379, 8080, 8443, 9200, 27017,
 ]
 
-TOP_100_PORTS = [
+_TOP_100_PORTS_DEFAULT: list[int] = [
     7, 9, 13, 21, 22, 23, 25, 26, 37, 53, 79, 80, 81, 88, 106, 110, 111, 113,
     119, 135, 139, 143, 144, 179, 199, 389, 427, 443, 444, 445, 465, 513, 514,
     515, 543, 544, 548, 554, 587, 631, 646, 873, 990, 993, 995, 1025, 1026,
@@ -61,6 +61,23 @@ TOP_100_PORTS = [
     8000, 8008, 8009, 8080, 8081, 8443, 8888, 9100, 9999, 10000, 32768, 49152,
     49153, 49154, 49155, 49156, 49157,
 ]
+
+
+def _load_ports() -> tuple[list[int], list[int]]:
+    """Carrega portas de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("network", "port_scanner", default={
+        "default_ports": _DEFAULT_PORTS_DEFAULT,
+        "top_100_ports": _TOP_100_PORTS_DEFAULT,
+    })
+    return (
+        data.get("default_ports", _DEFAULT_PORTS_DEFAULT),
+        data.get("top_100_ports", _TOP_100_PORTS_DEFAULT),
+    )
+
+
+DEFAULT_PORTS, TOP_100_PORTS = _load_ports()
 
 
 

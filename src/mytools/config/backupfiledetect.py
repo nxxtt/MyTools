@@ -46,9 +46,9 @@ logger = logging.getLogger("mytools.backupfiledetect")
 
 STATUS_OK = frozenset({200})
 
-# ── Path constants por tipo ───────────────────────────────────────────────────
+# ── Path constants por tipo (fallbacks) ──────────────────────────────────────
 
-BAK_PATHS: list[str] = [
+_BAK_PATHS_DEFAULT: list[str] = [
     "config.php.bak",
     "wp-config.php.bak",
     ".env.bak",
@@ -69,7 +69,7 @@ BAK_PATHS: list[str] = [
     "index.php.backup",
 ]
 
-SWP_PATHS: list[str] = [
+_SWP_PATHS_DEFAULT: list[str] = [
     ".config.php.swp",
     ".wp-config.php.swp",
     ".index.php.swp",
@@ -81,7 +81,7 @@ SWP_PATHS: list[str] = [
     ".wp-config.php.swo",
 ]
 
-TILDE_PATHS: list[str] = [
+_TILDE_PATHS_DEFAULT: list[str] = [
     "config.php~",
     "wp-config.php~",
     "index.php~",
@@ -94,7 +94,7 @@ TILDE_PATHS: list[str] = [
     "app.js~",
 ]
 
-SQL_DUMP_PATHS: list[str] = [
+_SQL_DUMP_PATHS_DEFAULT: list[str] = [
     "dump.sql",
     "backup.sql",
     "database.sql",
@@ -110,7 +110,7 @@ SQL_DUMP_PATHS: list[str] = [
     "sql-dump.sql",
 ]
 
-ARCHIVE_PATHS: list[str] = [
+_ARCHIVE_PATHS_DEFAULT: list[str] = [
     "backup.zip",
     "site.tar.gz",
     "www.zip",
@@ -125,7 +125,7 @@ ARCHIVE_PATHS: list[str] = [
     "code.zip",
 ]
 
-ORIG_TMP_PATHS: list[str] = [
+_ORIG_TMP_PATHS_DEFAULT: list[str] = [
     "index.php.orig",
     "config.php.orig",
     "index.php.tmp",
@@ -138,22 +138,51 @@ ORIG_TMP_PATHS: list[str] = [
     "app.js.orig",
 ]
 
-ALL_TYPES: dict[str, list[str]] = {
-    "bak": BAK_PATHS,
-    "swp": SWP_PATHS,
-    "tilde": TILDE_PATHS,
-    "sql": SQL_DUMP_PATHS,
-    "archive": ARCHIVE_PATHS,
-    "orig_tmp": ORIG_TMP_PATHS,
-}
-
-ALL_PATHS = list({p for paths in ALL_TYPES.values() for p in paths})
-
-SQL_KEYWORDS = frozenset({
+_SQL_KEYWORDS_DEFAULT: frozenset[str] = frozenset({
     "CREATE TABLE", "INSERT INTO", "DROP TABLE", "ALTER TABLE",
     "CREATE DATABASE", "USE ", "VALUES", "SET NAMES",
     "PRIMARY KEY", "FOREIGN KEY", "AUTO_INCREMENT",
 })
+
+
+def _load_backup_paths() -> None:
+    """Carrega backup paths de YAML com fallback e atualiza variáveis globais."""
+    from mytools.data import load_payloads
+
+    global BAK_PATHS, SWP_PATHS, TILDE_PATHS, SQL_DUMP_PATHS
+    global ARCHIVE_PATHS, ORIG_TMP_PATHS, ALL_TYPES, ALL_PATHS
+    global SQL_KEYWORDS
+
+    data = load_payloads("config", "backup_file_detect", default={
+        "bak": _BAK_PATHS_DEFAULT,
+        "swp": _SWP_PATHS_DEFAULT,
+        "tilde": _TILDE_PATHS_DEFAULT,
+        "sql": _SQL_DUMP_PATHS_DEFAULT,
+        "archive": _ARCHIVE_PATHS_DEFAULT,
+        "orig_tmp": _ORIG_TMP_PATHS_DEFAULT,
+        "sql_keywords": list(_SQL_KEYWORDS_DEFAULT),
+    })
+
+    BAK_PATHS = data.get("bak", _BAK_PATHS_DEFAULT)
+    SWP_PATHS = data.get("swp", _SWP_PATHS_DEFAULT)
+    TILDE_PATHS = data.get("tilde", _TILDE_PATHS_DEFAULT)
+    SQL_DUMP_PATHS = data.get("sql", _SQL_DUMP_PATHS_DEFAULT)
+    ARCHIVE_PATHS = data.get("archive", _ARCHIVE_PATHS_DEFAULT)
+    ORIG_TMP_PATHS = data.get("orig_tmp", _ORIG_TMP_PATHS_DEFAULT)
+    SQL_KEYWORDS = frozenset(data.get("sql_keywords", _SQL_KEYWORDS_DEFAULT))
+
+    ALL_TYPES = {
+        "bak": BAK_PATHS,
+        "swp": SWP_PATHS,
+        "tilde": TILDE_PATHS,
+        "sql": SQL_DUMP_PATHS,
+        "archive": ARCHIVE_PATHS,
+        "orig_tmp": ORIG_TMP_PATHS,
+    }
+    ALL_PATHS = list({p for paths in ALL_TYPES.values() for p in paths})
+
+
+_load_backup_paths()
 
 ZIP_MAGIC = b"PK"
 GZIP_MAGIC = b"\x1f\x8b"

@@ -45,12 +45,31 @@ logger = logging.getLogger("mytools.emaillinktracking")
 
 DEFAULT_PORTS = [25, 587, 465]
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "pixel": ["pixel_1x1", "pixel_css", "web_beacon"],
     "link": ["link_rewrite", "utm_params", "redirect_chain", "url_shortener"],
     "header": ["read_receipt", "message_id_tracking"],
     "css": ["hidden_element", "css_tracking", "font_fingerprint"],
 }
+
+_SHORTENERS_DEFAULT: list[str] = ["bit.ly", "tinyurl.com", "goo.gl", "t.co", "is.gd", "buff.ly", "ow.ly"]
+
+
+def _load_link_tracking() -> tuple[dict[str, list[str]], list[str]]:
+    """Carrega link tracking data de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("email", "link_tracking", default={
+        "categories": _CATEGORY_MAP_DEFAULT,
+        "shorteners": _SHORTENERS_DEFAULT,
+    })
+    return (
+        data.get("categories", _CATEGORY_MAP_DEFAULT),
+        data.get("shorteners", _SHORTENERS_DEFAULT),
+    )
+
+
+_CATEGORY_MAP, _SHORTENERS_LOADED = _load_link_tracking()
 
 _TRACKING_PIXEL_1X1 = (
     '<img src="https://tracking.example.com/pixel.gif?uid=test123&ts=1234567890" '
@@ -255,8 +274,7 @@ def _detect_redirect_chain(email_body: str) -> tuple[str, str]:
 
 def _detect_url_shortener(email_body: str) -> tuple[str, str]:
     """Detecta uso de URL shortener."""
-    shorteners = ["bit.ly", "tinyurl.com", "goo.gl", "t.co", "is.gd", "buff.ly", "ow.ly"]
-    for shortener in shorteners:
+    for shortener in _SHORTENERS_LOADED:
         if shortener in email_body:
             return "detected", f"URL shortener detectado: {shortener}"
     return "not_detected", "Nenhum URL shortener detectado"

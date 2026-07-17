@@ -5,6 +5,12 @@ description = "Suite de ferramentas de auditoria e reconhecimento web/network"
 authors = ["nxt"]
 readme = "README.MD"
 packages = [{include = "mytools", from = "src"}]
+include = [
+    "src/mytools/data/**/*.yaml",
+    "src/mytools/data/**/*.yml",
+    "src/mytools/data/**/*.json",
+    "src/mytools/data/**/*.bin",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.14.2,<3.16"

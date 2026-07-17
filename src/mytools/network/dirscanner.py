@@ -61,7 +61,7 @@ Concorrencia:
 """
 
 
-DEFAULT_PATHS = [
+_DEFAULT_PATHS_DEFAULT: list[str] = [
     "admin", "login", "dashboard", "wp-admin", "administrator", "backup",
     "backups", "config", "config.php", ".env", "phpinfo.php", "images",
     "uploads", "files", "assets", "static", "robots.txt", "sitemap.xml",
@@ -69,6 +69,17 @@ DEFAULT_PATHS = [
     "panel", "phpmyadmin", "dev", "test", "staging", "old", "tmp", "private",
     "db", "database", "dump.sql", "backup.zip",
 ]
+
+
+def _load_dir_paths() -> list[str]:
+    """Carrega dir scanner paths de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("network", "dir_scanner", default={"paths": _DEFAULT_PATHS_DEFAULT})
+    return data.get("paths", _DEFAULT_PATHS_DEFAULT)
+
+
+DEFAULT_PATHS = _load_dir_paths()
 
 DEFAULT_STATUSES = frozenset({200, 204, 301, 302, 307, 308, 401, 403})
 

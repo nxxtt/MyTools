@@ -1,0 +1,23 @@
+# Email Address Bypass Categories
+# Usado por emailaddressbypass.py
+# Última atualização: 2026-07-16
+
+categories:
+  quoted:
+    - quoted_basic
+    - quoted_space
+    - quoted_dot
+    - quoted_special
+    - quoted_leading_space
+  special:
+    - quoted_at
+    - quoted_backslash
+    - quoted_double_dot
+    - comment_syntax
+    - backslash_escape
+  encoding:
+    - angle_bracket
+    - unicode_local
+    - null_byte
+  literal:
+    - ip_literal

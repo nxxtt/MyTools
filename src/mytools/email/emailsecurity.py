@@ -37,7 +37,18 @@ logger = logging.getLogger("mytools.emailsecurity")
 
 DNS_ERROR = "__DNS_ERROR__"
 
-DEFAULT_SELECTORS = ["default", "google", "selector1", "selector2", "s1", "s2", "dkim", "mail"]
+_DEFAULT_SELECTORS_DEFAULT = ["default", "google", "selector1", "selector2", "s1", "s2", "dkim", "mail"]
+
+
+def _load_dkim_selectors() -> list[str]:
+    """Carrega DKIM selectors de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("email", "dkim_selectors", default={"selectors": _DEFAULT_SELECTORS_DEFAULT})
+    return data.get("selectors", _DEFAULT_SELECTORS_DEFAULT)
+
+
+DEFAULT_SELECTORS = _load_dkim_selectors()
 
 SPF_ALL_PATTERN = re.compile(r"\+all|~all|\-all|\?all|all")
 DMARC_POLICY_PATTERN = re.compile(r"p=(none|quarantine|reject)")

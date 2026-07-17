@@ -1,0 +1,51 @@
+# Infrastructure Attack Paths
+# Usado por infraattack.py
+# Última atualização: 2026-07-16
+
+terraform_state_paths:
+  - /terraform.tfstate
+  - /env/terraform.tfstate
+  - /prod/terraform.tfstate
+  - /staging/terraform.tfstate
+  - /dev/terraform.tfstate
+  - /infra/terraform.tfstate
+  - /infrastructure/terraform.tfstate
+  - /tf/terraform.tfstate
+  - /tfstate/terraform.tfstate
+  - /.terraform/terraform.tfstate
+  - /terraform.tfstate.backup
+  - /env/terraform.tfstate.backup
+  - /prod/terraform.tfstate.backup
+
+cicd_paths:
+  - ["/.gitlab-ci.yml", "GitLab CI"]
+  - ["/Jenkinsfile", "Jenkins"]
+  - ["/.github/workflows/", "GitHub Actions"]
+  - ["/.github/workflows/ci.yml", "GitHub Actions CI"]
+  - ["/.github/workflows/main.yml", "GitHub Actions Main"]
+  - ["/.circleci/config.yml", "CircleCI"]
+  - ["/azure-pipelines.yml", "Azure Pipelines"]
+  - ["/bitbucket-pipelines.yml", "Bitbucket Pipelines"]
+  - ["/.travis.yml", "Travis CI"]
+  - ["/appveyor.yml", "AppVeyor"]
+  - ["/buildkite.yml", "Buildkite"]
+  - ["/cloudbuild.yaml", "Google Cloud Build"]
+
+debug_paths:
+  - ["/debug/", "Debug root"]
+  - ["/debug/vars", "Debug vars (Go)"]
+  - ["/debug/pprof/", "Go pprof"]
+  - ["/debug/pprof/goroutine?debug=1", "Go goroutines"]
+  - ["/actuator", "Spring Boot Actuator"]
+  - ["/actuator/health", "Actuator health"]
+  - ["/actuator/env", "Actuator env"]
+  - ["/actuator/beans", "Actuator beans"]
+  - ["/actuator/configprops", "Actuator config props"]
+  - ["/actuator/mappings", "Actuator mappings"]
+  - ["/console", "Console"]
+  - ["/adminer", "Adminer"]
+  - ["/phpmyadmin", "phpMyAdmin"]
+  - ["/pma", "phpMyAdmin alt"]
+  - ["/mysql", "MySQL admin"]
+  - ["/_debug/", "Django debug"]
+  - ["/__debug__/", "Django debug toolbar"]

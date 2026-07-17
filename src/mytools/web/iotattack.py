@@ -74,12 +74,21 @@ _OPCUA_SECURITY_POLICIES: list[str] = [
     "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
 ]
 
-_SNMP_COMMUNITIES: list[str] = [
+_SNMP_COMMUNITIES_DEFAULT: list[str] = [
     "public", "private", "manager", "admin", "test", "default",
     "secret", "password", "community", "snmp", "monitor", "internal",
     "guest", "readonly", "readwrite", "monitoring", "network",
     "system", "equipment", "scada", "plc",
 ]
+
+
+def _load_iot_data() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "iot_attack", default={"snmp_communities": _SNMP_COMMUNITIES_DEFAULT})
+    return data.get("snmp_communities", _SNMP_COMMUNITIES_DEFAULT)
+
+
+_SNMP_COMMUNITIES = _load_iot_data()
 
 _SNMP_OIDS: dict[str, str] = {
     "sysDescr": "1.3.6.1.2.1.1.1.0",
@@ -91,18 +100,19 @@ _SNMP_OIDS: dict[str, str] = {
     "ifNumber": "1.3.6.1.2.1.2.1.0",
 }
 
-_MQTT_TOPICS: list[str] = [
-    "$SYS/#",
-    "#",
-    "+",
-    "home/#",
-    "device/#",
-    "sensor/#",
-    "iot/#",
-    "data/#",
-    "telemetry/#",
-    "status/#",
+_MQTT_TOPICS_DEFAULT: list[str] = [
+    "$SYS/#", "#", "+", "home/#", "device/#",
+    "sensor/#", "iot/#", "data/#", "telemetry/#", "status/#",
 ]
+
+
+def _load_mqtt_topics() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "iot_attack", default={"mqtt_topics": _MQTT_TOPICS_DEFAULT})
+    return data.get("mqtt_topics", _MQTT_TOPICS_DEFAULT)
+
+
+_MQTT_TOPICS = _load_mqtt_topics()
 
 _MQTT_PACKET_TYPES: dict[int, str] = {
     1: "CONNECT", 2: "CONNACK", 3: "PUBLISH", 4: "PUBACK",

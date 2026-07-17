@@ -38,7 +38,7 @@ _BANNER_LINES: str = (
     "                                                                  |_|    \n"
 )
 
-_K8S_API_PATHS: list[dict[str, Any]] = [
+_K8S_API_PATHS_DEFAULT: list[dict[str, Any]] = [
     {"path": "/version", "desc": "Version info"},
     {"path": "/healthz", "desc": "Health check"},
     {"path": "/readyz", "desc": "Readiness check"},
@@ -64,6 +64,16 @@ _K8S_API_PATHS: list[dict[str, Any]] = [
     {"path": "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", "desc": "ClusterRoleBindings"},
     {"path": "/apis/storage.k8s.io/v1/storageclasses", "desc": "StorageClasses"},
 ]
+
+
+def _load_k8s_paths() -> list[dict[str, Any]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "k8s_attack", default={"api_paths": _K8S_API_PATHS_DEFAULT})
+    paths = data.get("api_paths", _K8S_API_PATHS_DEFAULT)
+    return [{"path": p[0], "desc": p[1]} if isinstance(p, list) else p for p in paths]
+
+
+_K8S_API_PATHS = _load_k8s_paths()
 
 _DASHBOARD_PATHS: list[dict[str, str]] = [
     {"path": "/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/", "desc": "Dashboard via API proxy"},

@@ -58,14 +58,23 @@ def _read_version() -> str:
 
 __version__ = _read_version()
 
-SECURITY_HEADERS = [
-    "strict-transport-security",
-    "content-security-policy",
-    "x-frame-options",
-    "x-content-type-options",
-    "referrer-policy",
-    "permissions-policy",
-]
+def _load_security_headers() -> list[str]:
+    """Carrega SECURITY_HEADERS de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    default = [
+        "strict-transport-security",
+        "content-security-policy",
+        "x-frame-options",
+        "x-content-type-options",
+        "referrer-policy",
+        "permissions-policy",
+    ]
+    data = load_payloads("core", "security_headers", default={"headers": default})
+    return data.get("headers", default)
+
+
+SECURITY_HEADERS = _load_security_headers()
 
 
 def setup_logging(verbose: bool = False, log_file: str | None = None) -> None:

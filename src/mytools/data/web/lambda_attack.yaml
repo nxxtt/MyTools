@@ -1,0 +1,43 @@
+# Lambda Attack Payloads
+# Usado por lambdaattack.py
+# Última atualização: 2026-07-16
+
+env_var_patterns:
+  - "AWS_ACCESS_KEY_ID"
+  - "AWS_SECRET_ACCESS_KEY"
+  - "AWS_SESSION_TOKEN"
+  - "AWS_REGION"
+  - "AWS_LAMBDA_"
+  - "SECRET_"
+  - "API_KEY"
+  - "DATABASE_URL"
+  - "CONNECTION_STRING"
+  - "PASSWORD"
+  - "TOKEN"
+  - "PRIVATE_KEY"
+  - "arn:aws:"
+
+error_signatures:
+  - "Traceback (most recent call last)"
+  - "RuntimeError"
+  - "Type error"
+  - "ImportError"
+  - "ModuleNotFoundError"
+  - "KeyError"
+  - "ValueError"
+  - "lambda_handler"
+  - "handler"
+  - "Task timed out after"
+  - "Process exited before completing"
+  - "END RequestId"
+  - "REPORT RequestId"
+  - "START RequestId"
+  - "X-Ray Trace-Id"
+  - "errorMessage"
+  - "errorType"
+  - "stackTrace"
+  - "/var/task/"
+  - "/opt/"
+  - "/var/runtime/"
+  - "/var/task"
+  - "Unable to import module"

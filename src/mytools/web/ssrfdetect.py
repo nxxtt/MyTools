@@ -71,19 +71,22 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 
 
 
-_URL_PARAMS: list[str] = [
-
+_URL_PARAMS_DEFAULT: list[str] = [
     "url", "link", "href", "src", "dest", "destination",
-
     "redirect", "redirect_url", "redirect_uri", "next",
-
     "return", "return_to", "site", "page", "path",
-
     "file", "load", "fetch", "get", "pull",
-
     "proxy", "target", "uri", "document", "image",
-
 ]
+
+
+def _load_ssrf_params() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "ssrf_detect", default={"url_params": _URL_PARAMS_DEFAULT})
+    return data.get("url_params", _URL_PARAMS_DEFAULT)
+
+
+_URL_PARAMS = _load_ssrf_params()
 
 
 

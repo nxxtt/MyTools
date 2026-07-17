@@ -48,9 +48,9 @@ logger = logging.getLogger("mytools.configfiledetect")
 
 STATUS_OK = frozenset({200})
 
-# ── Path constants por categoria ──────────────────────────────────────────────
+# ── Path constants por categoria (fallbacks) ─────────────────────────────────
 
-ENV_PATHS: list[str] = [
+_ENV_PATHS_DEFAULT: list[str] = [
     ".env",
     ".env.local",
     ".env.production",
@@ -68,7 +68,7 @@ ENV_PATHS: list[str] = [
     ".env.www",
 ]
 
-CONFIG_PATHS: list[str] = [
+_CONFIG_PATHS_DEFAULT: list[str] = [
     "config.json",
     "config.yaml",
     "config.yml",
@@ -93,7 +93,7 @@ CONFIG_PATHS: list[str] = [
     "config/config.php",
 ]
 
-FRAMEWORK_PATHS: list[str] = [
+_FRAMEWORK_PATHS_DEFAULT: list[str] = [
     "wp-config.php",
     "config/database.yml",
     "config/secrets.yml",
@@ -107,7 +107,7 @@ FRAMEWORK_PATHS: list[str] = [
     "app/config/parameters.yml.dist",
 ]
 
-DATABASE_PATHS: list[str] = [
+_DATABASE_PATHS_DEFAULT: list[str] = [
     "database.yml",
     "db.conf",
     "my.cnf",
@@ -123,7 +123,7 @@ DATABASE_PATHS: list[str] = [
     "application.yml",
 ]
 
-DOCKER_PATHS: list[str] = [
+_DOCKER_PATHS_DEFAULT: list[str] = [
     "docker-compose.yml",
     "docker-compose.yaml",
     "docker-compose.override.yml",
@@ -136,7 +136,7 @@ DOCKER_PATHS: list[str] = [
     "kubernetes/deployment.yaml",
 ]
 
-CREDENTIALS_PATHS: list[str] = [
+_CREDENTIALS_PATHS_DEFAULT: list[str] = [
     "credentials.json",
     "credentials.xml",
     "secrets.json",
@@ -154,19 +154,7 @@ CREDENTIALS_PATHS: list[str] = [
     "keyfile.json",
 ]
 
-ALL_CATEGORIES: dict[str, list[str]] = {
-    "env": ENV_PATHS,
-    "config": CONFIG_PATHS,
-    "framework": FRAMEWORK_PATHS,
-    "database": DATABASE_PATHS,
-    "docker": DOCKER_PATHS,
-    "credentials": CREDENTIALS_PATHS,
-}
-
-ALL_PATHS = list(dict.fromkeys(p for paths in ALL_CATEGORIES.values() for p in paths))
-
-SENSITIVE_EXTENSIONS = frozenset({".env", ".bak", ".old", ".backup"})
-SENSITIVE_BASENAMES = frozenset({
+_SENSITIVE_BASENAMES_DEFAULT: frozenset[str] = frozenset({
     "credentials.json", "secrets.json", "secrets.yml", "secrets.yaml",
     "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", ".htpasswd",
     "wp-config.php", "config/database.yml", "config/secrets.yml",
@@ -174,9 +162,7 @@ SENSITIVE_BASENAMES = frozenset({
     ".aws/credentials",
 })
 
-# ── Content validators ────────────────────────────────────────────────────────
-
-_SENSITIVE_PATTERNS: dict[str, list[str]] = {
+_SENSITIVE_PATTERNS_DEFAULT: dict[str, list[str]] = {
     "env": ["=", "DB_", "API_KEY", "SECRET", "PASSWORD", "TOKEN", "MYSQL", "POSTGRES", "REDIS"],
     "config": ["config", "setting", "database", "host", "port", "password"],
     "framework": ["DB_NAME", "DB_USER", "DB_PASSWORD", "wp_", "APP_KEY", "SECRET_KEY", "database", "password", "<configuration", "system.web"],
@@ -184,6 +170,50 @@ _SENSITIVE_PATTERNS: dict[str, list[str]] = {
     "docker": ["services:", "version:", "image:", "container_name:", "build:", "volumes:", "FROM"],
     "credentials": ["private_key", "client_email", "project_id", "key:", "secret:", "token:", "password:", "$apr1$", "$2b$", "$2a$"],
 }
+
+
+def _load_config_paths() -> None:
+    """Carrega config paths de YAML com fallback e atualiza variáveis globais."""
+    from mytools.data import load_payloads
+
+    global ENV_PATHS, CONFIG_PATHS, FRAMEWORK_PATHS, DATABASE_PATHS
+    global DOCKER_PATHS, CREDENTIALS_PATHS, ALL_CATEGORIES, ALL_PATHS
+    global SENSITIVE_BASENAMES, _SENSITIVE_PATTERNS
+
+    data = load_payloads("config", "config_file_detect", default={
+        "env": _ENV_PATHS_DEFAULT,
+        "config": _CONFIG_PATHS_DEFAULT,
+        "framework": _FRAMEWORK_PATHS_DEFAULT,
+        "database": _DATABASE_PATHS_DEFAULT,
+        "docker": _DOCKER_PATHS_DEFAULT,
+        "credentials": _CREDENTIALS_PATHS_DEFAULT,
+        "sensitive_basenames": list(_SENSITIVE_BASENAMES_DEFAULT),
+        "sensitive_patterns": _SENSITIVE_PATTERNS_DEFAULT,
+    })
+
+    ENV_PATHS = data.get("env", _ENV_PATHS_DEFAULT)
+    CONFIG_PATHS = data.get("config", _CONFIG_PATHS_DEFAULT)
+    FRAMEWORK_PATHS = data.get("framework", _FRAMEWORK_PATHS_DEFAULT)
+    DATABASE_PATHS = data.get("database", _DATABASE_PATHS_DEFAULT)
+    DOCKER_PATHS = data.get("docker", _DOCKER_PATHS_DEFAULT)
+    CREDENTIALS_PATHS = data.get("credentials", _CREDENTIALS_PATHS_DEFAULT)
+    SENSITIVE_BASENAMES = frozenset(data.get("sensitive_basenames", _SENSITIVE_BASENAMES_DEFAULT))
+    _SENSITIVE_PATTERNS = data.get("sensitive_patterns", _SENSITIVE_PATTERNS_DEFAULT)
+
+    ALL_CATEGORIES = {
+        "env": ENV_PATHS,
+        "config": CONFIG_PATHS,
+        "framework": FRAMEWORK_PATHS,
+        "database": DATABASE_PATHS,
+        "docker": DOCKER_PATHS,
+        "credentials": CREDENTIALS_PATHS,
+    }
+    ALL_PATHS = list(dict.fromkeys(p for paths in ALL_CATEGORIES.values() for p in paths))
+
+
+_load_config_paths()
+
+SENSITIVE_EXTENSIONS = frozenset({".env", ".bak", ".old", ".backup"})
 
 
 banner = create_banner(

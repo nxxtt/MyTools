@@ -40,21 +40,22 @@ _BANNER_LINES: str = (
     "                                                   |___/ \n"
 )
 
-_TERRAFORM_STATE_PATHS: list[str] = [
-    "/terraform.tfstate",
-    "/env/terraform.tfstate",
-    "/prod/terraform.tfstate",
-    "/staging/terraform.tfstate",
-    "/dev/terraform.tfstate",
-    "/infra/terraform.tfstate",
-    "/infrastructure/terraform.tfstate",
-    "/tf/terraform.tfstate",
-    "/tfstate/terraform.tfstate",
-    "/.terraform/terraform.tfstate",
-    "/terraform.tfstate.backup",
-    "/env/terraform.tfstate.backup",
-    "/prod/terraform.tfstate.backup",
+_TERRAFORM_STATE_PATHS_DEFAULT: list[str] = [
+    "/terraform.tfstate", "/env/terraform.tfstate", "/prod/terraform.tfstate",
+    "/staging/terraform.tfstate", "/dev/terraform.tfstate", "/infra/terraform.tfstate",
+    "/infrastructure/terraform.tfstate", "/tf/terraform.tfstate", "/tfstate/terraform.tfstate",
+    "/.terraform/terraform.tfstate", "/terraform.tfstate.backup",
+    "/env/terraform.tfstate.backup", "/prod/terraform.tfstate.backup",
 ]
+
+
+def _load_terraform_paths() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "infra_attack", default={"terraform_state_paths": _TERRAFORM_STATE_PATHS_DEFAULT})
+    return data.get("terraform_state_paths", _TERRAFORM_STATE_PATHS_DEFAULT)
+
+
+_TERRAFORM_STATE_PATHS = _load_terraform_paths()
 
 _TERRAFORM_SECRET_PATTERNS: list[str] = [
     r"aws_access_key_id",

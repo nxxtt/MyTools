@@ -1,0 +1,31 @@
+# Team Page Paths & Job Title Keywords
+# Usado por socialengrecon.py
+# Última atualização: 2026-07-16
+
+team_paths:
+  - /about
+  - /about-us
+  - /team
+  - /our-team
+  - /people
+  - /company
+  - /company/about
+  - /about/team
+
+job_title_keywords:
+  - engineer
+  - manager
+  - director
+  - ceo
+  - cto
+  - cfo
+  - lead
+  - developer
+  - designer
+  - analyst
+  - architect
+  - head
+  - vp
+  - president
+  - founder
+  - co-founder

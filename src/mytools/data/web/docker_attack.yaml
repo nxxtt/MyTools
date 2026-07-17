@@ -1,0 +1,30 @@
+# Docker Attack Payloads
+# Usado por dockerattack.py
+# Última atualização: 2026-07-16
+
+common_repo_names:
+  - library
+  - alpine
+  - nginx
+  - ubuntu
+  - debian
+  - node
+  - python
+  - redis
+  - postgres
+  - mysql
+  - mongo
+  - jenkins
+  - centos
+  - grafana
+  - prometheus
+  - kibana
+  - elasticsearch
+  - rabbitmq
+
+common_tags:
+  - latest
+  - stable
+  - dev
+  - main
+  - production

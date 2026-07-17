@@ -1,0 +1,30 @@
+# Email Link Tracking Categories
+# Usado por emaillinktracking.py
+# Última atualização: 2026-07-16
+
+categories:
+  pixel:
+    - pixel_1x1
+    - pixel_css
+    - web_beacon
+  link:
+    - link_rewrite
+    - utm_params
+    - redirect_chain
+    - url_shortener
+  header:
+    - read_receipt
+    - message_id_tracking
+  css:
+    - hidden_element
+    - css_tracking
+    - font_fingerprint
+
+shorteners:
+  - bit.ly
+  - tinyurl.com
+  - goo.gl
+  - t.co
+  - is.gd
+  - buff.ly
+  - ow.ly

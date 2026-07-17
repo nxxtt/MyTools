@@ -37,21 +37,21 @@ _BANNER_LINES: str = (
     " |_____\\___/ \\___\\__,_/_/   \\_\\_|   \\__,_|_|   |_|\\__,_|_|    \n"
 )
 
-_ENV_VAR_PATTERNS: list[str] = [
-    r"AWS_ACCESS_KEY_ID",
-    r"AWS_SECRET_ACCESS_KEY",
-    r"AWS_SESSION_TOKEN",
-    r"AWS_REGION",
-    r"AWS_LAMBDA_",
-    r"SECRET_",
-    r"API_KEY",
-    r"DATABASE_URL",
-    r"CONNECTION_STRING",
-    r"PASSWORD",
-    r"TOKEN",
-    r"PRIVATE_KEY",
-    r"arn:aws:",
+_ENV_VAR_PATTERNS_DEFAULT: list[str] = [
+    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+    "AWS_REGION", "AWS_LAMBDA_", "SECRET_", "API_KEY",
+    "DATABASE_URL", "CONNECTION_STRING", "PASSWORD", "TOKEN",
+    "PRIVATE_KEY", "arn:aws:",
 ]
+
+
+def _load_lambda_patterns() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "lambda_attack", default={"env_var_patterns": _ENV_VAR_PATTERNS_DEFAULT})
+    return data.get("env_var_patterns", _ENV_VAR_PATTERNS_DEFAULT)
+
+
+_ENV_VAR_PATTERNS = _load_lambda_patterns()
 
 _LAYER_ARN_PATTERN: re.Pattern[str] = re.compile(
     r"arn:aws:lambda:[a-z0-9-]+:\d{12}:layer:[a-zA-Z0-9_-]+:\d+"

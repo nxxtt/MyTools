@@ -1,0 +1,36 @@
+# VCS Leak Probe Paths
+# Usado por vcsleak.py
+# Última atualização: 2026-07-16
+
+git:
+  - .git/HEAD
+  - .git/config
+  - .gitignore
+  - .git/description
+  - .git/index
+  - .git/COMMIT_EDITMSG
+  - .git/info/refs
+  - .git/packed-refs
+  - .git/refs/heads/master
+  - .git/refs/heads/main
+  - .git/logs/HEAD
+  - .git/logs/refs/heads/main
+  - .git/refs/heads/main.lock
+
+svn:
+  - .svn/entries
+  - .svn/wc.db
+  - .svn/dir-prop-base
+  - .svn/all-wcprops
+  - .svn/props/base/
+  - .svn/pristine/
+
+hg:
+  - .hg/store/00manifest.i
+  - .hgignore
+  - .hg/store/00manifest.d
+  - .hg/store/00log.i
+  - .hg/store/00phasesfiles.i
+  - .hg/store/undo
+  - .hg/dirstate
+  - .hg/branch

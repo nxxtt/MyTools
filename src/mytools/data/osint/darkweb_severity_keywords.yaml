@@ -1,0 +1,36 @@
+# Dark Web Severity Keywords
+# Usado por darkwebmonitor.py
+# Última atualização: 2026-07-16
+
+critical:
+  - password
+  - credential
+  - leak
+  - dump
+  - database
+  - breach
+  - exposed
+  - compromised
+
+high:
+  - hack
+  - attack
+  - vulnerability
+  - exploit
+  - ransomware
+  - malware
+  - stealer
+
+medium:
+  - discussion
+  - forum
+  - review
+  - tutorial
+  - guide
+  - method
+
+low:
+  - mention
+  - reference
+  - link
+  - paste

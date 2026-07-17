@@ -48,26 +48,22 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.graphqlplayground")
 
-DEFAULT_PATHS: list[str] = [
-    "graphql",
-    "graphiql",
-    "playground",
-    "altair",
-    "voyager",
-    "graphql/console",
-    "_graphql",
-    "api/graphql",
-    "v1/graphql",
-    "v2/graphql",
-    "v3/graphql",
-    "graph",
-    "gql",
-    "query",
-    "graphql-api",
-    "graphql-playground",
-    "graphql-altair",
-    "graphql-voyager",
+_DEFAULT_PATHS_GQL: list[str] = [
+    "graphql", "graphiql", "playground", "altair", "voyager",
+    "graphql/console", "_graphql", "api/graphql",
+    "v1/graphql", "v2/graphql", "v3/graphql",
+    "graph", "gql", "query", "graphql-api",
+    "graphql-playground", "graphql-altair", "graphql-voyager",
 ]
+
+
+def _load_graphql_playground_paths() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "graphql_paths", default={"paths": _DEFAULT_PATHS_GQL})
+    return data.get("paths", _DEFAULT_PATHS_GQL)
+
+
+DEFAULT_PATHS = _load_graphql_playground_paths()
 
 STATUS_OK = frozenset({200})
 

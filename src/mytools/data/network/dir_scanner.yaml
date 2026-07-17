@@ -1,0 +1,42 @@
+# Directory Scanner Default Paths
+# Usado por dirscanner.py
+# Última atualização: 2026-07-16
+
+paths:
+  - admin
+  - login
+  - dashboard
+  - wp-admin
+  - administrator
+  - backup
+  - backups
+  - config
+  - config.php
+  - .env
+  - phpinfo.php
+  - images
+  - uploads
+  - files
+  - assets
+  - static
+  - robots.txt
+  - sitemap.xml
+  - .git
+  - .htaccess
+  - server-status
+  - api
+  - api/v1
+  - v1
+  - admin.php
+  - panel
+  - phpmyadmin
+  - dev
+  - test
+  - staging
+  - old
+  - tmp
+  - private
+  - db
+  - database
+  - dump.sql
+  - backup.zip

@@ -1,0 +1,29 @@
+# Serverless Attack Payloads
+# Usado por serverlessattack.py
+# Última atualização: 2026-07-16
+
+cold_start_indicators:
+  - X-Cache
+  - X-Cold-Start
+  - X-Startup-Time
+  - X-Lambda-Initialization
+  - X-Init-Duration
+  - X-Request-Start
+  - Server-Timing
+  - X-Response-Time
+  - X-Processing-Time
+  - X-Execution-Start
+  - X-Amz-Executed-Version
+  - X-Amz-Invocation-Type
+  - x-amz-cold-start
+
+cold_start_body_signatures:
+  - "cold start"
+  - "coldstart"
+  - "initialization"
+  - "init duration"
+  - "runtime init"
+  - "starting"
+  - "warming"
+  - "warmup"
+  - "first request"

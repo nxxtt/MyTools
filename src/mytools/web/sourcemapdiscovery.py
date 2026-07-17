@@ -48,35 +48,28 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.sourcemapdiscovery")
 
-DEFAULT_SCRIPT_PATHS: list[str] = [
-    "static/js/app.js",
-    "static/js/main.js",
-    "static/js/bundle.js",
-    "dist/js/app.js",
-    "dist/js/main.js",
-    "dist/bundle.js",
-    "assets/js/app.js",
-    "assets/js/main.js",
-    "js/app.js",
-    "js/main.js",
-    "js/bundle.js",
-    "build/bundle.js",
-    "build/static/js/main.js",
+_DEFAULT_SCRIPT_PATHS_DATA: list[str] = [
+    "static/js/app.js", "static/js/main.js", "static/js/bundle.js",
+    "dist/js/app.js", "dist/js/main.js", "dist/bundle.js",
+    "assets/js/app.js", "assets/js/main.js",
+    "js/app.js", "js/main.js", "js/bundle.js",
+    "build/bundle.js", "build/static/js/main.js",
     "public/static/js/app.js",
     "_next/static/chunks/pages/_app.js",
     "_nuxt/dist/app/client.js",
     "wp-content/themes/flavor/assets/js/app.js",
-    "vendor.js",
-    "app.min.js",
-    "main.min.js",
-    "bundle.min.js",
-    "index.js",
-    "app.js",
-    "main.js",
-    "bundle.js",
-    "chunk.js",
-    "runtime.js",
+    "vendor.js", "app.min.js", "main.min.js", "bundle.min.js",
+    "index.js", "app.js", "main.js", "bundle.js", "chunk.js", "runtime.js",
 ]
+
+
+def _load_sourcemap_paths() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "sourcemap_paths", default={"script_paths": _DEFAULT_SCRIPT_PATHS_DATA})
+    return data.get("script_paths", _DEFAULT_SCRIPT_PATHS_DATA)
+
+
+DEFAULT_SCRIPT_PATHS = _load_sourcemap_paths()
 
 STATUS_OK = frozenset({200})
 

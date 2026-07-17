@@ -65,7 +65,7 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     ],
 }
 
-_COMMON_SECRETS = [
+_COMMON_SECRETS_DEFAULT = [
     "secret", "password", "123456", "jwt_secret", "changeme",
     "key123", "supersecret", "mysecret", "test", "admin",
     "12345678", "qwerty", "abc123", "password1", "letmein",
@@ -86,6 +86,15 @@ _COMMON_SECRETS = [
     "a", "b", "c", "x", "y", "z",
     "0", "1", "2", "3", "4",
 ]
+
+
+def _load_jwt_secrets() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "jwt_common_secrets", default={"secrets": _COMMON_SECRETS_DEFAULT})
+    return data.get("secrets", _COMMON_SECRETS_DEFAULT)
+
+
+_COMMON_SECRETS = _load_jwt_secrets()
 
 
 def _decode_jwt_header(token: str) -> dict[str, str] | None:

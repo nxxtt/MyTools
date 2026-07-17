@@ -48,9 +48,9 @@ logger = logging.getLogger("mytools.googledorking")
 
 STATUS_OK = frozenset({200})
 
-# ── Dork constants ────────────────────────────────────────────────────────────
+# ── Dork constants (fallbacks) ────────────────────────────────────────────────
 
-FILETYPE_DORKS: list[str] = [
+_FILETYPE_DORKS_DEFAULT: list[str] = [
     "filetype:pdf",
     "filetype:sql",
     "filetype:env",
@@ -66,7 +66,7 @@ FILETYPE_DORKS: list[str] = [
     "filetype:json",
 ]
 
-DIRECTORY_DORKS: list[str] = [
+_DIRECTORY_DORKS_DEFAULT: list[str] = [
     'intitle:"index of"',
     'intitle:"index of /"',
     '"parent directory"',
@@ -76,7 +76,7 @@ DIRECTORY_DORKS: list[str] = [
     'intitle:"index of" ".env"',
 ]
 
-LOGIN_DORKS: list[str] = [
+_LOGIN_DORKS_DEFAULT: list[str] = [
     "inurl:login",
     "inurl:admin",
     "inurl:signin",
@@ -89,7 +89,7 @@ LOGIN_DORKS: list[str] = [
     "inurl:auth/login",
 ]
 
-ERROR_DORKS: list[str] = [
+_ERROR_DORKS_DEFAULT: list[str] = [
     'intext:"error" "mysql"',
     'intext:"SQL syntax" "mysql"',
     'intext:"Warning:" "mysql_fetch"',
@@ -102,7 +102,7 @@ ERROR_DORKS: list[str] = [
     'intext:"Microsoft OLE DB Provider"',
 ]
 
-SENSITIVE_DORKS: list[str] = [
+_SENSITIVE_DORKS_DEFAULT: list[str] = [
     "inurl:.env",
     "inurl:wp-config",
     "inurl:config.php",
@@ -120,11 +120,36 @@ SENSITIVE_DORKS: list[str] = [
     "inurl:clientsaccesspolicy.xml",
 ]
 
-SUBDOMAIN_DORKS: list[str] = [
+_SUBDOMAIN_DORKS_DEFAULT: list[str] = [
     "site:*.{domain}",
     'intitle:"index of" site:*.{domain}',
     "inurl:admin site:*.{domain}",
 ]
+
+
+def _load_dorks() -> dict[str, list[str]]:
+    """Carrega dorks de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("osint", "google_dorking", default={
+        "filetype": _FILETYPE_DORKS_DEFAULT,
+        "directory": _DIRECTORY_DORKS_DEFAULT,
+        "login": _LOGIN_DORKS_DEFAULT,
+        "error": _ERROR_DORKS_DEFAULT,
+        "sensitive": _SENSITIVE_DORKS_DEFAULT,
+        "subdomain": _SUBDOMAIN_DORKS_DEFAULT,
+    })
+    return data
+
+
+_DORKS = _load_dorks()
+
+FILETYPE_DORKS: list[str] = _DORKS.get("filetype", _FILETYPE_DORKS_DEFAULT)
+DIRECTORY_DORKS: list[str] = _DORKS.get("directory", _DIRECTORY_DORKS_DEFAULT)
+LOGIN_DORKS: list[str] = _DORKS.get("login", _LOGIN_DORKS_DEFAULT)
+ERROR_DORKS: list[str] = _DORKS.get("error", _ERROR_DORKS_DEFAULT)
+SENSITIVE_DORKS: list[str] = _DORKS.get("sensitive", _SENSITIVE_DORKS_DEFAULT)
+SUBDOMAIN_DORKS: list[str] = _DORKS.get("subdomain", _SUBDOMAIN_DORKS_DEFAULT)
 
 ALL_CATEGORIES: dict[str, list[str]] = {
     "filetype": FILETYPE_DORKS,

@@ -1,0 +1,100 @@
+# Backup File Detection Paths
+# Usado por backupfiledetect.py
+# Última atualização: 2026-07-16
+
+bak:
+  - config.php.bak
+  - wp-config.php.bak
+  - .env.bak
+  - index.php.bak
+  - config.json.bak
+  - database.yml.bak
+  - settings.py.bak
+  - web.config.bak
+  - config.yaml.bak
+  - config.php.old
+  - wp-config.php.old
+  - .env.old
+  - index.php.old
+  - wp-config.php.save
+  - config.php.backup
+  - .env.backup
+  - settings.py.backup
+  - index.php.backup
+
+swp:
+  - .config.php.swp
+  - .wp-config.php.swp
+  - .index.php.swp
+  - .settings.py.swp
+  - .env.swp
+  - .config.json.swp
+  - .config.yaml.swp
+  - .config.php.swo
+  - .wp-config.php.swo
+
+tilde:
+  - config.php~
+  - wp-config.php~
+  - index.php~
+  - .env~
+  - settings.py~
+  - config.json~
+  - config.yaml~
+  - index.html~
+  - style.css~
+  - app.js~
+
+sql:
+  - dump.sql
+  - backup.sql
+  - database.sql
+  - db.sql
+  - export.sql
+  - data.sql
+  - mysql.sql
+  - tables.sql
+  - dump.sql.gz
+  - backup.sql.gz
+  - database.sql.gz
+  - db.sql.gz
+  - sql-dump.sql
+
+archive:
+  - backup.zip
+  - site.tar.gz
+  - www.zip
+  - public_html.zip
+  - backup.tar.gz
+  - site.zip
+  - www.tar.gz
+  - backup.tgz
+  - website.zip
+  - html.zip
+  - src.zip
+  - code.zip
+
+orig_tmp:
+  - index.php.orig
+  - config.php.orig
+  - index.php.tmp
+  - config.php.tmp
+  - index.php.save
+  - config.php.save
+  - style.css.bak
+  - app.js.bak
+  - style.css.orig
+  - app.js.orig
+
+sql_keywords:
+  - CREATE TABLE
+  - INSERT INTO
+  - DROP TABLE
+  - ALTER TABLE
+  - CREATE DATABASE
+  - "USE "
+  - VALUES
+  - SET NAMES
+  - PRIMARY KEY
+  - FOREIGN KEY
+  - AUTO_INCREMENT

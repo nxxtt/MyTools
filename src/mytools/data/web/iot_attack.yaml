@@ -1,0 +1,38 @@
+# IoT Attack Payloads
+# Usado por iotattack.py
+# Última atualização: 2026-07-16
+
+snmp_communities:
+  - public
+  - private
+  - manager
+  - admin
+  - test
+  - default
+  - secret
+  - password
+  - community
+  - snmp
+  - monitor
+  - internal
+  - guest
+  - readonly
+  - readwrite
+  - monitoring
+  - network
+  - system
+  - equipment
+  - scada
+  - plc
+
+mqtt_topics:
+  - "$SYS/#"
+  - "#"
+  - "+"
+  - "home/#"
+  - "device/#"
+  - "sensor/#"
+  - "iot/#"
+  - "data/#"
+  - "telemetry/#"
+  - "status/#"

@@ -1,0 +1,23 @@
+# GraphQL Playground Paths
+# Usado por graphqlplayground.py e graphqlattack.py
+# Última atualização: 2026-07-16
+
+paths:
+  - graphql
+  - graphiql
+  - playground
+  - altair
+  - voyager
+  - graphql/console
+  - _graphql
+  - api/graphql
+  - v1/graphql
+  - v2/graphql
+  - v3/graphql
+  - graph
+  - gql
+  - query
+  - graphql-api
+  - graphql-playground
+  - graphql-altair
+  - graphql-voyager

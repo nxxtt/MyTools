@@ -52,35 +52,21 @@ _BANNER_LINES: str = (
 
 
 
-_COLD_START_INDICATORS: list[str] = [
-
-    "X-Cache",
-
-    "X-Cold-Start",
-
-    "X-Startup-Time",
-
-    "X-Lambda-Initialization",
-
-    "X-Init-Duration",
-
-    "X-Request-Start",
-
-    "Server-Timing",
-
-    "X-Response-Time",
-
-    "X-Processing-Time",
-
-    "X-Execution-Start",
-
-    "X-Amz-Executed-Version",
-
-    "X-Amz-Invocation-Type",
-
-    "x-amz-cold-start",
-
+_COLD_START_INDICATORS_DEFAULT: list[str] = [
+    "X-Cache", "X-Cold-Start", "X-Startup-Time", "X-Lambda-Initialization",
+    "X-Init-Duration", "X-Request-Start", "Server-Timing", "X-Response-Time",
+    "X-Processing-Time", "X-Execution-Start", "X-Amz-Executed-Version",
+    "X-Amz-Invocation-Type", "x-amz-cold-start",
 ]
+
+
+def _load_cold_start_indicators() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "serverless_attack", default={"cold_start_indicators": _COLD_START_INDICATORS_DEFAULT})
+    return data.get("cold_start_indicators", _COLD_START_INDICATORS_DEFAULT)
+
+
+_COLD_START_INDICATORS = _load_cold_start_indicators()
 
 
 

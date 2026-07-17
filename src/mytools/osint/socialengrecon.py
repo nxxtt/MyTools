@@ -47,10 +47,33 @@ STATUS_OK = frozenset({200})
 GITHUB_API = "https://api.github.com"
 HUNTER_API = "https://api.hunter.io/v2"
 
-TEAM_PATHS: list[str] = [
+_TEAM_PATHS_DEFAULT: list[str] = [
     "/about", "/about-us", "/team", "/our-team", "/people",
     "/company", "/company/about", "/about/team",
 ]
+
+_JOB_TITLE_KEYWORDS_DEFAULT: list[str] = [
+    "engineer", "manager", "director", "ceo", "cto", "cfo",
+    "lead", "developer", "designer", "analyst", "architect",
+    "head", "vp", "president", "founder", "co-founder",
+]
+
+
+def _load_social_data() -> tuple[list[str], list[str]]:
+    """Carrega team paths e job keywords de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("osint", "team_paths", default={
+        "team_paths": _TEAM_PATHS_DEFAULT,
+        "job_title_keywords": _JOB_TITLE_KEYWORDS_DEFAULT,
+    })
+    return (
+        data.get("team_paths", _TEAM_PATHS_DEFAULT),
+        data.get("job_title_keywords", _JOB_TITLE_KEYWORDS_DEFAULT),
+    )
+
+
+TEAM_PATHS, _JOB_TITLE_KEYWORDS = _load_social_data()
 
 DEFAULT_SOURCES = ["github"]
 
@@ -321,11 +344,7 @@ async def _query_webpages(
                 position = ""
                 if position_tag:
                     pos_text = position_tag.get_text(strip=True)
-                    if len(pos_text) < 60 and any(kw in pos_text.lower() for kw in [
-                        "engineer", "manager", "director", "ceo", "cto", "cfo",
-                        "lead", "developer", "designer", "analyst", "architect",
-                        "head", "vp", "president", "founder", "co-founder",
-                    ]):
+                    if len(pos_text) < 60 and any(kw in pos_text.lower() for kw in _JOB_TITLE_KEYWORDS):
                         position = pos_text
 
                 employees.append(EmployeeInfo(

@@ -60,8 +60,8 @@ BANNER_ART = r"""
 |____/ \__,_|_|\_\___| |____/ \__,_|_| |_|\__,_|___/___/
 """
 
-# Wordlist embutida com subdominios comuns
-BUILTIN_WORDLIST: tuple[str, ...] = (
+# Wordlist embutida com subdominios comuns (fallback)
+BUILTIN_WORDLIST_DEFAULT: tuple[str, ...] = (
     "www", "mail", "ftp", "webmail", "smtp", "pop", "ns1", "ns2", "ns3", "ns4",
     "cpanel", "whm", "webdisk", "autodiscover", "autoconfig", "m", "mobile",
     "imap", "remote", "blog", "test", "dev", "staging", "api", "app", "admin",
@@ -95,6 +95,17 @@ BUILTIN_WORDLIST: tuple[str, ...] = (
     "analytics", "stats", "metrics", "logs", "log", "syslog",
     "ntp", "time", "snmp", "monitoring", "nagios", "zabbix", "icinga",
 )
+
+
+def _load_wordlist() -> tuple[str, ...]:
+    """Carrega wordlist de subdomínios de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("dns", "subdomain_enum", default={"wordlist": list(BUILTIN_WORDLIST_DEFAULT)})
+    return tuple(data.get("wordlist", BUILTIN_WORDLIST_DEFAULT))
+
+
+BUILTIN_WORDLIST: tuple[str, ...] = _load_wordlist()
 
 DEFAULT_THREADS = 20
 DEFAULT_TIMEOUT = 3.0

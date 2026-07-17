@@ -59,12 +59,23 @@ INTELX_RESULT_LIMIT = 20
 
 DEFAULT_SOURCES: list[str] = ["ahmia", "darksearch"]
 
-_SEVERITY_KEYWORDS: dict[str, list[str]] = {
+_SEVERITY_KEYWORDS_DEFAULT: dict[str, list[str]] = {
     "critical": ["password", "credential", "leak", "dump", "database", "breach", "exposed", "compromised"],
     "high": ["hack", "attack", "vulnerability", "exploit", "ransomware", "malware", "stealer"],
     "medium": ["discussion", "forum", "review", "tutorial", "guide", "method"],
     "low": ["mention", "reference", "link", "paste"],
 }
+
+
+def _load_severity_keywords() -> dict[str, list[str]]:
+    """Carrega keywords de severidade de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("osint", "darkweb_severity_keywords", default=_SEVERITY_KEYWORDS_DEFAULT)
+    return data if isinstance(data, dict) else _SEVERITY_KEYWORDS_DEFAULT
+
+
+_SEVERITY_KEYWORDS = _load_severity_keywords()
 
 
 @dataclass(frozen=True, slots=True)

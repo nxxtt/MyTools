@@ -48,21 +48,20 @@ _BANNER_LINES: str = (
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
-_DEFAULT_PATHS: list[str] = [
-    "graphql",
-    "graphiql",
-    "playground",
-    "altair",
-    "_graphql",
-    "api/graphql",
-    "v1/graphql",
-    "v2/graphql",
-    "v3/graphql",
-    "graph",
-    "gql",
-    "query",
-    "graphql-api",
+_DEFAULT_PATHS_GQL: list[str] = [
+    "graphql", "graphiql", "playground", "altair", "_graphql",
+    "api/graphql", "v1/graphql", "v2/graphql", "v3/graphql",
+    "graph", "gql", "query", "graphql-api",
 ]
+
+
+def _load_graphql_paths() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "graphql_paths", default={"paths": _DEFAULT_PATHS_GQL})
+    return data.get("paths", _DEFAULT_PATHS_GQL)
+
+
+_DEFAULT_PATHS = _load_graphql_paths()
 
 _INTROSPECTION_QUERY: str = json.dumps({
     "query": "{ __schema { queryType { name } mutationType { name } subscriptionType { name } types { name kind } } }",

@@ -1,0 +1,276 @@
+# Subdomain Enumeration Wordlist
+# Usado por subdomainenum.py
+# Última atualização: 2026-07-16
+
+wordlist:
+  # Servidores de email
+  - mail
+  - smtp
+  - pop
+  - imap
+  - webmail
+  - exchange
+  - owa
+  - active-sync
+  - autodiscover
+  - autodiscover2
+  - mx
+  - mx1
+  - mx2
+  - mx3
+  - mx-backup
+  - relay
+  - email
+  - email2
+  - webmail2
+  - mail2
+
+  # DNS
+  - ns1
+  - ns2
+  - ns3
+  - ns4
+  - dns
+  - ldap
+  - ad
+  - dc
+
+  # FTP
+  - ftp
+
+  # Web básico
+  - www
+  - web
+  - site
+  - home
+  - m
+  - mobile
+
+  # Hosting/Painel
+  - cpanel
+  - whm
+  - webdisk
+  - autoconfig
+
+  # Desenvolvimento
+  - dev
+  - staging
+  - test
+  - beta
+  - alpha
+  - canary
+  - preview
+  - demo
+  - sandbox
+  - lab
+
+  # APIs
+  - api
+  - api2
+  - api3
+  - v1
+  - v2
+  - v3
+  - rest
+  - graphql
+  - ws
+  - socket
+  - app
+
+  # Administração
+  - admin
+  - portal
+  - intranet
+  - dashboard
+  - login
+  - auth
+  - sso
+
+  # CDN/Mídia
+  - cdn
+  - cdn2
+  - static
+  - static2
+  - media
+  - media2
+  - img
+  - img2
+  - images
+  - images2
+  - assets
+  - css
+  - js
+
+  # Arquivos
+  - files
+  - download
+  - uploads
+  - docs
+
+  # Conhecimento
+  - wiki
+  - kb
+  - help
+  - support
+  - blog
+  - news
+  - press
+
+  # Comunidade
+  - forum
+  - community
+  - events
+  - calendar
+
+  # Comércio
+  - shop
+  - shop2
+  - store
+  - store2
+  - checkout
+  - cart
+  - billing
+  - billing2
+  - pay
+  - stripe
+  - invoice
+  - accounts
+  - my
+
+  # VPN/Proxy
+  - vpn
+  - vpn2
+  - gateway
+  - proxy
+  - secure
+  - ssl
+  - remote
+
+  # Backup
+  - backup
+  - bak
+  - old
+  - legacy
+  - archive
+  - temp
+  - tmp
+  - cache
+
+  # CI/CD
+  - ci
+  - cd
+  - deploy
+  - build
+  - release
+  - artifact
+  - registry
+
+  # Ferramentas
+  - jenkins
+  - gitlab
+  - github
+  - bitbucket
+  - jira
+  - confluence
+
+  # Monitoramento
+  - status
+  - monitor
+  - grafana
+  - kibana
+  - elastic
+  - prometheus
+  - monitoring
+  - nagios
+  - zabbix
+  - icinga
+  - analytics
+  - stats
+  - metrics
+  - logs
+  - log
+  - syslog
+
+  # Bancos de dados
+  - db
+  - database
+  - mysql
+  - postgres
+  - redis
+  - mongo
+  - memcached
+  - search
+  - solr
+
+  # Message queue
+  - mq
+  - rabbitmq
+  - kafka
+  - queue
+
+  # Containers/Orquestração
+  - docker
+  - k8s
+  - kubernetes
+  - rancher
+  - vault
+  - consul
+  - nomad
+  - edge
+  - node
+  - worker
+  - runner
+  - agent
+  - handler
+
+  # Comunicação
+  - lync
+  - sip
+  - teams
+  - zoom
+  - meet
+  - meet2
+  - webconf
+  - video
+  - stream
+  - tv
+  - radio
+  - music
+  - podcast
+  - rss
+  - feed
+
+  # RH
+  - careers
+  - jobs
+  - hr
+  - recruit
+  - apply
+  - resume
+
+  # Legal/Parceiros
+  - partners
+  - vendors
+  - suppliers
+  - contract
+  - legal
+  - terms
+  - privacy
+  - security
+  - abuse
+  - report
+  - compliance
+
+  # ERP/CRM
+  - crm
+  - erp
+  - hrm
+  - project
+  - pm
+  - task
+  - tracker
+
+  # Tempo
+  - ntp
+  - time
+  - snmp

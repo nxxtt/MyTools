@@ -1,0 +1,29 @@
+# OpenAPI Discovery Paths
+# Usado por openapidiscovery.py
+# Última atualização: 2026-07-16
+
+paths:
+  - swagger.json
+  - swagger/v1/swagger.json
+  - swagger/v2/swagger.json
+  - v1/swagger.json
+  - v2/swagger.json
+  - api/swagger.json
+  - api/v1/swagger.json
+  - api/v2/swagger.json
+  - openapi.json
+  - openapi.yaml
+  - openapi/v1.json
+  - openapi/v1.yaml
+  - api-docs
+  - api-docs/
+  - api/docs
+  - swagger-ui.html
+  - swagger-ui/
+  - redoc/
+  - docs/
+  - apidoc/
+  - api/swagger-ui.html
+  - swagger-resources
+  - swagger-resources/configuration/ui
+  - swagger-resources/configuration/security

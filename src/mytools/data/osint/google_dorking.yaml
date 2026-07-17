@@ -1,0 +1,73 @@
+# Google Dorking Payloads
+# Usado por googledorking.py
+# Última atualização: 2026-07-16
+
+filetype:
+  - "filetype:pdf"
+  - "filetype:sql"
+  - "filetype:env"
+  - "filetype:log"
+  - "filetype:bak"
+  - "filetype:xml"
+  - "filetype:csv"
+  - "filetype:xlsx"
+  - "filetype:doc"
+  - "filetype:conf"
+  - "filetype:ini"
+  - "filetype:yml"
+  - "filetype:json"
+
+directory:
+  - 'intitle:"index of"'
+  - 'intitle:"index of /"'
+  - '"parent directory"'
+  - 'intitle:"index of" "wp-content"'
+  - 'intitle:"index of" "backup"'
+  - 'intitle:"index of" ".git"'
+  - 'intitle:"index of" ".env"'
+
+login:
+  - "inurl:login"
+  - "inurl:admin"
+  - "inurl:signin"
+  - "inurl:wp-login"
+  - "inurl:cpanel"
+  - "inurl:phpmyadmin"
+  - "inurl:webmail"
+  - "inurl:portal"
+  - "inurl:user/login"
+  - "inurl:auth/login"
+
+error:
+  - 'intext:"error" "mysql"'
+  - 'intext:"SQL syntax" "mysql"'
+  - 'intext:"Warning:" "mysql_fetch"'
+  - 'intext:"Fatal error"'
+  - 'intext:"stack trace"'
+  - 'intext:"Exception" "at line"'
+  - 'intext:"Debug" "Traceback"'
+  - 'intext:"Error in query"'
+  - 'intext:"ORA-"'
+  - 'intext:"Microsoft OLE DB Provider"'
+
+sensitive:
+  - "inurl:.env"
+  - "inurl:wp-config"
+  - "inurl:config.php"
+  - "inurl:database"
+  - "inurl:dump"
+  - "inurl:phpinfo"
+  - "inurl:server-status"
+  - "inurl:server-info"
+  - "inurl:.htaccess"
+  - "inurl:.htpasswd"
+  - "inurl:shadow"
+  - "inurl:passwd"
+  - "inurl:web.config"
+  - "inurl:crossdomain.xml"
+  - "inurl:clientsaccesspolicy.xml"
+
+subdomain:
+  - "site:*.{domain}"
+  - 'intitle:"index of" site:*.{domain}'
+  - "inurl:admin site:*.{domain}"

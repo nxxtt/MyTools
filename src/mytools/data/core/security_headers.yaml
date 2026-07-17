@@ -1,0 +1,11 @@
+# Security Headers
+# Compartilhado por webrecon.py e attackaudit.py
+# Última atualização: 2026-07-16
+
+headers:
+  - strict-transport-security
+  - content-security-policy
+  - x-frame-options
+  - x-content-type-options
+  - referrer-policy
+  - permissions-policy

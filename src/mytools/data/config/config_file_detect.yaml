@@ -1,0 +1,178 @@
+# Config File Detection Paths
+# Usado por configfiledetect.py
+# Última atualização: 2026-07-16
+
+env:
+  - .env
+  - .env.local
+  - .env.production
+  - .env.development
+  - .env.staging
+  - .env.test
+  - .env.dev
+  - .env.prod
+  - .env.live
+  - .env.bak
+  - .env.old
+  - .env.backup
+  - .env.example
+  - .env.mysql
+  - .env.www
+
+config:
+  - config.json
+  - config.yaml
+  - config.yml
+  - config.xml
+  - config.php
+  - config.ini
+  - config.conf
+  - config.toml
+  - config.js
+  - config.py
+  - settings.py
+  - settings.json
+  - settings.yaml
+  - settings.yml
+  - application.properties
+  - application.yml
+  - application.yaml
+  - appsettings.json
+  - config/settings.json
+  - config/config.json
+  - config/config.js
+  - config/config.php
+
+framework:
+  - wp-config.php
+  - config/database.yml
+  - config/secrets.yml
+  - web.config
+  - .htaccess
+  - app/etc/local.xml
+  - config/autoload/global.php
+  - config/autoload/local.php
+  - app/config/config.yml
+  - app/config/parameters.yml
+  - app/config/parameters.yml.dist
+
+database:
+  - database.yml
+  - db.conf
+  - my.cnf
+  - my.ini
+  - pg_hba.conf
+  - postgresql.conf
+  - mongod.conf
+  - redis.conf
+  - config/database.php
+  - db.php
+  - application.conf
+  - application.ini
+  - application.yml
+
+docker:
+  - docker-compose.yml
+  - docker-compose.yaml
+  - docker-compose.override.yml
+  - .dockerignore
+  - .env.docker
+  - Dockerfile
+  - helm/values.yaml
+  - k8s/deployment.yaml
+  - k8s/configmap.yaml
+  - kubernetes/deployment.yaml
+
+credentials:
+  - credentials.json
+  - credentials.xml
+  - secrets.json
+  - secrets.yml
+  - secrets.yaml
+  - .htpasswd
+  - id_rsa
+  - id_dsa
+  - id_ecdsa
+  - id_ed25519
+  - .ssh/config
+  - aws/credentials
+  - .aws/credentials
+  - service-account.json
+  - keyfile.json
+
+sensitive_basenames:
+  - credentials.json
+  - secrets.json
+  - secrets.yml
+  - secrets.yaml
+  - id_rsa
+  - id_dsa
+  - id_ecdsa
+  - id_ed25519
+  - .htpasswd
+  - wp-config.php
+  - config/database.yml
+  - config/secrets.yml
+  - service-account.json
+  - keyfile.json
+  - aws/credentials
+  - .aws/credentials
+
+sensitive_patterns:
+  env:
+    - "="
+    - "DB_"
+    - "API_KEY"
+    - "SECRET"
+    - "PASSWORD"
+    - "TOKEN"
+    - "MYSQL"
+    - "POSTGRES"
+    - "REDIS"
+  config:
+    - "config"
+    - "setting"
+    - "database"
+    - "host"
+    - "port"
+    - "password"
+  framework:
+    - "DB_NAME"
+    - "DB_USER"
+    - "DB_PASSWORD"
+    - "wp_"
+    - "APP_KEY"
+    - "SECRET_KEY"
+    - "database"
+    - "password"
+    - "<configuration"
+    - "system.web"
+  database:
+    - "mysql"
+    - "postgres"
+    - "host"
+    - "port"
+    - "database"
+    - "user"
+    - "password"
+    - "mongodb"
+    - "redis"
+  docker:
+    - "services:"
+    - "version:"
+    - "image:"
+    - "container_name:"
+    - "build:"
+    - "volumes:"
+    - "FROM"
+  credentials:
+    - "private_key"
+    - "client_email"
+    - "project_id"
+    - "key:"
+    - "secret:"
+    - "token:"
+    - "password:"
+    - "$apr1$"
+    - "$2b$"
+    - "$2a$"

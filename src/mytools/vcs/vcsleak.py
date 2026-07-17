@@ -46,7 +46,7 @@ logger = logging.getLogger("mytools.vcsleak")
 
 STATUS_OK = frozenset({200, 301, 302, 307, 308})
 
-GIT_PATHS: list[str] = [
+_GIT_PATHS_DEFAULT: list[str] = [
     ".git/HEAD",
     ".git/config",
     ".gitignore",
@@ -62,7 +62,7 @@ GIT_PATHS: list[str] = [
     ".git/refs/heads/main.lock",
 ]
 
-SVN_PATHS: list[str] = [
+_SVN_PATHS_DEFAULT: list[str] = [
     ".svn/entries",
     ".svn/wc.db",
     ".svn/dir-prop-base",
@@ -71,7 +71,7 @@ SVN_PATHS: list[str] = [
     ".svn/pristine/",
 ]
 
-HG_PATHS: list[str] = [
+_HG_PATHS_DEFAULT: list[str] = [
     ".hg/store/00manifest.i",
     ".hgignore",
     ".hg/store/00manifest.d",
@@ -82,6 +82,24 @@ HG_PATHS: list[str] = [
     ".hg/branch",
 ]
 
+
+def _load_vcs_paths() -> tuple[list[str], list[str], list[str]]:
+    """Carrega VCS paths de YAML com fallback."""
+    from mytools.data import load_payloads
+
+    data = load_payloads("vcs", "vcs_leak_paths", default={
+        "git": _GIT_PATHS_DEFAULT,
+        "svn": _SVN_PATHS_DEFAULT,
+        "hg": _HG_PATHS_DEFAULT,
+    })
+    return (
+        data.get("git", _GIT_PATHS_DEFAULT),
+        data.get("svn", _SVN_PATHS_DEFAULT),
+        data.get("hg", _HG_PATHS_DEFAULT),
+    )
+
+
+GIT_PATHS, SVN_PATHS, HG_PATHS = _load_vcs_paths()
 ALL_PATHS = GIT_PATHS + SVN_PATHS + HG_PATHS
 
 GIT_VALIDATORS: dict[str, re.Pattern[str]] = {
