@@ -6,8 +6,6 @@ import httpx
 import pytest
 import respx
 
-pytestmark = pytest.mark.integration
-
 from mytools.core.utils import Cyber, severity_color
 from mytools.web.attackaudit import (
     _ERROR_INFO_SEVERITY,
@@ -47,6 +45,8 @@ from mytools.web.attackaudit import (
     normalize_url,
     risk_score,
 )
+
+pytestmark = pytest.mark.integration
 
 
 class TestNormalizeUrl:

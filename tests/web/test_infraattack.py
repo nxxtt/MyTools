@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -185,10 +185,8 @@ class TestCLI:
 @pytest.mark.network
 @respx.mock
 @patch("socket.socket")
-async def test_category_dispatch_all_return_lists(_mock_sock_cls: object) -> None:
+async def test_category_dispatch_all_return_lists(_mock_sock_cls: MagicMock) -> None:
     """All category dispatchers should return a list."""
-    import socket as _socket
-
     mock_sock_inst = _mock_sock_cls.return_value
     mock_sock_inst.connect_ex.return_value = 1
     respx.route().mock(return_value=httpx.Response(404, text="Not Found"))

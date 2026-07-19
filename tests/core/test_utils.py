@@ -8,8 +8,6 @@ import httpx
 import pytest
 import respx
 
-pytestmark = pytest.mark.integration
-
 from mytools.core.utils import (
     THEMES,
     Cyber,
@@ -40,6 +38,8 @@ from mytools.core.utils import (
     severity_color,
     status_color,
 )
+
+pytestmark = pytest.mark.integration
 
 
 class TestCyberConstants:
