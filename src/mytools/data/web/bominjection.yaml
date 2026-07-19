@@ -1,0 +1,31 @@
+category_map:
+  url:
+    - bom_path
+    - bom_query
+  header:
+    - bom_referer
+    - bom_cookie
+    - bom_ua
+  body:
+    - bom_form
+    - bom_json
+    - bom_raw
+  upload:
+    - bom_filename
+    - bom_field
+
+bom_variants:
+  utf8_bom: "\ufeff"
+  utf16_le: "\ufffe"
+  utf16_be: "\ufeff"
+  utf32_le: "\ufffe"
+  utf32_be: "\ufeff"
+  utf7_bom: "+/v8"
+
+sensitive_strings:
+  - "<script>alert(1)</script>"
+  - "' OR 1=1 --"
+  - "../../etc/passwd"
+  - "admin"
+  - "SELECT * FROM users"
+  - "test%00value"

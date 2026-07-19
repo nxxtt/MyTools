@@ -42,7 +42,7 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.mxss")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "entity_decode": [
         "entity_script_basic",
         "entity_script_double",
@@ -110,7 +110,16 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     ],
 }
 
-_ENTITY_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_category_map() -> dict[str, list[str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+
+_CATEGORY_MAP = _load_category_map()
+
+_ENTITY_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "entity_script_basic",
         "&lt;script&gt;alert(1)&lt;/script&gt;",
@@ -161,7 +170,16 @@ _ENTITY_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_NAMESPACE_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_entity_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"entity_payloads": [list(t) for t in _ENTITY_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("entity_payloads", [list(t) for t in _ENTITY_PAYLOADS_DEFAULT])]
+
+
+_ENTITY_PAYLOADS = _load_entity_payloads()
+
+_NAMESPACE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "svg_script_direct",
         '<svg><script>alert(1)</script></svg>',
@@ -212,7 +230,16 @@ _NAMESPACE_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_MATHML_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_namespace_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"namespace_payloads": [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("namespace_payloads", [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT])]
+
+
+_NAMESPACE_PAYLOADS = _load_namespace_payloads()
+
+_MATHML_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "mathml_mtext_html",
         '<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>',
@@ -263,7 +290,16 @@ _MATHML_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_RAWTEXT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_mathml_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"mathml_payloads": [list(t) for t in _MATHML_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("mathml_payloads", [list(t) for t in _MATHML_PAYLOADS_DEFAULT])]
+
+
+_MATHML_PAYLOADS = _load_mathml_payloads()
+
+_RAWTEXT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "noscript_double",
         '<noscript><style></noscript><img src=x onerror=alert(1)>',
@@ -320,7 +356,16 @@ _RAWTEXT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_COMMENT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_rawtext_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"rawtext_payloads": [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("rawtext_payloads", [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT])]
+
+
+_RAWTEXT_PAYLOADS = _load_rawtext_payloads()
+
+_COMMENT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "comment_empty_break",
         '<!--><script>alert(1)</script>',
@@ -365,7 +410,16 @@ _COMMENT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_TEMPLATE_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_comment_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"comment_payloads": [list(t) for t in _COMMENT_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("comment_payloads", [list(t) for t in _COMMENT_PAYLOADS_DEFAULT])]
+
+
+_COMMENT_PAYLOADS = _load_comment_payloads()
+
+_TEMPLATE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "template_script",
         '<template><script>alert(1)</script></template>',
@@ -398,7 +452,16 @@ _TEMPLATE_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_ENCODING_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_template_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"template_payloads": [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("template_payloads", [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT])]
+
+
+_TEMPLATE_PAYLOADS = _load_template_payloads()
+
+_ENCODING_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "backtick_attribute",
         '<img src=`x`onerror=alert(1)>',
@@ -436,6 +499,15 @@ _ENCODING_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
         ["a", "table"],
     ),
 ]
+
+
+def _load_encoding_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "mxss", default={"encoding_payloads": [list(t) for t in _ENCODING_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("encoding_payloads", [list(t) for t in _ENCODING_PAYLOADS_DEFAULT])]
+
+
+_ENCODING_PAYLOADS = _load_encoding_payloads()
 
 _ALL_PAYLOADS: dict[str, list[tuple[str, str, str, list[str]]]] = {
     "entity_decode": _ENTITY_PAYLOADS,

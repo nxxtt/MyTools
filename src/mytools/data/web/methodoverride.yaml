@@ -1,0 +1,207 @@
+# HTTP Method Override Payloads
+# Usado por methodoverride.py
+
+category_map:
+  header:
+    - x_method_override
+    - x_http_method
+    - x_method
+    - x_http_method_override
+    - custom_header
+  param:
+    - underscore_method
+    - double_underscore
+    - method_param
+    - override_param
+    - m_param
+  body:
+    - json_method
+    - form_method
+    - xml_method
+    - json_override
+    - form_override
+  bypass:
+    - case_mixed
+    - double_encode
+    - null_terminate
+    - unicode_method
+    - whitespace
+  verb:
+    - delete_via_get
+    - put_via_get
+    - patch_via_get
+    - options_via_get
+    - trace_via_get
+
+header_payloads:
+  - - x_method_override
+    - X-HTTP-Method-Override
+    - DELETE
+    - - x-http-method-override
+      - method
+      - override
+  - - x_http_method
+    - X-HTTP-Method
+    - DELETE
+    - - x-http-method
+      - method
+      - override
+  - - x_method
+    - X-Method-Override
+    - DELETE
+    - - x-method-override
+      - method
+      - override
+  - - x_http_method_override
+    - X-HTTP-Method-Override
+    - PUT
+    - - x-http-method-override
+      - method
+      - override
+  - - custom_header
+    - X-Custom-HTTP-Method
+    - DELETE
+    - - method
+      - override
+
+param_payloads:
+  - - underscore_method
+    - _method
+    - DELETE
+    - query
+    - - _method
+      - method
+      - override
+  - - double_underscore
+    - __method
+    - DELETE
+    - query
+    - - __method
+      - method
+      - override
+  - - method_param
+    - method
+    - DELETE
+    - query
+    - - method
+      - override
+  - - override_param
+    - override
+    - DELETE
+    - query
+    - - override
+      - method
+  - - m_param
+    - _method
+    - PUT
+    - query
+    - - _method
+      - method
+      - override
+
+body_payloads:
+  - - json_method
+    - _method
+    - DELETE
+    - json
+    - - _method
+      - method
+      - override
+  - - form_method
+    - _method
+    - DELETE
+    - form
+    - - _method
+      - method
+      - override
+  - - xml_method
+    - method
+    - DELETE
+    - xml
+    - - method
+      - override
+  - - json_override
+    - X-HTTP-Method-Override
+    - DELETE
+    - json
+    - - method
+      - override
+  - - form_override
+    - X-HTTP-Method-Override
+    - DELETE
+    - form
+    - - method
+      - override
+
+bypass_payloads:
+  - - case_mixed
+    - X-Http-Method-Override
+    - DELETE
+    - - method
+      - override
+  - - double_encode
+    - X-HTTP-Method-Override
+    - "DELETE%20"
+    - - method
+      - override
+  - - null_terminate
+    - X-HTTP-Method-Override
+    - "DELETE\x00"
+    - - method
+      - override
+  - - unicode_method
+    - X-HTTP-Method-Override
+    - "DELETE\u200b"
+    - - method
+      - override
+  - - whitespace
+    - X-HTTP-Method-Override
+    - " DELETE "
+    - - method
+      - override
+
+verb_payloads:
+  - - delete_via_get
+    - X-HTTP-Method-Override
+    - DELETE
+    - - "200"
+      - "201"
+      - "204"
+      - deleted
+  - - put_via_get
+    - X-HTTP-Method-Override
+    - PUT
+    - - "200"
+      - "201"
+      - "204"
+      - updated
+  - - patch_via_get
+    - X-HTTP-Method-Override
+    - PATCH
+    - - "200"
+      - "201"
+      - "204"
+      - patched
+  - - options_via_get
+    - X-HTTP-Method-Override
+    - OPTIONS
+    - - "200"
+      - "204"
+      - allow
+  - - trace_via_get
+    - X-HTTP-Method-Override
+    - TRACE
+    - - "200"
+      - "204"
+
+sensitive_paths:
+  - /admin
+  - /secret
+  - /dashboard
+  - /settings
+  - /api/keys
+  - /api/users
+  - /internal
+  - /debug
+  - /config
+  - /admin/users

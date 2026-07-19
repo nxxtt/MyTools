@@ -14,7 +14,7 @@ Fluxo:
 """
 import argparseimport asyncioimport loggingfrom collections.abc import Awaitable, Callablefrom dataclasses import asdict, dataclassfrom urllib.parse import urljoinimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    fetch,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.businesslogic")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "integer_overflow": [
         "price_overflow", "discount_overflow", "quantity_overflow",
         "negative_total", "max_int",
@@ -29,21 +29,40 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     ],
 }
 
-_OVERFLOW_PAYLOADS: list[tuple[str, str, dict[str, str], list[str]]] = [
+def _load_category_map() -> dict[str, list[str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "businesslogic", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+_CATEGORY_MAP = _load_category_map()
+
+_OVERFLOW_PAYLOADS_DEFAULT: list[tuple[str, str, dict[str, str], list[str]]] = [
     ("price_overflow", "price=999999999999", {"price": "999999999999"}, ["overflow", "total"]),
     ("discount_overflow", "discount=999999", {"discount": "999999"}, ["discount", "total"]),
     ("quantity_overflow", "qty=999999999", {"qty": "999999999"}, ["quantity", "total"]),
     ("negative_total", "price=-1", {"price": "-1"}, ["total", "price"]),
     ("max_int", "price=2147483647", {"price": "2147483647"}, ["total", "price"]),
 ]
+def _load_overflow_payloads() -> list[tuple[str, str, dict[str, str], list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "businesslogic", default={"overflow_payloads": [list(t) for t in _OVERFLOW_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("overflow_payloads", [list(t) for t in _OVERFLOW_PAYLOADS_DEFAULT])]
 
-_NEGATIVE_QTY_PAYLOADS: list[tuple[str, str, dict[str, str], list[str]]] = [
+_OVERFLOW_PAYLOADS = _load_overflow_payloads()
+
+_NEGATIVE_QTY_PAYLOADS_DEFAULT: list[tuple[str, str, dict[str, str], list[str]]] = [
     ("negative_qty", "qty=-1", {"qty": "-1"}, ["total", "qty"]),
     ("zero_qty", "qty=0", {"qty": "0"}, ["total", "qty"]),
     ("decimal_qty", "qty=0.5", {"qty": "0.5"}, ["total", "qty"]),
     ("negative_discount", "discount=-50", {"discount": "-50"}, ["discount", "total"]),
     ("refund_abuse", "refund=true&amount=99999", {"refund": "true", "amount": "99999"}, ["refund", "amount"]),
 ]
+def _load_negative_qty_payloads() -> list[tuple[str, str, dict[str, str], list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "businesslogic", default={"negative_qty_payloads": [list(t) for t in _NEGATIVE_QTY_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("negative_qty_payloads", [list(t) for t in _NEGATIVE_QTY_PAYLOADS_DEFAULT])]
+
+_NEGATIVE_QTY_PAYLOADS = _load_negative_qty_payloads()
 
 
 @dataclass(frozen=True, slots=True)

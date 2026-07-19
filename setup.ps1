@@ -16,8 +16,18 @@ Write-Host "[1/4] Verificando Python..." -ForegroundColor Yellow
 try {
     $pyVersion = python --version 2>&1
     Write-Host "  OK: $pyVersion" -ForegroundColor Green
+    # Validate >= 3.14.2
+    if ($pyVersion -match "Python (\d+)\.(\d+)\.(\d+)") {
+        $major = [int]$Matches[1]
+        $minor = [int]$Matches[2]
+        $patch = [int]$Matches[3]
+        if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 14) -or ($major -eq 3 -and $minor -eq 14 -and $patch -lt 2)) {
+            Write-Host "  ERRO: Python $major.$minor.$patch encontrado. MyTools requer Python 3.14.2+." -ForegroundColor Red
+            exit 1
+        }
+    }
 } catch {
-    Write-Host "  ERRO: Python nao encontrado. Instale Python 3.14+ e adicione ao PATH." -ForegroundColor Red
+    Write-Host "  ERRO: Python nao encontrado. Instale Python 3.14.2+ e adicione ao PATH." -ForegroundColor Red
     exit 1
 }
 

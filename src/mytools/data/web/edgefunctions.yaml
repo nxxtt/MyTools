@@ -1,0 +1,137 @@
+category_map:
+  cloud_providers:
+    - azure_settings_leak
+    - gcp_iam_bypass
+    - vercel_secret_leak
+    - kv_store_leak
+    - edge_code_injection
+azure_settings_patterns:
+  - APPSETTING_
+  - WEBSITE_
+  - FUNCTIONS_WORKER_RUNTIME
+  - AZURE_STORAGE
+  - AZURE_SERVICE_BUS
+  - AZURE_EVENT_HUB
+  - AZURE_COSMOSDB
+  - AZURE_SIGNALR
+  - AZURE_KEY_VAULT
+  - SQL_CONNECTION
+  - REDIS_CONNECTION
+  - WEBSITE_CONTENTAZUREFILECONNECTIONSTRING
+  - WEBSITE_CONTENTSHARE
+  - SCM_DO_BUILD_DURING_DEPLOYMENT
+  - ENABLE_ORYX_BUILD_SERVICE
+  - DOCKER_REGISTRY_SERVER
+  - WEBSITES_ENABLE_APP_SERVICE_STORAGE
+  - X-MS-EXECUTION-CONTEXT
+  - X-Azure-Ref
+  - x-ms-invocation-id
+  - x-ms-workload-run-id
+  - X-Functions-Key
+gcp_iam_bypass_payloads:
+  - headers: {}
+    desc: No auth
+  - headers:
+      Authorization: Bearer invalid_token
+    desc: Invalid token
+  - headers:
+      Authorization: ""
+    desc: Empty auth
+  - headers:
+      X-Forwarded-For: 169.254.169.254
+    desc: Metadata IP forwarded
+  - headers:
+      X-Forwarded-For: 127.0.0.1
+    desc: Loopback forwarded
+  - headers:
+      Host: metadata.google.internal
+    desc: Metadata host spoof
+  - headers:
+      X-Goog-Api-Key: AIzaSyDummy
+    desc: Fake GCP API key
+  - headers:
+      Metadata-Flavor: Google
+    desc: GCP metadata header
+  - headers:
+      X-Forwarded-Host: metadata.google.internal
+    desc: Metadata forwarded host
+vercel_secret_patterns:
+  - sk_live_
+  - pk_live_
+  - NEXTAUTH_SECRET
+  - DATABASE_URL
+  - POSTGRES_URL
+  - MONGODB_URI
+  - REDIS_URL
+  - STRIPE_SECRET
+  - TWILIO_
+  - SENDGRID_
+  - JWT_SECRET
+  - SESSION_SECRET
+  - ENCRYPTION_KEY
+  - API_KEY
+  - SECRET_KEY
+  - ACCESS_TOKEN
+  - REFRESH_TOKEN
+  - PRIVATE_KEY
+  - x-vercel-
+  - X-Vercel-
+kv_leak_payloads:
+  - keys
+  - KV_GET
+  - /kv
+  - /api/kv
+  - namespace
+  - KV_NAMESPACE
+  - "../../kv"
+  - "%2e%2e/kv"
+  - "?key=debug"
+  - "?action=list"
+  - "?prefix="
+  - env
+  - ENV
+  - /api/env
+  - "?_debug=1"
+edge_injection_payloads:
+  - header: X-Forwarded-Host
+    value: evil.com
+  - header: X-Real-IP
+    value: 127.0.0.1
+  - header: X-Forwarded-For
+    value: 127.0.0.1
+  - header: X-Original-URL
+    value: /admin
+  - header: X-Rewrite-URL
+    value: /admin
+  - header: Content-Type
+    value: application/x-www-form-urlencoded
+  - header: X-Custom-Header
+    value: "{{7*7}}"
+  - header: X-Edge-Function
+    value: debug
+  - header: X-Request-ID
+    value: "${7*7}"
+  - header: Accept
+    value: "application/json, */*"
+edge_error_signatures:
+  - edge function
+  - edge runtime
+  - Vercel
+  - Cloudflare
+  - worker
+  - WORKER_
+  - addEventListener
+  - fetch handler
+  - error
+  - "502"
+  - "503"
+  - "500"
+  - internal server error
+  - function errored
+  - uncaught exception
+  - crypto
+  - TextEncoder
+  - Response
+  - Request
+  - URL
+  - Headers

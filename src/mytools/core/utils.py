@@ -150,6 +150,17 @@ def run_main_loop(
     Trata parse_args, shell interativo, quiet check e try/except.
     """
     args = parser.parse_args()
+    if getattr(args, "dump_payloads", False):
+        import json
+
+        from mytools.data import load_payloads
+        from mytools.data.loader import _DATA_DIR, dump_registry
+        for sub in sorted(p.name for p in _DATA_DIR.iterdir() if p.is_dir() and not p.name.startswith("_")):
+            for ext in ("*.yaml", "*.yml", "*.json"):
+                for yaml_file in sorted((_DATA_DIR / sub).glob(ext)):
+                    load_payloads(sub, yaml_file.stem)
+        print(json.dumps(dump_registry(), indent=2, ensure_ascii=False, default=str))
+        return 0
     if not has_target(args):
         return run_interactive_shell(
             parser, prompt, run_fn,
@@ -710,6 +721,7 @@ def add_base_args(parser: argparse.ArgumentParser, timeout_default: float = 5.0)
     parser.add_argument("--verify", action="store_true", default=False, help="Verifica certificados SSL/TLS. Padrao: desabilitado.")
     parser.add_argument("--no-verify", action="store_false", dest="verify", help="Desabilita verificacao de certificados SSL/TLS (padrao).")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--dump-payloads", action="store_true", dest="dump_payloads", help="Exporta todos os payloads YAML carregados em JSON e sai.")
 
 
 def add_http_args(parser: argparse.ArgumentParser) -> None:

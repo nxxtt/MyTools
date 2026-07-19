@@ -1,0 +1,34 @@
+# CORS Misconfiguration Payloads
+# Usado por corsmisconfig.py
+
+category_map:
+  null_origin:
+    - null_origin
+    - null_origin_acac
+    - null_origin_preflight
+    - null_origin_flash
+    - null_origin_ie
+  subdomain:
+    - evil_subdomain
+    - deep_subdomain
+    - prefix_subdomain
+    - suffix_subdomain
+    - regex_bypass
+  credentials:
+    - wildcard_credentials
+    - null_credentials
+    - subdomain_credentials
+    - prefix_credentials
+    - reflected_credentials
+  reflected:
+    - reflected_origin
+    - reflected_subdomain
+    - reflected_path
+    - reflected_port
+    - reflected_protocol
+  bypass:
+    - prefix_match
+    - suffix_match
+    - regex_match
+    - dot_prefix
+    - double_dot

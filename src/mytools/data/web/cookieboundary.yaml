@@ -1,0 +1,120 @@
+category_map:
+  domain:
+    - domain_absent
+    - domain_wildcard
+    - domain_overly_broad
+    - domain_mismatch
+    - domain_public_suffix
+  flags:
+    - flag_no_httponly
+    - flag_no_secure
+    - flag_no_samesite
+    - flag_samesite_none
+  path:
+    - path_absent
+    - path_overly_broad
+  path_traversal:
+    - traversal_url_encoded
+    - traversal_double_encoded
+    - traversal_semicolon
+    - traversal_backslash
+    - traversal_case_variation
+    - traversal_trailing_slash
+    - traversal_prefix_match
+    - traversal_overlong_utf8
+    - traversal_tab_injection
+  double_submit:
+    - ds_cookie_no_httponly
+    - ds_cookie_no_samesite
+    - ds_cookie_overly_broad_domain
+    - ds_cookie_no_secure
+    - ds_token_in_cookie_vs_field
+  samesite_dns:
+    - samesite_lax_detected
+    - samesite_missing_detected
+    - dns_rebindable_ttl
+    - dns_rebindable_wildcard
+    - dns_rebindable_ip_flip
+    - samesite_dns_bypass_risk
+  csrf_subdomain:
+    - csrf_subdomain_cookie_scope
+    - csrf_subdomain_no_httponly
+    - csrf_subdomain_wildcard_domain
+    - csrf_subdomain_samesite_none
+    - csrf_subdomain_takeover_risk
+    - csrf_subdomain_combined_risk
+  cookie_quoting:
+    - quoting_semicolon_in_value
+    - quoting_backslash_escape
+    - quoting_null_byte
+    - quoting_comma_separator
+    - quoting_unbalanced_quotes
+    - quoting_whitespace_in_value
+
+csrf_cookie_names:
+  - csrf_token
+  - _csrf
+  - csrf
+  - csrftoken
+  - xsrf-token
+  - _xsrf
+  - _csrf_token
+  - csrfmiddlewaretoken
+  - __requestverificationtoken
+  - x-csrf-token
+  - x-xsrf-token
+  - csrf_secret
+  - csrf_protection
+
+csrf_field_names:
+  - csrf_token
+  - _csrf
+  - csrf
+  - csrftoken
+  - _token
+  - authenticity_token
+  - xsrf-token
+  - _xsrf
+  - _csrf_token
+  - csrfmiddlewaretoken
+  - __requestverificationtoken
+
+cookie_path_traversal_payloads:
+  - - traversal_url_encoded
+    - /..%2f
+    - URL-encoded slash traversal
+  - - traversal_double_encoded
+    - /..%252f
+    - Double-encoded slash traversal
+  - - traversal_semicolon
+    - /..;/
+    - Semicolon bypass
+  - - traversal_backslash
+    - /..%5c
+    - Backslash traversal
+  - - traversal_overlong_utf8
+    - /..%c0%af
+    - Overlong UTF-8 traversal
+  - - traversal_tab_injection
+    - /..%09
+    - Tab character injection
+
+public_suffixes:
+  - com
+  - org
+  - net
+  - edu
+  - gov
+  - mil
+  - int
+  - co.uk
+  - co.jp
+  - co.kr
+  - co.za
+  - com.au
+  - com.br
+  - com.cn
+  - com.mx
+  - com.tw
+  - org.uk
+  - net.au

@@ -1,0 +1,74 @@
+category_map:
+  integer_overflow:
+    - price_overflow
+    - discount_overflow
+    - quantity_overflow
+    - negative_total
+    - max_int
+  negative_quantity:
+    - negative_qty
+    - zero_qty
+    - decimal_qty
+    - negative_discount
+    - refund_abuse
+  race_condition:
+    - concurrent_checkout
+    - double_spend
+    - race_purchase
+    - race_refund
+    - race_apply
+
+overflow_payloads:
+  - - price_overflow
+    - price=999999999999
+    - price: "999999999999"
+    - - overflow
+      - total
+  - - discount_overflow
+    - discount=999999
+    - discount: "999999"
+    - - discount
+      - total
+  - - quantity_overflow
+    - qty=999999999
+    - qty: "999999999"
+    - - quantity
+      - total
+  - - negative_total
+    - price=-1
+    - price: "-1"
+    - - total
+      - price
+  - - max_int
+    - price=2147483647
+    - price: "2147483647"
+    - - total
+      - price
+
+negative_qty_payloads:
+  - - negative_qty
+    - qty=-1
+    - qty: "-1"
+    - - total
+      - qty
+  - - zero_qty
+    - qty=0
+    - qty: "0"
+    - - total
+      - qty
+  - - decimal_qty
+    - qty=0.5
+    - qty: "0.5"
+    - - total
+      - qty
+  - - negative_discount
+    - discount=-50
+    - discount: "-50"
+    - - discount
+      - total
+  - - refund_abuse
+    - refund=true&amount=99999
+    - refund: "true"
+      amount: "99999"
+    - - refund
+      - amount

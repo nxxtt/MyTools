@@ -29,7 +29,7 @@ grpcio-reflection = ">=1.82.1"
 protobuf = ">=7.35.1"
 thriftpy2 = ">=0.6.0"
 networkx = ">=3.6.1"
-matplotlib = ">=3.11.0"
+matplotlib = ">=3.11.1"
 curl-cffi = ">=0.15.0"
 httpx-socks = {version = ">=0.11.0", extras = ["asyncio"]}
 

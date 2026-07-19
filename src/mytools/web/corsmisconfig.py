@@ -17,7 +17,7 @@ Fluxo:
 """
 import argparseimport loggingfrom dataclasses import asdict, dataclassfrom urllib.parse import urlparseimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.corsmisconfig")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "null_origin": ["null_origin", "null_origin_acac", "null_origin_preflight", "null_origin_flash", "null_origin_ie"],
     "subdomain": ["evil_subdomain", "deep_subdomain", "prefix_subdomain", "suffix_subdomain", "regex_bypass"],
     "credentials": ["wildcard_credentials", "null_credentials", "subdomain_credentials", "prefix_credentials", "reflected_credentials"],
@@ -25,6 +25,12 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "bypass": ["prefix_match", "suffix_match", "regex_match", "dot_prefix", "double_dot"],
 }
 
+def _load_category_map() -> dict[str, list[str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "corsmisconfig", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+_CATEGORY_MAP = _load_category_map()
 
 def _get_domain_variants(domain: str) -> list[str]:
     """Gera variacoes de dominio para teste de CORS."""

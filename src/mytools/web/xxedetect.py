@@ -57,7 +57,7 @@ logger = logging.getLogger("mytools.xxedetect")
 
 
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 
     "detect": ["basic_xxe", "param_entity", "svg_xxe", "soap_xxe", "rss_xxe"],
 
@@ -72,8 +72,20 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 }
 
 
+def _load_category_map() -> dict[str, list[str]]:
 
-_DETECT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "xxedetect", default={"category_map": _CATEGORY_MAP_DEFAULT})
+
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+
+_CATEGORY_MAP = _load_category_map()
+
+
+
+_DETECT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
     (
 
@@ -138,8 +150,20 @@ _DETECT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
 ]
 
 
+def _load_detect_payloads() -> list[tuple[str, str, str, list[str]]]:
 
-_FILE_READ_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "xxedetect", default={"detect_payloads": _DETECT_PAYLOADS_DEFAULT})
+
+    return data.get("detect_payloads", _DETECT_PAYLOADS_DEFAULT)
+
+
+_DETECT_PAYLOADS = _load_detect_payloads()
+
+
+
+_FILE_READ_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
     (
 
@@ -240,8 +264,20 @@ _FILE_READ_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
 ]
 
 
+def _load_file_read_payloads() -> list[tuple[str, str, str, list[str]]]:
 
-_SSRF_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "xxedetect", default={"file_read_payloads": _FILE_READ_PAYLOADS_DEFAULT})
+
+    return data.get("file_read_payloads", _FILE_READ_PAYLOADS_DEFAULT)
+
+
+_FILE_READ_PAYLOADS = _load_file_read_payloads()
+
+
+
+_SSRF_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
     (
 
@@ -318,8 +354,20 @@ _SSRF_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
 ]
 
 
+def _load_ssrf_payloads() -> list[tuple[str, str, str, list[str]]]:
 
-_BLIND_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "xxedetect", default={"ssrf_payloads": _SSRF_PAYLOADS_DEFAULT})
+
+    return data.get("ssrf_payloads", _SSRF_PAYLOADS_DEFAULT)
+
+
+_SSRF_PAYLOADS = _load_ssrf_payloads()
+
+
+
+_BLIND_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
     (
 
@@ -384,8 +432,20 @@ _BLIND_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
 ]
 
 
+def _load_blind_payloads() -> list[tuple[str, str, str, list[str]]]:
 
-_BYPASS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "xxedetect", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT})
+
+    return data.get("blind_payloads", _BLIND_PAYLOADS_DEFAULT)
+
+
+_BLIND_PAYLOADS = _load_blind_payloads()
+
+
+
+_BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
     (
 
@@ -486,8 +546,20 @@ _BYPASS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
 ]
 
 
+def _load_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
 
-_XML_PARAMS: list[str] = [
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "xxedetect", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT})
+
+    return data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)
+
+
+_BYPASS_PAYLOADS = _load_bypass_payloads()
+
+
+
+_XML_PARAMS_DEFAULT: list[str] = [
 
     "xml", "xml_data", "xml_file", "data", "body", "content",
 
@@ -496,6 +568,18 @@ _XML_PARAMS: list[str] = [
     "soap_body", "svg", "feed", "rss", "atom",
 
 ]
+
+
+def _load_xml_params() -> list[str]:
+
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "xxedetect", default={"xml_params": _XML_PARAMS_DEFAULT})
+
+    return data.get("xml_params", _XML_PARAMS_DEFAULT)
+
+
+_XML_PARAMS = _load_xml_params()
 
 
 

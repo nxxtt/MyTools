@@ -1,0 +1,63 @@
+# Open Redirect Detection Payloads
+# Usado por openredirect.py
+
+category_map:
+  param:
+    - param_url
+    - param_next
+    - param_redirect
+    - param_return
+    - param_dest
+  path:
+    - path_redirect
+    - path_login
+    - path_go
+    - path_link
+  header:
+    - header_referer
+    - header_callback
+  fragment:
+    - fragment_redirect
+  bypass:
+    - bypass_protocol
+    - bypass_nullbyte
+    - "bypass userinfo"
+    - bypass_fragment
+    - bypass_backslash
+    - bypass_percent
+    - bypass_double_slash
+    - bypass_subdomain
+
+redirect_params:
+  - url
+  - next
+  - redirect
+  - redirect_to
+  - return
+  - return_to
+  - go
+  - goto
+  - out
+  - continue
+  - dest
+  - destination
+
+redirect_paths:
+  - /redirect
+  - /login
+  - /signin
+  - /auth
+  - /link
+  - /go
+
+evil_domain: evil.com
+
+bypass_techniques:
+  - ["bypass_protocol", "url", "//evil.com"]
+  - ["bypass_nullbyte", "url", "http://evil.com%00.example.com"]
+  - ["bypass userinfo", "url", "http://evil.com@example.com"]
+  - ["bypass_fragment", "url", "http://evil.com#.example.com"]
+  - ["bypass_backslash", "url", "http://evil.com\\@.example.com"]
+  - ["bypass_percent", "url", "http://evil%2ecom"]
+  - ["bypass_double_slash", "url", "///evil.com"]
+  - ["bypass_subdomain", "url", "http://evil.com%E3%80%82example.com"]

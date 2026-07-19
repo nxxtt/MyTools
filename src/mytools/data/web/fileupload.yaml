@@ -1,0 +1,53 @@
+# File Upload Attack Payloads
+# Usado por fileupload.py
+
+category_map:
+  polyglot:
+    - jpg_php
+    - png_php
+    - gif_php
+    - pdf_php
+    - svg_php
+    - html_polyglot
+  svg_xxe:
+    - xxe_basic
+    - xxe_file_read
+    - xxe_ssi
+    - xxe_oob
+    - xxe_cdata
+    - xxe_parameter
+  image_magic:
+    - mvg_label
+    - label_delegate
+    - ussd_delegate
+    - mvg_svg
+    - clip_image
+    - read_populate
+  zip_slip:
+    - zip_traversal
+    - zip_traversal_encoded
+    - zip_traversal_null
+    - zip_long_path
+    - zip_symlink
+    - zip_dotdot
+  filename_inject:
+    - cmd_backtick
+    - cmd_dollar
+    - sql_single_quote
+    - xss_script
+    - path_traversal
+    - null_byte
+  content_type:
+    - php_as_jpeg
+    - php_as_png
+    - php_as_gif
+    - jsp_as_jpeg
+    - asp_as_png
+    - elf_as_jpeg
+  multipart_boundary:
+    - boundary_inject
+    - nested_multipart
+    - missing_boundary
+    - extra_boundary
+    - boundary_overflow
+    - chunked_boundary

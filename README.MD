@@ -11,7 +11,7 @@ Suite de ferramentas de auditoria e reconhecimento web/network para ambientes de
 ## Instalação
 
 ### Pré-requisitos
-- **Python 3.14+**
+- **Python 3.14.2+**
 
 ### Instalação rápida (recomendado)
 ```bash
@@ -1166,6 +1166,14 @@ mytools-reconall example.com --deep --test-vulns --cve
 ### src/ Package Structure
 Código organizado em `src/mytools/` com subpacotes por categoria: `core`, `network`, `web`, `dns`, `whois`, `osint`, `email`, `vcs`, `config`.
 
+### Externalized Payloads (YAML)
+48 arquivos YAML em `src/mytools/data/` extraem wordlists, payloads e padrões de detecção dos módulos Python. Loader unificado com cache, fallback hardcoded e suporte a `binary_path` para payloads binários. Suporta `--dump-payloads` para exportar todos os dados carregados.
+
+```python
+from mytools.data import load_payloads
+data = load_payloads("web", "jwt_common_secrets", default={"secrets": []})
+```
+
 ### Python 3.14+ Modernization
 Código utiliza as features modernas do Python 3.14+: `asyncio.TaskGroup` para concorrência segura, `match/case` para dispatch, `tomllib` para parsing TOML, PEP 758 `except` sem parênteses, e f-strings PEP 701.
 
@@ -1729,6 +1737,57 @@ src/mytools/                    # Pacote principal
   config/                       # Arquivos de configuração
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
+  data/                         # Payloads e wordlists externos (YAML)
+    __init__.py                 # Re-exporta load_payloads, dump_registry
+    loader.py                   # Carregador YAML/JSON com cache e fallback
+    core/security_headers.yaml
+    dns/subdomain_enum.yaml
+    osint/google_dorking.yaml
+    osint/darkweb_severity_keywords.yaml
+    osint/team_paths.yaml
+    vcs/vcs_leak_paths.yaml
+    network/port_scanner.yaml
+    network/dir_scanner.yaml
+    config/config_file_detect.yaml
+    config/backup_file_detect.yaml
+    email/template_injection.yaml
+    email/smtp_injection.yaml
+    email/address_bypass.yaml
+    email/link_tracking.yaml
+    email/dkim_selectors.yaml
+    web/jwt_common_secrets.yaml
+    web/docker_attack.yaml
+    web/ssrf_detect.yaml
+    web/openapi_paths.yaml
+    web/graphql_paths.yaml
+    web/sourcemap_paths.yaml
+    web/iot_attack.yaml
+    web/k8s_attack.yaml
+    web/infra_attack.yaml
+    web/lambda_attack.yaml
+    web/serverless_attack.yaml
+    web/blindxss.yaml
+    web/bominjection.yaml
+    web/businesslogic.yaml
+    web/cachedeception.yaml
+    web/cachepoisoning.yaml
+    web/charsetbypass.yaml
+    web/cookieboundary.yaml
+    web/corsmisconfig.yaml
+    web/crlfinjection.yaml
+    web/cssinject.yaml
+    web/deserialinject.yaml
+    web/domclobbering.yaml
+    web/edgefunctions.yaml
+    web/fileupload.yaml
+    web/methodoverride.yaml
+    web/mxss.yaml
+    web/nosqliinject.yaml
+    web/openredirect.yaml
+    web/pathtraversal.yaml
+    web/prototypepollution.yaml
+    web/xssvectors.yaml
+    web/xxedetect.yaml
 
 tests/                          # Testes unitários (4787 testes)
   core/                         # test_utils, test_cred, test_reconall
@@ -1780,10 +1839,10 @@ mytools-cors https://target.com --tor --random-delay
 mytools-recon https://target.com --impersonate chrome --jitter 0.3
 
 # WAF evasion + header padding
-mytools-ssrf https://target.com --waf-evasion --pad-headers 15
+mytools-ssrfdetect https://target.com --waf-evasion --pad-headers 15
 
 # Fragmentation L7
-mytools-xss https://target.com --fragment 8
+mytools-blindxss https://target.com --fragment 8
 
 # Proxy rotation
 mytools-port 10.0.0.1 --proxy http://p1:8080 --proxy http://p2:8080
@@ -1846,10 +1905,10 @@ poetry install --with dev
 - `dnspython>=2.8.0` — Resolução DNS, zone transfer e enumeração de subdomínios
 - `pyjwt>=2.13.0` — Decodificação e análise de JWT
 - `cryptography>=49.0.0` — Operações criptográficas (certificados, chaves)
-- `pyyaml>=6.0.3` — Parse de YAML (OpenAPI specs)
+- `pyyaml>=6.0.3` — Parse de YAML (OpenAPI specs + data/ payloads)
 - `pyreadline3>=3.5.6` — Readline para Windows (apenas Windows)
 - `networkx>=3.6.1` — Grafos e visualização de caminhos de ataque
-- `matplotlib>=3.11.0` — Renderização de grafos (PNG/SVG)
+- `matplotlib>=3.11.1` — Renderização de grafos (PNG/SVG)
 - `grpcio>=1.82.1` — gRPC client/server (HTTP/2, protobuf)
 - `grpcio-reflection>=1.82.1` — gRPC server reflection (introspecção de services)
 - `protobuf>=7.35.1` — Protocol Buffers (serialização gRPC)
@@ -1861,7 +1920,7 @@ poetry install --with dev
 - `pytest>=9.1.1` — Framework de testes
 - `pytest-asyncio>=1.4.0` — Testes async
 - `respx>=0.23.1` — Mock de httpx para testes
-- `ruff>=0.15.20` — Linter/formatter
+- `ruff>=0.15.22` — Linter/formatter
 - `basedpyright>=1.39.9` — Type checker
 
 ---

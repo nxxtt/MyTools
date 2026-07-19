@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Modulo de auditoria de Cookie Security (Domain + Path + CSRF + SameSite DNS + Quoting).
 
 Verifica se cookies de uma aplicacao web vazam para subdominios maliciosos,
@@ -30,7 +30,7 @@ Fluxo:
 """
 import argparseimport asyncioimport contextlibimport loggingfrom dataclasses import asdict, dataclassfrom urllib.parse import urlparseimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    fetch,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.cookieboundary")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "domain": [
         "domain_absent",
         "domain_wildcard",
@@ -91,6 +91,15 @@ _CATEGORY_MAP: dict[str, list[str]] = {
         "quoting_whitespace_in_value",
     ],
 }
+
+
+def _load_category_map() -> dict[str, list[str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "cookieboundary", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+
+_CATEGORY_MAP = _load_category_map()
 
 _CSRF_COOKIE_NAMES: frozenset[str] = frozenset({
     "csrf_token", "_csrf", "csrf", "csrftoken", "xsrf-token",
@@ -715,7 +724,7 @@ async def _test_samesite_dns_bypass(
             technique="dns_rebindable_ttl", category="samesite_dns",
             cookie_name=lax_cookies[0].name, attribute_tested="DNS TTL",
             attribute_value="low", vulnerable=True,
-            details="TTL baixo detectado — DNS rebinding factivel",
+            details="TTL baixo detectado â€” DNS rebinding factivel",
             error="",
             exploit='cookie_theft_payload',
         ))
@@ -725,7 +734,7 @@ async def _test_samesite_dns_bypass(
             technique="dns_rebindable_wildcard", category="samesite_dns",
             cookie_name=lax_cookies[0].name, attribute_tested="DNS Wildcard",
             attribute_value="detected", vulnerable=True,
-            details="Wildcard DNS detectado — subdominios aleatorios resolvem",
+            details="Wildcard DNS detectado â€” subdominios aleatorios resolvem",
             error="",
             exploit='cookie_theft_payload',
         ))
@@ -735,7 +744,7 @@ async def _test_samesite_dns_bypass(
             technique="dns_rebindable_ip_flip", category="samesite_dns",
             cookie_name=lax_cookies[0].name, attribute_tested="DNS IP Flip",
             attribute_value="detected", vulnerable=True,
-            details="IP flip detectado — alternancia entre IPs publicos e privados",
+            details="IP flip detectado â€” alternancia entre IPs publicos e privados",
             error="",
             exploit='cookie_theft_payload',
         ))
@@ -786,7 +795,7 @@ async def _test_csrf_subdomain(
                     technique="csrf_subdomain_wildcard_domain", category="csrf_subdomain",
                     cookie_name=cookie.name, attribute_tested="Domain",
                     attribute_value=cookie.domain, vulnerable=True,
-                    details=f"Cookie '{cookie.name}' com Domain wildcard {cookie.domain} — acessivel por qualquer subdominio",
+                    details=f"Cookie '{cookie.name}' com Domain wildcard {cookie.domain} â€” acessivel por qualquer subdominio",
                     error="",
                     exploit='cookie_theft_payload',
                 ))
@@ -795,7 +804,7 @@ async def _test_csrf_subdomain(
                     technique="csrf_subdomain_cookie_scope", category="csrf_subdomain",
                     cookie_name=cookie.name, attribute_tested="Domain",
                     attribute_value=cookie.domain, vulnerable=True,
-                    details=f"Cookie '{cookie.name}' com Domain {cookie.domain} — compartilhado entre subdominios",
+                    details=f"Cookie '{cookie.name}' com Domain {cookie.domain} â€” compartilhado entre subdominios",
                     error="",
                     exploit='cookie_theft_payload',
                 ))
@@ -805,7 +814,7 @@ async def _test_csrf_subdomain(
                 technique="csrf_subdomain_no_httponly", category="csrf_subdomain",
                 cookie_name=cookie.name, attribute_tested="HttpOnly",
                 attribute_value="ausente", vulnerable=True,
-                details=f"Cookie '{cookie.name}' sem HttpOnly — JavaScript em subdominio pode ler token CSRF",
+                details=f"Cookie '{cookie.name}' sem HttpOnly â€” JavaScript em subdominio pode ler token CSRF",
                 error="",
                 exploit='cookie_theft_payload',
             ))
@@ -815,7 +824,7 @@ async def _test_csrf_subdomain(
                 technique="csrf_subdomain_samesite_none", category="csrf_subdomain",
                 cookie_name=cookie.name, attribute_tested="SameSite",
                 attribute_value="None", vulnerable=True,
-                details=f"Cookie '{cookie.name}' SameSite=None — requests cross-site de subdominio permitidos",
+                details=f"Cookie '{cookie.name}' SameSite=None â€” requests cross-site de subdominio permitidos",
                 error="",
                 exploit='cookie_theft_payload',
             ))
@@ -850,7 +859,7 @@ async def _test_csrf_subdomain(
             technique="csrf_subdomain_takeover_risk", category="csrf_subdomain",
             cookie_name=csrf_cookies[0].name, attribute_tested="Subdomains",
             attribute_value=f"{len(own_subdomains)} found", vulnerable=True,
-            details=f"Subdominios descobertos: {sub_list}{more} — potencial para takeover/CSRF",
+            details=f"Subdominios descobertos: {sub_list}{more} â€” potencial para takeover/CSRF",
             error="",
             exploit='cookie_theft_payload',
         ))
@@ -904,7 +913,7 @@ def _test_cookie_quoting(cookies: list[CookieInfo]) -> list[CookieBoundaryAttemp
                 technique="quoting_semicolon_in_value", category="cookie_quoting",
                 cookie_name=cookie.name, attribute_tested="Value",
                 attribute_value=value[:50], vulnerable=True,
-                details=f"Cookie '{cookie.name}' contem ';' no valor — parsers podem dividir incorretamente",
+                details=f"Cookie '{cookie.name}' contem ';' no valor â€” parsers podem dividir incorretamente",
                 error="",
                 exploit='cookie_theft_payload',
             ))
@@ -914,7 +923,7 @@ def _test_cookie_quoting(cookies: list[CookieInfo]) -> list[CookieBoundaryAttemp
                 technique="quoting_backslash_escape", category="cookie_quoting",
                 cookie_name=cookie.name, attribute_tested="Raw",
                 attribute_value=raw[:50], vulnerable=True,
-                details=f"Cookie '{cookie.name}' contem backslash no header raw — risco de confusao de escape",
+                details=f"Cookie '{cookie.name}' contem backslash no header raw â€” risco de confusao de escape",
                 error="",
                 exploit='cookie_theft_payload',
             ))
@@ -924,7 +933,7 @@ def _test_cookie_quoting(cookies: list[CookieInfo]) -> list[CookieBoundaryAttemp
                 technique="quoting_null_byte", category="cookie_quoting",
                 cookie_name=cookie.name, attribute_tested="Value",
                 attribute_value="contains \\x00", vulnerable=True,
-                details=f"Cookie '{cookie.name}' contem null byte — risco de truncamento entre parsers",
+                details=f"Cookie '{cookie.name}' contem null byte â€” risco de truncamento entre parsers",
                 error="",
                 exploit='cookie_theft_payload',
             ))
@@ -937,7 +946,7 @@ def _test_cookie_quoting(cookies: list[CookieInfo]) -> list[CookieBoundaryAttemp
                     technique="quoting_comma_separator", category="cookie_quoting",
                     cookie_name=cookie.name, attribute_tested="Separator",
                     attribute_value=",", vulnerable=True,
-                    details=f"Cookie '{cookie.name}' usa ',' como separador — nao conforme RFC 6265",
+                    details=f"Cookie '{cookie.name}' usa ',' como separador â€” nao conforme RFC 6265",
                     error="",
                     exploit='cookie_theft_payload',
                 ))
@@ -948,7 +957,7 @@ def _test_cookie_quoting(cookies: list[CookieInfo]) -> list[CookieBoundaryAttemp
                 technique="quoting_unbalanced_quotes", category="cookie_quoting",
                 cookie_name=cookie.name, attribute_tested="Quotes",
                 attribute_value=f"{quote_count} quotes", vulnerable=True,
-                details=f"Cookie '{cookie.name}' tem {quote_count} aspas (impar) — aspas desbalanceadas",
+                details=f"Cookie '{cookie.name}' tem {quote_count} aspas (impar) â€” aspas desbalanceadas",
                 error="",
                 exploit='cookie_theft_payload',
             ))
@@ -1124,7 +1133,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Construtor do parser de argumentos."""
     parser = argparse.ArgumentParser(
         prog="mytools-cookieboundary",
-        description="Cookie Domain Boundary — audita cookies para leakage via subdominios.",
+        description="Cookie Domain Boundary â€” audita cookies para leakage via subdominios.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Exemplos:\n"

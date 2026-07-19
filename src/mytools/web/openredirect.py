@@ -20,7 +20,7 @@ Fluxo:
 """
 import argparseimport asyncioimport loggingfrom collections.abc import Awaitablefrom dataclasses import asdict, dataclassfrom urllib.parse import quote, urlparse, urlunparseimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    init_scanner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.openredirect")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "param": ["param_url", "param_next", "param_redirect", "param_return", "param_dest"],
     "path": ["path_redirect", "path_login", "path_go", "path_link"],
     "header": ["header_referer", "header_callback"],
@@ -28,19 +28,19 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "bypass": ["bypass_protocol", "bypass_nullbyte", "bypass userinfo", "bypass_fragment", "bypass_backslash", "bypass_percent", "bypass_double_slash", "bypass_subdomain"],
 }
 
-_REDIRECT_PARAMS: list[str] = [
+_REDIRECT_PARAMS_DEFAULT: list[str] = [
     "url", "next", "redirect", "redirect_to", "return",
     "return_to", "go", "goto", "out", "continue",
     "dest", "destination",
 ]
 
-_REDIRECT_PATHS: list[str] = [
+_REDIRECT_PATHS_DEFAULT: list[str] = [
     "/redirect", "/login", "/signin", "/auth", "/link", "/go",
 ]
 
-_EVIL_DOMAIN: str = "evil.com"
+_EVIL_DOMAIN_DEFAULT: str = "evil.com"
 
-_BYPASS_TECHNIQUES: list[tuple[str, str, str]] = [
+_BYPASS_TECHNIQUES_DEFAULT: list[tuple[str, str, str]] = [
     ("bypass_protocol", "url", "//evil.com"),
     ("bypass_nullbyte", "url", "http://evil.com%00.example.com"),
     ("bypass userinfo", "url", "http://evil.com@example.com"),
@@ -51,9 +51,42 @@ _BYPASS_TECHNIQUES: list[tuple[str, str, str]] = [
     ("bypass_subdomain", "url", "http://evil.com%E3%80%82example.com"),
 ]
 
-
-@dataclass(frozen=True, slots=True)
-class OpenRedirectAttempt:
+def _load_category_map():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "openredirect", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+def _load_redirect_params():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "openredirect", default={"redirect_params": _REDIRECT_PARAMS_DEFAULT})
+    return data.get("redirect_params", _REDIRECT_PARAMS_DEFAULT)
+
+def _load_redirect_paths():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "openredirect", default={"redirect_paths": _REDIRECT_PATHS_DEFAULT})
+    return data.get("redirect_paths", _REDIRECT_PATHS_DEFAULT)
+
+def _load_evil_domain():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "openredirect", default={"evil_domain": _EVIL_DOMAIN_DEFAULT})
+    return data.get("evil_domain", _EVIL_DOMAIN_DEFAULT)
+
+def _load_bypass_techniques():
+    from mytools.data import load_payloads
+    data = load_payloads("web", "openredirect", default={"bypass_techniques": _BYPASS_TECHNIQUES_DEFAULT})
+    raw = data.get("bypass_techniques", _BYPASS_TECHNIQUES_DEFAULT)
+    return [tuple(item) for item in raw]
+
+_CATEGORY_MAP = _load_category_map()
+_REDIRECT_PARAMS = _load_redirect_params()
+_REDIRECT_PATHS = _load_redirect_paths()
+_EVIL_DOMAIN = _load_evil_domain()
+_BYPASS_TECHNIQUES = _load_bypass_techniques()
+
+
+@dataclass(frozen=True, slots=True)
+
+class OpenRedirectAttempt:
     """Tentativa individual de open redirect."""
 
     technique: str
@@ -249,9 +282,11 @@ async def _test_header_redirect(
     header_payloads = [
         ("header_referer", "Referer", f"http://{_EVIL_DOMAIN}"),
         ("header_callback", "Referer", f"http://{_EVIL_DOMAIN}/callback"),
-    ]
-
-    for technique, header_name, header_value in header_payloads:
+    ]
+
+
+
+    for technique, header_name, header_value in header_payloads:
         try:
             resp = await client.get(url, headers={header_name: header_value}, follow_redirects=False)
             t_status = resp.status_code

