@@ -224,6 +224,7 @@ class TestRunHistory:
             assert mock_run.called
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_domain(self):
         parser = build_parser()

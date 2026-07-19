@@ -322,6 +322,7 @@ async def test_query_email_multiple_sources():
 # ── build_parser ──────────────────────────────────────────────────────────────
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_emails(self):
         args = build_parser().parse_args(["a@b.com"])

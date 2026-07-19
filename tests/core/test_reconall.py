@@ -1,6 +1,8 @@
 import argparse
 from unittest.mock import patch
 
+import pytest
+
 from mytools.core.reconall import (
     ALL_MODULES,
     _build_base_ns,
@@ -11,6 +13,8 @@ from mytools.core.reconall import (
     run_all,
 )
 from mytools.network.portscanner import TOP_100_PORTS
+
+pytestmark = pytest.mark.integration
 
 
 def _domain_ns(domain: str = "example.com", **overrides: object) -> argparse.Namespace:
@@ -249,7 +253,7 @@ class TestNamespaceConstruction:
         assert "MyTools/" in ns.user_agent
 
     def test_portscanner_has_output(self):
-        ns = _make_args("example.com", {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": "/tmp/results/portscanner.json"}, _domain_ns())
+        ns = _make_args("example.com", {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": "results/portscanner.json"}, _domain_ns())
         assert ns.output is not None
         assert "portscanner" in ns.output
 

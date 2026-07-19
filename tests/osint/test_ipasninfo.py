@@ -192,6 +192,7 @@ class TestLookupIpAsn:
             mock_run.assert_called_once()
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_ips(self):
         parser = build_parser()

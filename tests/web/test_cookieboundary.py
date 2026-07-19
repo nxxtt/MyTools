@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+pytestmark = pytest.mark.integration
+
 from mytools.web.cookieboundary import (
     _CATEGORY_MAP,
     _COOKIE_PATH_TRAVERSAL_PAYLOADS,

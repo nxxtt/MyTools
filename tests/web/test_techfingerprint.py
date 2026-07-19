@@ -380,6 +380,7 @@ class TestScanUrl:
 
 # build_parser
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_urls(self):
         parser = build_parser()

@@ -292,6 +292,7 @@ async def test_search_ddg_non_200():
 # ── build_parser ──────────────────────────────────────────────────────────────
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_domain(self):
         args = build_parser().parse_args(["ex.com"])

@@ -6,6 +6,8 @@ import httpx
 import pytest
 import respx
 
+pytestmark = pytest.mark.integration
+
 from mytools.core.utils import Cyber, severity_color
 from mytools.web.webrecon import (
     CMS_SIGNATURES,

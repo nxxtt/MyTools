@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from mytools.web.thriftattack import (
@@ -192,8 +194,19 @@ class TestCLI:
 
 
 @pytest.mark.asyncio
-async def test_category_dispatch_all_return_lists() -> None:
+@pytest.mark.network
+@patch("mytools.web.thriftattack.make_client")
+async def test_category_dispatch_all_return_lists(mock_make: MagicMock) -> None:
     """All category dispatchers should return a list."""
+    mock_client = MagicMock()
+    mock_client.ping.return_value = None
+    mock_client.getData.return_value = ""
+    mock_client.getStatus.return_value = 0
+    mock_client.isAlive.return_value = True
+    mock_client.close.return_value = None
+    mock_client.listMethods.return_value = []
+    mock_client.getMetadata.return_value = {}
+    mock_make.return_value = mock_client
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("target.com", 9090, 0.1, False)
         assert isinstance(result, list), f"{cat} did not return a list"

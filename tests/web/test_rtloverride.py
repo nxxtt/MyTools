@@ -117,6 +117,7 @@ class TestMakeDisplay:
         assert result == "normal text"
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 
@@ -283,6 +284,7 @@ class TestMakeDisplayZeroWidth:
         assert result == "hello"
 
 
+@pytest.mark.smoke
 class TestBuildParserType:
     """Testes para build_parser --type."""
 

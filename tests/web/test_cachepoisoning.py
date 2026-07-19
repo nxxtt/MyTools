@@ -470,6 +470,7 @@ class TestPrintResults:
         assert "Nenhuma Cache Poisoning detectada" in output
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

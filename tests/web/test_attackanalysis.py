@@ -241,6 +241,7 @@ class TestSeverityColors:
             assert len(color_val) == 7
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_parser_creation(self) -> None:
         parser = build_parser()

@@ -255,6 +255,7 @@ class TestRunXfrScan:
             run_xfr_scan("  ")
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_domain_argument(self):
         parser = build_parser()

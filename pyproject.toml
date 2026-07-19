@@ -37,6 +37,7 @@ httpx-socks = {version = ">=0.11.0", extras = ["asyncio"]}
 pytest = ">=9.1.1"
 respx = ">=0.23.1"
 pytest-asyncio = ">=1.4.0"
+pytest-cov = "7.1.0"
 ruff = ">=0.15.22"
 basedpyright = ">=1.39.9"
 
@@ -152,7 +153,13 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
-markers = ["real_sleep: teste que precisa de asyncio.sleep real ( nao mockado )"]
+markers = [
+    "real_sleep: teste que precisa de asyncio.sleep real (nao mockado)",
+    "slow: teste que demora mais que 1s para executar",
+    "network: teste que pode fazer conexoes reais (HTTP, DNS, SSL)",
+    "smoke: sanity check rapido (parser, imports, data load)",
+    "integration: teste que valida multiplos componentes juntos",
+]
 
 [tool.ruff]
 target-version = "py314"
@@ -171,3 +178,16 @@ reportMissingTypeStubs = false
 reportUnnecessaryTypeIgnoreComment = false
 useLibraryCodeForTypes = true
 reportMissingModuleSource = false
+
+[tool.coverage.run]
+source = ["mytools"]
+branch = true
+omit = ["tests/*", "src/mytools/data/*"]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+fail_under = 0
+
+[tool.coverage.html]
+directory = "htmlcov"

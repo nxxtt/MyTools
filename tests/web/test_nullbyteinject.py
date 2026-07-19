@@ -72,6 +72,7 @@ class TestCategoryMap:
         assert len(all_techs) == len(set(all_techs))
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

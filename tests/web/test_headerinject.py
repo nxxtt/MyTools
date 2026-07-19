@@ -254,6 +254,7 @@ class TestPrintResults:
 
 
 # ─── Build Parser ────────────────────────────────────────────────────────────
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_url(self) -> None:
         parser = build_parser()

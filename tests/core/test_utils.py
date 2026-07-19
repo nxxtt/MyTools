@@ -8,6 +8,8 @@ import httpx
 import pytest
 import respx
 
+pytestmark = pytest.mark.integration
+
 from mytools.core.utils import (
     THEMES,
     Cyber,
@@ -145,6 +147,7 @@ class TestRateLimiter:
 
     @pytest.mark.asyncio
     @pytest.mark.real_sleep
+    @pytest.mark.slow
     async def test_rate_limit_enforces_delay(self):
         limiter = RateLimiter(20.0)
         timestamps: list[float] = []
@@ -184,6 +187,7 @@ class TestRateLimiter:
 
     @pytest.mark.asyncio
     @pytest.mark.real_sleep
+    @pytest.mark.slow
     async def test_backoff_increases_sleep_time(self):
         limiter = RateLimiter(20.0)
         await limiter.wait()
@@ -929,6 +933,7 @@ class TestRateLimiterEdgeCases:
 
     @pytest.mark.asyncio
     @pytest.mark.real_sleep
+    @pytest.mark.slow
     async def test_consecutive_waits_maintain_interval(self):
         limiter = RateLimiter(10.0)
         timestamps = []
@@ -1019,6 +1024,7 @@ class TestRetryAfterEdgeCases:
     @respx.mock
     @pytest.mark.asyncio
     @pytest.mark.real_sleep
+    @pytest.mark.slow
     async def test_429_http_date_does_not_crash(self):
         from mytools.core.utils import create_async_client, fetch
 
@@ -1043,6 +1049,7 @@ class TestRetryAfterEdgeCases:
     @respx.mock
     @pytest.mark.asyncio
     @pytest.mark.real_sleep
+    @pytest.mark.slow
     async def test_429_invalid_retry_after_uses_default(self):
         from mytools.core.utils import create_async_client, fetch
 

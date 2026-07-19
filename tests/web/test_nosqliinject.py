@@ -482,6 +482,7 @@ class TestPrintResults:
         assert "Nenhuma NoSQL Injection detectada" in output
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

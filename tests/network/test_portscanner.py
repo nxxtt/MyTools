@@ -136,6 +136,7 @@ class TestFindingDataclass:
             f.port = 443  # type: ignore[reportAttributeAccessIssue]
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_returns_argparse(self):
         parser = build_parser()
@@ -177,6 +178,7 @@ class TestBuildParser:
         assert args.log_file == "scan.log"
 
 
+@pytest.mark.smoke
 class TestBuildParserV3:
     def test_has_list_argument(self):
         parser = build_parser()

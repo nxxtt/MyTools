@@ -531,6 +531,7 @@ class TestPrintResults:
         assert "Nenhum XXE detectado" in output
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

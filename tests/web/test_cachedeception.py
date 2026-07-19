@@ -477,6 +477,7 @@ class TestPrintResults:
         assert "Nenhuma Web Cache Deception detectada" in output
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

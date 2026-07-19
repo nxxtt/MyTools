@@ -233,6 +233,7 @@ class TestLoadPathsFromArgs:
 # ── build_parser ──────────────────────────────────────────────────────────────
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_url(self):
         args = build_parser().parse_args(["http://x.com"])

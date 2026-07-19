@@ -464,6 +464,7 @@ class TestPrintResults:
         assert "Nenhuma Prototype Pollution detectada" in output
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

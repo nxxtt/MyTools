@@ -273,6 +273,7 @@ class TestLoadPaths:
         assert result == CREDENTIALS_PATHS
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_url(self):
         parser = build_parser()

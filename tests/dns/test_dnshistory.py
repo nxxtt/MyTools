@@ -193,6 +193,7 @@ class TestParseViewdns:
         assert result == []
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_returns_parser(self):
         parser = build_parser()

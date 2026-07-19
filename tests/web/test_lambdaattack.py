@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
+import respx
 
 from mytools.web.lambdaattack import (
     _CATEGORY_DISPATCH,
@@ -210,8 +212,11 @@ class TestCLI:
 
 
 @pytest.mark.asyncio
+@pytest.mark.network
+@respx.mock
 async def test_category_dispatch_all_return_lists() -> None:
     """All category dispatchers should return a list."""
+    respx.route().mock(return_value=httpx.Response(404, text="Not Found"))
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("target.com", 443, "", 0.1, True, "https://target.com")
         assert isinstance(result, list), f"{cat} did not return a list"

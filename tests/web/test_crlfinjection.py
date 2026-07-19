@@ -341,6 +341,7 @@ class TestTestBypass:
         assert len(attempts) > 0
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

@@ -457,6 +457,7 @@ class TestPrintResults:
         assert "Nenhuma XPath Injection detectada" in output
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

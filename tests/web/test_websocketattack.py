@@ -256,6 +256,7 @@ class TestCreateConnection:
 # ─── Parser Tests ────────────────────────────────────────────────────────────
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_has_url_arg(self) -> None:
         parser = build_parser()

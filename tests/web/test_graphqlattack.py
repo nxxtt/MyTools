@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
+import httpx
 import pytest
+import respx
 
 from mytools.web.graphqlattack import (
     _CATEGORY_DISPATCH,
@@ -272,8 +276,15 @@ class TestCLI:
 
 
 @pytest.mark.asyncio
-async def test_category_dispatch_all_return_lists() -> None:
+@pytest.mark.network
+@respx.mock
+@patch(
+    "mytools.web.graphqlattack._execute_query",
+    return_value=(200, {"data": {"__typename": "Query"}}),
+)
+async def test_category_dispatch_all_return_lists(_mock_exec: object) -> None:
     """All category dispatchers should return a list."""
+    respx.route().mock(return_value=httpx.Response(200, json={"data": {"__typename": "Query"}}))
     schema_info = {"types": ["User (OBJECT)"], "query_type": "Query", "mutation_type": "", "subscription_type": ""}
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("target.com", 443, "/graphql", 5.0, True, "https://target.com/graphql", schema_info)

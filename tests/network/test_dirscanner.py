@@ -382,6 +382,7 @@ class TestScanPath:
         assert result.method == "POST"
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def test_returns_argparse(self):
         parser = build_parser()

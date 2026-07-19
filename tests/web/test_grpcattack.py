@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from unittest.mock import patch
+
+import httpx
 import pytest
+import respx
 
 from mytools.web.grpcattack import (
     _CATEGORY_DISPATCH,
@@ -195,8 +199,12 @@ class TestCLI:
 
 
 @pytest.mark.asyncio
-async def test_category_dispatch_all_return_lists() -> None:
+@pytest.mark.network
+@respx.mock
+@patch("mytools.web.grpcattack._try_call", return_value=(True, "ok"))
+async def test_category_dispatch_all_return_lists(_mock_try: object) -> None:
     """All category dispatchers should return a list."""
+    respx.route().mock(return_value=httpx.Response(200, json={"data": {}}))
     reflection_info: dict[str, Any] = {"available": False, "services": [], "files": []}
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("target.com", 50051, "", 0.1, False, "grpc://target.com:50051", reflection_info)

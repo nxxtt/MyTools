@@ -111,9 +111,9 @@ class TestLoadWordlist:
         result = load_wordlist(str(wl))
         assert result == ["www", "test", "api"]
 
-    def test_file_not_found(self):
+    def test_file_not_found(self, tmp_path):
         with pytest.raises(ValueError, match="arquivo nao encontrado"):
-            load_wordlist("/tmp/nonexistent_wordlist_12345.txt")
+            load_wordlist(str(tmp_path / "nonexistent.txt"))
 
     def test_empty_file(self, tmp_path):
         wl = tmp_path / "empty.txt"
@@ -286,12 +286,13 @@ class TestRunEnumScan:
 
     @patch("mytools.dns.subdomainenum.enumerate_subdomains")
     @patch("mytools.dns.subdomainenum.load_wordlist")
-    def test_custom_wordlist_path(self, mock_load, mock_enum):
+    def test_custom_wordlist_path(self, mock_load, mock_enum, tmp_path):
         mock_load.return_value = ["api"]
         mock_enum.return_value = []
+        wl_path = str(tmp_path / "wl.txt")
 
-        run_enum_scan("example.com", wordlist_path="/tmp/wl.txt")
-        mock_load.assert_called_once_with("/tmp/wl.txt")
+        run_enum_scan("example.com", wordlist_path=wl_path)
+        mock_load.assert_called_once_with(wl_path)
 
     @patch("mytools.dns.subdomainenum.enumerate_subdomains")
     @patch("mytools.dns.subdomainenum.load_wordlist")
@@ -304,6 +305,7 @@ class TestRunEnumScan:
         assert results == expected
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     def setup_method(self):
         self.parser = build_parser()
@@ -320,12 +322,12 @@ class TestBuildParser:
         assert args.domain is None
 
     def test_wordlist_short(self):
-        args = self.parser.parse_args(["example.com", "-w", "/tmp/wl.txt"])
-        assert args.wordlist == "/tmp/wl.txt"
+        args = self.parser.parse_args(["example.com", "-w", "test_wordlist.txt"])
+        assert args.wordlist == "test_wordlist.txt"
 
     def test_wordlist_long(self):
-        args = self.parser.parse_args(["example.com", "--wordlist", "/tmp/wl.txt"])
-        assert args.wordlist == "/tmp/wl.txt"
+        args = self.parser.parse_args(["example.com", "--wordlist", "test_wordlist.txt"])
+        assert args.wordlist == "test_wordlist.txt"
 
     def test_threads_short(self):
         args = self.parser.parse_args(["example.com", "-T", "50"])
@@ -603,6 +605,7 @@ class TestParseShodan:
         assert result == []
 
 
+@pytest.mark.smoke
 class TestBuildParserPassive:
     def test_has_passive_flag(self):
         parser = build_parser()

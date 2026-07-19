@@ -323,6 +323,7 @@ class TestTestBypassRedirect:
         assert len(attempts) == 8
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 

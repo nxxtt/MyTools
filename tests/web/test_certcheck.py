@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.web.certcheck import (
     _CATEGORY_DISPATCH,
@@ -288,8 +290,24 @@ class TestCLI:
 
 
 @pytest.mark.asyncio
-async def test_category_dispatch_all_return_lists() -> None:
+@pytest.mark.network
+@respx.mock
+@patch(
+    "mytools.web.certcheck._get_cert_info",
+    return_value={
+        "cert": {},
+        "cert_der": b"",
+        "issuer": "CN=Mock CA",
+        "subject": "CN=example.com",
+        "not_after": "Jan 1 00:00:00 2030 GMT",
+        "chain_length": 2,
+        "san": (("DNS", "example.com"),),
+        "cipher_bits": 256,
+    },
+)
+async def test_category_dispatch_all_return_lists(_mock_cert: MagicMock) -> None:
     """All category dispatchers should return a list."""
+    respx.route().mock(return_value=httpx.Response(403))
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("example.com", 443, "/", 5.0, True, 0, 0)
         assert isinstance(result, list), f"{cat} did not return a list"

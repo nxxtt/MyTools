@@ -300,6 +300,7 @@ class TestTestBomUpload:
         assert len(attempts) == 2
 
 
+@pytest.mark.smoke
 class TestBuildParser:
     """Testes para build_parser."""
 
