@@ -314,11 +314,11 @@ def _parse_retry_after(value: str | None) -> float:
     except ValueError:
         pass
     try:
-        from datetime import datetime
+        from datetime import UTC, datetime
         from email.utils import parsedate_to_datetime
 
         dt = parsedate_to_datetime(value)
-        delta = (dt - datetime.now(datetime.UTC)).total_seconds()
+        delta = (dt - datetime.now(UTC)).total_seconds()
         return max(delta, 0.0)
     except Exception:
         return 5.0
