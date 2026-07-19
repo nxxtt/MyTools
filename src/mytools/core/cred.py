@@ -17,11 +17,12 @@ Em scanners, use o prefixo @ para referenciar credenciais salvas:
 import argparse
 import getpass
 import sys
+from typing import Any
 
 _SERVICE_NAME = "mytools"
 
 
-def _get_keyring():  # type: ignore[no-untyped-def]
+def _get_keyring() -> Any:
     """Retorna o modulo keyring ou None se nao disponivel."""
     try:
         import keyring
@@ -31,7 +32,7 @@ def _get_keyring():  # type: ignore[no-untyped-def]
         return None
 
 
-def _list_credentials() -> list[str]:  # type: ignore[no-untyped-def]
+def _list_credentials() -> list[str]:
     """Lista todas as credenciais salvas com prefixo mytools/.
 
     keyring nao fornece listagem nativa, entao usamos um registro

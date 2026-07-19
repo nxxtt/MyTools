@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import override
+from typing import cast, override
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
@@ -361,14 +361,14 @@ def analyze_headers_findings(
     lower_headers = {k.lower(): v for k, v in headers.items()}
 
     for waf_name, waf_rules in _WAF_SIGNATURES.items():
-        header_rules: list[tuple[str, str]] = waf_rules.get("headers", [])  # type: ignore[assignment]
+        header_rules = cast(list[tuple[str, str]], waf_rules.get("headers", []))
         matched = False
         for hdr, pattern in header_rules:
             if re.search(pattern, lower_headers.get(hdr, ""), re.IGNORECASE):
                 matched = True
                 break
         if not matched:
-            cookie_rules: list[tuple[str, str]] = waf_rules.get("cookies", [])  # type: ignore[assignment]
+            cookie_rules = cast(list[tuple[str, str]], waf_rules.get("cookies", []))
             all_cookies = " ".join(
                 (raw_headers or {}).get("set-cookie", [])
             )

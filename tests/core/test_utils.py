@@ -1021,11 +1021,59 @@ class TestSafeAsyncioRun:
 
 
 class TestRetryAfterEdgeCases:
+    def test_parse_retry_after_integer(self):
+        from mytools.core.utils import _parse_retry_after
+
+        assert _parse_retry_after("30") == 30.0
+
+    def test_parse_retry_after_float(self):
+        from mytools.core.utils import _parse_retry_after
+
+        assert _parse_retry_after("2.5") == 2.5
+
+    def test_parse_retry_after_http_date_future(self):
+        from mytools.core.utils import _parse_retry_after
+
+        result = _parse_retry_after("Fri, 31 Dec 2099 23:59:59 GMT")
+        assert result > 0
+
+    def test_parse_retry_after_invalid(self):
+        from mytools.core.utils import _parse_retry_after
+
+        assert _parse_retry_after("not-a-number") == 5.0
+
+    def test_parse_retry_after_none(self):
+        from mytools.core.utils import _parse_retry_after
+
+        assert _parse_retry_after(None) == 5.0
+
+    def test_parse_retry_after_empty(self):
+        from mytools.core.utils import _parse_retry_after
+
+        assert _parse_retry_after("") == 5.0
+
+    def test_notify_429_with_retry_after(self):
+        limiter = RateLimiter(10.0)
+        limiter.notify_429(1.0)
+        assert limiter._backoff_multiplier == 10.0
+
+    def test_notify_429_with_retry_after_capped(self):
+        limiter = RateLimiter(10.0)
+        limiter.notify_429(200.0)
+        assert limiter._backoff_multiplier == 16.0
+
+    def test_notify_429_fallback_doubles(self):
+        limiter = RateLimiter(10.0)
+        limiter.notify_429()
+        assert limiter._backoff_multiplier == 2.0
+        limiter.notify_429()
+        assert limiter._backoff_multiplier == 4.0
+
     @respx.mock
     @pytest.mark.asyncio
     @pytest.mark.real_sleep
     @pytest.mark.slow
-    async def test_429_http_date_does_not_crash(self):
+    async def test_429_http_date_future_parses_correctly(self):
         from mytools.core.utils import create_async_client, fetch
 
         client = create_async_client()
@@ -1037,13 +1085,14 @@ class TestRetryAfterEdgeCases:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return httpx.Response(429, headers={"Retry-After": "Fri, 31 Dec 1999 23:59:59 GMT"})
+                return httpx.Response(429, headers={"Retry-After": "Fri, 31 Dec 2099 23:59:59 GMT"})
             return httpx.Response(200, text="ok")
 
         respx.get(url).mock(side_effect=side_effect)
         status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
         assert status == 200
         assert call_count == 2
+        assert limiter._backoff_multiplier > 1.0
         await client.aclose()
 
     @respx.mock

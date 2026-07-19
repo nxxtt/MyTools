@@ -19,7 +19,7 @@ import ssl
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from mytools.core.utils import (
@@ -177,7 +177,7 @@ def _get_cert_info(host: str, port: int, timeout: float) -> dict[str, Any]:
             socket.create_connection((host, port), timeout=timeout) as sock,
             ctx.wrap_socket(sock, server_hostname=host) as ssock,
         ):
-            cert: dict[str, Any] = ssock.getpeercert()  # type: ignore[assignment]
+            cert: dict[str, Any] = cast(dict[str, Any], ssock.getpeercert())
             cert_der = ssock.getpeercert(binary_form=True)
             cipher = ssock.cipher()
             version = ssock.version()

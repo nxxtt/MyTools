@@ -13,7 +13,7 @@ import re
 import uuid
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -196,8 +196,8 @@ async def _test_env_var_leak(
     last_code = 0
     for payload in payloads:
         try:
-            headers = payload.get("headers", {})  # type: ignore[assignment]
-            resp = await client.post(url, content=payload["body"], headers=headers)  # type: ignore[arg-type]
+            headers = cast(dict[str, str], payload.get("headers", {}))
+            resp = await client.post(url, content=cast(bytes, payload["body"]), headers=headers)
             last_code = resp.status_code
             resp_headers = {k.lower(): v for k, v in resp.headers.items()}
             leaked = _extract_env_vars(resp.text, resp_headers)

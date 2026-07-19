@@ -1280,11 +1280,11 @@ async def run_scan(
 
 
 
-            async def _limited(coro: object) -> object:
+            async def _limited(coro: Awaitable[object]) -> object:
 
                 async with sem:
 
-                    return await coro  # type: ignore[misc]
+                    return await coro
 
 
 

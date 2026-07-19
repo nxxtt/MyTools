@@ -305,6 +305,25 @@ def clear_console() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
 
+def _parse_retry_after(value: str | None) -> float:
+    """Parse Retry-After header: aceita segundos (int/float) ou HTTP-date."""
+    if not value:
+        return 5.0
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    try:
+        from datetime import datetime
+        from email.utils import parsedate_to_datetime
+
+        dt = parsedate_to_datetime(value)
+        delta = (dt - datetime.now(datetime.UTC)).total_seconds()
+        return max(delta, 0.0)
+    except Exception:
+        return 5.0
+
+
 class RateLimiter:
     """Rate limiter async usando intervalo minimo entre requests com backoff adaptativo.
 
@@ -342,9 +361,17 @@ class RateLimiter:
         self._last_request_time = next_slot
         await asyncio.sleep(sleep_time)
 
-    def notify_429(self) -> None:
-        """Notifica que um 429 foi recebido, aumentando o delay."""
-        self._backoff_multiplier = min(self._backoff_multiplier * 2.0, 16.0)
+    def notify_429(self, retry_after: float = 0.0) -> None:
+        """Notifica que um 429 foi recebido, ajustando backoff.
+
+        Se retry_after > 0, calcula o multiplier exato baseado no valor do server.
+        Caso contrario, usa backoff exponencial (dobra o multiplicador).
+        """
+        if retry_after > 0 and self._min_interval > 0:
+            needed = retry_after / self._min_interval
+            self._backoff_multiplier = min(max(needed, self._backoff_multiplier), 16.0)
+        else:
+            self._backoff_multiplier = min(self._backoff_multiplier * 2.0, 16.0)
 
     def notify_ok(self) -> None:
         """Notifica que um 2xx foi recebido, reduzindo backoff gradualmente."""
@@ -371,7 +398,7 @@ def create_async_client(
     timeout: float = 5.0,
     verify: bool = False,
     impersonate: BrowserTypeLiteral | None = None,
-) -> httpx.AsyncClient:
+) -> Any:
     """Cria um cliente HTTP async com headers padrao.
 
     Suporta TLS fingerprint impersonation via curl-cffi quando disponivel.
@@ -385,7 +412,7 @@ def create_async_client(
 
             session = AsyncSession(impersonate=impersonate, verify=verify, timeout=timeout, proxy=proxy)
             session.headers.update(headers)
-            return session  # type: ignore[return-value]
+            return session
         except ImportError:
             logger.debug("curl-cffi nao instalado, usando httpx padrao")
         except Exception as error:
@@ -443,11 +470,8 @@ async def fetch(
                 content=content,
             )
             if response.status_code == 429 and rate_limiter is not None:
-                rate_limiter.notify_429()
-                try:
-                    retry_after = float(response.headers.get("Retry-After", "5"))
-                except ValueError, TypeError:
-                    retry_after = 5.0
+                retry_after = _parse_retry_after(response.headers.get("Retry-After"))
+                rate_limiter.notify_429(retry_after)
                 await asyncio.sleep(min(retry_after, 30))
                 continue
             logger.debug("response %d %s (%d bytes)", response.status_code, url, len(response.content))
@@ -1100,13 +1124,16 @@ def _setup_readline(
     Tenta usar readline (stdlib) ou pyreadline3 (Windows).
     Se nenhum disponivel, retorna silenciosamente.
     """
+    _readline: Any = None
     try:
-        try:
-            import readline as _readline
-        except ModuleNotFoundError:
-            import pyreadline3 as _readline  # type: ignore[no-redef]
+        import readline
+        _readline = readline
     except ModuleNotFoundError:
-        return
+        try:
+            import pyreadline3
+            _readline = pyreadline3
+        except ModuleNotFoundError:
+            return
 
     flag_names: list[str] = []
     for action in parser._actions:
@@ -1123,10 +1150,10 @@ def _setup_readline(
         matches = getattr(completer, "matches", [])
         return matches[state] if state < len(matches) else None
 
-    _readline.set_completer(completer)  # type: ignore[attr-defined]
-    _readline.set_completer_delims(" \t")  # type: ignore[attr-defined]
+    _readline.set_completer(completer)
+    _readline.set_completer_delims(" \t")
     with contextlib.suppress(Exception):
-        _readline.parse_and_bind("tab: complete")  # type: ignore[attr-defined]
+        _readline.parse_and_bind("tab: complete")
 
 
 def run_interactive_shell(
