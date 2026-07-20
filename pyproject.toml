@@ -166,8 +166,8 @@ target-version = "py314"
 line-length = 160
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PTH", "PERF"]
-ignore = ["E501", "RUF001", "RUF002"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PTH", "PERF","ASYNC","LOG","G",]
+ignore = ["E501", "RUF001", "RUF002", "ASYNC109"]
 
 [tool.basedpyright]
 pythonVersion = "3.14"

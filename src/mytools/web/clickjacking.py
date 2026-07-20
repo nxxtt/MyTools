@@ -149,7 +149,7 @@ async def _test_xframe(
 
     url: str,
 
-    _baseline_headers: dict[str, str],
+    baseline_headers: dict[str, str],
 
 ) -> list[ClickjackAttempt]:
 
@@ -157,7 +157,7 @@ async def _test_xframe(
 
     results: list[ClickjackAttempt] = []
 
-    _b_status, b_headers, _b_body = await _test_baseline(client, url)
+    b_headers = baseline_headers
 
 
 
@@ -243,13 +243,15 @@ async def _test_csp(
 
     url: str,
 
+    baseline_headers: dict[str, str],
+
 ) -> list[ClickjackAttempt]:
 
     """Testa protecao CSP frame-ancestors."""
 
     results: list[ClickjackAttempt] = []
 
-    _, b_headers, _ = await _test_baseline(client, url)
+    b_headers = baseline_headers
 
 
 
@@ -333,13 +335,19 @@ async def _test_bypass(
 
     url: str,
 
+    baseline_headers: dict[str, str],
+
+    baseline_body: bytes,
+
 ) -> list[ClickjackAttempt]:
 
     """Testa tecnicas de bypass de clickjacking."""
 
     results: list[ClickjackAttempt] = []
 
-    _b_status, b_headers, b_body = await _test_baseline(client, url)
+    b_headers = baseline_headers
+
+    b_body = baseline_body
 
 
 
@@ -475,13 +483,15 @@ async def _test_meta(
 
     url: str,
 
+    baseline_body: bytes,
+
 ) -> list[ClickjackAttempt]:
 
     """Testa meta tags de protecao."""
 
     results: list[ClickjackAttempt] = []
 
-    _, _, b_body = await _test_baseline(client, url)
+    b_body = baseline_body
 
 
 
@@ -769,7 +779,7 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
 
-        _baseline_status, baseline_headers, _ = await _test_baseline(client, target)
+        _baseline_status, baseline_headers, baseline_body = await _test_baseline(client, target)
 
 
 
@@ -787,15 +797,15 @@ async def run_scan(
 
             elif cat == "csp":
 
-                all_attempts.extend(await _test_csp(client, target))
+                all_attempts.extend(await _test_csp(client, target, baseline_headers))
 
             elif cat == "bypass":
 
-                all_attempts.extend(await _test_bypass(client, target))
+                all_attempts.extend(await _test_bypass(client, target, baseline_headers, baseline_body))
 
             elif cat == "meta":
 
-                all_attempts.extend(await _test_meta(client, target))
+                all_attempts.extend(await _test_meta(client, target, baseline_body))
 
             elif cat == "legacy":
 

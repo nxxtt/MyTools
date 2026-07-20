@@ -2,7 +2,9 @@
 """Testes unitarios do modulo de NoSQL Injection."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.web.nosqliinject import (
     _BYPASS_PAYLOADS,
@@ -526,100 +528,86 @@ class TestIntegration:
     """Testes de integracao com mocks."""
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_all_categories(self) -> None:
         from mytools.web.nosqliinject import run_scan
 
-        mock_client = AsyncMock()
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"not vulnerable"
-        mock_client.get.return_value = mock_resp
-        mock_client.post.return_value = mock_resp
-
-        with patch("mytools.web.nosqliinject.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=[],
-                timeout=10,
-                concurrency=5,
-                output_file=None,
-                verbose=False,
-            )
-            assert result == 0
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=[],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 0
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_vulnerable(self) -> None:
         from mytools.web.nosqliinject import run_scan
 
-        mock_client = AsyncMock()
-        mock_get = MagicMock()
-        mock_get.status_code = 200
-        mock_get.content = b"ok"
-        mock_client.get.return_value = mock_get
-
-        mock_post = MagicMock()
-        mock_post.status_code = 200
-        mock_post.content = b"welcome back success token"
-        mock_client.post.return_value = mock_post
-
-        with patch("mytools.web.nosqliinject.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=["detect"],
-                timeout=10,
-                concurrency=5,
-                output_file=None,
-                verbose=False,
-            )
-            assert result == 1
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="welcome back success token"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["detect"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 1
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_connection_error(self) -> None:
         from mytools.web.nosqliinject import run_scan
 
-        mock_client = AsyncMock()
-        mock_resp = MagicMock()
-        mock_resp.status_code = 0
-        mock_resp.content = b""
-        mock_client.get.return_value = mock_resp
-
-        with patch("mytools.web.nosqliinject.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=["detect"],
-                timeout=10,
-                concurrency=5,
-                output_file=None,
-                verbose=False,
-            )
-            assert result == 1
+        respx.route(url__startswith="https://example.com/").mock(
+            side_effect=httpx.ConnectError("Connection refused"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["detect"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 1
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_with_output(self, tmp_path: object) -> None:
         from mytools.web.nosqliinject import run_scan
 
-        mock_client = AsyncMock()
-        mock_get = MagicMock()
-        mock_get.status_code = 200
-        mock_get.content = b"ok"
-        mock_client.get.return_value = mock_get
-
-        mock_post = MagicMock()
-        mock_post.status_code = 200
-        mock_post.content = b"not vulnerable"
-        mock_client.post.return_value = mock_post
-
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
         output_file = str(tmp_path) + "/output.json"  # type: ignore[operator]
-        with patch("mytools.web.nosqliinject.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=["detect"],
-                timeout=10,
-                concurrency=5,
-                output_file=output_file,
-                verbose=False,
-            )
-            assert result == 0
+        result = await run_scan(
+            target="https://example.com",
+            categories=["detect"],
+            timeout=10,
+            concurrency=5,
+            output_file=output_file,
+            verbose=False,
+        )
+        assert result == 0
 
     def test_run_once(self) -> None:
         args = MagicMock()

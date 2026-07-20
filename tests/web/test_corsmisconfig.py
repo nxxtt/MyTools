@@ -10,7 +10,6 @@ from mytools.web.corsmisconfig import (
     CORSResult,
     _check_cors_headers,
     _get_domain_variants,
-    _test_baseline,
     _test_bypass,
     _test_credentials,
     _test_null_origin,
@@ -123,38 +122,6 @@ class TestCORSResult:
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
-
-
-# ─── Test Baseline ───────────────────────────────────────────────────────────
-class TestBaseline:
-    @pytest.mark.asyncio
-    async def test_baseline_success(self) -> None:
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"ok"
-        mock_resp.headers = {"content-type": "text/html"}
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        status, size, headers = await _test_baseline(mock_client, "https://test.com")
-        assert status == 200
-        assert size == 2
-        assert "content-type" in headers
-
-    @pytest.mark.asyncio
-    async def test_baseline_error(self) -> None:
-        import httpx
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        status, size, headers = await _test_baseline(mock_client, "https://test.com")
-        assert status == 0
-        assert size == 0
-        assert headers == {}
 
 
 # ─── Test Null Origin ────────────────────────────────────────────────────────

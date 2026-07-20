@@ -6,7 +6,7 @@ import pytest
 import pytest_asyncio
 
 from mytools.core.reconall import get_parser_defaults
-from mytools.core.utils import create_async_client
+from mytools.core.utils import _fetch_cache, create_async_client
 
 
 @pytest.fixture(scope="function")
@@ -31,6 +31,13 @@ def base_ns():
         "header": None,
     })
     return argparse.Namespace(**defaults)
+
+
+@pytest.fixture(autouse=True)
+def _clear_fetch_cache():
+    """Limpa o cache de fetch() entre testes para evitar contaminacao."""
+    _fetch_cache.clear()
+    yield
 
 
 @pytest.fixture(autouse=True)

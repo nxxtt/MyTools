@@ -27,13 +27,13 @@ import logging
 import random
 import string
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 
 import dns.exception
 import dns.name
 import dns.query
 import dns.rdatatype
 import dns.resolver
+from anyio import Path
 
 from mytools.core.utils import (
     Cyber,
@@ -413,8 +413,8 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if not domain and target_list:
         try:
-            with Path(target_list).open(encoding="utf-8") as f:
-                domains = [line.strip() for line in f if line.strip()]
+            async with await Path(target_list).open(encoding="utf-8") as f:
+                domains = [line.strip() async for line in f if line.strip()]
         except FileNotFoundError:
             print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))
             return 1

@@ -2,7 +2,9 @@
 """Testes unitarios do modulo de Cache Poisoning."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.web.cachepoisoning import (
     _BYPASS_PAYLOADS,
@@ -514,121 +516,95 @@ class TestIntegration:
     """Testes de integracao com mocks."""
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_all_categories(self) -> None:
         from mytools.web.cachepoisoning import run_scan
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__.return_value = mock_client
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"not vulnerable"
-        mock_resp.headers = {}
-        mock_client.get.return_value = mock_resp
-        mock_client.post.return_value = mock_resp
-
-        with patch("mytools.web.cachepoisoning.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=[],
-                timeout=10,
-                concurrency=5,
-                output_file=None,
-                verbose=False,
-            )
-            assert result == 0
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=[],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 0
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_vulnerable(self) -> None:
         from mytools.web.cachepoisoning import run_scan
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__.return_value = mock_client
-
-        mock_baseline = MagicMock()
-        mock_baseline.status_code = 200
-        mock_baseline.content = b"ok"
-        mock_baseline.headers = {}
-
-        mock_vuln = MagicMock()
-        mock_vuln.status_code = 200
-        mock_vuln.content = b"evil.com"
-        mock_vuln.headers = {"x-cache": "HIT"}
-
         call_count = 0
 
-        async def side_effect_get(*args, **kwargs):
+        def side_effect(request: httpx.Request) -> httpx.Response:
             nonlocal call_count
             call_count += 1
-            if call_count <= 1:
-                return mock_baseline
-            return mock_vuln
+            if call_count > 1:
+                return httpx.Response(200, text="evil.com", headers={"x-cache": "HIT"})
+            return httpx.Response(200, text="not vulnerable")
 
-        mock_client.get = AsyncMock(side_effect=side_effect_get)
-        mock_client.post = AsyncMock(return_value=mock_vuln)
-
-        with patch("mytools.web.cachepoisoning.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=["host"],
-                timeout=10,
-                concurrency=5,
-                output_file=None,
-                verbose=False,
-            )
-            assert result == 1
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            side_effect=side_effect,
+        )
+        respx.route(method="POST", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="evil.com", headers={"x-cache": "HIT"}),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["host"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 1
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_connection_error(self) -> None:
         from mytools.web.cachepoisoning import run_scan
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__.return_value = mock_client
-        mock_resp = MagicMock()
-        mock_resp.status_code = 0
-        mock_resp.content = b""
-        mock_resp.headers = {}
-        mock_client.get.return_value = mock_resp
-
-        with patch("mytools.web.cachepoisoning.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=["host"],
-                timeout=10,
-                concurrency=5,
-                output_file=None,
-                verbose=False,
-            )
-            assert result == 1
+        respx.route(url__startswith="https://example.com").mock(
+            side_effect=httpx.ConnectError("Connection refused"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["host"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 1
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_with_output(self, tmp_path: object) -> None:
         from mytools.web.cachepoisoning import run_scan
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__.return_value = mock_client
-        mock_get = MagicMock()
-        mock_get.status_code = 200
-        mock_get.content = b"ok"
-        mock_get.headers = {}
-        mock_client.get.return_value = mock_get
-
-        mock_post = MagicMock()
-        mock_post.status_code = 200
-        mock_post.content = b"not vulnerable"
-        mock_post.headers = {}
-        mock_client.post.return_value = mock_post
-
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
         output_file = str(tmp_path) + "/output.json"  # type: ignore[operator]
-        with patch("mytools.web.cachepoisoning.create_async_client", return_value=mock_client):
-            result = await run_scan(
-                target="https://example.com",
-                categories=["host"],
-                timeout=10,
-                concurrency=5,
-                output_file=output_file,
-                verbose=False,
-            )
-            assert result == 0
+        result = await run_scan(
+            target="https://example.com",
+            categories=["host"],
+            timeout=10,
+            concurrency=5,
+            output_file=output_file,
+            verbose=False,
+        )
+        assert result == 0
 
     def test_run_once(self) -> None:
         args = MagicMock()

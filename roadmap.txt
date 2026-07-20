@@ -20,7 +20,7 @@
 
 11. respx instalado mas subutilizado — apenas 3 de 68 arquivos de teste web usam respx para mock HTTP. Os outros 65 usam unittest.mock diretamente, o que significa que headers, query params, e edge cases HTTP nunca são validados.
 
-12. Cache de respostas HTTP — módulos como webrecon e attackaudit fazem múltiplas requisições ao mesmo alvo. Um AsyncClient compartilhado com cache em memória (ex: aiocache ou cachetools) reduziria drasticamente o tempo de execução.
+12. Cache de respostas HTTP — módulos como webrecon e attackaudit fazem múltiplas requisições ao mesmo alvo. Um AsyncClient compartilhado com cache em memória (ex: aiocache ou cashews) reduziria drasticamente o tempo de execução.
 
 13. Razão test:source crítica em 3 módulos:
     - http2abuse.py (1648 linhas) → apenas 200 linhas de teste (12%) — sem testes para os 7 category dispatchers

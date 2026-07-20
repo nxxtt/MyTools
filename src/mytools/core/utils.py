@@ -438,6 +438,10 @@ def _extract_raw_headers(response: httpx.Response) -> dict[str, list[str]]:
     return raw
 
 
+_fetch_cache: dict[tuple, tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]]] = {}
+_FETCH_CACHE_TTL = 60.0
+
+
 async def fetch(
     client: httpx.AsyncClient,
     url: str,
@@ -460,6 +464,12 @@ async def fetch(
     raw_headers e um dict mapeando nomes de headers (lowercase) para listas de
     todos os valores, preservando headers duplicados como Set-Cookie.
     """
+    cache_key = (method, url, frozenset((headers or {}).items()), content)
+    now = time.monotonic()
+    cached = _fetch_cache.get(cache_key)
+    if cached is not None and now - cached[0] < _FETCH_CACHE_TTL:
+        logger.debug("cache hit %s %s", method, url)
+        return cached[1]
     last_error: httpx.RequestError = httpx.RequestError("unknown error")
     for attempt in range(max_retries):
         logger.debug("request %s %s (timeout=%.1f, attempt=%d)", method, url, timeout, attempt + 1)
@@ -478,7 +488,9 @@ async def fetch(
                 await asyncio.sleep(min(retry_after, 30))
                 continue
             logger.debug("response %d %s (%d bytes)", response.status_code, url, len(response.content))
-            return response.status_code, response.headers, response.content, _extract_raw_headers(response)
+            result = (response.status_code, response.headers, response.content, _extract_raw_headers(response))
+            _fetch_cache[cache_key] = (time.monotonic(), result)
+            return result
         except httpx.RequestError as error:
             logger.debug("error %s: %s", url, error)
             last_error = error

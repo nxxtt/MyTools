@@ -214,7 +214,7 @@ class TestCSP:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_csp(mock_client, "https://test.com")
+        results = await _test_csp(mock_client, "https://test.com", {})
         assert len(results) == 5
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) > 0
@@ -230,7 +230,7 @@ class TestCSP:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_csp(mock_client, "https://test.com")
+        results = await _test_csp(mock_client, "https://test.com", {"content-security-policy": "frame-ancestors 'none'"})
         assert len(results) == 5
         fa = [r for r in results if r.technique == "csp_frame_ancestors"]
         assert len(fa) == 1
@@ -250,7 +250,7 @@ class TestBypass:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_bypass(mock_client, "https://test.com")
+        results = await _test_bypass(mock_client, "https://test.com", {}, b"hello")
         assert len(results) == 5
 
     @pytest.mark.asyncio
@@ -261,7 +261,7 @@ class TestBypass:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_bypass(mock_client, "https://test.com")
+        results = await _test_bypass(mock_client, "https://test.com", {}, b"")
         assert len(results) == 5
         errors = [r for r in results if r.error]
         assert len(errors) >= 2
@@ -280,7 +280,7 @@ class TestMeta:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_meta(mock_client, "https://test.com")
+        results = await _test_meta(mock_client, "https://test.com", b'<html><head><meta name="referrer" content="no-referrer"></head></html>')
         assert len(results) == 5
         referrer = [r for r in results if r.technique == "meta_referrer"]
         assert len(referrer) == 1

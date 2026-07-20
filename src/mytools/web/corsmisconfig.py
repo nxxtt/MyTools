@@ -110,23 +110,6 @@ def _get_domain_variants(domain: str) -> list[str]:
 
 
 
-async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, dict[str, str]]:
-
-    """Envia request baseline sem Origin para obter headers de referencia."""
-
-    try:
-
-        resp = await client.get(url, follow_redirects=True)
-
-        headers = dict(resp.headers)
-
-        return resp.status_code, len(resp.content), headers
-
-    except httpx.RequestError:
-
-        return 0, 0, {}
-
-
 
 
 
@@ -879,10 +862,6 @@ async def run_scan(
 
 
     async with create_async_client(timeout=timeout) as client:
-
-        _baseline_status, _, _baseline_headers = await _test_baseline(client, target)
-
-
 
         all_attempts: list[CORSAttempt] = []
 

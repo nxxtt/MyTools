@@ -25,10 +25,10 @@ import logging
 import re
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from urllib.parse import quote
 
 import httpx
+from anyio import Path
 
 from mytools.core.utils import (
     Cyber,
@@ -439,8 +439,8 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if not domain and target_list:
         try:
-            with Path(target_list).open(encoding="utf-8") as f:
-                domains = [line.strip() for line in f if line.strip()]
+            async with await Path(target_list).open(encoding="utf-8") as f:
+                domains = [line.strip() async for line in f if line.strip()]
         except FileNotFoundError:
             logger.error("Arquivo nao encontrado: %s", target_list)
             return 1
