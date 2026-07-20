@@ -179,8 +179,8 @@ class TestGetMaskedOutput:
         mock_get.return_value = None
         from mytools.core.cred import main
 
-        with caplog.at_level("ERROR", logger="mytools.cred"):
-            with patch("sys.argv", ["mytools-cred", "get", "missing"]):
-                result = main()
+        with caplog.at_level("ERROR", logger="mytools.cred"), \
+             patch("sys.argv", ["mytools-cred", "get", "missing"]):
+            result = main()
         assert result == 1
         assert any("nao encontrada" in record.message for record in caplog.records)
