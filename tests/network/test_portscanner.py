@@ -299,13 +299,13 @@ class TestDryRun:
         result = run_once(args)
         assert result == 0
 
-    def test_dry_run_outputs_info(self, capsys):
+    def test_dry_run_outputs_info(self, caplog):
         from mytools.network.portscanner import run_once
         parser = build_parser()
         args = parser.parse_args(["127.0.0.1", "-p", "22,80", "--dry-run"])
-        run_once(args)
-        captured = capsys.readouterr()
-        assert "DRY-RUN" in captured.out
+        with caplog.at_level("WARNING", logger="mytools.portscanner"):
+            run_once(args)
+        assert any("Nenhuma conexao" in r.message for r in caplog.records)
 
 
 class TestMain:

@@ -247,18 +247,17 @@ class TestRunOnce:
             result = run_once(args)
         assert result == 0
 
-    def test_dry_run(self, capsys):
+    def test_dry_run(self, caplog):
         args = argparse.Namespace(
             domain="example.com", source=["dnslytics"], dnslytics_key=None,
             st_api_key=None, viewdns_key=None, record_types=None,
             timeout=5.0, dry_run=True, output=None, verbose=False,
             quiet=False, color=None, log_file=None,
         )
-        result = run_once(args)
+        with caplog.at_level("WARNING", logger="mytools.dnshistory"):
+            result = run_once(args)
         assert result == 0
-        captured = capsys.readouterr()
-        assert "DRY-RUN" in captured.out
-        assert "example.com" in captured.out
+        assert any("Nenhuma consulta" in r.message for r in caplog.records)
 
     def test_saves_output(self, capsys, tmp_path):
         out_file = str(tmp_path / "history.json")

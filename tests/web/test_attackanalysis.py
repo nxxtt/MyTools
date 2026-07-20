@@ -18,6 +18,7 @@ from mytools.web.attackanalysis import (
     print_results,
     render_png,
     render_svg,
+    run_once,
     suggest_exploits,
 )
 
@@ -228,6 +229,130 @@ class TestPrintResults:
         print_results(graph, [])
         captured = capsys.readouterr()
         assert "No exploits suggested" in captured.out
+
+
+class TestRunOnceLogging:
+    """Testes para logging em run_once()."""
+
+    def test_file_not_found_logs_error(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        import argparse
+        args = argparse.Namespace(
+            findings_file=str(tmp_path / "missing.json"),
+            target="test.com", output=None, png=None, svg=None, dot=None,
+        )
+        with caplog.at_level("ERROR"):
+            result = run_once(args)
+        assert result == 1
+        assert "arquivo não encontrado" in caplog.text
+
+    def test_invalid_json_logs_error(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        import argparse
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json {{{", encoding="utf-8")
+        args = argparse.Namespace(
+            findings_file=str(bad),
+            target="test.com", output=None, png=None, svg=None, dot=None,
+        )
+        with caplog.at_level("ERROR"):
+            result = run_once(args)
+        assert result == 1
+        assert "JSON inválido" in caplog.text
+
+    def test_png_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        import argparse
+        findings = tmp_path / "findings.json"
+        findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com", output=None,
+            png=str(tmp_path / "out.png"), svg=None, dot=None,
+        )
+        with caplog.at_level("INFO", logger="mytools.attackanalysis"):
+            result = run_once(args)
+        assert result == 0
+        assert "PNG salvo" in caplog.text
+
+    def test_svg_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        import argparse
+        findings = tmp_path / "findings.json"
+        findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com", output=None,
+            png=None, svg=str(tmp_path / "out.svg"), dot=None,
+        )
+        with caplog.at_level("INFO", logger="mytools.attackanalysis"):
+            result = run_once(args)
+        assert result == 0
+        assert "SVG salvo" in caplog.text
+
+    def test_dot_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        import argparse
+        findings = tmp_path / "findings.json"
+        findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com", output=None,
+            png=None, svg=None, dot=str(tmp_path / "out.dot"),
+        )
+        with caplog.at_level("INFO", logger="mytools.attackanalysis"):
+            result = run_once(args)
+        assert result == 0
+        assert "DOT salvo" in caplog.text
+
+
+class TestJsonOutput:
+    def test_json_output_high_severity(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        import argparse
+        findings = tmp_path / "findings.json"
+        findings.write_text(
+            '[{"severity": "high", "category": "xss", "item": "XSS Reflected", "exploit": "curl <TARGET>"}]',
+            encoding="utf-8",
+        )
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com", output=None, png=None, svg=None, dot=None,
+            json_output=True,
+        )
+        result = run_once(args)
+        out = capsys.readouterr().out
+        assert '"graph"' in out
+        assert '"exploits"' in out
+        assert '"XSS Reflected"' in out
+        assert result == 1
+
+    def test_json_output_low_severity(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        import argparse
+        findings = tmp_path / "findings.json"
+        findings.write_text(
+            '[{"severity": "low", "category": "info", "item": "Info Leak"}]',
+            encoding="utf-8",
+        )
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com", output=None, png=None, svg=None, dot=None,
+            json_output=True,
+        )
+        result = run_once(args)
+        out = capsys.readouterr().out
+        assert '"graph"' in out
+        assert '"total_vulnerabilities": 1' in out
+        assert result == 0
+
+    def test_json_output_no_print_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        import argparse
+        findings = tmp_path / "findings.json"
+        findings.write_text('[]', encoding="utf-8")
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com", output=None, png=None, svg=None, dot=None,
+            json_output=True,
+        )
+        run_once(args)
+        out = capsys.readouterr().out
+        # Should NOT contain human-readable print_results output
+        assert "Attack Analysis" not in out
+        assert '"graph"' in out
 
 
 class TestSeverityColors:

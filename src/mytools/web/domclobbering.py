@@ -513,7 +513,7 @@ async def _test_named_access(
 
 ) -> list[ClobberAttempt]:
 
-    """Testa Named Access DOM Clobbering via injeção de payloads."""
+    """Testa Named Access DOM Clobbering via injeÃ§Ã£o de payloads."""
 
     results: list[ClobberAttempt] = []
 
@@ -575,7 +575,7 @@ async def _test_named_access(
 
                 if reflected:
 
-                    details = f"Payload refletido no HTML — window.{clob_name} clobberavel"
+                    details = f"Payload refletido no HTML â€” window.{clob_name} clobberavel"
 
                 elif status_changed:
 
@@ -651,7 +651,7 @@ async def _test_form_child(
 
 ) -> list[ClobberAttempt]:
 
-    """Testa Form Child DOM Clobbering via injeção de payloads."""
+    """Testa Form Child DOM Clobbering via injeÃ§Ã£o de payloads."""
 
     results: list[ClobberAttempt] = []
 
@@ -713,7 +713,7 @@ async def _test_form_child(
 
                 if reflected:
 
-                    details = f"Payload refletido — {clob_name}.{prop} clobberavel"
+                    details = f"Payload refletido â€” {clob_name}.{prop} clobberavel"
 
                 elif status_changed:
 
@@ -851,7 +851,7 @@ async def _test_impact_chains(
 
                 if reflected:
 
-                    details = f"Payload refletido — {sink} clobberavel via {clob_name}"
+                    details = f"Payload refletido â€” {sink} clobberavel via {clob_name}"
 
                 elif status_changed:
 
@@ -1025,7 +1025,7 @@ async def run_scan(
 
         except Exception as e:
 
-            print(color(f"Erro ao acessar {target}: {e}", Cyber.RED))
+            logger.warning("Erro ao acessar %s: %s", target, e)
 
             return 1
 
@@ -1185,7 +1185,7 @@ def build_parser() -> argparse.ArgumentParser:
 
         prog="mytools-domclob",
 
-        description="DOM Clobbering — detecta named access clobbering em paginas web.",
+        description="DOM Clobbering â€” detecta named access clobbering em paginas web.",
 
         formatter_class=argparse.RawDescriptionHelpFormatter,
 

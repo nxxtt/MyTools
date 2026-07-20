@@ -841,7 +841,7 @@ async def run_scan(
             b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
             b_size = len(b_body)
         except Exception as e:
-            print(color(f"Erro ao acessar {target}: {e}", Cyber.RED))
+            logger.warning("Erro ao acessar %s: %s", target, e)
             return 1
 
         body_str = b_body.decode(errors="replace")
@@ -864,7 +864,7 @@ async def run_scan(
         if not all_attempts:
             issues.append("Nenhum teste de File Upload executado")
         if not upload_endpoint:
-            issues.append("Endpoint de upload nao detectado — testando URL principal")
+            issues.append("Endpoint de upload nao detectado â€” testando URL principal")
 
         result = UploadResult(
             target=target, tls=tls,
@@ -909,7 +909,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Construtor do parser de argumentos."""
     parser = argparse.ArgumentParser(
         prog="mytools-fileupload",
-        description="File Upload Attacks — detecta polyglots, XXE, ImageMagick, ZIP Slip, filename injection.",
+        description="File Upload Attacks â€” detecta polyglots, XXE, ImageMagick, ZIP Slip, filename injection.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Exemplos:\n"

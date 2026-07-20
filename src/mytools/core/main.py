@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 import sys
 
 from mytools.config import backupfiledetect, configfiledetect
@@ -56,6 +57,8 @@ from mytools.web import (
     xxedetect,
 )
 from mytools.whois import whoishistory
+
+logger = logging.getLogger("mytools.main")
 
 """Modulo principal que integra as ferramentas de segurança.
 

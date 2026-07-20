@@ -6,15 +6,15 @@
 
 Testa se o servidor e vulneravel a cache poisoning via:
 
-  - Host — X-Forwarded-Host, X-Original-URL, X-Rewrite-URL
+  - Host â€” X-Forwarded-Host, X-Original-URL, X-Rewrite-URL
 
-  - Path — path manipulation, double path, path confusion
+  - Path â€” path manipulation, double path, path confusion
 
-  - Header — Vary, Cache-Control bypass, Pragma bypass
+  - Header â€” Vary, Cache-Control bypass, Pragma bypass
 
-  - Encoding — Transfer-Encoding clTE, content-length mismatch
+  - Encoding â€” Transfer-Encoding clTE, content-length mismatch
 
-  - Bypass — double encode, null byte, case variation, unicode
+  - Bypass â€” double encode, null byte, case variation, unicode
 
 
 
@@ -1239,13 +1239,13 @@ async def run_scan(
 
         if b_status == 0:
 
-            print(color("[-] Nao foi possivel conectar ao alvo", Cyber.RED))
+            logger.warning("Nao foi possivel conectar ao alvo")
 
             return 1
 
 
 
-        print(color(f"[*] Baseline: status={b_status}, size={b_size}", Cyber.CYAN))
+        logger.info("Baseline: status=%d, size=%d", b_status, b_size)
 
 
 
@@ -1363,13 +1363,13 @@ def banner_art() -> None:
 
 def build_parser() -> argparse.ArgumentParser:
 
-    """Constrói o parser de argumentos CLI."""
+    """ConstrÃ³i o parser de argumentos CLI."""
 
     parser = argparse.ArgumentParser(
 
         prog="mytools-cachepoison",
 
-        description="Cache Poisoning — detecta cache key poisoning via headers nao-normalizados",
+        description="Cache Poisoning â€” detecta cache key poisoning via headers nao-normalizados",
 
     )
 

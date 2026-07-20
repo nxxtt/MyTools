@@ -29,6 +29,7 @@ from mytools.core.utils import (
     parse_auth,
     parse_extra_headers,
     parse_int_range,
+    print_json,
     print_table,
     query_nvd,
     resolve_cred,
@@ -704,6 +705,38 @@ class TestPrintTable:
         assert "1" in captured.out
 
 
+class TestPrintJson:
+    def test_prints_dict(self, capsys):
+        print_json({"key": "value", "num": 42})
+        out = capsys.readouterr().out
+        assert '"key": "value"' in out
+        assert '"num": 42' in out
+
+    def test_prints_list(self, capsys):
+        print_json([1, 2, 3])
+        out = capsys.readouterr().out
+        assert "1" in out
+        assert "2" in out
+        assert "3" in out
+
+    def test_handles_non_serializable(self, capsys):
+        from datetime import datetime
+        print_json({"ts": datetime(2026, 1, 1)})
+        out = capsys.readouterr().out
+        assert "2026" in out
+
+    def test_ends_with_newline(self, capsys):
+        print_json({"a": 1})
+        out = capsys.readouterr().out
+        assert out.endswith("\n")
+
+    def test_nested_structure(self, capsys):
+        print_json({"items": [{"id": 1}, {"id": 2}]})
+        out = capsys.readouterr().out
+        assert '"id": 1' in out
+        assert '"id": 2' in out
+
+
 class TestParseIntRange:
     def test_single_value(self):
         assert parse_int_range("80", 1, 65535, "porta") == [80]
@@ -1145,6 +1178,53 @@ class TestResolveCred:
         mock_get.return_value = None
         with pytest.raises(ValueError, match="nao encontrada"):
             resolve_cred("@missing_cred")
+
+
+class TestResolveCredPlaintextWarning:
+    """Testes para warnings de segredos em texto puro em resolve_cred()."""
+
+    @patch("mytools.core.cred.get_credential")
+    def test_warns_on_user_pass(self, _mock_get, caplog):
+        with caplog.at_level("WARNING"):
+            resolve_cred("admin:s3cret")
+        assert "keyring" in caplog.text.lower()
+
+    @patch("mytools.core.cred.get_credential")
+    def test_warns_on_github_token(self, _mock_get, caplog):
+        with caplog.at_level("WARNING"):
+            resolve_cred("ghp_abc123def456ghi")
+        assert "keyring" in caplog.text.lower()
+
+    @patch("mytools.core.cred.get_credential")
+    def test_warns_on_aws_key(self, _mock_get, caplog):
+        with caplog.at_level("WARNING"):
+            resolve_cred("AKIAIOSFODNN7EXAMPLE")
+        assert "keyring" in caplog.text.lower()
+
+    @patch("mytools.core.cred.get_credential")
+    def test_warns_on_slack_token(self, _mock_get, caplog):
+        with caplog.at_level("WARNING"):
+            resolve_cred("xoxb-1234567890-1234567890123-abc123def456")
+        assert "keyring" in caplog.text.lower()
+
+    @patch("mytools.core.cred.get_credential")
+    def test_no_warn_on_keyring_ref(self, _mock_get, caplog):
+        _mock_get.return_value = "resolved_value"
+        with caplog.at_level("WARNING"):
+            resolve_cred("@my_token")
+        assert caplog.text == ""
+
+    @patch("mytools.core.cred.get_credential")
+    def test_no_warn_on_normal_string(self, _mock_get, caplog):
+        with caplog.at_level("WARNING"):
+            resolve_cred("just_a_string")
+        assert "keyring" not in caplog.text.lower()
+
+    @patch("mytools.core.cred.get_credential")
+    def test_no_warn_on_header_value(self, _mock_get, caplog):
+        with caplog.at_level("WARNING"):
+            resolve_cred("Content-Type: application/json")
+        assert "keyring" not in caplog.text.lower()
 
 
 class TestParseAuthKeyring:

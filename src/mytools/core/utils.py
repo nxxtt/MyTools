@@ -27,6 +27,7 @@ import json
 import logging
 import os
 import random
+import re
 import shlex
 import sys
 import time
@@ -42,6 +43,8 @@ if TYPE_CHECKING:
     from curl_cffi.requests import BrowserTypeLiteral
 
 logger = logging.getLogger("mytools")
+
+_SECRET_PATTERNS = re.compile(r"(ghp_|sk-|gho_|glpat-|xox[bsrp]-|AKIA|^[^:]+:\S+$)")
 
 
 def _read_version() -> str:
@@ -178,7 +181,7 @@ def run_main_loop(
 
     try:
         validate_stealth_args(args)
-        if not quiet:
+        if not quiet and not getattr(args, "json_output", False):
             banner_fn()
         return run_fn(args)
     except KeyboardInterrupt:
@@ -658,6 +661,12 @@ def write_output(
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado salvo em {color(path, Cyber.GREEN)}")
 
 
+def print_json(data: Any) -> None:
+    """Imprime dados como JSON formatado no stdout (para piping com jq/grep)."""
+    json.dump(data, sys.stdout, indent=2, ensure_ascii=False, default=str)
+    sys.stdout.write("\n")
+
+
 def resolve_cred(value: str) -> str:
     """Resolve valor de credencial do keyring.
 
@@ -669,6 +678,11 @@ def resolve_cred(value: str) -> str:
         ValueError: se a credencial nao foi encontrada no keyring.
     """
     if not value.startswith("@"):
+        if _SECRET_PATTERNS.search(value):
+            logger.warning(
+                "Segredo em texto puro detectado. "
+                "Use keyring: mytools-cred set <nome> e depois @<nome>"
+            )
         return value
     name = value[1:]
     if not name:
@@ -746,6 +760,7 @@ def add_base_args(parser: argparse.ArgumentParser, timeout_default: float = 5.0)
     parser.add_argument("--no-verify", action="store_false", dest="verify", help="Desabilita verificacao de certificados SSL/TLS (padrao).")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--dump-payloads", action="store_true", dest="dump_payloads", help="Exporta todos os payloads YAML carregados em JSON e sai.")
+    parser.add_argument("--json", action="store_true", dest="json_output", help="Saida JSON para stdout (para piping com jq/grep). Recomenda-se usar com -q.")
 
 
 def add_http_args(parser: argparse.ArgumentParser) -> None:

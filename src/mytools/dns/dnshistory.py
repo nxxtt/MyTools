@@ -22,7 +22,6 @@ from mytools.core.utils import (
     Cyber,
     FetchError,
     add_base_args,
-    color,
     create_async_client,
     create_banner,
     fetch,
@@ -347,7 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _print_history(records: list[DnsHistoryRecord]) -> None:
     """Imprime tabela de registros historicos."""
     if not records:
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum registro historico encontrado.")
+        logger.info("Nenhum registro historico encontrado.")
         return
 
     print_table(
@@ -380,10 +379,10 @@ def run_once(args: argparse.Namespace) -> int:
     }
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta sera realizada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Fontes: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Record types: {color(', '.join(record_types), Cyber.WHITE, Cyber.BOLD)}")
+        logger.warning("Nenhuma consulta sera realizada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Fontes: %s", ", ".join(sources))
+        logger.info("Record types: %s", ", ".join(record_types))
         return 0
 
     start = time.time()
@@ -396,25 +395,23 @@ def run_once(args: argparse.Namespace) -> int:
     )
     elapsed = time.time() - start
 
-    print()
     _print_history(records)
-    print()
 
     for s in sources:
         if s != "dnslytics" and not api_keys.get(s):
-            print(color("[!]", Cyber.YELLOW, Cyber.BOLD),
-                  f"{s} requer API key (use --{s.replace('securitytrails', 'st').replace('viewdns', 'viewdns')}-api-key)")
+            logger.warning(
+                "%s requer API key (use --%s-api-key)",
+                s, s.replace('securitytrails', 'st').replace('viewdns', 'viewdns'),
+            )
 
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Records: {color(str(len(records)), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Elapsed: {color(f"{elapsed:.1f}s", Cyber.YELLOW)} | "
-        f"Sources: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}",
+    logger.info(
+        "Records: %d | Elapsed: %.1fs | Sources: %s",
+        len(records), elapsed, ", ".join(sources),
     )
 
     if getattr(args, "output", None):
         write_output(args.output, [asdict(r) for r in records])
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), f"Output salvo em: {args.output}")
+        logger.info("Output salvo em: %s", args.output)
 
     return 0
 

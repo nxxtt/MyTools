@@ -6,15 +6,15 @@
 
 Testa se o servidor e vulneravel a cache deception via:
 
-  - Extension — extensions cacheaveis em paths sensiveis (.css, .js, .png)
+  - Extension â€” extensions cacheaveis em paths sensiveis (.css, .js, .png)
 
-  - Path — truques de path que confundem cache vs app routing
+  - Path â€” truques de path que confundem cache vs app routing
 
-  - Parameter — parametros cacheaveis em URLs sensiveis
+  - Parameter â€” parametros cacheaveis em URLs sensiveis
 
-  - Framework — tricks especificos (Django, Flask, Express, Rails)
+  - Framework â€” tricks especificos (Django, Flask, Express, Rails)
 
-  - Bypass — encoding e normalizacao para contornar filtros
+  - Bypass â€” encoding e normalizacao para contornar filtros
 
 
 
@@ -989,13 +989,13 @@ async def run_scan(
 
         if b_status == 0:
 
-            print(color("[-] Nao foi possivel conectar ao alvo", Cyber.RED))
+            logger.warning("Nao foi possivel conectar ao alvo")
 
             return 1
 
 
 
-        print(color(f"[*] Baseline: status={b_status}, size={b_size}", Cyber.CYAN))
+        logger.info("Baseline: status=%d, size=%d", b_status, b_size)
 
 
 
@@ -1111,13 +1111,13 @@ def banner_art() -> None:
 
 def build_parser() -> argparse.ArgumentParser:
 
-    """Constrói o parser de argumentos CLI."""
+    """ConstrÃ³i o parser de argumentos CLI."""
 
     parser = argparse.ArgumentParser(
 
         prog="mytools-cachedec",
 
-        description="Web Cache Deception — detecta paths que o cache armazena mas a app nao deveria",
+        description="Web Cache Deception â€” detecta paths que o cache armazena mas a app nao deveria",
 
     )
 

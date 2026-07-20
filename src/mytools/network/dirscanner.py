@@ -333,13 +333,10 @@ async def scan_target(
     if extra_headers:
         client.headers.update(extra_headers)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Status: {color(','.join(map(str, sorted(statuses))), Cyber.YELLOW)} | "
-        f"Method: {color(method, Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
+    logger.info("Alvo: %s", base_url)
+    logger.info(
+        "Paths: %d | Status: %s | Method: %s | Concurrency: %d",
+        len(paths), ','.join(map(str, sorted(statuses))), method, concurrency,
     )
 
     sem = asyncio.Semaphore(concurrency)
@@ -386,23 +383,13 @@ async def scan_target(
             if result.title:
                 details.append(f"title={result.title}")
             suffix = f" | {' | '.join(details)}" if details else ""
-            print(
-                f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                f"{color(str(result.status).ljust(3), status_color(result.status), Cyber.BOLD)} "
-                f"{color(str(result.size).rjust(7), Cyber.YELLOW)}B "
-                f"{color(result.url, Cyber.CYAN)}"
-                f"{color(suffix, Cyber.GRAY)}"
-            )
+            logger.info("[+] %d %7dB %s%s", result.status, result.size, result.url, suffix)
     finally:
         await client.aclose()
 
     elapsed = time.monotonic() - started
     findings.sort(key=lambda item: (item.status, item.url))
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Achados: {color(str(len(findings)), Cyber.GREEN, Cyber.BOLD)}",
-    )
+    logger.info("Finalizado em %.2fs. Achados: %d", elapsed, len(findings))
     return findings
 
 
@@ -541,12 +528,12 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False):
         paths = load_paths(args.wordlist, args.extensions, case_variation=getattr(args, "case_variation", False), unicode_norm=getattr(args, "unicode_norm", False))
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Method: {color(args.method, Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}")
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {color(','.join(map(str, sorted(args.status))), Cyber.YELLOW)}")
+            logger.info("Alvo: %s", base_url)
+            logger.info("Paths: %d | Method: %s | Concurrency: %d", len(paths), args.method, args.concurrency)
+            logger.info("Status: %s", ','.join(map(str, sorted(args.status))))
         return 0
 
     all_findings: list[Finding] = []

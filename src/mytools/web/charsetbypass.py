@@ -295,7 +295,7 @@ class CharsetBypassResult:
 
 def _build_meta_body(charset: str, payload: str) -> str:
 
-    """Constrói body HTML com meta charset tag."""
+    """ConstrÃ³i body HTML com meta charset tag."""
 
     return (
 
@@ -313,7 +313,7 @@ def _build_meta_body(charset: str, payload: str) -> str:
 
 def _build_meta_http_equiv(charset: str, payload: str) -> str:
 
-    """Constrói body HTML com meta http-equiv charset."""
+    """ConstrÃ³i body HTML com meta http-equiv charset."""
 
     return (
 
@@ -331,7 +331,7 @@ def _build_meta_http_equiv(charset: str, payload: str) -> str:
 
 def _build_xml_body(charset: str, payload: str) -> str:
 
-    """Constrói body XML com declaration de charset."""
+    """ConstrÃ³i body XML com declaration de charset."""
 
     return f'<?xml version="1.0" encoding="{charset}"?>\n<root>{payload}</root>'
 
@@ -341,7 +341,7 @@ def _build_xml_body(charset: str, payload: str) -> str:
 
 def _build_bom_body(bom_bytes: bytes, payload: str) -> str:
 
-    """Constrói body com BOM no início."""
+    """ConstrÃ³i body com BOM no inÃ­cio."""
 
     return payload
 
@@ -1399,13 +1399,13 @@ def print_results(result: CharsetBypassResult) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
 
-    """Constrói o parser de argumentos CLI."""
+    """ConstrÃ³i o parser de argumentos CLI."""
 
     parser = argparse.ArgumentParser(
 
         prog="mytools-charsetbypass",
 
-        description="Charset Detection Bypass — testa bypass via charset manipulacao.",
+        description="Charset Detection Bypass â€” testa bypass via charset manipulacao.",
 
     )
 
@@ -1451,7 +1451,7 @@ def run_once(args: argparse.Namespace) -> int:
 
     if not url:
 
-        print(color("Especifique uma URL alvo.", Cyber.RED))
+        logger.error("Especifique uma URL alvo.")
 
         return 1
 
@@ -1489,7 +1489,7 @@ def run_once(args: argparse.Namespace) -> int:
 
         write_output(output_path, asdict(result))
 
-        print(color(f"\nResultados salvos em: {output_path}", Cyber.GREEN))
+        logger.info("Resultados salvos em: %s", output_path)
 
 
 
@@ -1521,7 +1521,7 @@ banner_art = create_banner(
 
     """,
 
-    "Charset Detection Bypass — detecta bypass via charset manipulacao",
+    "Charset Detection Bypass â€” detecta bypass via charset manipulacao",
 
 )
 

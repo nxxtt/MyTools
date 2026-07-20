@@ -35,6 +35,7 @@ from mytools.core.utils import (
     init_scanner,
     normalize_url,
     print_exploit_info,
+    print_json,
     print_table,
     resolve_target_urls,
     run_main_loop,
@@ -305,17 +306,11 @@ async def scan_vcs(
                        cookie=cookie, extra_headers=extra_headers)
 
     logger.info("scan vcs leak iniciado: %s", base_url)
-
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
-
+    logger.info("Alvo: %s", base_url)
     paths = custom_paths or ALL_PATHS
     total = len(paths)
 
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Paths: {color(str(total), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
-    )
+    logger.info("Paths: %d | Concurrency: %d", total, concurrency)
 
     sem = asyncio.Semaphore(concurrency)
     completed = 0
@@ -346,21 +341,11 @@ async def scan_vcs(
             if isinstance(r, VCSLeak):
                 leaks.append(r)
                 logger.info("VCS leak encontrado: [%s] %s — %s", r.vcs_type, r.path, r.detail)
-                print(
-                    f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(f"[{r.vcs_type.upper()}]", Cyber.YELLOW, Cyber.BOLD)} "
-                    f"{color(r.path, Cyber.WHITE)} "
-                    f"{color(r.detail, Cyber.GRAY)}"
-                )
     finally:
         await client.aclose()
 
     elapsed = time.monotonic() - started
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"VCS leaks encontrados: {color(str(len(leaks)), Cyber.GREEN, Cyber.BOLD)}",
-    )
+    logger.info("Finalizado em %.2fs. VCS leaks encontrados: %d", elapsed, len(leaks))
     return leaks
 
 
@@ -465,14 +450,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     urls = resolve_target_urls(args)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+            logger.info("Alvo: %s", base_url)
         return 0
 
     if args.timeout <= 0:
-        print(color("[!] Timeout deve ser maior que 0.", Cyber.RED))
+        logger.error("Timeout deve ser maior que 0.")
         return 1
 
     all_leaks: list[VCSLeak] = []
@@ -496,7 +481,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             extra_headers=getattr(args, "header", None),
         )
 
-        if not quiet:
+        if getattr(args, "json_output", False):
+            print_json([asdict(leak) for leak in leaks])
+        elif not quiet:
             print_results(leaks)
 
         all_leaks.extend(leaks)
@@ -511,7 +498,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
                 quiet=quiet,
             )
 
-    if args.output:
+    if getattr(args, "json_output", False):
+        print_json([asdict(leak) for leak in all_leaks])
+    elif args.output:
         write_output(
             args.output,
             [asdict(leak) for leak in all_leaks],

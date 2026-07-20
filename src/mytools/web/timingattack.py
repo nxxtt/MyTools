@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import statistics
 import time
 from collections.abc import Callable, Coroutine
@@ -50,6 +51,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.timingattack")
 
 _BANNER_LINES: str = (
 

@@ -365,9 +365,9 @@ def run_once(args: argparse.Namespace) -> int:
     }
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta sera realizada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Fontes: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}")
+        logger.warning("Nenhuma consulta sera realizada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Fontes: %s", ", ".join(sources))
         return 0
 
     start = time.time()
@@ -386,19 +386,13 @@ def run_once(args: argparse.Namespace) -> int:
     for s in sources:
         if not api_keys.get(s):
             flag = "--st-api-key" if s == "securitytrails" else "--whoisxml-api-key"
-            print(color("[!]", Cyber.YELLOW, Cyber.BOLD),
-                  f"{s} requer API key (use {flag})")
+            logger.warning("%s requer API key (use %s)", s, flag)
 
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Records: {color(str(len(records)), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Elapsed: {color(f"{elapsed:.1f}s", Cyber.YELLOW)} | "
-        f"Sources: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}",
-    )
+    logger.info("Records: %d | Elapsed: %.1fs | Sources: %s", len(records), elapsed, ", ".join(sources))
 
     if getattr(args, "output", None):
         write_output(args.output, [asdict(r) for r in records])
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), f"Output salvo em: {args.output}")
+        logger.info("Output salvo em: %s", args.output)
 
     return 0
 

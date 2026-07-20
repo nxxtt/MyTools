@@ -16,6 +16,7 @@ IMPORTANTE: Usa a lib h2 para manipulacao correta de frames HTTP/2.
 from __future__ import annotations
 
 import argparse
+import logging
 import socket
 import ssl
 import time
@@ -39,6 +40,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.http2abuse")
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 

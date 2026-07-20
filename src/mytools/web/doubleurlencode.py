@@ -91,7 +91,7 @@ class DoubleURLEncodeResult:
 
 
 def _build_double_url(url: str, char: str, double_payload: str, position: str) -> str:
-    """Constrói URL com payload double-encoded."""
+    """ConstrÃ³i URL com payload double-encoded."""
     parsed = urlparse(url)
     if not parsed.scheme:
         parsed = urlparse(f"http://{url}")
@@ -562,10 +562,10 @@ def print_results(result: DoubleURLEncodeResult) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos CLI."""
+    """ConstrÃ³i o parser de argumentos CLI."""
     parser = argparse.ArgumentParser(
         prog="mytools-dblurl",
-        description="Double URL Encoding Bypass — testa bypass de filtros via encoding duplo.",
+        description="Double URL Encoding Bypass â€” testa bypass de filtros via encoding duplo.",
     )
     add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo para teste")
@@ -588,7 +588,7 @@ def run_once(args: argparse.Namespace) -> int:
     init_scanner(args)
     url = getattr(args, "url", None) or getattr(args, "target", None)
     if not url:
-        print(color("Especifique uma URL alvo.", Cyber.RED))
+        logger.error("Especifique uma URL alvo.")
         return 1
 
     result = safe_asyncio_run(
@@ -607,7 +607,7 @@ def run_once(args: argparse.Namespace) -> int:
     output_path = getattr(args, "output", None)
     if output_path:
         write_output(output_path, asdict(result))
-        print(color(f"\nResultados salvos em: {output_path}", Cyber.GREEN))
+        logger.info("Resultados salvos em: %s", output_path)
 
     return 0 if result.overall_status != "error" else 1
 
@@ -622,7 +622,7 @@ banner_art = create_banner(
     |_| \_|\___/_/\_\\__,_|\__,_|_|  \___/|_|  |_| |_| |_|\__,_|\__|
 
     """,
-    "Double URL Encoding Bypass — detecta bypass de filtros via encoding duplo",
+    "Double URL Encoding Bypass â€” detecta bypass de filtros via encoding duplo",
 )
 
 

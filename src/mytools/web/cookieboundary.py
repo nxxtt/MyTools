@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Modulo de auditoria de Cookie Security (Domain + Path + CSRF + SameSite DNS + Quoting).
 
 Verifica se cookies de uma aplicacao web vazam para subdominios maliciosos,
@@ -1048,7 +1048,7 @@ async def run_scan(
         try:
             _status, _headers, _body, raw_headers = await fetch(client, target, timeout=timeout)
         except Exception as e:
-            print(color(f"Erro ao acessar {target}: {e}", Cyber.RED))
+            logger.warning("Erro ao acessar %s: %s", target, e)
             return 1
 
         set_cookies = raw_headers.get("set-cookie", [])

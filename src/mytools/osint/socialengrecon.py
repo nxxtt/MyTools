@@ -402,8 +402,8 @@ async def scan_employees(
     rate_limiter = RateLimiter(requests_per_second)
     client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Fontes: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}")
+    logger.info("Alvo: %s", domain)
+    logger.info("Fontes: %s", ", ".join(sources))
 
     all_employees: list[EmployeeInfo] = []
 
@@ -411,27 +411,23 @@ async def scan_employees(
         if source == "github":
             emps = await _query_github(client, domain, timeout, rate_limiter, max_results)
             all_employees.extend(emps)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"GitHub: {color(str(len(emps)), Cyber.GREEN)} funcionarios encontrados")
+            logger.info("GitHub: %d funcionarios encontrados", len(emps))
         elif source == "hunter":
             key = api_keys.get("hunter") or ""
             emps = await _query_hunter(client, domain, key, timeout, rate_limiter, max_results)
             all_employees.extend(emps)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Hunter: {color(str(len(emps)), Cyber.GREEN)} funcionarios encontrados")
+            logger.info("Hunter: %d funcionarios encontrados", len(emps))
         elif source == "web":
             emps = await _query_webpages(client, domain, timeout, rate_limiter, max_results)
             all_employees.extend(emps)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Web: {color(str(len(emps)), Cyber.GREEN)} funcionarios encontrados")
+            logger.info("Web: %d funcionarios encontrados", len(emps))
 
     await client.aclose()
 
     all_employees = _dedup_employees(all_employees)
 
     elapsed = time.monotonic() - started
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
-        f"Funcionarios unicos: {color(str(len(all_employees)), Cyber.GREEN, Cyber.BOLD)}",
-    )
+    logger.info("Finalizado em %.2fs. Funcionarios unicos: %d", elapsed, len(all_employees))
 
     return all_employees
 
@@ -512,8 +508,8 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     quiet = init_scanner(args)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(args.domain, Cyber.WHITE, Cyber.BOLD)}")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        logger.info("Dominio: %s", args.domain)
         return 0
 
     sources = args.sources or list(DEFAULT_SOURCES)
@@ -523,7 +519,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     for s in sources:
         if s == "hunter" and not api_keys.get(s):
-            print(color("[!]", Cyber.YELLOW, Cyber.BOLD), "hunter requer API key (use --hunter-api-key)")
+            logger.warning("hunter requer API key (use --hunter-api-key)")
 
     employees = await scan_employees(
         domain=args.domain,

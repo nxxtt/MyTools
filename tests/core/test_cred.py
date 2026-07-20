@@ -136,3 +136,51 @@ class TestRegistry:
         kr.set_password.assert_called_once_with(
             _SERVICE_NAME, "__registry__", "token_b"
         )
+
+
+class TestGetMaskedOutput:
+    """Testes para mascaramento de output no comando get."""
+
+    @patch("mytools.core.cred.get_credential")
+    def test_long_value_masked(self, mock_get, capsys):
+        mock_get.return_value = "secret_token_1234"
+        from mytools.core.cred import main
+
+        with patch("sys.argv", ["mytools-cred", "get", "my_token"]):
+            result = main()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert captured.out.strip() == "*************1234"
+
+    @patch("mytools.core.cred.get_credential")
+    def test_short_value_fully_masked(self, mock_get, capsys):
+        mock_get.return_value = "abc"
+        from mytools.core.cred import main
+
+        with patch("sys.argv", ["mytools-cred", "get", "my_token"]):
+            result = main()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert captured.out.strip() == "****"
+
+    @patch("mytools.core.cred.get_credential")
+    def test_exact_four_chars_masked(self, mock_get, capsys):
+        mock_get.return_value = "1234"
+        from mytools.core.cred import main
+
+        with patch("sys.argv", ["mytools-cred", "get", "my_token"]):
+            result = main()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert captured.out.strip() == "****"
+
+    @patch("mytools.core.cred.get_credential")
+    def test_missing_cred_no_mask(self, mock_get, caplog):
+        mock_get.return_value = None
+        from mytools.core.cred import main
+
+        with caplog.at_level("ERROR", logger="mytools.cred"):
+            with patch("sys.argv", ["mytools-cred", "get", "missing"]):
+                result = main()
+        assert result == 1
+        assert any("nao encontrada" in record.message for record in caplog.records)

@@ -15,6 +15,7 @@ e manipulation de trafego DNS em ambientes corporativos.
 from __future__ import annotations
 
 import argparse
+import logging
 import socket
 import ssl
 import struct
@@ -39,6 +40,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.dotscan")
 
 _BANNER_LINES: str = (
     "  _____ ____   ____     _    _   _\n"

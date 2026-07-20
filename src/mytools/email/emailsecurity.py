@@ -363,12 +363,12 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     domain = getattr(args, "domain", None)
     if not domain:
-        print(color("[!] Informe um dominio.", Cyber.RED))
+        logger.error("Informe um dominio.")
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma query DNS sera enviada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
+        logger.warning("Nenhuma query DNS sera enviada.")
+        logger.info("Dominio: %s", domain)
         return 0
 
     selectors = [s.strip() for s in args.selectors.split(",") if s.strip()]

@@ -324,7 +324,7 @@ async def scan_dorks(
     started = time.monotonic()
     rate_limiter = RateLimiter(requests_per_second)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
+    logger.info("Alvo: %s", domain)
 
     queries = generate_dorks(domain, categories)
 
@@ -332,7 +332,7 @@ async def scan_dorks(
         queries = add_custom_dorks(domain, custom_dorks, queries)
 
     total = len(queries)
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dorks geradas: {color(str(total), Cyber.WHITE, Cyber.BOLD)}")
+    logger.info("Dorks geradas: %d", total)
 
     if do_search:
         client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
@@ -371,7 +371,7 @@ async def scan_dorks(
             await client.aclose()
 
     elapsed = time.monotonic() - started
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}")
+    logger.info("Finalizado em %.2fs", elapsed)
 
     return queries
 
@@ -482,9 +482,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     quiet = init_scanner(args)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         domain_display = args.domain or "(nenhum)"
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain_display, Cyber.WHITE, Cyber.BOLD)}")
+        logger.info("Dominio: %s", domain_display)
         return 0
 
     categories = None if args.category in ("all", "custom") else [args.category]
@@ -497,11 +497,11 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         try:
             domains.extend(read_target_lines(target_list))
         except FileNotFoundError:
-            print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))
+            logger.error("Arquivo nao encontrado: %s", target_list)
             return 1
 
     if not domains:
-        print(color("[!] Informe um dominio ou arquivo de dominios.", Cyber.RED))
+        logger.error("Informe um dominio ou arquivo de dominios.")
         return 1
 
     for domain in domains:

@@ -13,6 +13,7 @@ Testa configuracao de certificados TLS e seguranca:
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import socket
 import ssl
@@ -28,10 +29,13 @@ from mytools.core.utils import (
     color,
     create_banner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.certcheck")
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 
@@ -1076,6 +1080,7 @@ async def run_scan(
     categories: list[str] | None,
     timeout: float,
     output_file: str | None,
+    json_output: bool = False,
 ) -> CertCheckResult:
     """Executa scan de Certificate Checks."""
     host, path, port, tls = _parse_url(target)
@@ -1119,6 +1124,9 @@ async def run_scan(
         issues=issues, overall_status=overall,
     )
 
+    if json_output:
+        print_json(asdict(result))
+        return result
     print_results(result)
 
     if output_file:
@@ -1155,6 +1163,7 @@ def run_once(args: argparse.Namespace) -> int:
             categories=getattr(args, "categories", None),
             timeout=getattr(args, "timeout", 5.0),
             output_file=getattr(args, "output", None),
+            json_output=getattr(args, "json_output", False),
         )
     )
     return 1 if result.overall_status == "vulnerable" else 0

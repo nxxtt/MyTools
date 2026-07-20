@@ -15,6 +15,7 @@ Transfer-Encoding internamente e nao permite ambiguidade no wire.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import socket
 import ssl
@@ -34,6 +35,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.httsmuggle")
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 

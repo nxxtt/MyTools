@@ -25,6 +25,7 @@ Modulos disponiveis:
 import argparse
 import asyncio
 import contextlib
+import logging
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -93,6 +94,8 @@ from mytools.web import (
     xxedetect,
 )
 from mytools.whois import whoishistory
+
+logger = logging.getLogger("mytools.reconall")
 
 ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "openapidiscovery", "graphqlplayground", "sourcemapdiscovery", "vcsleak", "configfiledetect", "backupfiledetect", "googledorking", "emailbreachcheck", "socialengrecon", "pasteleak", "darkwebmonitor", "dnsrebinding", "dnswatorture", "dnsamplification", "dnstunnel", "dnssecvalidation", "nsecwalking",     "caacheck", "emailsecurity", "emailspoof", "smtpinjection", "smtpdowngrade", "emailtemplateinject", "emailattachmentbypass", "emailaddressbypass", "emaillinktracking", "nullbyteinject", "doubleurlencode", "pathtraversal", "overlongencoding", "bominjection", "charsetbypass", "openredirect", "crlfinjection", "sstidetect", "ssrfdetect", "xxedetect", "nosqliinject", "ldapiinject", "xpathinject", "ssiinject", "prototypepollution", "deserialinject", "cachepoisoning", "cachedeception", "methodoverride", "httpparampollution", "blindxss", "corsmisconfig", "clickjacking", "hostheaderinject", "headerinject",     "loginjection", "log4shell", "dirscanner", "webrecon", "attackaudit"]
 
@@ -477,17 +480,17 @@ def run_all(args: argparse.Namespace) -> int:
         async def _run_one(name: str, fn: Callable[[argparse.Namespace], int], a: argparse.Namespace) -> int:
             color_name = color(f"[{name}]", Cyber.CYAN, Cyber.BOLD)
             print(f"\n{'='*60}")
-            print(f" {color_name} Iniciando {name}")
+            logger.info("%s Iniciando %s", color_name, name)
             print(f"{'='*60}")
             start = time.monotonic()
             try:
                 result = await asyncio.to_thread(fn, a)
             except Exception as exc:
-                print(color(f"  Erro em {name}: {exc}", Cyber.RED))
+                logger.error("Erro em %s: %s", name, exc)
                 return 1
             elapsed = time.monotonic() - start
             status = color("OK", Cyber.GREEN, Cyber.BOLD) if result == 0 else color(f"FALHA ({result})", Cyber.RED, Cyber.BOLD)
-            print(f" {color_name} {status} ({elapsed:.1f}s)")
+            logger.info("%s %s (%.1fs)", color_name, status, elapsed)
             return result
 
         tasks = [_run_one(name, fn, a) for name, fn, a in modules]
@@ -506,26 +509,26 @@ def main() -> int:
     setup_logging(verbose=args.verbose)
 
     if args.dry_run:
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Modo dry-run ativado")
-        print(color("  Alvo:", Cyber.CYAN), args.target)
-        print(color("  Modulos:", Cyber.CYAN), ", ".join(m for m in ALL_MODULES if m not in args.skip))
+        logger.warning("Modo dry-run ativado")
+        logger.info("Alvo: %s", args.target)
+        logger.info("Modulos: %s", ", ".join(m for m in ALL_MODULES if m not in args.skip))
         if args.deep:
-            print(color("  Flags:", Cyber.CYAN), "--deep")
+            logger.info("Flags: --deep")
         if args.test_vulns:
-            print(color("  Flags:", Cyber.CYAN), "--test-vulns")
+            logger.info("Flags: --test-vulns")
         if args.cve:
-            print(color("  Flags:", Cyber.CYAN), "--cve")
+            logger.info("Flags: --cve")
         if getattr(args, "bearer_token", None):
-            print(color("  Auth:", Cyber.CYAN), "bearer-token")
+            logger.info("Auth: bearer-token")
         elif getattr(args, "auth", None):
-            print(color("  Auth:", Cyber.CYAN), "basic")
+            logger.info("Auth: basic")
         elif getattr(args, "cookie", None):
-            print(color("  Auth:", Cyber.CYAN), "cookie")
+            logger.info("Auth: cookie")
         return 0
 
     banner()
-    print(color(f"  Alvo: {args.target}", Cyber.WHITE, Cyber.BOLD))
-    print(color(f"  Modulos: {', '.join(m for m in ALL_MODULES if m not in args.skip)}", Cyber.WHITE))
+    logger.info("Alvo: %s", args.target)
+    logger.info("Modulos: %s", ', '.join(m for m in ALL_MODULES if m not in args.skip))
 
     start = time.monotonic()
     errors = run_all(args)
@@ -533,10 +536,10 @@ def main() -> int:
 
     print(f"\n{'='*60}")
     if errors == 0:
-        print(color("  Recon concluido com sucesso!", Cyber.GREEN, Cyber.BOLD))
+        logger.info("Recon concluido com sucesso!")
     else:
-        print(color(f"  Recon concluido com {errors} erro(s)", Cyber.YELLOW, Cyber.BOLD))
-    print(color(f"  Tempo total: {elapsed:.1f}s", Cyber.WHITE))
+        logger.warning("Recon concluido com %d erro(s)", errors)
+    logger.info("Tempo total: %.1fs", elapsed)
     print(f"{'='*60}")
     return 1 if errors else 0
 

@@ -374,15 +374,14 @@ async def scan_backups(
 
     logger.info("scan backup file detect iniciado: %s", base_url)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+    logger.info("Alvo: %s", base_url)
 
     paths = custom_paths or ALL_PATHS
     total = len(paths)
 
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Paths: {color(str(total), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
+    logger.info(
+        "Paths: %d | Concurrency: %d",
+        total, concurrency,
     )
 
     sem = asyncio.Semaphore(concurrency)
@@ -412,30 +411,12 @@ async def scan_backups(
         for r in results:
             if isinstance(r, BackupFile):
                 backups.append(r)
-                logger.info("Backup encontrado: [%s] %s — %s", r.backup_type, r.path, r.detail)
-                type_color = {
-                    "sql": Cyber.RED,
-                    "archive": Cyber.RED,
-                    "swp": Cyber.YELLOW,
-                    "bak": Cyber.YELLOW,
-                    "tilde": Cyber.GREEN,
-                    "orig_tmp": Cyber.CYAN,
-                }.get(r.backup_type, Cyber.WHITE)
-                print(
-                    f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(f"[{r.backup_type.upper()}]", type_color, Cyber.BOLD)} "
-                    f"{color(r.path, Cyber.WHITE)} "
-                    f"{color(r.detail[:60], Cyber.GRAY)}"
-                )
+                logger.info("[+] [%s] %s — %s", r.backup_type.upper(), r.path, r.detail)
     finally:
         await client.aclose()
 
     elapsed = time.monotonic() - started
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Backups encontrados: {color(str(len(backups)), Cyber.GREEN, Cyber.BOLD)}",
-    )
+    logger.info("Finalizado em %.2fs. Backups encontrados: %d", elapsed, len(backups))
     return backups
 
 
@@ -532,10 +513,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     urls = resolve_target_urls(args)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+            logger.info("Alvo: %s", base_url)
         return 0
 
     all_backups: list[BackupFile] = []

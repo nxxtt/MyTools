@@ -499,18 +499,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             with Path(target_list).open(encoding="utf-8") as f:
                 domains = [line.strip() for line in f if line.strip()]
         except FileNotFoundError:
-            print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))
+            logger.error("Arquivo nao encontrado: %s", target_list)
             return 1
     elif domain:
         domains = [domain]
     else:
-        print(color("[!] Informe um dominio ou use -l <arquivo>.", Cyber.RED))
+        logger.error("Informe um dominio ou use -l <arquivo>.")
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for d in domains:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(d, Cyber.WHITE, Cyber.BOLD)}")
+            logger.info("Dominio: %s", d)
         return 0
 
     sources = args.sources or list(DEFAULT_SOURCES)
@@ -520,7 +520,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     for s in sources:
         if s == "github_code" and not api_keys.get("github_token"):
-            print(color("[!]", Cyber.YELLOW, Cyber.BOLD), "github_code requer token (use --github-token)")
+            logger.warning("github_code requer token (use --github-token)")
 
     all_leaks: list[LeakRecord] = []
     for d in domains:

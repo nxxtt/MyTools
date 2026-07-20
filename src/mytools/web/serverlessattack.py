@@ -15,6 +15,7 @@ Testa seguranca generica de endpoints serverless:
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
@@ -33,6 +34,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.serverlessattack")
 
 _BANNER_LINES: str = (
 

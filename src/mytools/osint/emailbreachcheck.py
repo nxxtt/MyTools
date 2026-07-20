@@ -311,8 +311,8 @@ async def check_breaches(
     rate_limiter = RateLimiter(requests_per_second)
     client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Emails: {color(str(len(emails)), Cyber.WHITE, Cyber.BOLD)}")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Fontes: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}")
+    logger.info("Emails: %d", len(emails))
+    logger.info("Fontes: %s", ", ".join(sources))
 
     sem = asyncio.Semaphore(concurrency)
     all_breaches: list[EmailBreach] = []
@@ -344,12 +344,7 @@ async def check_breaches(
     elapsed = time.monotonic() - started
     n_found = len({b.email for b in all_breaches})
     n_breaches = len(all_breaches)
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. "
-        f"Emails com vazamentos: {color(str(n_found), Cyber.RED, Cyber.BOLD)}/{len(emails)}. "
-        f"Total de vazamentos: {color(str(n_breaches), Cyber.RED, Cyber.BOLD)}",
-    )
+    logger.info("Finalizado em %.2fs. Emails com vazamentos: %d/%d. Total de vazamentos: %d", elapsed, n_found, len(emails), n_breaches)
 
     return all_breaches
 
@@ -439,7 +434,7 @@ def _load_emails(args: argparse.Namespace) -> list[str]:
                     if line and "@" in line:
                         emails.append(line)
         except FileNotFoundError:
-            print(color(f"[!] Arquivo nao encontrado: {email_file}", Cyber.RED))
+            logger.error("Arquivo nao encontrado: %s", email_file)
 
     return list(dict.fromkeys(emails))
 
@@ -450,13 +445,13 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     emails = _load_emails(args)
 
     if not emails:
-        print(color("[!] Nenhum email informado. Use: mytools-breach email1@example.com email2@example.com", Cyber.RED))
+        logger.error("Nenhum email informado. Use: mytools-breach email1@example.com email2@example.com")
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for email in emails:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Email: {color(email, Cyber.WHITE, Cyber.BOLD)}")
+            logger.info("Email: %s", email)
         return 0
 
     sources = args.sources or list(DEFAULT_SOURCES)
@@ -466,7 +461,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     for s in sources:
         if s == "hibp" and not api_keys.get(s):
-            print(color("[!]", Cyber.YELLOW, Cyber.BOLD), "hibp requer API key (use --hibp-api-key)")
+            logger.warning("hibp requer API key (use --hibp-api-key)")
 
     breaches = await check_breaches(
         emails=emails,

@@ -16,6 +16,7 @@ IMPORTANTE: Usa raw sockets porque httpx normaliza headers.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import socket
 import ssl
@@ -34,6 +35,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.headeredge")
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 

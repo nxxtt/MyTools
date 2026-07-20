@@ -8,6 +8,7 @@ Testa seguranca de dispositivos IoT e sistemas industriais:
 from __future__ import annotations
 
 import argparse
+import logging
 import random
 import socket
 import struct
@@ -25,6 +26,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.iotattack")
 
 _BANNER_LINES: str = (
     "  ___ ___  ___   __  __    _    ____   ___  _   _ \n"

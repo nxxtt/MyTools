@@ -1192,19 +1192,19 @@ async def run_scan(
 
 
 
-        print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+        logger.info("Conectando a %s...", target)
 
         baseline = await _test_baseline(client, target)
 
         if baseline[0] == 0:
 
-            print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+            logger.error("Falha ao conectar no alvo")
 
             return 1
 
 
 
-        print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+        logger.info("Baseline: %d (%d bytes)", baseline[0], baseline[1])
 
 
 

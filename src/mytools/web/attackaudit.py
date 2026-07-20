@@ -1002,11 +1002,12 @@ async def scan_paths(
     for result in results:
         if result:
             all_probes.append(result)
-            print(
-                f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                f"{color(str(result.status).ljust(3), status_color(result.status), Cyber.BOLD)} "
-                f"{color(str(result.size).rjust(7), Cyber.YELLOW)}B "
-                f"{color(result.url, Cyber.CYAN)}"
+            logger.info(
+                "%s %s %sB %s",
+                str(result.status).ljust(3),
+                str(result.size).rjust(7),
+                result.url,
+                "",
             )
 
     # SPA detection: se >80% dos probes tem mesmo (status, size),
@@ -1020,9 +1021,7 @@ async def scan_paths(
         logger.debug("SPA detectado: %d/%d probes ignorados", len(spa_urls), len(all_probes))
         if probes:
             dk = (all_probes[first_idx].status, all_probes[first_idx].size)
-            print(color("[*]", Cyber.YELLOW, Cyber.BOLD),
-                  f"SPA detectado: filtrados {color(str(len(spa_urls)), Cyber.RED)} "
-                  f"probes de fallback ({dk[0]} {dk[1]}B)")
+            logger.info("SPA detectado: filtrados %d probes de fallback (%d %dB)", len(spa_urls), dk[0], dk[1])
 
     return sorted(probes, key=lambda item: (item.status, item.url))
 
@@ -1073,11 +1072,12 @@ async def test_http_methods(
             continue
         method_results.append(result)
         if result.status in {200, 201, 204}:
-            print(
-                f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                f"{color(result.method.ljust(7), Cyber.YELLOW, Cyber.BOLD)} "
-                f"{color(str(result.status).ljust(3), status_color(result.status), Cyber.BOLD)} "
-                f"{color(result.url, Cyber.CYAN)}"
+            logger.info(
+                "  %s %s %s %s",
+                result.method.ljust(7),
+                str(result.status).ljust(3),
+                result.url,
+                "",
             )
     return method_results
 
@@ -1438,9 +1438,9 @@ async def run_audit(
         logger.info("audit iniciado: %s", target)
         logger.debug("threads=%d, deep=%s, test_vulns=%s, test_methods=%s", threads, deep, test_vulns, test_methods)
 
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(target, Cyber.WHITE, Cyber.BOLD)}")
+        logger.info("Alvo: %s", target)
         if ip:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"IP: {color(ip, Cyber.YELLOW)}")
+            logger.info("IP: %s", ip)
 
         status, headers, body, raw_headers = await fetch(client, target, timeout=timeout, rate_limiter=rate_limiter)
         content_type = header_get(headers, "content-type")
@@ -1464,9 +1464,9 @@ async def run_audit(
         has_vuln_tests = test_vulns or (test_methods and probes) or bool(parser.external_scripts)
         if has_vuln_tests:
             if test_vulns:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando XSS reflection e SQLi error-based em paralelo...")
+                logger.info("Testando XSS reflection e SQLi error-based em paralelo...")
             if test_methods and probes:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando metodos HTTP...")
+                logger.info("Testando metodos HTTP...")
             async def _safe_xss() -> tuple[bool, str]:
                 try:
                     return await check_xss_reflection(client, target, timeout, inject_params=inject_params)
@@ -1512,30 +1512,30 @@ async def run_audit(
                 task_idx += 1
                 xss_reflected, xss_evidence = xss_result
                 if xss_reflected:
-                    print(color("[!]", Cyber.RED, Cyber.BOLD), "XSS refletido detectado!")
+                    logger.error("XSS refletido detectado!")
                 sqli_databases = sqli_result
                 if sqli_databases:
-                    print(color("[!]", Cyber.RED, Cyber.BOLD), f"Erros SQL detectados: {', '.join(sqli_databases)}")
+                    logger.error("Erros SQL detectados: %s", ", ".join(sqli_databases))
             if test_methods and probes:
                 methods_result = vuln_results[task_idx]
                 method_results = methods_result
                 if not method_results:
-                    print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum metodo perigoso aceito.")
+                    logger.info("Nenhum metodo perigoso aceito.")
             if parser.external_scripts:
                 js_result = vuln_results[task_idx]
                 js_external_findings = js_result
 
         session_fixation = False
         if login_url:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Testando Session Fixation...")
+            logger.info("Testando Session Fixation...")
             sf_vulnerable, sf_details = await check_session_fixation(
                 client, target, login_url, timeout=timeout,
             )
             session_fixation = sf_vulnerable
             if sf_vulnerable:
-                print(color("[!]", Cyber.RED, Cyber.BOLD), f"Session Fixation: {sf_details}")
+                logger.error("Session Fixation: %s", sf_details)
             else:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Session Fixation: {sf_details}")
+                logger.info("Session Fixation: %s", sf_details)
 
     findings = build_findings(
         target, status, headers, parser, methods, probes, tls_subject,
@@ -1710,10 +1710,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     ensure_output_dir(output_dir)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             target = normalize_url(url)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(target, Cyber.WHITE, Cyber.BOLD)}")
+            logger.info("Alvo: %s", target)
             features = []
             if args.deep:
                 features.append("path probing")
@@ -1724,7 +1724,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             if getattr(args, "params", None):
                 features.append(f"params={args.params}")
             if features:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Features: {color(', '.join(features), Cyber.WHITE, Cyber.BOLD)}")
+                logger.info("Features: %s", ", ".join(features))
         return 0
 
     all_results: list[AuditResult] = []

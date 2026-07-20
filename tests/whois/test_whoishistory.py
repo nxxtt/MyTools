@@ -269,12 +269,12 @@ class TestRunOnce:
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
 
-    def test_dry_run(self, capsys):
+    def test_dry_run(self, caplog):
         args = self._make_args(dry_run=True)
-        result = run_once(args)
+        with caplog.at_level("WARNING", logger="mytools.whoishistory"):
+            result = run_once(args)
         assert result == 0
-        output = capsys.readouterr().out
-        assert "DRY-RUN" in output
+        assert any("Nenhuma consulta" in r.message for r in caplog.records)
 
     def test_calls_run_history(self):
         args = self._make_args()

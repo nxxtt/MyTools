@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-from dataclasses import dataclass
+import logging
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,9 +29,12 @@ from mytools.core.utils import (
     color,
     create_banner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     write_output,
 )
+
+logger = logging.getLogger("mytools.attackanalysis")
 
 _BANNER_LINES: str = (
     "     _        _       _           _   \n"
@@ -260,19 +263,22 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     findings_file = Path(args.findings_file)
     if not findings_file.exists():
-        print(color(f"Erro: arquivo não encontrado: {findings_file}", Cyber.RED), file=sys.stderr)
+        logger.error("arquivo não encontrado: %s", findings_file)
         return 1
     try:
         findings = json.loads(findings_file.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
-        print(color(f"Erro: JSON inválido: {e}", Cyber.RED), file=sys.stderr)
+        logger.error("JSON inválido: %s", e)
         return 1
     if not isinstance(findings, list):
         findings = [findings]
     target = str(getattr(args, "target", "unknown"))
     graph = build_graph(findings, target)
     exploits = suggest_exploits(findings)
-    print_results(graph, exploits)
+    if getattr(args, "json_output", False):
+        print_json({"graph": asdict(graph), "exploits": exploits})
+    else:
+        print_results(graph, exploits)
     output = getattr(args, "output", None)
     if output:
         data = {
@@ -289,15 +295,15 @@ def run_once(args: argparse.Namespace) -> int:
     png_path = getattr(args, "png", None)
     if png_path:
         render_png(graph, png_path)
-        print(color("[+]", Cyber.GREEN), f"PNG saved: {png_path}")
+        logger.info("PNG salvo: %s", png_path)
     svg_path = getattr(args, "svg", None)
     if svg_path:
         render_svg(graph, svg_path)
-        print(color("[+]", Cyber.GREEN), f"SVG saved: {svg_path}")
+        logger.info("SVG salvo: %s", svg_path)
     dot_path = getattr(args, "dot", None)
     if dot_path:
         export_dot(graph, dot_path)
-        print(color("[+]", Cyber.GREEN), f"DOT saved: {dot_path}")
+        logger.info("DOT salvo: %s", dot_path)
     return 1 if graph.critical_count or graph.high_count else 0
 
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import logging
 import time
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -38,6 +39,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.dohscan")
 
 _BANNER_LINES: str = (
     "  ____   ___  ____  _____    _    _   _\n"

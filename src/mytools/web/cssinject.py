@@ -1190,7 +1190,7 @@ async def run_scan(
 
         except Exception as e:
 
-            print(color(f"Erro ao acessar {target}: {e}", Cyber.RED))
+            logger.warning("Erro ao acessar %s: %s", target, e)
 
             return 1
 
@@ -1316,7 +1316,7 @@ def build_parser() -> argparse.ArgumentParser:
 
         prog="mytools-cssinject",
 
-        description="CSS Injection — detecta injeção CSS e técnicas de exfiltração de dados.",
+        description="CSS Injection â€” detecta injeÃ§Ã£o CSS e tÃ©cnicas de exfiltraÃ§Ã£o de dados.",
 
         formatter_class=argparse.RawDescriptionHelpFormatter,
 

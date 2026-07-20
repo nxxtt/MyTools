@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -33,6 +34,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.dockerattack")
 
 _BANNER_LINES: str = (
 

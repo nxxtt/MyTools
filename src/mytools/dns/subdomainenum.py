@@ -36,14 +36,13 @@ import dns.resolver
 import httpx
 
 from mytools.core.utils import (
-    Cyber,
     FetchError,
     add_base_args,
-    color,
     create_async_client,
     create_banner,
     fetch,
     init_scanner,
+    print_json,
     read_target_lines,
     run_main_loop,
     safe_asyncio_run,
@@ -203,10 +202,7 @@ def _prefetch_records(domain: str, resolver: dns.resolver.Resolver) -> list[Subd
                     try:
                         a_answers = resolver.resolve(fqdn, "A")
                         ips = sorted(str(r) for r in a_answers)
-                        print(
-                            color("[+]", Cyber.GREEN, Cyber.BOLD),
-                            f"{color(f"{fqdn} (via {rtype})", Cyber.WHITE, Cyber.BOLD)} -> {color(', '.join(ips), Cyber.CYAN)}",
-                        )
+                        logger.info("%s (via %s) -> %s", fqdn, rtype, ", ".join(ips))
                         prefetched.append(SubdomainResult(subdomain=fqdn, ip_addresses=ips, status="resolved"))
                     except dns.exception.DNSException as e:
                         logger.debug("prefetch A resolution failed for %s: %s", fqdn, e)
@@ -466,17 +462,15 @@ def enumerate_subdomains(
 
     skipped = skip_names or set()
 
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Testando {color(str(len(wordlist)), Cyber.WHITE, Cyber.BOLD)} subdominios "
-        f"em {color(domain, Cyber.WHITE, Cyber.BOLD)} com {color(str(threads), Cyber.WHITE, Cyber.BOLD)} threads...",
+    logger.info(
+        "Testando %d subdominios em %s com %d threads...",
+        len(wordlist), domain, threads,
     )
     if skipped:
-        print(
-            color("[*]", Cyber.CYAN, Cyber.BOLD),
-            f"Pulando {color(str(len(skipped)), Cyber.GREEN, Cyber.BOLD)} subdominios ja encontrados (passive).",
+        logger.info(
+            "Pulando %d subdominios ja encontrados (passive).",
+            len(skipped),
         )
-    print()
 
     resolved: list[SubdomainResult] = []
     start = time.monotonic()
@@ -508,18 +502,12 @@ def enumerate_subdomains(
                 sys.stdout.flush()
                 resolved.append(result)
                 ips_str = ", ".join(result.ip_addresses)
-                print(
-                    color("[+]", Cyber.GREEN, Cyber.BOLD),
-                    f"{color(result.subdomain, Cyber.WHITE, Cyber.BOLD)} -> {color(ips_str, Cyber.CYAN)}",
-                )
+                logger.info("%s -> %s", result.subdomain, ips_str)
 
     elapsed = time.monotonic() - start
-    print()
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Testados: {color(str(total_brute), Cyber.WHITE, Cyber.BOLD)}. "
-        f"Resolvidos: {color(str(len(resolved)), Cyber.GREEN, Cyber.BOLD)}.",
+    logger.info(
+        "Finalizado em %.2fs. Testados: %d. Resolvidos: %d.",
+        elapsed, total_brute, len(resolved),
     )
 
     return resolved
@@ -622,32 +610,28 @@ def run_once(args: argparse.Namespace) -> int:
             sources.append("shodan")
             api_keys["shodan"] = args.shodan_api_key
 
-        print(
-            color("[*]", Cyber.CYAN, Cyber.BOLD),
-            f"Enumeracao passiva: {color(', '.join(sources), Cyber.WHITE, Cyber.BOLD)}...",
+        logger.info(
+            "Enumeracao passiva: %s...",
+            ", ".join(sources),
         )
         passive_results = passive_enumeration(
             domain, sources, api_keys, timeout=args.timeout,
         )
         passive_names = {r.subdomain for r in passive_results}
         for r in passive_results:
-            print(
-                color("[+]", Cyber.GREEN, Cyber.BOLD),
-                f"{color(r.subdomain, Cyber.WHITE, Cyber.BOLD)} {color('(passive)', Cyber.GRAY)}",
-            )
-        print(
-            color("[*]", Cyber.CYAN, Cyber.BOLD),
-            f"Passive: {color(str(len(passive_results)), Cyber.GREEN, Cyber.BOLD)} subdominios encontrados.",
+            logger.info("%s (passive)", r.subdomain)
+        logger.info(
+            "Passive: %d subdominios encontrados.",
+            len(passive_results),
         )
-        print()
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta DNS sera realizada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Wordlist: {color(str(len(wordlist)), Cyber.WHITE, Cyber.BOLD)} subdominios")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Threads: {color(str(threads), Cyber.WHITE, Cyber.BOLD)} | Timeout: {color(f"{args.timeout}s", Cyber.YELLOW)}")
+        logger.warning("Nenhuma consulta DNS sera realizada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Wordlist: %d subdominios", len(wordlist))
+        logger.info("Threads: %d | Timeout: %.1fs", threads, args.timeout)
         if passive_results:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Passive: {color(str(len(passive_results)), Cyber.GREEN, Cyber.BOLD)} subdominios (ja resolvidos via DNS)")
+            logger.info("Passive: %d subdominios (ja resolvidos via DNS)", len(passive_results))
         return 0
 
     passive_names = {r.subdomain for r in passive_results}
@@ -661,6 +645,10 @@ def run_once(args: argparse.Namespace) -> int:
     )
 
     all_results = passive_results + results
+
+    if getattr(args, "json_output", False):
+        print_json([asdict(r) for r in all_results])
+        return 0
 
     if args.output:
         rows = [asdict(r) for r in all_results]

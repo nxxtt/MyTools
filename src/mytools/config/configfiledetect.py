@@ -419,17 +419,16 @@ async def scan_configs(
 
     logger.info("scan config file detect iniciado: %s", base_url)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+    logger.info("Alvo: %s", base_url)
 
     paths = custom_paths or ALL_PATHS
     if sensitive_only:
         paths = [p for p in paths if _is_sensitive(p)]
     total = len(paths)
 
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Paths: {color(str(total), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
+    logger.info(
+        "Paths: %d | Concurrency: %d",
+        total, concurrency,
     )
 
     sem = asyncio.Semaphore(concurrency)
@@ -459,30 +458,12 @@ async def scan_configs(
         for r in results:
             if isinstance(r, ConfigLeak):
                 leaks.append(r)
-                logger.info("Config leak encontrado: [%s] %s — %s", r.category, r.path, r.detail)
-                cat_color = {
-                    "env": Cyber.RED,
-                    "credentials": Cyber.RED,
-                    "config": Cyber.YELLOW,
-                    "framework": Cyber.YELLOW,
-                    "database": Cyber.GREEN,
-                    "docker": Cyber.CYAN,
-                }.get(r.category, Cyber.WHITE)
-                print(
-                    f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(f"[{r.category.upper()}]", cat_color, Cyber.BOLD)} "
-                    f"{color(r.path, Cyber.WHITE)} "
-                    f"{color(r.detail[:60], Cyber.GRAY)}"
-                )
+                logger.info("[+] [%s] %s — %s", r.category.upper(), r.path, r.detail)
     finally:
         await client.aclose()
 
     elapsed = time.monotonic() - started
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Configs encontrados: {color(str(len(leaks)), Cyber.GREEN, Cyber.BOLD)}",
-    )
+    logger.info("Finalizado em %.2fs. Configs encontrados: %d", elapsed, len(leaks))
     return leaks
 
 
@@ -584,10 +565,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     urls = resolve_target_urls(args)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+            logger.info("Alvo: %s", base_url)
         return 0
 
     all_leaks: list[ConfigLeak] = []

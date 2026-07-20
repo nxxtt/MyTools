@@ -323,7 +323,7 @@ async def run_scan(
             b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
             b_size = len(b_body)
         except Exception as e:
-            print(color(f"Erro ao acessar {target}: {e}", Cyber.RED))
+            logger.warning("Erro ao acessar %s: %s", target, e)
             return 1
 
         body_str = b_body.decode(errors="replace")
@@ -354,7 +354,7 @@ async def run_scan(
         if not all_attempts:
             issues.append("Nenhum teste de Business Logic executado")
         if not checkout_url:
-            issues.append("Endpoint de checkout nao detectado — testando URL principal")
+            issues.append("Endpoint de checkout nao detectado â€” testando URL principal")
 
         result = BizLogicResult(
             target=target, tls=tls,
@@ -393,7 +393,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Construtor do parser de argumentos."""
     parser = argparse.ArgumentParser(
         prog="mytools-bizlogic",
-        description="Business Logic Attack Detection — detecta integer overflow, negative quantity, race conditions.",
+        description="Business Logic Attack Detection â€” detecta integer overflow, negative quantity, race conditions.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Exemplos:\n"

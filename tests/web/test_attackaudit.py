@@ -1220,13 +1220,12 @@ class TestDryRun:
         assert result == 0
 
     @pytest.mark.asyncio
-    async def test_dry_run_outputs_info(self, capsys):
+    async def test_dry_run_outputs_info(self, caplog):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--dry-run"])
-        await _async_run_once(args)
-        captured = capsys.readouterr()
-        assert "DRY-RUN" in captured.out
-        assert "Nenhuma requisicao" in captured.out
+        with caplog.at_level("WARNING", logger="mytools.attackaudit"):
+            await _async_run_once(args)
+        assert any("Nenhuma requisicao" in r.message for r in caplog.records)
 
 
 class TestMain:

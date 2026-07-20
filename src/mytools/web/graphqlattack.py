@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import re
 import time
 from collections.abc import Callable, Coroutine
@@ -36,6 +37,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.graphqlattack")
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 

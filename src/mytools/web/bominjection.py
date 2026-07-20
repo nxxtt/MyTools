@@ -20,7 +20,7 @@ Testa se o servidor e vulneravel a injecao de Byte Order Mark (BOM):
 
 BOMs sao caracteres Unicode especiais no inicio de um stream de dados que
 
-indicam a codificação. Podem ser usados para bypass de filtros que nao
+indicam a codificaÃ§Ã£o. Podem ser usados para bypass de filtros que nao
 
 reconhecem BOM, confundir parsers de charset, ou causar erros de decodificacao.
 
@@ -244,7 +244,7 @@ class BomResult:
 
 def _bom_url(url: str, bom_name: str, bom_char: str, position: str) -> str:
 
-    """Constrói URL com BOM injetado."""
+    """ConstrÃ³i URL com BOM injetado."""
 
     parsed = urlparse(url)
 
@@ -1066,13 +1066,13 @@ def print_results(result: BomResult) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
 
-    """Constrói o parser de argumentos CLI."""
+    """ConstrÃ³i o parser de argumentos CLI."""
 
     parser = argparse.ArgumentParser(
 
         prog="mytools-bominject",
 
-        description="BOM Injection — testa injecao de Byte Order Mark em web apps.",
+        description="BOM Injection â€” testa injecao de Byte Order Mark em web apps.",
 
     )
 
@@ -1118,7 +1118,7 @@ def run_once(args: argparse.Namespace) -> int:
 
     if not url:
 
-        print(color("Especifique uma URL alvo.", Cyber.RED))
+        logger.error("Especifique uma URL alvo.")
 
         return 1
 
@@ -1156,7 +1156,7 @@ def run_once(args: argparse.Namespace) -> int:
 
         write_output(output_path, asdict(result))
 
-        print(color(f"\nResultados salvos em: {output_path}", Cyber.GREEN))
+        logger.info("Resultados salvos em: %s", output_path)
 
 
 
@@ -1184,7 +1184,7 @@ banner_art = create_banner(
 
     """,
 
-    "BOM Injection — detecta injecao de Byte Order Mark em web apps",
+    "BOM Injection â€” detecta injecao de Byte Order Mark em web apps",
 
 )
 

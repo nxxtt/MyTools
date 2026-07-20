@@ -760,7 +760,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if not target:
 
-        print(color("[!] Informe um host SMTP.", Cyber.RED))
+        logger.error("Informe um host SMTP.")
 
         return 1
 
@@ -768,9 +768,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False):
 
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma conexao SMTP sera feita.")
+        logger.warning("Nenhuma conexao SMTP sera feita.")
 
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Target: {color(target, Cyber.WHITE, Cyber.BOLD)}:{args.port}")
+        logger.info("Target: %s:%d", target, args.port)
 
         return 0
 

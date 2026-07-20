@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import struct
 import time
 from collections.abc import Callable, Coroutine
@@ -37,6 +38,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.grpcattack")
 
 _BANNER_LINES: str = (
     "  ____ ___  __  __ ____    ____ _           _ \n"

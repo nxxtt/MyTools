@@ -371,13 +371,13 @@ class TestDryRun:
         args = parser.parse_args(["example.com"])
         assert args.dry_run is False
 
-    def test_dry_run_outputs_info(self, capsys):
+    def test_dry_run_outputs_info(self, caplog):
         parser = build_parser()
         args = parser.parse_args(["example.com", "--dry-run"])
-        result = run_once(args)
+        with caplog.at_level("WARNING", logger="mytools.dnstransfer"):
+            result = run_once(args)
         assert result == 0
-        captured = capsys.readouterr()
-        assert "DRY-RUN" in captured.out
+        assert any("Nenhuma consulta" in r.message for r in caplog.records)
 
     def test_dry_run_no_dns_query(self):
         parser = build_parser()

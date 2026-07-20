@@ -69,6 +69,7 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -735,6 +736,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if not quiet:
 
+        if getattr(args, "json_output", False):
+            print_json(asdict(result))
+            return 0
         print_results(result)
 
 

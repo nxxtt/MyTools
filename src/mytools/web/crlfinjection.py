@@ -541,13 +541,13 @@ async def run_scan(
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
 
-    print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+    logger.info("Conectando a %s...", target)
     baseline = await _test_baseline(client, target)
     if baseline[0] == 0:
-        print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+        logger.error("Falha ao conectar no alvo")
         return 1
 
-    print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+    logger.info("Baseline: %d (%d bytes)", baseline[0], baseline[1])
 
     run_categories = categories or list(_CATEGORY_MAP.keys())
     all_attempts: list[CRLFAttempt] = []
@@ -604,10 +604,10 @@ async def run_scan(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos CLI."""
+    """ConstrÃ³i o parser de argumentos CLI."""
     parser = argparse.ArgumentParser(
         prog="mytools-crlfinject",
-        description="CRLF Injection — detecta injecao de headers via \\r\\n em HTTP",
+        description="CRLF Injection â€” detecta injecao de headers via \\r\\n em HTTP",
     )
     parser.add_argument("url", help="URL alvo (ex: https://example.com)")
     parser.add_argument("-c", "--category",
@@ -643,7 +643,7 @@ banner_art = create_banner(
     " \\_____|_|\\__,_| .__/\\_|  |_|   \\__\\___|\\__\\___|_|   \n"
     "               | |                                     \n"
     "               |_|                                     \n",
-    "CRLF Injection — detecta injecao de headers via \\r\\n em HTTP",
+    "CRLF Injection â€” detecta injecao de headers via \\r\\n em HTTP",
 )
 
 

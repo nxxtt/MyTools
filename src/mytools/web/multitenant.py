@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
@@ -34,6 +35,8 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+
+logger = logging.getLogger("mytools.multitenant")
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 

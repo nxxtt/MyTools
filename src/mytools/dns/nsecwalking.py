@@ -288,18 +288,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     domain = getattr(args, "domain", None)
     if not domain:
-        print(color("[!] Informe um dominio.", Cyber.RED))
+        logger.error("Informe um dominio.")
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma query DNS sera enviada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Nameserver: {args.nameserver}")
+        logger.warning("Nenhuma query DNS sera enviada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Nameserver: %s", args.nameserver)
         return 0
 
-    print(color("[!]", Cyber.RED, Cyber.BOLD), "ATENCAO: Enumeracao NSEC — ferramenta ofensiva")
-    print(color("[!]", Cyber.RED, Cyber.BOLD), f"Alvo: {domain}")
-    print()
+    logger.error("ATENCAO: Enumeracao NSEC — ferramenta ofensiva")
+    logger.error("Alvo: %s", domain)
 
     result = scan_nsec(
         domain=domain,

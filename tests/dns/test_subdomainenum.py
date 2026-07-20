@@ -481,12 +481,11 @@ class TestDryRun:
         result = run_once(args)
         assert result == 0
 
-    def test_dry_run_outputs_info(self, capsys):
+    def test_dry_run_outputs_info(self, caplog):
         args = _make_args(dry_run=True)
-        run_once(args)
-        captured = capsys.readouterr()
-        assert "DRY-RUN" in captured.out
-        assert "Nenhuma consulta" in captured.out
+        with caplog.at_level("WARNING", logger="mytools.subdomainenum"):
+            run_once(args)
+        assert any("Nenhuma consulta" in r.message for r in caplog.records)
 
 
 class TestPassiveSources:
@@ -664,9 +663,9 @@ class TestPassiveEnumeration:
 
 
 class TestRunOncePassive:
-    def test_passive_flag_in_dry_run(self, capsys):
+    def test_passive_flag_in_dry_run(self, caplog):
         args = _make_args(passive=False, dry_run=True)
-        result = run_once(args)
+        with caplog.at_level("WARNING", logger="mytools.subdomainenum"):
+            result = run_once(args)
         assert result == 0
-        captured = capsys.readouterr()
-        assert "DRY-RUN" in captured.out
+        assert any("Nenhuma consulta" in r.message for r in caplog.records)

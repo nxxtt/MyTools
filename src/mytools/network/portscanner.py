@@ -22,7 +22,6 @@ import functools
 import ipaddress
 import logging
 import socket
-import sys
 import time
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
@@ -32,10 +31,10 @@ from types import MappingProxyType
 from mytools.core.utils import (
     Cyber,
     add_base_args,
-    color,
     create_banner,
     init_scanner,
     parse_int_range,
+    print_json,
     print_table,
     read_target_lines,
     run_main_loop,
@@ -228,8 +227,8 @@ def scan_targets(
     logger.info("scan iniciado: %d alvos, %d portas (%d tentativas)", len(targets), len(ports), total)
     logger.debug("timeout=%.2f, workers=%d, banner=%s", timeout, workers, with_banner)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvos: {color(str(len(targets)), Cyber.WHITE, Cyber.BOLD)} | Portas: {color(str(len(ports)), Cyber.WHITE, Cyber.BOLD)} | Tentativas: {color(str(total), Cyber.WHITE, Cyber.BOLD)}")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Timeout: {color(f"{timeout:.2f}s", Cyber.YELLOW)} | Threads: {color(str(workers), Cyber.YELLOW)}")
+    logger.info("Alvos: %d | Portas: %d | Tentativas: %d", len(targets), len(ports), total)
+    logger.info("Timeout: %.2fs | Threads: %d", timeout, workers)
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         batch_size = workers * 2
@@ -251,14 +250,7 @@ def scan_targets(
                     findings.append(finding)
                     banner_text = f" | {finding.banner}" if finding.banner else ""
                     port_text = str(finding.port).ljust(5)
-                    print(
-                        f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                        f"{color(finding.address, Cyber.CYAN)}:"
-                        f"{color(port_text, Cyber.YELLOW)} "
-                        f"{color('open', Cyber.GREEN, Cyber.BOLD)} "
-                        f"{color(finding.service, Cyber.MAGENTA)}"
-                        f"{color(banner_text, Cyber.GRAY)}"
-                    )
+                    logger.info("[+] %s:%s open %s%s", finding.address, port_text, finding.service, banner_text)
 
         for host, address, port in targets_ports:
             pending.append(executor.submit(scan_port, host, address, port, timeout, with_banner))
@@ -269,11 +261,7 @@ def scan_targets(
 
     elapsed = time.monotonic() - started
     findings.sort(key=lambda item: (ip_sort_key(item.address), item.port))
-    print(
-        color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Portas abertas: {color(str(len(findings)), Cyber.GREEN, Cyber.BOLD)}",
-    )
+    logger.info("Finalizado em %.2fs. Portas abertas: %d", elapsed, len(findings))
     return findings
 
 
@@ -360,10 +348,7 @@ def run_once(args: argparse.Namespace) -> int:
             DeprecationWarning,
             stacklevel=2,
         )
-        print(
-            color("AVISO: --threads esta deprecated, use --workers", Cyber.YELLOW),
-            file=sys.stderr,
-        )
+        logger.warning("AVISO: --threads esta deprecated, use --workers")
         args.workers = args.threads
 
     if args.timeout <= 0:
@@ -381,11 +366,11 @@ def run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False):
         total = len(targets) * len(args.ports)
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma conexao sera realizada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvos: {color(str(len(targets)), Cyber.WHITE, Cyber.BOLD)} | Portas: {color(str(len(args.ports)), Cyber.WHITE, Cyber.BOLD)} | Tentativas: {color(str(total), Cyber.WHITE, Cyber.BOLD)}")
+        logger.warning("Nenhuma conexao sera realizada.")
+        logger.info("Alvos: %d | Portas: %d | Tentativas: %d", len(targets), len(args.ports), total)
         for host, address in targets:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(host, Cyber.WHITE, Cyber.BOLD)} ({color(address, Cyber.CYAN)})")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Portas: {color(str(len(args.ports)), Cyber.WHITE, Cyber.BOLD)} em {color(str(len(targets)), Cyber.WHITE, Cyber.BOLD)} alvo(s) = {color(str(total), Cyber.YELLOW, Cyber.BOLD)} tentativas")
+            logger.info("Alvo: %s (%s)", host, address)
+        logger.info("Portas: %d em %d alvo(s) = %d tentativas", len(args.ports), len(targets), total)
         return 0
 
     findings = scan_targets(
@@ -395,6 +380,9 @@ def run_once(args: argparse.Namespace) -> int:
         workers=args.workers,
         with_banner=args.banner,
     )
+    if getattr(args, "json_output", False):
+        print_json([asdict(f) for f in findings])
+        return 0
     if not quiet:
         print_port_table(findings)
     if args.output:

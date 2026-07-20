@@ -16,8 +16,10 @@ Em scanners, use o prefixo @ para referenciar credenciais salvas:
 """
 import argparse
 import getpass
-import sys
+import logging
 from typing import Any
+
+logger = logging.getLogger("mytools.cred")
 
 _SERVICE_NAME = "mytools"
 
@@ -69,16 +71,16 @@ def set_credential(name: str, value: str | None = None) -> bool:
     """
     kr = _get_keyring()
     if kr is None:
-        print("Erro: keyring nao disponivel. Instale com: pip install keyring", file=sys.stderr)
+        logger.error("Erro: keyring nao disponivel. Instale com: pip install keyring")
         return False
     if value is None:
         value = getpass.getpass(f"Valor para '{name}': ")
     if not value:
-        print("Erro: valor vazio nao pode ser armazenado.", file=sys.stderr)
+        logger.error("Erro: valor vazio nao pode ser armazenado.")
         return False
     kr.set_password(_SERVICE_NAME, name, value)
     _update_registry(name, add=True)
-    print(f"Credencial '{name}' armazenada com sucesso.")
+    logger.info("Credencial '%s' armazenada com sucesso.", name)
     return True
 
 
@@ -94,15 +96,15 @@ def delete_credential(name: str) -> bool:
     """Remove uma credencial do keyring. Retorna True em caso de sucesso."""
     kr = _get_keyring()
     if kr is None:
-        print("Erro: keyring nao disponivel.", file=sys.stderr)
+        logger.error("Erro: keyring nao disponivel.")
         return False
     existing = kr.get_password(_SERVICE_NAME, name)
     if existing is None:
-        print(f"Credencial '{name}' nao encontrada.")
+        logger.warning("Credencial '%s' nao encontrada.", name)
         return False
     kr.delete_password(_SERVICE_NAME, name)
     _update_registry(name, add=False)
-    print(f"Credencial '{name}' removida com sucesso.")
+    logger.info("Credencial '%s' removida com sucesso.", name)
     return True
 
 
@@ -110,11 +112,11 @@ def list_credentials() -> list[str]:
     """Lista nomes das credenciais salvas (sem exibir valores)."""
     names = _list_credentials()
     if not names:
-        print("Nenhuma credencial salva.")
+        logger.info("Nenhuma credencial salva.")
     else:
-        print("Credenciais salvas:")
+        logger.info("Credenciais salvas:")
         for name in names:
-            print(f"  - {name}")
+            logger.info("  - %s", name)
     return names
 
 
@@ -150,9 +152,12 @@ def main() -> int:
     if args.command == "get":
         value = get_credential(args.name)
         if value is None:
-            print(f"Credencial '{args.name}' nao encontrada.", file=sys.stderr)
+            logger.error("Credencial '%s' nao encontrada.", args.name)
             return 1
-        print(value)
+        if len(value) > 4:
+            print(f"{'*' * (len(value) - 4)}{value[-4:]}")
+        else:
+            print("****")
         return 0
     if args.command == "delete":
         return 0 if delete_credential(args.name) else 1
