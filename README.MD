@@ -1161,316 +1161,239 @@ mytools-reconall example.com --deep --test-vulns --cve
 
 ---
 
-## Features v3.2.0
+## Flags
 
-### src/ Package Structure
-Código organizado em `src/mytools/` com subpacotes por categoria: `core`, `network`, `web`, `dns`, `whois`, `osint`, `email`, `vcs`, `config`.
+### Flags Globais (disponíveis na maioria dos módulos)
 
-### Externalized Payloads (YAML)
-48 arquivos YAML em `src/mytools/data/` extraem wordlists, payloads e padrões de detecção dos módulos Python. Loader unificado com cache, fallback hardcoded e suporte a `binary_path` para payloads binários. Suporta `--dump-payloads` para exportar todos os dados carregados.
+Adicionadas por `add_base_args()` — disponíveis em **todos** os módulos:
 
-```python
-from mytools.data import load_payloads
-data = load_payloads("web", "jwt_common_secrets", default={"secrets": []})
-```
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-t`, `--timeout` | `float` | `5.0` | Timeout em segundos |
+| `-o`, `--output` | `str` | `None` | Salva resultado em arquivo .json ou .csv |
+| `-v`, `--verbose` | `flag` | `False` | Mostra mensagens de debug no terminal |
+| `--log-file` | `str` | `None` | Salva logs em arquivo |
+| `-q`, `--quiet` | `flag` | `False` | Modo silencioso: sem banner/progresso. Requer `-o` |
+| `--color` | `flag` | `None` | Força cores ANSI no terminal |
+| `--no-color` | `flag` | `None` | Desativa cores ANSI no terminal |
+| `--theme` | `choice` | `"cyber"` | Tema de cores: `cyber`, `dracula`, `solarized`, `high-contrast` |
+| `--retries` | `int` | `3` | Número de tentativas em falha HTTP |
+| `--dry-run` | `flag` | `False` | Mostra o que faria sem executar |
+| `--verify` | `flag` | `False` | Verifica certificados SSL/TLS |
+| `--no-verify` | `flag` | `False` | Desativa verificação SSL/TLS |
+| `--version` | `version` | — | Mostra versão e sai |
+| `--dump-payloads` | `flag` | `False` | Exporta todos os payloads YAML carregados como JSON e sai |
+| `--json` | `flag` | `False` | Saída JSON estruturada em stdout (para piping com jq/grep) |
 
-### Python 3.14+ Modernization
-Código utiliza as features modernas do Python 3.14+: `asyncio.TaskGroup` para concorrência segura, `match/case` para dispatch, `tomllib` para parsing TOML, PEP 758 `except` sem parênteses, e f-strings PEP 701.
+### Flags HTTP
 
-### Multi-target
-Execute qualquer ferramenta em múltiplos alvos a partir de um arquivo:
+Adicionadas por `add_http_args()` — disponíveis em módulos que fazem requisições HTTP:
 
-```bash
-# Arquivo com um URL por linha (linhas com # são ignoradas)
-mytools-recon -l targets.txt --output-dir results/
-mytools-audit -l targets.txt --output-dir results/
-mytools-dir -l urls.txt --output-dir results/
-mytools-port -l hosts.txt -p 80,443
-mytools-subenum -l domains.txt --output-dir results/
-mytools-dnshistory -l domains.txt --output-dir results/
-mytools-whoishistory -l domains.txt --output-dir results/
-mytools-ipasn -l ips.txt -o asn.json
-mytools-techfp -l urls.txt --output-dir results/
-mytools-oas -l urls.txt -o oas.json
-mytools-gql -l urls.txt -o gql.json
-mytools-sm -l urls.txt -o sm.json
-mytools-vcs -l urls.txt -o vcs.json
-```
+| Flag | Tipo | Padrão | Descrição | Módulos sem suporte |
+|------|------|--------|-----------|---------------------|
+| `-A`, `--user-agent` | `str` | `None` | User-Agent usado nas requisições | — |
+| `--proxy` | `str` | `None` | Proxy para requisições. Ex: `http://proxy:8080` | — |
+| `--delay` | `float` | `0.0` | Delay em segundos entre requisições. 0 = sem limite | — |
+| `--auth` | `str` | `None` | Basic auth (`user:pass`). Suporta `@credential` do keyring | — |
+| `--bearer-token` | `str` | `None` | Bearer token. Suporta `@credential` do keyring | — |
+| `--cookie` | `str` | `None` | Cookie. Ex: `session=abc123; token=xyz`. Suporta `@credential` | — |
+| `--header` | `append` | `[]` | Header customizado (repetível). Ex: `--header "X-Token: abc"` | — |
 
-Cada alvo gera um arquivo individual (`hostname.json`) no `--output-dir`. Com `-o`, gera saída consolidada.
+**Módulos que NÃO recebem flags HTTP** (usam apenas `add_base_args`):
+`mytools-port`, `mytools-dnsxfer`, `mytools-doh`, `mytools-dot`, `mytools-nsec`, `mytools-tunnel`, `mytools-amp`, `mytools-caa`, `mytools-rebind`, `mytools-dnssec`, `mytools-dwt`, `mytools-dnshistory`, `mytools-subenum`, `mytools-smtpinject`, `mytools-smtpdown`, `mytools-templeti`, `mytools-addrbypass`, `mytools-attachbypass`, `mytools-spoof`, `mytools-secemail`, `mytools-linktrack`, `mytools-ipasn`, `mytools-whoishistory`
 
-### Quiet Mode
-Sem banner, sem mensagens de progresso — apenas erros no stderr. Requer `-o`:
+### Flags Stealth (anti-detecção)
 
-```bash
-mytools-recon https://example.com -q -o recon.json
-mytools-audit https://example.com --deep -q -o audit.json
-```
+Adicionadas por `add_stealth_args()` — compatibilidade varia por tipo de módulo:
 
-### Autenticação
-Suporte a Basic Auth, Bearer Token, Cookies e Headers customizados:
+| Flag | Tipo | Padrão | Módulos compatíveis | Descrição |
+|------|------|--------|---------------------|-----------|
+| `--random-delay` | `flag` | `False` | web, dns, email, osint, network, vcs, config | Delay aleatório entre requests (0-2s) |
+| `--jitter` | `float` | `0.0` | web, dns, email, osint, network, vcs, config | Variação aleatória no delay (0.0-1.0). Ex: 0.2 = +/-20% |
+| `--user-agent-rotate` | `flag` | `False` | web, osint | Rotaciona User-Agent a cada request |
+| `--impersonate` | `choice` | `None` | web | TLS fingerprint de browser real (requer curl-cffi). Opções: `chrome`, `firefox`, `safari`, `edge` |
+| `--fragment` | `int` | `0` | web, email | Fragmenta headers HTTP em chunks (evasão L7). Valor = tamanho do chunk |
+| `--fragment-tcp` | `int` | `0` | network | Fragmenta payload TCP em chunks (evasão L4). Valor = tamanho do chunk |
+| `--tor` | `flag` | `False` | web, dns, email, osint, network, vcs, config | Roteia requests via Tor (SOCKS5) |
+| `--waf-evasion` | `flag` | `False` | web, email | Aplica encoding anti-WAF em URLs e headers |
+| `--pad-headers` | `int` | `0` | web, email | Adiciona padding headers (mínimo total). Valor = contagem mínima |
+| `--src-port-random` | `flag` | `False` | network | Porta TCP de origem aleatória |
+| `--rate-limit` | `float` | `0.0` | web, dns, email, osint, network, vcs, config | Rate limit global (requests/segundo). 0 = sem limite |
 
-```bash
-# Basic Auth
-mytools-audit https://internal.app --auth admin:senha123
+### Flags Multi-target
 
-# Bearer Token
-mytools-recon https://api.target.com --bearer-token eyJhbGc...
+Disponíveis em módulos que suportam `-l`/`--list`:
 
-# Cookie
-mytools-dir http://app.local --cookie "session=abc123; token=xyz"
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `-l`, `--list` | `str` | Arquivo com targets (um por linha). Gera arquivos individuais por host |
+| `--output-dir` | `str` | Diretório para salvar JSONs individuais (um por host) |
 
-# Header customizado (pode usar mais de um)
-mytools-recon https://target.com --header "X-Token: abc" --header "Authorization: Bearer xyz"
-```
+> **Nota:** Não use `-l` e target posicional ao mesmo tempo.
 
-### Async HTTP (httpx)
-Todos os módulos HTTP utilizam `httpx.AsyncClient` com `asyncio.TaskGroup` e `Semaphore` para concorrência nativa. Módulos independentes rodam em paralelo via `asyncio.gather` + `asyncio.to_thread`.
+### Flags por Módulo
 
-### CVE Lookup (NIST NVD)
-Detecta versões de frameworks/servidores e busca CVEs associadas:
+#### `mytools-port` (Port Scanner)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `targets` | positional | — | IP, hostname ou CIDR. Ex: `192.168.0.10`, `10.0.0.0/30` |
+| `-p`, `--ports` | `str` | `top100` | Portas: `default`, `top100`, `all`, `22,80,443` ou `1-1024` |
+| `-w`, `--workers` | `int` | `100` | Número de threads |
+| `-b`, `--banner` | `flag` | `False` | Coleta banner em portas abertas |
 
-```bash
-mytools-recon https://example.com --cve
-mytools-recon https://example.com --cve --nvd-api-key YOUR_KEY
-```
+> **Nota:** `mytools-port` NÃO recebe flags HTTP nem stealth.
 
-- Sem API key: 5 requests/30s
-- Com API key: 50 requests/30s (solicite em https://nvd.nist.gov/developers/request-an-api-key)
-- Fonte: NIST NVD API v2.0
+#### `mytools-dir` (Directory Scanner)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-w`, `--wordlist` | `str` | `None` | Wordlist customizada (um path por linha) |
+| `-x`, `--extensions` | `str` | `[]` | Extensões a testar. Ex: `php,txt,bak` |
+| `-s`, `--status` | `str` | `200,301,302,403` | Status codes aceitos |
+| `--concurrency` | `int` | `40` | Concorrência assíncrona |
+| `-M`, `--method` | `choice` | `GET` | Método HTTP: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS` |
+| `--filter-size` | `str` | `None` | Filtrar por tamanho. Ex: `100-5000` |
+| `--filter-words` | `str` | `None` | Filtrar por contagem de palavras. Ex: `10-100` |
+| `-C`, `--case-variation` | `flag` | `False` | Gera variações de case (Admin, ADMIN, aDmIn) |
+| `-U`, `--unicode-norm` | `flag` | `False` | Gera variantes Unicode (circled, full-width) |
 
-### WHOIS Lookup
-Consulta WHOIS automática para domínios:
+#### `mytools-recon` (Reconhecimento Passivo)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `--cve` | `flag` | `False` | Busca CVEs associadas às versões detectadas |
+| `--nvd-api-key` | `str` | `None` | API key do NVD (aumenta limite de 5 para 50 req/30s) |
+| `--deep` | `flag` | `False` | Ativa crawl para email harvesting |
+| `--crawl-limit` | `int` | `10` | Limite de páginas crawladas (requer `--deep`) |
 
-```bash
-mytools-recon https://example.com
-```
+#### `mytools-audit` (Auditoria Ofensiva/Defensiva)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `--deep` | `flag` | `False` | Habilita probes de arquivos e endpoints comuns |
+| `--test-vulns` | `flag` | `False` | Testa XSS/SQLi em parâmetros |
+| `--test-methods` | `flag` | `False` | Testa métodos HTTP perigosos (PUT, DELETE, PATCH, TRACE) |
+| `--paths-file` | `str` | `None` | Arquivo com paths customizados. Ativa `--deep` automaticamente |
+| `--params` | `str` | `None` | Params para injeção XSS/SQLi (separado por vírgula) |
+| `--login-url` | `str` | `None` | URL de login para Session Fixation |
+| `--concurrency` | `int` | `20` | Concorrência para path probes |
 
-### DNS History
-Histórico DNS via fontes OSINT (DNSlytics, SecurityTrails, ViewDNS):
+#### `mytools-subenum` (Subdomain Enumeration)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-w`, `--wordlist` | `str` | `None` | Arquivo com subdomínios (um por linha) |
+| `-T`, `--threads` | `int` | — | Número de threads |
+| `-P`, `--passive` | `flag` | `False` | Enumeração passiva (crt.sh, OTX, URLScan) |
+| `--vt-api-key` | `str` | `None` | API key VirusTotal (ativa fonte VT no modo passivo) |
+| `--st-api-key` | `str` | `None` | API key SecurityTrails |
+| `--shodan-api-key` | `str` | `None` | API key Shodan |
 
-```bash
-mytools-dnshistory example.com
-mytools-dnshistory example.com --sources dnslytics,viewdns
-```
+#### `mytools-dnshistory` / `mytools-whoishistory`
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `--source` | `append` | Fonte de dados (repetível). dnslytics/securitytrails/viewdns ou securitytrails/whoisxml |
+| `--st-api-key` | `str` | API key SecurityTrails |
+| `--viewdns-api-key` | `str` | API key ViewDNS (dnshistory) |
+| `--whoisxml-api-key` | `str` | API key WhoisXML (whoishistory) |
+| `--record-types` | `str` | Tipos de registro (dnshistory). Padrão: `a,aaaa,mx,ns,txt` |
 
-### WHOIS History
-Histórico WHOIS via fontes OSINT (SecurityTrails, WhoisXML):
+#### `mytools-doh` / `mytools-dot` (DNS over HTTPS/TLS)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-T`, `--type` | `choice` | `A` | Tipo de registro DNS. Opções: `A`, `AAAA`, `MX`, `NS`, `TXT`, `CNAME`, `SOA`, `SRV`, `CAA` |
+| `-p`, `--providers` / `-r`, `--resolvers` | `nargs+` | todos | Providers/resolvers específicos |
 
-```bash
-mytools-whoishistory example.com
-mytools-whoishistory example.com --api-key KEY
-```
+#### `mytools-cred` (Gerenciador de Credenciais)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `name` | positional | Nome da credencial |
+| Subcomando posicional | `set`, `get`, `del` | Operação a realizar |
 
-### IP ASN/ISP Enrichment
-Enriquece IPs com dados BGP completos (ASN, organização, ISP, país):
+#### `mytools-vcs` (VCS Leak Detection)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `--git-only` | `flag` | Verifica apenas .git |
+| `--svn-only` | `flag` | Verifica apenas .svn |
+| `--hg-only` | `flag` | Verifica apenas .hg |
+| `--concurrency` | `int` | Concorrência (padrão: 30) |
 
-```bash
-mytools-ipasn 8.8.8.8
-mytools-ipasn 8.8.8.8 1.1.1.1 1.0.0.1
-mytools-ipasn -l ips.txt -o asn.json
-```
+#### `mytools-cfg` / `mytools-bak` (Config/Backup Detection)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `--category` | `choice` | `all` | Categoria (cfg: `env`, `config`, `framework`, `database`, `docker`, `credentials`) |
+| `--sensitive-only` | `flag` | `False` | Apenas arquivos sensíveis (cfg) |
+| `--type` | `choice` | `all` | Tipo de backup (bak: `bak`, `swp`, `tilde`, `sql`, `archive`) |
+| `--concurrency` | `int` | `30` | Concorrência |
 
-Dual API: ipwho.is (individual) + ip-api.com (batch 100 IPs).
+#### `mytools-jwt` (JWT Analysis)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `token` | positional | Token JWT para analisar |
+| `--file` | `str` | Arquivo com tokens JWT (um por linha) |
+| `--url` | `str` | URL alvo para testes ativos (envia tokens forjados) |
+| `--wordlist` | `str` | Arquivo com secrets para brute-force HMAC |
+| `-c`, `--category` | `choice` | Categoria de teste |
 
-### Technology Fingerprint
-Fingerprinting tecnológico avançado com 7 sinais e 40+ tecnologias:
+#### `mytools-saml` (SAML Attack Detection)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `--saml-response` | `str` | SAML Response em base64 |
+| `--file` | `str` | Arquivo com SAML Response XML ou base64 |
+| `--url` | `str` | URL do ACS (Assertion Consumer Service) |
 
-```bash
-mytools-techfp https://example.com
-mytools-techfp https://example.com -o tech.json
-```
+#### `mytools-analysis` (Attack Path Visualization)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `findings_file` | positional | Arquivo JSON de findings (saída do attackaudit) |
+| `--target` | `str` | Label do alvo |
+| `--png` | `str` | Caminho para salvar PNG |
+| `--svg` | `str` | Caminho para salvar SVG |
+| `--dot` | `str` | Caminho para salvar DOT |
+| `--exploits-only` | `flag` | Mostra apenas exploits |
 
-Sinais analisados: headers HTTP, meta tags, scripts, CSS, cookies, body HTML, headers de segurança. Confidence scoring (high/medium/low) e categorias (server, language, framework, library, cms).
+#### `mytools-cors` / `mytools-clickjack` (CORS/Clickjacking)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `-c`, `--category` | `choice` | Categoria de teste. CORS: `null_origin`, `credentials`, `reflected`. Clickjack: `xframe`, `csp`, `bypass` |
 
-### OpenAPI/Swagger Discovery
-Busca specs OpenAPI/Swagger expostas em 24 paths comuns, faz parse JSON/YAML, extrai endpoints, métodos, tags e schemas:
+#### `mytools-timing` (Timing Attack)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `--usernames` | `nargs+` | Usuários para teste de enumeração |
+| `--token` | `str` | Token para teste de timing |
+| `--cache-rounds` | `int` | Rodadas para teste de cache |
+| `--dns-domains` | `nargs+` | Domínios para teste DNS timing |
 
-```bash
-mytools-oas http://target.com
-mytools-oas http://target.com --endpoints
-```
+#### `mytools-reconall` (Recon Completo)
+| Flag | Tipo | Descrição |
+|------|------|-----------|
+| `--deep` | `flag` | Modo profundo (crawl, path probing) |
+| `--test-vulns` | `flag` | Testa XSS/SQLi no attackaudit |
+| `--test-methods` | `flag` | Testa métodos HTTP |
+| `--cve` | `flag` | Busca CVEs no webrecon |
+| `-p`, `--ports` | `str` | Portas para portscanner. Padrão: `top100` |
+| `--skip` | `append` | Módulo para pular (repetível) |
 
-### GraphQL Playground Exposure
-Detecta 5 ferramentas GraphQL (GraphiQL, Playground, Altair, Voyager, Apollo Sandbox) e opcionalmente executa introspection query:
+### Compatibilidade de Flags por Tipo de Módulo
 
-```bash
-mytools-gql http://target.com
-mytools-gql http://target.com --introspect
-```
+| Flag | web | dns | email | osint | network | vcs | config |
+|------|-----|-----|-------|-------|---------|-----|--------|
+| `--proxy` | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
+| `--random-delay` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--jitter` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--user-agent-rotate` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `--impersonate` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `--fragment` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `--fragment-tcp` | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `--tor` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--waf-evasion` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `--pad-headers` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `--src-port-random` | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `--rate-limit` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--delay` | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
+| `--auth` | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
+| `--bearer-token` | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
+| `--cookie` | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
+| `--header` | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
 
-### Source Map Discovery
-Busca `.map` files de JavaScript expostos via scan de `<script src>` + probing de 27 paths comuns:
-
-```bash
-mytools-sm http://target.com
-mytools-sm http://target.com --sources
-```
-
-### VCS Leak Detection
-Detecta repositórios versionados expostos (.git, .svn, .hg) com validação de conteúdo e HEAD pre-check:
-
-```bash
-mytools-vcs http://target.com
-mytools-vcs http://target.com --git-only
-```
-
-### Config File Detection
-Detecta arquivos de configuração sensíveis expostos em 6 categorias com 88 paths e validação de conteúdo:
-
-```bash
-mytools-cfg http://target.com
-mytools-cfg http://target.com --category env
-mytools-cfg http://target.com --sensitive-only
-```
-
-### Backup File Detection
-Detecta arquivos de backup expostos com 6 categorias (.bak/.swp/.tilde/.sql/.archive/.orig_tmp) e validação de magic bytes:
-
-```bash
-mytools-bak http://target.com
-mytools-bak http://target.com --type sql
-```
-
-### Google Dorking
-Gera dorks Google em 6 categorias (filetype, directory, login, error, sensitive, subdomain) + dorks customizados + busca via DuckDuckGo:
-
-```bash
-mytools-dork example.com
-mytools-dork example.com --category sensitive --search
-```
-
-### Email Breach Check
-Verifica emails em vazamentos usando 3 fontes (XposedOrNot, LeakCheck, HIBP) com dedup por email+breach:
-
-```bash
-mytools-breach user@example.com
-mytools-breach user@example.com --source hibp --hibp-api-key KEY
-```
-
-### Social Engineering Recon
-Coleta emails, nomes e cargos de funcionários via GitHub API, Hunter.io e web scraping (/about, /team):
-
-```bash
-mytools-soceng example.com
-mytools-soceng example.com --hunter-api-key KEY
-```
-
-### Paste/Leak Monitoring
-Monitora pastes e repos públicos por credenciais com 10 padrões de detecção (AWS, GitHub, Slack, Stripe, etc.):
-
-```bash
-mytools-leak example.com
-mytools-leak example.com --github-token ghp_xxx
-```
-
-### Dark Web Monitoring
-Busca menções do domínio em sites .onion via Ahmia, DarkSearch e Intelligence X com classificação de severidade:
-
-```bash
-mytools-dark example.com
-mytools-dark example.com --intelx-key KEY
-```
-
-### Email Harvesting
-Coleta emails do alvo com crawl recursivo:
-
-```bash
-mytools-recon https://example.com --deep                # Ativa crawl
-mytools-recon https://example.com --deep --crawl-limit 20  # Limite de páginas
-```
-
-### WAF Detection
-Detecta Web Application Firewalls (Cloudflare, Akamai, AWS WAF, etc.) na resposta HTTP.
-
-### HTTP Methods Scan
-Testa métodos HTTP perigosos (PUT, DELETE, PATCH, TRACE):
-
-```bash
-mytools-audit https://example.com --test-methods
-```
-
-### Paths Customizados (attackaudit)
-Carregue seus próprios paths para deep scan:
-
-```bash
-# Arquivo com um path por linha
-mytools-audit https://example.com --paths-file sensitive.txt --deep
-```
-
-O argumento `--paths-file` ativa `--deep` automaticamente.
-
-### Controle de Cores
-```bash
-mytools-recon https://example.com --no-color     # Sem cores
-mytools-port 10.0.0.1 -p 80 --color              # Forçar cores (útil em pipes)
-```
-
-### PortScanner — Workers
-```bash
-mytools-port 10.0.0.0/24 -w 500          # 500 threads
-mytools-port 10.0.0.0/24 --threads 500   # alias deprecated
-```
-
-### Versão
-```bash
-mytools --version
-mytools-port --version
-mytools-dir --version
-mytools-recon --version
-mytools-audit --version
-mytools-dnsxfer --version
-mytools-subenum --version
-mytools-dnshistory --version
-mytools-whoishistory --version
-mytools-ipasn --version
-mytools-techfp --version
-mytools-oas --version
-mytools-gql --version
-mytools-sm --version
-mytools-vcs --version
-mytools-cfg --version
-mytools-bak --version
-mytools-dork --version
-mytools-breach --version
-mytools-soceng --version
-mytools-leak --version
-mytools-dark --version
-mytools-rebind --version
-mytools-dwt --version
-mytools-amp --version
-mytools-tunnel --version
-mytools-dnssec --version
-mytools-nsec --version
-mytools-caa --version
-mytools-secemail --version
-mytools-spoof --version
-mytools-smtpinject --version
-mytools-smtpdown --version
-mytools-templeti --version
-mytools-attachbypass --version
-mytools-addrbypass --version
-mytools-linktrack --version
-mytools-nullbyte --version
-mytools-dblurl --version
-mytools-ptraversal --version
-mytools-rtlo --version
-mytools-overlong --version
-mytools-bominject --version
-mytools-charsetbypass --version
-mytools-openredirect --version
-mytools-crlfinject --version
-mytools-sstdetect --version
-mytools-ssrfdetect --version
-mytools-multitenant --version
-mytools-smuggle --version
-mytools-http2abuse --version
-mytools-headeredge --version
-mytools-wsattack --version
-mytools-tlsfp --version
-mytools-reconall --version
-mytools-cred --version
-```
+> **Nota:** `mytools-port` NÃO recebe nenhuma flag HTTP ou stealth. Ele usa apenas flags base (`-t`, `-o`, `-v`, `-q`, `--color`, `--version`).
 
 ---
 
@@ -1480,7 +1403,7 @@ mytools-cred --version
 ```bash
 mytools
 ```
-O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `rtlo`, `overlong`, `bominject`, `charsetbypass`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`.
+O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `rtlo`, `overlong`, `bominject`, `charsetbypass`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `analysis`, `cred`, `reconall`.
 
 ### Modo interativo
 Cada módulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
@@ -1789,7 +1712,7 @@ src/mytools/                    # Pacote principal
     web/xssvectors.yaml
     web/xxedetect.yaml
 
-tests/                          # Testes unitários (4787 testes)
+tests/                          # Testes unitários (4926 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -1880,12 +1803,20 @@ mytools-dir https://target.com --rate-limit 5.0
 ### Rodar testes
 ```bash
 poetry run pytest tests/ -v
+poetry run pytest tests/ --cov=mytools --cov-report=term-missing  # Com cobertura
 ```
 
 ### Lint
 ```bash
 poetry run ruff check src/mytools/ tests/
 poetry run basedpyright src/mytools/
+```
+
+### Pytest Markers
+```bash
+poetry run pytest tests/ -m smoke          # Testes rápidos
+poetry run pytest tests/ -m integration    # Testes de integração (HTTP real)
+poetry run pytest tests/ -m "not real_sleep"  # Excluir testes com sleep real
 ```
 
 ### Adicionar dependências de dev
@@ -1919,6 +1850,7 @@ poetry install --with dev
 ### Dev
 - `pytest>=9.1.1` — Framework de testes
 - `pytest-asyncio>=1.4.0` — Testes async
+- `pytest-cov>=7.1.0` — Cobertura de código (Codecov)
 - `respx>=0.23.1` — Mock de httpx para testes
 - `ruff>=0.15.22` — Linter/formatter
 - `basedpyright>=1.39.9` — Type checker

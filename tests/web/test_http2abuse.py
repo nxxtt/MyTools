@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import h2.events
 import pytest
 
 from mytools.web.http2abuse import (
@@ -11,11 +12,15 @@ from mytools.web.http2abuse import (
     _CATEGORY_MAP,
     HTTP2Attempt,
     HTTP2Result,
+    _collect_server_settings,
     _create_h2_connection,
+    _drain_settings,
     _fingerprint_server,
     _parse_url,
+    _recv_events,
     build_parser,
     print_results,
+    run_scan,
 )
 
 # ─── HTTP2Attempt Tests ──────────────────────────────────────────────────────
@@ -135,6 +140,21 @@ class TestParseUrl:
         _host, path, _port, _tls = _parse_url("https://example.com")
         assert path == "/"
 
+    def test_ipv6(self) -> None:
+        host, _path, port, tls = _parse_url("https://[::1]:8443/test")
+        assert host == "::1"
+        assert port == 8443
+        assert tls is True
+
+    def test_fragment(self) -> None:
+        _host, path, _port, _tls = _parse_url("https://example.com/path#section")
+        assert path == "/path"
+
+    def test_no_scheme(self) -> None:
+        host, _path, _port, tls = _parse_url("example.com/test")
+        assert host == ""
+        assert tls is False
+
 
 # ─── Fingerprint Tests ──────────────────────────────────────────────────────
 
@@ -155,6 +175,10 @@ class TestFingerprint:
     def test_empty(self) -> None:
         assert _fingerprint_server({}) == "unknown"
 
+    def test_partial_match(self) -> None:
+        settings = {"MAX_FRAME_SIZE": 16384}
+        assert _fingerprint_server(settings) in ("nginx", "apache", "golang", "node")
+
 
 # ─── Connection Tests ────────────────────────────────────────────────────────
 
@@ -174,6 +198,96 @@ class TestCreateH2Connection:
                 _sock, _conn = _create_h2_connection("example.com", 443, 5.0)
                 mock_tls.assert_called_once_with("example.com", 443, 5.0)
                 mock_sock.sendall.assert_called_once_with(b"preface")
+
+
+# ─── _recv_events Tests ─────────────────────────────────────────────────────
+
+
+class TestRecvEvents:
+    def test_normal_data(self) -> None:
+        mock_sock = MagicMock()
+        mock_conn = MagicMock()
+        mock_sock.recv.return_value = b"\x00\x00\x00\x00"
+        mock_conn.receive_data.return_value = [h2.events.SettingsAcknowledged()]
+        events = _recv_events(mock_sock, mock_conn, 5.0)
+        assert len(events) == 1
+        mock_sock.settimeout.assert_called_once_with(5.0)
+
+    def test_timeout(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = TimeoutError("timed out")
+        events = _recv_events(mock_sock, MagicMock(), 5.0)
+        assert events == []
+
+    def test_os_error(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = OSError("Connection reset")
+        events = _recv_events(mock_sock, MagicMock(), 5.0)
+        assert events == []
+
+    def test_empty_data(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.return_value = b""
+        events = _recv_events(mock_sock, MagicMock(), 5.0)
+        assert events == []
+
+
+# ─── _drain_settings Tests ──────────────────────────────────────────────────
+
+
+class TestDrainSettings:
+    def test_collects_settings(self) -> None:
+        mock_sock = MagicMock()
+        mock_conn = MagicMock()
+        ev = h2.events.RemoteSettingsChanged()
+        ev.changed_settings = {h2.settings.SettingCodes.MAX_FRAME_SIZE: MagicMock(new_value=16384)}
+        mock_conn.receive_data.return_value = [ev]
+
+        with patch("mytools.web.http2abuse._recv_events", return_value=[ev]):
+            settings = _drain_settings(mock_sock, mock_conn, 5.0)
+            assert "MAX_FRAME_SIZE" in settings
+            assert settings["MAX_FRAME_SIZE"] == 16384
+
+    def test_connection_terminated(self) -> None:
+        ev = h2.events.ConnectionTerminated()
+        ev.last_stream_id = 0
+        ev.error_code = 0
+        ev.additional_data = b""
+
+        with patch("mytools.web.http2abuse._recv_events", return_value=[ev]):
+            settings = _drain_settings(MagicMock(), MagicMock(), 5.0)
+            assert settings == {}
+
+    def test_empty_events(self) -> None:
+        with patch("mytools.web.http2abuse._recv_events", return_value=[]):
+            settings = _drain_settings(MagicMock(), MagicMock(), 5.0)
+            assert settings == {}
+
+
+# ─── _collect_server_settings Tests ─────────────────────────────────────────
+
+
+class TestCollectServerSettings:
+    def test_collects_settings(self) -> None:
+        mock_sock = MagicMock()
+        mock_conn = MagicMock()
+        ev = h2.events.RemoteSettingsChanged()
+        ev.changed_settings = {h2.settings.SettingCodes.HEADER_TABLE_SIZE: MagicMock(new_value=4096)}
+        mock_conn.receive_data.return_value = [ev]
+        result = _collect_server_settings(mock_sock, mock_conn, 5.0)
+        assert "HEADER_TABLE_SIZE" in result
+
+    def test_timeout_returns_empty(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = TimeoutError("timed out")
+        result = _collect_server_settings(mock_sock, MagicMock(), 5.0)
+        assert result == {}
+
+    def test_empty_data_returns_empty(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.return_value = b""
+        result = _collect_server_settings(mock_sock, MagicMock(), 5.0)
+        assert result == {}
 
 
 # ─── Build Parser Tests ──────────────────────────────────────────────────────
@@ -246,19 +360,140 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "VULNERABLE" in output
 
+    def test_print_with_settings(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = HTTP2Result(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            h2_supported=True,
+            server_settings={"MAX_FRAME_SIZE": 16384},
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Server Settings" in output
 
-# ─── Dry Run / Main Tests ───────────────────────────────────────────────────
+    def test_print_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = HTTP2Result(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            h2_supported=True,
+            server_settings={},
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=["Connection failed"],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Issues" in output
+        assert "Connection failed" in output
 
 
-class TestDryRun:
-    def test_has_url_in_parser(self) -> None:
-        parser = build_parser()
-        assert any(a.dest == "url" for a in parser._actions)
+# ─── Dispatcher Tests (parametrized) ─────────────────────────────────────────
 
-    def test_has_output_in_parser(self) -> None:
-        parser = build_parser()
-        assert any(a.dest == "output" for a in parser._actions)
 
-    def test_has_timeout_in_parser(self) -> None:
-        parser = build_parser()
-        assert any(a.dest == "timeout" for a in parser._actions)
+DISPATCHER_PARAMS = list(_CATEGORY_DISPATCH.items())
+
+
+@pytest.mark.parametrize("cat_name,dispatcher", DISPATCHER_PARAMS)
+class TestDispatchers:
+    @pytest.mark.asyncio
+    async def test_returns_list(self, cat_name: str, dispatcher: object) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket") as mock_tls,
+            patch("mytools.web.http2abuse._create_h2_connection") as mock_h2,
+            patch("mytools.web.http2abuse._recv_events", return_value=[]),
+            patch("mytools.web.http2abuse._drain_settings", return_value={}),
+        ):
+            mock_sock = MagicMock()
+            mock_tls.return_value = mock_sock
+            mock_sock.selected_alpn_protocol.return_value = "h2"
+            mock_conn = MagicMock()
+            mock_h2.return_value = (MagicMock(), mock_conn)
+            fn = dispatcher  # type: ignore[misc]
+            results = await fn("example.com", 443, "/", 5.0, True, {})  # type: ignore[misc]
+            assert isinstance(results, list)
+            assert len(results) > 0
+            assert all(isinstance(r, HTTP2Attempt) for r in results)
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_error(self, cat_name: str, dispatcher: object) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")),
+            patch("mytools.web.http2abuse._create_h2_connection", side_effect=OSError("fail")),
+        ):
+            fn = dispatcher  # type: ignore[misc]
+            results = await fn("example.com", 443, "/", 5.0, True, {})  # type: ignore[misc]
+            assert isinstance(results, list)
+            assert len(results) > 0
+
+
+# ─── run_scan Tests ──────────────────────────────────────────────────────────
+
+
+class TestRunScan:
+    @pytest.mark.asyncio
+    async def test_returns_http2result(self) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket") as mock_tls,
+            patch("mytools.web.http2abuse._create_h2_connection") as mock_h2,
+            patch("mytools.web.http2abuse._collect_server_settings", return_value={}),
+            patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
+        ):
+            mock_sock = MagicMock()
+            mock_tls.return_value = mock_sock
+            mock_sock.selected_alpn_protocol.return_value = "h2"
+            mock_h2.return_value = (MagicMock(), MagicMock())
+            mock_dispatch.get.return_value = AsyncMock(return_value=[])
+            result = await run_scan("https://example.com", [], 5.0, None)
+            assert isinstance(result, HTTP2Result)
+            assert result.host == "example.com"
+
+    @pytest.mark.asyncio
+    async def test_h2_not_supported(self) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket") as mock_tls,
+            patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
+        ):
+            mock_sock = MagicMock()
+            mock_tls.return_value = mock_sock
+            mock_sock.selected_alpn_protocol.return_value = "http/1.1"
+            mock_dispatch.get.return_value = AsyncMock(return_value=[])
+            result = await run_scan("https://example.com", [], 5.0, None)
+            assert result.h2_supported is False
+
+    @pytest.mark.asyncio
+    async def test_tls_connect_error(self) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("conn refused")),
+            patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
+        ):
+            mock_dispatch.get.return_value = AsyncMock(return_value=[])
+            result = await run_scan("https://example.com", [], 5.0, None)
+            assert result.h2_supported is False
+
+    @pytest.mark.asyncio
+    async def test_categories_defaults_to_all(self) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")),
+            patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
+        ):
+            mock_dispatch.get.return_value = AsyncMock(return_value=[])
+            await run_scan("https://example.com", None, 5.0, None)
+            assert mock_dispatch.get.call_count == 7
+
+    @pytest.mark.asyncio
+    async def test_output_file(self) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")),
+            patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
+            patch("mytools.web.http2abuse.write_output") as mock_write,
+        ):
+            mock_dispatch.get.return_value = AsyncMock(return_value=[])
+            await run_scan("https://example.com", [], 5.0, "output.json")
+            mock_write.assert_called_once()
