@@ -153,6 +153,23 @@ python -m mytools.web.attackaudit --help     # Ajuda individual
 python -m mytools.dns.dnstransfer --help     # DNS Zone Transfer
 ```
 
+### Docker (multi-stage build)
+```bash
+# Build
+docker build -t mytools .
+
+# Subcomando direto (101 comandos disponíveis)
+docker run --rm mytools mytools-recon https://example.com
+docker run --rm mytools mytools-port 192.168.1.1 -p 80
+docker run --rm mytools mytools-cors https://example.com
+
+# Painel interativo
+docker run --rm -it mytools mytools
+
+# Com output em volume
+docker run --rm -v $(pwd)/output:/output mytools mytools-recon https://example.com -o /output/recon.json
+```
+
 ---
 
 ## Módulos
