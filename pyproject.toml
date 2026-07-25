@@ -1,47 +1,43 @@
-[tool.poetry]
+[project]
 name = "mytools"
 version = "3.2.0"
 description = "Suite de ferramentas de auditoria e reconhecimento web/network"
-authors = ["nxt"]
 readme = "README.MD"
-packages = [{include = "mytools", from = "src"}]
-include = [
-    "src/mytools/data/**/*.yaml",
-    "src/mytools/data/**/*.yml",
-    "src/mytools/data/**/*.json",
-    "src/mytools/data/**/*.bin",
+requires-python = ">=3.14.2,<3.16"
+authors = [
+    { name = "nxt" }
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.14.2,<3.16"
-httpx = ">=0.28.1"
-beautifulsoup4 = ">=4.15.0"
-python-whois = ">=0.9.6"
-dnspython = ">=2.8.0"
-pyyaml = ">=6.0.3"
-pyreadline3 = {version = ">=3.5.6", markers = "sys_platform == 'win32'"}
-pyjwt = ">=2.13.0"
-cryptography = ">=49.0.0"
-keyring = ">=25.7.0"
-h2 = "4.4.0"
-grpcio = ">=1.83.0"
-grpcio-reflection = ">=1.83.0"
-protobuf = ">=7.35.1"
-thriftpy2 = ">=0.6.0"
-networkx = ">=3.6.1"
-matplotlib = ">=3.11.1"
-curl-cffi = ">=0.15.0"
-httpx-socks = {version = ">=0.11.0", extras = ["asyncio"]}
-
-[tool.poetry.group.dev.dependencies]
-pytest = ">=9.1.1"
-respx = ">=0.23.1"
-pytest-asyncio = ">=1.4.0"
-pytest-cov = "7.1.0"
-ruff = ">=0.16.0"
-basedpyright = ">=1.39.9"
-
-[tool.poetry.scripts]
+dependencies = [
+    "httpx>=0.28.1",
+    "beautifulsoup4>=4.15.0",
+    "python-whois>=0.9.6",
+    "dnspython>=2.8.0",
+    "pyyaml>=6.0.3",
+    "pyreadline3>=3.5.6; sys_platform == 'win32'",
+    "pyjwt>=2.13.0",
+    "cryptography>=49.0.0",
+    "keyring>=25.7.0",
+    "h2>=4.4.0",
+    "grpcio>=1.83.0",
+    "grpcio-reflection>=1.83.0",
+    "protobuf>=7.35.1",
+    "thriftpy2>=0.6.0",
+    "networkx>=3.6.1",
+    "matplotlib>=3.11.1",
+    "curl-cffi>=0.15.0",
+    "httpx-socks[asyncio]>=0.11.0"
+]
+[dependency-groups]
+dev = [
+ "pytest>=9.1.1",
+ "respx>=0.23.1",
+ "pytest-asyncio>=1.4.0",
+ "pytest-cov>=7.1.0",
+ "ruff>=0.16.0",
+ "basedpyright>=1.39.9",
+]
+[project.scripts]
 mytools = "mytools.core.main:main"
 mytools-cred = "mytools.core.cred:main"
 mytools-port = "mytools.network.portscanner:main"
@@ -150,6 +146,18 @@ mytools-csrf = "mytools.web.csrfscan:main"
 mytools-sqli = "mytools.web.sqliscan:main"
 mytools-subtakeover = "mytools.web.subdomaintakeover:main"
 mytools-bruteforce = "mytools.web.loginbruteforce:main"
+
+[tool.poetry]
+packages = [
+    { include = "mytools", from = "src" }
+]
+
+include = [
+    "src/mytools/data/**/*.yaml",
+    "src/mytools/data/**/*.yml",
+    "src/mytools/data/**/*.json",
+    "src/mytools/data/**/*.bin",
+]
 
 [build-system]
 requires = ["poetry-core"]

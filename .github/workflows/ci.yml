@@ -14,19 +14,18 @@ jobs:
         python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v7
+
+      - name: Install Poetry
+        run: pipx install poetry>=2.4.1
+
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Poetry
-        run: pip install poetry==2.4.1
-      - name: Cache Poetry deps
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/pypoetry
-          key: poetry-lint-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: poetry-lint-${{ matrix.python-version }}-
+          cache: 'poetry'
+
       - name: Install dependencies
         run: poetry install --with dev
+
       - name: Lint
         run: poetry run ruff check .
 
@@ -37,19 +36,18 @@ jobs:
         python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v7
+
+      - name: Install Poetry
+        run: pipx install poetry>=2.4.1
+
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Poetry
-        run: pip install poetry==2.4.1
-      - name: Cache Poetry deps
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/pypoetry
-          key: poetry-type-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: poetry-type-${{ matrix.python-version }}-
+          cache: 'poetry'
+
       - name: Install dependencies
         run: poetry install --with dev
+
       - name: Type check
         run: poetry run basedpyright
 
@@ -60,21 +58,20 @@ jobs:
         python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v7
+      - name: Install Poetry
+        run: pipx install poetry>=2.4.1
+
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Poetry
-        run: pip install poetry==2.4.1
-      - name: Cache Poetry deps
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/pypoetry
-          key: poetry-test-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: poetry-test-${{ matrix.python-version }}-
+          cache: 'poetry'
+
       - name: Install dependencies
         run: poetry install --with dev
+
       - name: Tests with coverage
         run: poetry run pytest tests/ -v --cov=mytools --cov-report=xml --cov-report=term-missing
+
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.14'
         uses: codecov/codecov-action@v7
