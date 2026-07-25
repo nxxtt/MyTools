@@ -55,6 +55,7 @@ from mytools.web import (
     ssiinject,
     ssrfdetect,
     sstidetect,
+    subdomaintakeover,
     techfingerprint,
     webrecon,
     xpathinject,
@@ -206,9 +207,10 @@ def menu() -> None:
     print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
     print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
     print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers")
-    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)")
+    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1188,6 +1190,24 @@ def launch_sqliscan() -> None:
     )
 
 
+def launch_subdomaintakeover() -> None:
+    """Inicia o módulo Subdomain Takeover em modo interativo."""
+    parser = subdomaintakeover.build_parser()
+    run_interactive_shell(
+        parser, "subtakeover> ", subdomaintakeover.run_once,
+        description="Subdomain Takeover — detecta dangling CNAMEs para servicos nao reclamados.",
+        example="example.com",
+        banner_fn=subdomaintakeover.banner_art,
+        contextual_help=(
+            "Uso: <domain> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --wordlist extras.txt\n"
+            "  example.com --concurrency 20"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -1948,12 +1968,14 @@ def main() -> int:
                 launch_loginjection()
             case "69" | "log4shell" | "l4s" | "jndi":
                 launch_log4shell()
-            case "70" | "reconall" | "all" | "full":
+            case "70" | "subtakeover" | "takeover" | "subdomain":
+                launch_subdomaintakeover()
+            case "71" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "71" | "help" | "ajuda" | "h":
+            case "72" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "72" | "clear" | "limpar" | "cls":
+            case "73" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

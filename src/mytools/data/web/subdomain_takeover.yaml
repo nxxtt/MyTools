@@ -1,0 +1,154 @@
+# Subdomain Takeover — service fingerprints
+# CNAME suffix + HTTP response signatures for dangling CNAME detection
+
+services:
+  s3:
+    cname_suffix: ".s3.amazonaws.com"
+    http_signatures:
+      - "NoSuchBucket"
+      - "The specified bucket does not exist"
+
+  cloudfront:
+    cname_suffix: ".cloudfront.net"
+    http_signatures:
+      - "Bad request"
+      - "ERROR: The request could not be satisfied"
+
+  azure:
+    cname_suffix: ".azurewebsites.net"
+    http_signatures:
+      - "404 Web Site not found"
+      - "Azure Web App"
+
+  heroku:
+    cname_suffix: ".herokuapp.com"
+    http_signatures:
+      - "No such app"
+      - "no-hierarchical-name"
+
+  github_pages:
+    cname_suffix: ".github.io"
+    http_signatures:
+      - "There isn't a GitHub Pages site here"
+      - "For root URLs"
+
+  fastly:
+    cname_suffix: ".fastly.net"
+    http_signatures:
+      - "Fastly error: unknown domain"
+
+  shopify:
+    cname_suffix: ".myshopify.com"
+    http_signatures:
+      - "Sorry, this shop is currently unavailable"
+      - "Only one step left!"
+
+  wordpress:
+    cname_suffix: ".wordpress.com"
+    http_signatures:
+      - "Do you want to register"
+
+  tumblr:
+    cname_suffix: ".tumblr.com"
+    http_signatures:
+      - "Whatever you were looking for doesn't currently exist"
+
+  squarespace:
+    cname_suffix: ".squarespace.com"
+    http_signatures:
+      - "No Such Account"
+
+  netlify:
+    cname_suffix: ".netlify.app"
+    http_signatures:
+      - "Not Found - Requested page could not be found"
+
+  zendesk:
+    cname_suffix: ".zendesk.com"
+    http_signatures:
+      - "Help Center Closed"
+
+  unbounce:
+    cname_suffix: ".unbouncepages.com"
+    http_signatures:
+      - "The requested URL was not found on this server"
+
+  landingi:
+    cname_suffix: ".landingi.com"
+    http_signatures:
+      - "It looks like you're lost"
+
+  feedpress:
+    cname_suffix: ".feedpress.me"
+    http_signatures:
+      - "The RSS Feed URL you've entered is not a valid"
+
+  ghost:
+    cname_suffix: ".ghost.io"
+    http_signatures:
+      - "The thing you were looking for is no longer here"
+
+  helpjuice:
+    cname_suffix: ".helpjuice.com"
+    http_signatures:
+      - "We could not find what you're looking for"
+
+  helpscout:
+    cname_suffix: ".helpscoutdocs.com"
+    http_signatures:
+      - "No settings were found for this company"
+
+  campaignmonitor:
+    cname_suffix: ".createsend.com"
+    http_signatures:
+      - "Double check the URL"
+
+  tave:
+    cname_suffix: ".clientaccess.tave.com"
+    http_signatures:
+      - "Error 404: Page Not Found"
+
+  wix:
+    cname_suffix: ".wixdns.net"
+    http_signatures:
+      - "The global IP network is temporarily unavailable"
+
+  bitbucket:
+    cname_suffix: ".bitbucket.io"
+    http_signatures:
+      - "Repository not found"
+
+  surge:
+    cname_suffix: ".surge.sh"
+    http_signatures:
+      - "project not found"
+
+  intercom:
+    cname_suffix: ".custom.intercom.help"
+    http_signatures:
+      - "This page is reserved for artistic dogs"
+
+  cargocollective:
+    cname_suffix: ".cargocollective.org"
+    http_signatures:
+      - "If this is your website and you've just created it"
+
+  statuspage:
+    cname_suffix: ".statuspage.io"
+    http_signatures:
+      - "Better StatusPage"
+
+  uservoice:
+    cname_suffix: ".uservoice.com"
+    http_signatures:
+      - "This UserVoice subdomain is currently available!"
+
+  pantheon:
+    cname_suffix: ".pantheonsite.io"
+    http_signatures:
+      - "404 error unknown site"
+
+  amazonaws_s3_static:
+    cname_suffix: ".s3-website"
+    http_signatures:
+      - "NoSuchBucket"

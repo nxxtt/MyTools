@@ -45,3 +45,5 @@
 22. **Headless Browser (Playwright)** — Testes em JS/SPA. DOM clobbering real, XSS renderizado, crawler JS, screenshots. Dependencia pesada, integracao complexa.
 
 23. **Verificacao de Segunda Ordem** — Reduz falsos positivos em modulos de injecao. Ao detectar match (conteudo, timing, erro), faz segundo request com payload diferente para confirmar. Ex: `; id` → uid= detectado → `; whoami` confirma se www-data. Implementavel em cmd/injection/LFI/SSRF/SSTI sem alterar arquitetura dos modulos. So adiciona ~40ms por alerta.
+
+24. ** colocar novas dependencias** - tqdm, orjson, jinja2, aiodns
