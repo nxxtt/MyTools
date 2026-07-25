@@ -1,0 +1,61 @@
+usernames:
+  - admin
+  - administrator
+  - root
+  - user
+  - test
+  - guest
+  - info
+  - support
+  - webmaster
+  - administrator@example
+
+passwords:
+  - password
+  - 123456
+  - admin
+  - root
+  - letmein
+  - welcome
+  - monkey
+  - dragon
+  - master
+  - qwerty
+
+lockout_indicators:
+  - "account locked"
+  - "too many attempts"
+  - "try again later"
+  - "temporarily locked"
+  - "maximum login attempts"
+  - "brute force"
+  - "rate limit"
+  - "slow down"
+  - "too many failed"
+  - "security lockout"
+  - "locked out"
+  - "account has been locked"
+  - "login attempts exceeded"
+  - "security block"
+
+rate_limit_indicators:
+  - "rate limit"
+  - "too many requests"
+  - "slow down"
+  - "throttle"
+  - "try again"
+  - "429"
+  - "retry-after"
+  - "please wait"
+  - "request throttled"
+  - "temporarily unavailable"
+
+success_indicators:
+  - "dashboard"
+  - "welcome back"
+  - "my account"
+  - "logout"
+  - "sign out"
+  - "profile"
+  - "settings"
+  - "account overview"

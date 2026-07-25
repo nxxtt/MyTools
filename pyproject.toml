@@ -149,6 +149,7 @@ mytools-cmd = "mytools.web.cmdinject:main"
 mytools-csrf = "mytools.web.csrfscan:main"
 mytools-sqli = "mytools.web.sqliscan:main"
 mytools-subtakeover = "mytools.web.subdomaintakeover:main"
+mytools-bruteforce = "mytools.web.loginbruteforce:main"
 
 [build-system]
 requires = ["poetry-core"]

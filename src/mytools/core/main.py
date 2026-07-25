@@ -40,6 +40,7 @@ from mytools.web import (
     ldapiinject,
     lfidetect,
     log4shell,
+    loginbruteforce,
     loginjection,
     methodoverride,
     nosqliinject,
@@ -207,10 +208,11 @@ def menu() -> None:
     print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
     print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
     print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers")
-    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)")
-    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('BruteForce', Cyber.CYAN)}       Login brute force / credential testing")
+    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)")
+    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('72', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1190,6 +1192,25 @@ def launch_sqliscan() -> None:
     )
 
 
+def launch_loginbruteforce() -> None:
+    """Inicia o módulo Login Brute Force em modo interativo."""
+    parser = loginbruteforce.build_parser()
+    run_interactive_shell(
+        parser, "brute> ", loginbruteforce.run_once,
+        description="Login Brute Force / Credential Testing — testa seguranca de endpoints de auth.",
+        example="https://target.com/login",
+        banner_fn=loginbruteforce.banner_art,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com/login\n"
+            "  https://target.com/login -c rate_limit\n"
+            "  https://target.com/login -c credential --username admin\n"
+            "  https://target.com/login -c spray --password 123456"
+        ),
+    )
+
+
 def launch_subdomaintakeover() -> None:
     """Inicia o módulo Subdomain Takeover em modo interativo."""
     parser = subdomaintakeover.build_parser()
@@ -1968,14 +1989,16 @@ def main() -> int:
                 launch_loginjection()
             case "69" | "log4shell" | "l4s" | "jndi":
                 launch_log4shell()
-            case "70" | "subtakeover" | "takeover" | "subdomain":
+            case "70" | "bruteforce" | "brute" | "login":
+                launch_loginbruteforce()
+            case "71" | "subtakeover" | "takeover" | "subdomain":
                 launch_subdomaintakeover()
-            case "71" | "reconall" | "all" | "full":
+            case "72" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "72" | "help" | "ajuda" | "h":
+            case "73" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "73" | "clear" | "limpar" | "cls":
+            case "74" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:
