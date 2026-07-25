@@ -479,9 +479,9 @@ def run_all(args: argparse.Namespace) -> int:
 
         async def _run_one(name: str, fn: Callable[[argparse.Namespace], int], a: argparse.Namespace) -> int:
             color_name = color(f"[{name}]", Cyber.CYAN, Cyber.BOLD)
-            print(f"\n{'='*60}")
+            logger.info("=" * 60)
             logger.info("%s Iniciando %s", color_name, name)
-            print(f"{'='*60}")
+            logger.info("=" * 60)
             start = time.monotonic()
             try:
                 result = await asyncio.to_thread(fn, a)
@@ -534,13 +534,13 @@ def main() -> int:
     errors = run_all(args)
     elapsed = time.monotonic() - start
 
-    print(f"\n{'='*60}")
+    logger.info("=" * 60)
     if errors == 0:
         logger.info("Recon concluido com sucesso!")
     else:
         logger.warning("Recon concluido com %d erro(s)", errors)
     logger.info("Tempo total: %.1fs", elapsed)
-    print(f"{'='*60}")
+    logger.info("=" * 60)
     return 1 if errors else 0
 
 

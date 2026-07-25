@@ -23,7 +23,6 @@ from mytools.core.utils import (
     Cyber,
     FetchError,
     add_base_args,
-    color,
     create_async_client,
     create_banner,
     fetch,
@@ -326,7 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _print_history(records: list[WhoisHistoryRecord]) -> None:
     """Imprime tabela de registros historicos."""
     if not records:
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhum registro historico de WHOIS encontrado.")
+        logger.info("Nenhum registro historico de WHOIS encontrado.")
         return
 
     print_table(
@@ -379,9 +378,9 @@ def run_once(args: argparse.Namespace) -> int:
     )
     elapsed = time.time() - start
 
-    print()
+    logger.info("")
     _print_history(records)
-    print()
+    logger.info("")
 
     for s in sources:
         if not api_keys.get(s):

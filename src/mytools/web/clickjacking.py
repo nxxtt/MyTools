@@ -961,6 +961,8 @@ def run_once(args: argparse.Namespace) -> int:
 
             output_file=getattr(args, "output", None),
 
+            json_output=getattr(args, "json_output", False),
+
         ),
 
     )
