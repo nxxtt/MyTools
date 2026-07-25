@@ -29,6 +29,7 @@ from mytools.core.utils import (
     create_async_client,
     create_banner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -726,19 +727,22 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan NoSQL Injection."""
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
     try:
-
-        print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
+        if not json_output:
+            print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
         baseline = await _test_baseline(client, target)
         if baseline[0] == 0:
-            print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
+            if not json_output:
+                print(color("  [!] Falha ao conectar no alvo", Cyber.RED))
             return 1
 
-        print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
+        if not json_output:
+            print(color(f"  Baseline: {baseline[0]} ({baseline[1]} bytes)", Cyber.GRAY))
 
         run_categories = categories or list(_CATEGORY_MAP.keys())
         all_attempts: list[NoSQLiAttempt] = []
@@ -780,7 +784,10 @@ async def run_scan(
             overall_status=overall,
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -838,6 +845,7 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

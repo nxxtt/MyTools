@@ -51,6 +51,7 @@ from mytools.web import (
     prototypepollution,
     rtloverride,
     sourcemapdiscovery,
+    sqliscan,
     ssiinject,
     ssrfdetect,
     sstidetect,
@@ -181,32 +182,33 @@ def menu() -> None:
     print(f"  {color('41', Cyber.GREEN, Cyber.BOLD)} {color('BOM Inject', Cyber.CYAN)}     Byte Order Mark injection")
     print(f"  {color('42', Cyber.GREEN, Cyber.BOLD)} {color('Charset Bypass', Cyber.CYAN)} Charset detection bypass")
     print(f"  {color('43', Cyber.GREEN, Cyber.BOLD)} {color('CSRF', Cyber.CYAN)}       CSRF Scanner — detecta e testa protecao CSRF")
-    print(f"  {color('44', Cyber.GREEN, Cyber.BOLD)} {color('RTLO Bypass', Cyber.CYAN)}  RTL Override para confundir URLs")
-    print(f"  {color('45', Cyber.GREEN, Cyber.BOLD)} {color('Open Redirect', Cyber.CYAN)} Detecta redirecionamentos abusivos")
-    print(f"  {color('46', Cyber.GREEN, Cyber.BOLD)} {color('CRLF Inject', Cyber.CYAN)}  Injecao de headers via \\r\\n")
-    print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('SSTI Detect', Cyber.CYAN)} Server-Side Template Injection")
-    print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery")
-    print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('XXE Detect', Cyber.CYAN)}   XML External Entity Detection")
-    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)")
-    print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP")
-    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('XPath Inject', Cyber.CYAN)} Injecao em consultas XPath")
-    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('SSI Inject', Cyber.CYAN)}   Server-Side Injection (RCE/leitura)")
-    print(f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('Proto Poll', Cyber.CYAN)}  Prototype Pollution (JS __proto__)")
-    print(f"  {color('55', Cyber.GREEN, Cyber.BOLD)} {color('Deserial', Cyber.CYAN)}     Deserialization (PHP/Java/Python)")
-    print(f"  {color('56', Cyber.GREEN, Cyber.BOLD)} {color('Cache Poison', Cyber.CYAN)}  Cache Poisoning (headers/path)")
-    print(f"  {color('57', Cyber.GREEN, Cyber.BOLD)} {color('Cache Dec', Cyber.CYAN)}   Web Cache Deception (extensions)")
-    print(f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('Method Override', Cyber.CYAN)} HTTP Method Override (bypass ACL)")
-    print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution")
-    print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
-    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration")
-    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
-    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection")
-    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
-    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
-    print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers")
-    print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('44', Cyber.GREEN, Cyber.BOLD)} {color('SQLi', Cyber.CYAN)}        SQL Injection Scanner — error, blind, union, bypass")
+    print(f"  {color('45', Cyber.GREEN, Cyber.BOLD)} {color('RTLO Bypass', Cyber.CYAN)}  RTL Override para confundir URLs")
+    print(f"  {color('46', Cyber.GREEN, Cyber.BOLD)} {color('Open Redirect', Cyber.CYAN)} Detecta redirecionamentos abusivos")
+    print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('CRLF Inject', Cyber.CYAN)}  Injecao de headers via \\r\\n")
+    print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('SSTI Detect', Cyber.CYAN)} Server-Side Template Injection")
+    print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery")
+    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('XXE Detect', Cyber.CYAN)}   XML External Entity Detection")
+    print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)")
+    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP")
+    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('XPath Inject', Cyber.CYAN)} Injecao em consultas XPath")
+    print(f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('SSI Inject', Cyber.CYAN)}   Server-Side Injection (RCE/leitura)")
+    print(f"  {color('55', Cyber.GREEN, Cyber.BOLD)} {color('Proto Poll', Cyber.CYAN)}  Prototype Pollution (JS __proto__)")
+    print(f"  {color('56', Cyber.GREEN, Cyber.BOLD)} {color('Deserial', Cyber.CYAN)}     Deserialization (PHP/Java/Python)")
+    print(f"  {color('57', Cyber.GREEN, Cyber.BOLD)} {color('Cache Poison', Cyber.CYAN)}  Cache Poisoning (headers/path)")
+    print(f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('Cache Dec', Cyber.CYAN)}   Web Cache Deception (extensions)")
+    print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Method Override', Cyber.CYAN)} HTTP Method Override (bypass ACL)")
+    print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution")
+    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
+    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration")
+    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
+    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection")
+    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
+    print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
+    print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers")
+    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1166,6 +1168,26 @@ def launch_csrfscan() -> None:
     )
 
 
+def launch_sqliscan() -> None:
+    """Inicia o módulo SQL Injection Scanner em modo interativo."""
+    parser = sqliscan.build_parser()
+    run_interactive_shell(
+        parser, "sqli> ", sqliscan.run_once,
+        description="SQL Injection Scanner — error, blind, union, bypass.",
+        example="https://target.com/search?q=test",
+        banner_fn=sqliscan.banner_art,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://target.com/search?q=test\n"
+            "  https://target.com/search?q=test -c error\n"
+            "  https://target.com/search?q=test -c blind\n"
+            "  https://target.com/search?q=test --time-threshold 2.0\n"
+            "  https://target.com/search?q=test --proxy http://127.0.0.1:8080"
+        ),
+    )
+
+
 def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
@@ -1874,62 +1896,64 @@ def main() -> int:
                 launch_cmdinject()
             case "43" | "csrf" | "csrfdetect" | "csrfscan":
                 launch_csrfscan()
-            case "44" | "bominject" | "bom" | "bominjection":
+            case "44" | "sqli" | "sqliscan" | "sqliinject":
+                launch_sqliscan()
+            case "45" | "bominject" | "bom" | "bominjection":
                 launch_bominjection()
-            case "45" | "charsetbypass" | "charset" | "charsets":
+            case "46" | "charsetbypass" | "charset" | "charsets":
                 launch_charsetbypass()
-            case "46" | "rtlo" | "rtloverride" | "rtl":
+            case "47" | "rtlo" | "rtloverride" | "rtl":
                 launch_rtloverride()
-            case "47" | "openredirect" | "redirect" | "oredir":
+            case "48" | "openredirect" | "redirect" | "oredir":
                 launch_openredirect()
-            case "48" | "crlfinject" | "crlf":
+            case "49" | "crlfinject" | "crlf":
                 launch_crlfinject()
-            case "49" | "sstdetect" | "ssti":
+            case "50" | "sstdetect" | "ssti":
                 launch_sstdetect()
-            case "50" | "ssrfdetect" | "ssrf":
+            case "51" | "ssrfdetect" | "ssrf":
                 launch_ssrfdetect()
-            case "51" | "xxedetect" | "xxe":
+            case "52" | "xxedetect" | "xxe":
                 launch_xxedetect()
-            case "52" | "nosqli" | "nosql":
+            case "53" | "nosqli" | "nosql":
                 launch_nosqli()
-            case "53" | "ldap" | "ldapi":
+            case "54" | "ldap" | "ldapi":
                 launch_ldap()
-            case "54" | "xpath" | "xpathi":
+            case "55" | "xpath" | "xpathi":
                 launch_xpath()
-            case "55" | "ssi" | "ssiinject":
+            case "56" | "ssi" | "ssiinject":
                 launch_ssiinject()
-            case "56" | "protopoll" | "prototypepollution" | "ppoll":
+            case "57" | "protopoll" | "prototypepollution" | "ppoll":
                 launch_protopoll()
-            case "57" | "deserial" | "deserialization":
+            case "58" | "deserial" | "deserialization":
                 launch_deserial()
-            case "58" | "cachepoison" | "cachepoisoning" | "cpcache":
+            case "59" | "cachepoison" | "cachepoisoning" | "cpcache":
                 launch_cachepoison()
-            case "59" | "cachedec" | "cachedeception" | "deception":
+            case "60" | "cachedec" | "cachedeception" | "deception":
                 launch_cachedec()
-            case "60" | "methodoverride" | "moverride" | "moverride":
+            case "61" | "methodoverride" | "moverride" | "moverride":
                 launch_methodoverride()
-            case "61" | "hpp" | "parampollution" | "httpparampollution":
+            case "62" | "hpp" | "parampollution" | "httpparampollution":
                 launch_hpp()
-            case "62" | "blindxss" | "blindexss" | "blindxss":
+            case "63" | "blindxss" | "blindexss" | "blindxss":
                 launch_blindxss()
-            case "63" | "cors" | "corsmisconfig" | "corsmis":
+            case "64" | "cors" | "corsmisconfig" | "corsmis":
                 launch_cors()
-            case "64" | "clickjack" | "clickjacking" | "cj":
+            case "65" | "clickjack" | "clickjacking" | "cj":
                 launch_clickjack()
-            case "65" | "hostinject" | "hostheaderinject" | "hhi":
+            case "66" | "hostinject" | "hostheaderinject" | "hhi":
                 launch_hostinject()
-            case "66" | "headerinject" | "hdrinject" | "hdr":
+            case "67" | "headerinject" | "hdrinject" | "hdr":
                 launch_headerinject()
-            case "67" | "loginjection" | "loginject" | "log":
+            case "68" | "loginjection" | "loginject" | "log":
                 launch_loginjection()
-            case "68" | "log4shell" | "l4s" | "jndi":
+            case "69" | "log4shell" | "l4s" | "jndi":
                 launch_log4shell()
-            case "69" | "reconall" | "all" | "full":
+            case "70" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "70" | "help" | "ajuda" | "h":
+            case "71" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "71" | "clear" | "limpar" | "cls":
+            case "72" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

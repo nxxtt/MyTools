@@ -46,6 +46,7 @@ from mytools.core.utils import (
     create_async_client,
     create_banner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -1180,6 +1181,8 @@ async def run_scan(
 
     verbose: bool,
 
+    json_output: bool = False,
+
 ) -> int:
 
     """Executa o scan SSRF."""
@@ -1288,7 +1291,10 @@ async def run_scan(
 
 
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
 
 
@@ -1401,6 +1407,8 @@ def run_once(args: argparse.Namespace) -> int:
             output_file=getattr(args, "output", None),
 
             verbose=getattr(args, "verbose", False),
+
+            json_output=getattr(args, "json_output", False),
 
         ),
 

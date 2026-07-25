@@ -88,6 +88,7 @@ from mytools.web import (
     prototypepollution,
     rtloverride,
     sourcemapdiscovery,
+    sqliscan,
     ssiinject,
     ssrfdetect,
     sstidetect,
@@ -100,7 +101,7 @@ from mytools.whois import whoishistory
 
 logger = logging.getLogger("mytools.reconall")
 
-ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "openapidiscovery", "graphqlplayground", "sourcemapdiscovery", "vcsleak", "configfiledetect", "backupfiledetect", "googledorking", "emailbreachcheck", "socialengrecon", "pasteleak", "darkwebmonitor", "dnsrebinding", "dnswatorture", "dnsamplification", "dnstunnel", "dnssecvalidation", "nsecwalking",     "caacheck", "emailsecurity", "emailspoof", "smtpinjection", "smtpdowngrade", "emailtemplateinject", "emailattachmentbypass", "emailaddressbypass", "emaillinktracking", "nullbyteinject", "doubleurlencode", "pathtraversal", "overlongencoding", "bominjection", "charsetbypass", "openredirect", "crlfinjection", "sstidetect", "ssrfdetect", "xxedetect", "nosqliinject", "ldapiinject", "xpathinject", "ssiinject", "prototypepollution", "deserialinject", "cachepoisoning", "cachedeception", "methodoverride", "httpparampollution", "blindxss", "corsmisconfig", "clickjacking", "hostheaderinject", "headerinject",     "loginjection", "log4shell", "lfidetect", "cmdinject", "csrfscan", "dirscanner", "webrecon", "attackaudit"]
+ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "openapidiscovery", "graphqlplayground", "sourcemapdiscovery", "vcsleak", "configfiledetect", "backupfiledetect", "googledorking", "emailbreachcheck", "socialengrecon", "pasteleak", "darkwebmonitor", "dnsrebinding", "dnswatorture", "dnsamplification", "dnstunnel", "dnssecvalidation", "nsecwalking",     "caacheck", "emailsecurity", "emailspoof", "smtpinjection", "smtpdowngrade", "emailtemplateinject", "emailattachmentbypass", "emailaddressbypass", "emaillinktracking", "nullbyteinject", "doubleurlencode", "pathtraversal", "overlongencoding", "bominjection", "charsetbypass", "openredirect", "crlfinjection", "sstidetect", "ssrfdetect", "xxedetect", "nosqliinject", "ldapiinject", "xpathinject", "ssiinject", "prototypepollution", "deserialinject", "cachepoisoning", "cachedeception", "methodoverride", "httpparampollution", "blindxss", "corsmisconfig", "clickjacking", "hostheaderinject", "headerinject",     "loginjection", "log4shell",     "lfidetect", "cmdinject", "csrfscan", "sqliscan", "dirscanner", "webrecon", "attackaudit"]
 
 """Recon completo: executa portscanner, dirscanner, webrecon, attackaudit, dnstransfer e subenum contra um alvo."""
 
@@ -180,7 +181,7 @@ _ALL_MODS = (
     prototypepollution, deserialinject, cachepoisoning, cachedeception,
     methodoverride, httpparampollution, blindxss, corsmisconfig,
     clickjacking, hostheaderinject, headerinject, loginjection, log4shell,
-    lfidetect, cmdinject, csrfscan, webrecon, attackaudit,
+    lfidetect, cmdinject, csrfscan, sqliscan, webrecon, attackaudit,
 )
 
 
@@ -371,6 +372,10 @@ def run_all(args: argparse.Namespace) -> int:
     if "csrfscan" not in skipped and is_url:
         modules.append(("csrfscan", csrfscan.run_once,
                         _make_args(target, {"url": target, "output": _out("csrfscan")}, base_ns)))
+
+    if "sqliscan" not in skipped and is_url:
+        modules.append(("sqliscan", sqliscan.run_once,
+                        _make_args(target, {"url": target, "output": _out("sqliscan")}, base_ns)))
 
     if "overlongencoding" not in skipped and is_url:
         modules.append(("overlongencoding", overlongencoding.run_once,

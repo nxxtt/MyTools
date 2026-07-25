@@ -41,6 +41,7 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -645,7 +646,10 @@ def run_once(args: argparse.Namespace) -> int:
         ),
     )
 
-    print_results(result)
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+    else:
+        print_results(result)
 
     if getattr(args, "output", None):
         write_output(args.output, asdict(result))

