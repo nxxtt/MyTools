@@ -404,7 +404,7 @@ class TestMain:
 
     def test_no_url(self) -> None:
         with patch("sys.argv", ["mytools-charsetbypass"]), \
-             patch("mytools.web.charsetbypass.run_main_loop", return_value=1) as mock_loop:
+             patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()

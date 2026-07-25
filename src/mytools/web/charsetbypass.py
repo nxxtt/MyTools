@@ -42,22 +42,17 @@ import argparse
 import asyncio
 import logging
 from collections.abc import Awaitable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
-    create_banner,
-    init_scanner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.charsetbypass")
@@ -1329,7 +1324,7 @@ async def scan_charset_bypass(
 
 
 
-def print_results(result: CharsetBypassResult) -> None:
+def print_results_fn(result: CharsetBypassResult) -> None:
 
     """Exibe os resultados do scan formatados."""
 
@@ -1397,111 +1392,16 @@ def print_results(result: CharsetBypassResult) -> None:
 
 
 
-def build_parser() -> argparse.ArgumentParser:
 
-    """ConstrÃ³i o parser de argumentos CLI."""
+class CharsetbypassScanner(BaseScanner):
+    """Scanner de Charset Detection Bypass â€” testa bypass via charset manipulacao.."""
 
-    parser = argparse.ArgumentParser(
+    prog = "mytools-charsetbypass"
+    description = "Charset Detection Bypass â€” testa bypass via charset manipulacao."
+    prompt = "charset> "
+    module_name = "mytools.charsetbypass"
+    banner_text = r"""
 
-        prog="mytools-charsetbypass",
-
-        description="Charset Detection Bypass â€” testa bypass via charset manipulacao.",
-
-    )
-
-    add_common_args(parser)
-
-    parser.add_argument("url", nargs="?", help="URL alvo para teste")
-
-    parser.add_argument(
-
-        "-c", "--category",
-
-        choices=list(_CATEGORY_MAP.keys()),
-
-        help="Categoria de teste (meta, content_type, bom, xml, mixed)",
-
-    )
-
-    parser.add_argument(
-
-        "--concurrency",
-
-        type=int,
-
-        default=5,
-
-        help="Numero de requisicoes simultaneas (default: 5)",
-
-    )
-
-    return parser
-
-
-
-
-
-def run_once(args: argparse.Namespace) -> int:
-
-    """Executa um scan unico e retorna codigo de saida."""
-
-    init_scanner(args)
-
-    url = getattr(args, "url", None) or getattr(args, "target", None)
-
-    if not url:
-
-        logger.error("Especifique uma URL alvo.")
-
-        return 1
-
-
-
-    result = safe_asyncio_run(
-
-        scan_charset_bypass(
-
-            url=url,
-
-            timeout=getattr(args, "timeout", 10.0),
-
-            user_agent=getattr(args, "user_agent", None),
-
-            proxy=getattr(args, "proxy", None),
-
-            verify=getattr(args, "verify", False),
-
-            category=getattr(args, "category", None),
-
-            concurrency=getattr(args, "concurrency", 5),
-
-        )
-
-    )
-
-    print_results(result)
-
-
-
-    output_path = getattr(args, "output", None)
-
-    if output_path:
-
-        write_output(output_path, asdict(result))
-
-        logger.info("Resultados salvos em: %s", output_path)
-
-
-
-    return 0 if result.overall_status != "error" else 1
-
-
-
-
-
-banner_art = create_banner(
-
-    r"""
 
      _   _                      ______                 _ _               _
 
@@ -1518,60 +1418,41 @@ banner_art = create_banner(
                                                              __/ | |
 
                                                             |___/|_|
+    """
+    group = ScanGroup.B
 
-    """,
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo para teste")
+        parser.add_argument(
+        "-c", "--category",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categoria de teste (meta, content_type, bom, xml, mixed)",
+        )
+        parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Numero de requisicoes simultaneas (default: 5)",
+        )
 
-    "Charset Detection Bypass â€” detecta bypass via charset manipulacao",
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await scan_charset_bypass(**kwargs)
 
-)
+    def print_results(self, result: object) -> None:
+        print_results_fn(result)  # type: ignore[arg-type]
 
+    def _example(self) -> str:
+        return "https://target.com -c meta"
 
-
-
-
-def main() -> int:
-
-    """Ponto de entrada principal do CLI."""
-
-    return run_main_loop(
-
-        parser=build_parser(),
-
-        banner_fn=banner_art,
-
-        run_fn=run_once,
-
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
-
-        prompt="charset> ",
-
-        description="Charset Detection Bypass interativo.",
-
-        example="https://target.com -c meta",
-
-        contextual_help=(
-
-            "Uso: <url> [opcoes]\n"
-
-            "Exemplos:\n"
-
-            "  https://target.com\n"
-
-            "  https://target.com -c meta\n"
-
-            "  https://target.com -c content_type\n"
-
-            "  https://target.com -c mixed --proxy http://127.0.0.1:8080"
-
-        ),
-
-    )
+    def _help(self) -> str:
+        return "Uso: <url> [opcoes]\n" "Exemplos:\n" " https://target.com\n" " https://target.com -c meta\n" " https://target.com -c content_type\n" " https://target.com -c mixed --proxy http://127.0.0.1:8080"
 
 
+scanner = CharsetbypassScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
 
-
-
-if __name__ == "__main__":
-
-    raise SystemExit(main())
-
+# Backward-compatible re-exports for tests
+build_parser = scanner.build_parser
+print_results = print_results_fn

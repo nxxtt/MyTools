@@ -44,22 +44,17 @@ import argparse
 import asyncio
 import logging
 from collections.abc import Awaitable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
-    create_banner,
-    init_scanner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.bominjection")
@@ -998,7 +993,7 @@ async def scan_bom_injection(
 
 
 
-def print_results(result: BomResult) -> None:
+def print_results_fn(result: BomResult) -> None:
 
     """Exibe os resultados do scan formatados."""
 
@@ -1064,111 +1059,16 @@ def print_results(result: BomResult) -> None:
 
 
 
-def build_parser() -> argparse.ArgumentParser:
 
-    """ConstrÃ³i o parser de argumentos CLI."""
+class BominjectionScanner(BaseScanner):
+    """Scanner de BOM Injection â€” testa injecao de Byte Order Mark em web apps.."""
 
-    parser = argparse.ArgumentParser(
+    prog = "mytools-bominject"
+    description = "BOM Injection â€” testa injecao de Byte Order Mark em web apps."
+    prompt = "bom> "
+    module_name = "mytools.bominjection"
+    banner_text = r"""
 
-        prog="mytools-bominject",
-
-        description="BOM Injection â€” testa injecao de Byte Order Mark em web apps.",
-
-    )
-
-    add_common_args(parser)
-
-    parser.add_argument("url", nargs="?", help="URL alvo para teste")
-
-    parser.add_argument(
-
-        "-c", "--category",
-
-        choices=list(_CATEGORY_MAP.keys()),
-
-        help="Categoria de teste (url, header, body, upload)",
-
-    )
-
-    parser.add_argument(
-
-        "--concurrency",
-
-        type=int,
-
-        default=5,
-
-        help="Numero de requisicoes simultaneas (default: 5)",
-
-    )
-
-    return parser
-
-
-
-
-
-def run_once(args: argparse.Namespace) -> int:
-
-    """Executa um scan unico e retorna codigo de saida."""
-
-    init_scanner(args)
-
-    url = getattr(args, "url", None) or getattr(args, "target", None)
-
-    if not url:
-
-        logger.error("Especifique uma URL alvo.")
-
-        return 1
-
-
-
-    result = safe_asyncio_run(
-
-        scan_bom_injection(
-
-            url=url,
-
-            timeout=getattr(args, "timeout", 10.0),
-
-            user_agent=getattr(args, "user_agent", None),
-
-            proxy=getattr(args, "proxy", None),
-
-            verify=getattr(args, "verify", False),
-
-            category=getattr(args, "category", None),
-
-            concurrency=getattr(args, "concurrency", 5),
-
-        )
-
-    )
-
-    print_results(result)
-
-
-
-    output_path = getattr(args, "output", None)
-
-    if output_path:
-
-        write_output(output_path, asdict(result))
-
-        logger.info("Resultados salvos em: %s", output_path)
-
-
-
-    return 0 if result.overall_status != "error" else 1
-
-
-
-
-
-banner_art = create_banner(
-
-    r"""
 
      _   _                      ____             _
 
@@ -1181,60 +1081,41 @@ banner_art = create_banner(
     | |\  |  __/>  <| |_| | (_| |_) | | | | | |   <  __/ |
 
     |_| \_|\___/_/\_\\__,_|\__,_.__/|_| |_| |_|_|\_\___|_|
+    """
+    group = ScanGroup.B
 
-    """,
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo para teste")
+        parser.add_argument(
+        "-c", "--category",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categoria de teste (url, header, body, upload)",
+        )
+        parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Numero de requisicoes simultaneas (default: 5)",
+        )
 
-    "BOM Injection â€” detecta injecao de Byte Order Mark em web apps",
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await scan_bom_injection(**kwargs)
 
-)
+    def print_results(self, result: object) -> None:
+        print_results_fn(result)  # type: ignore[arg-type]
 
+    def _example(self) -> str:
+        return "https://target.com -c url"
 
-
-
-
-def main() -> int:
-
-    """Ponto de entrada principal do CLI."""
-
-    return run_main_loop(
-
-        parser=build_parser(),
-
-        banner_fn=banner_art,
-
-        run_fn=run_once,
-
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
-
-        prompt="bom> ",
-
-        description="BOM Injection interativo.",
-
-        example="https://target.com -c url",
-
-        contextual_help=(
-
-            "Uso: <url> [opcoes]\n"
-
-            "Exemplos:\n"
-
-            "  https://target.com\n"
-
-            "  https://target.com -c url\n"
-
-            "  https://target.com -c body\n"
-
-            "  https://target.com -c upload --proxy http://127.0.0.1:8080"
-
-        ),
-
-    )
+    def _help(self) -> str:
+        return "Uso: <url> [opcoes]\n" "Exemplos:\n" " https://target.com\n" " https://target.com -c url\n" " https://target.com -c body\n" " https://target.com -c upload --proxy http://127.0.0.1:8080"
 
 
+scanner = BominjectionScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
 
-
-
-if __name__ == "__main__":
-
-    raise SystemExit(main())
-
+# Backward-compatible re-exports for tests
+build_parser = scanner.build_parser
+print_results = print_results_fn
