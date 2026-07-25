@@ -1,34 +1,105 @@
-1. Hardcoded /tmp/ paths — test_reconall.py:252, test_subdomainenum.py:116,293-327 usam /tmp/ (Unix only). Quebram no Windows. Usar tmp_path fixture do pytest.
+# Roadmap de Features
 
-2. Testes fazem chamadas de rede reais — test_certcheck.py:290-299 e test_graphqlattack.py:275-284 iteram dispatchers que abrem conexões SSL/TLS reais para example.com. Isso é flaky — falha sem internet, DNS ou timeout.
+## Facil (horas-dias)
 
-3. Sistema de markers do pytest subutilizado — só 1 marker (real_sleep) registrado. Faltam slow, integration, network, smoke para execução seletiva.
+### SQL Injection Scanner
+Módulo standalone com techniques: error-based, blind, time-based, union, boolean.
+Hoje só existe dentro do attackaudit como sub-check.
+Payloads em data/web/sqli.yaml.
 
-4. Cobertura de código (Codecov) — 4787 testes é excelente, mas sem badge de cobertura não se sabe o que está descoberto. Integrar Codecov e Coverage Gutters.
+### Command Injection Scanner
+OWASP Top 10. Testa parametros GET/POST/headers com payloads de comando.
+Detecta por timing, erro, ou reflexao no response.
 
-5. # type: ignore — concentrados em utils.py (6), cred.py (2), attackaudit.py (2). Cada um é um bug potencial disfarçado.
+### CSRF Scanner
+Testa ativamente a presenca de tokens CSRF em forms.
+Hoje so detecta passivamente se o campo csrf_token existe (dentro do attackaudit).
+Testes ativos: remover token, reutilizar token, trocar metodo.
 
-6. Rate limiter automático via Retry-After — o RateLimiter atual trata 429 com backoff, mas não parseia o header Retry-After para respeitar o tempo exato do servidor.
+### LFI/RFI Scanner
+Diferente do path traversal (que ja existe).
+Foca em inclusao de arquivos locais/remotos via parametros como ?file=, ?page=, ?include=.
 
-7. Revisão do cred.py — o gerenciador de credenciais usa keyring, mas muitos módulos aceitam senhas via --auth (argumento CLI), o que expõe no history do shell. Sugiro priorizar keyring e mascarar input.
+### Batch Scanner
+mytools-batch targets.txt -- roda modulo(s) contra N alvos de um arquivo.
+Uteis para CI/CD e scans em escala.
 
-8. attackanalysis.py usa print() puro — sem logging, sem async, 272 linhas síncronas. Para uma ferramenta que processa findings, deveria usar logging estruturado.
+## Medio (dias)
 
-9. Modo --json global — hoje cada módulo formata saída de forma diferente. Um formatador JSON padronizado permitiria piping para outras ferramentas (jq, grep) de forma consistente.
+### Subdomain Takeover
+Deteccao de dangling CNAME apontando para servicos nao reclamados.
+S3, CloudFront, Azure, Heroku, GitHub Pages, etc.
+Alto valor para recon externo.
 
-10. print() sobrecarrega logging 4:1 — em módulos como corsmisconfig.py, clickjacking.py, etc., as saídas de resultado (vulnerabilidades, alertas) vão tudo via print(). Isso impede controle de verbosidade, redirecionamento, e formato estruturado. Centralizar tudo em logger.info()/logger.warning() padronizaria a saída.
+### Login Brute Force / Credential Testing
+Teste de rate limit em endpoints de autenticacao.
+Credential stuffing, password spray, account lockout detection.
+Nao existe hoje no projeto.
 
-11. respx instalado mas subutilizado — apenas 3 de 68 arquivos de teste web usam respx para mock HTTP. Os outros 65 usam unittest.mock diretamente, o que significa que headers, query params, e edge cases HTTP nunca são validados.
+### Cloud Bucket Enumeration (S3/GCP/Azure)
+Enumeracao de buckets S3, GCP Cloud Storage, Azure Blob.
+Listagem, ACL, politicas, objetos.
+Zero cobertura atual.
 
-12. Cache de respostas HTTP — módulos como webrecon e attackaudit fazem múltiplas requisições ao mesmo alvo. Um AsyncClient compartilhado com cache em memória (ex: aiocache ou cashews) reduziria drasticamente o tempo de execução.
+### REST API Fuzzer
+Fuzzing generico de APIs REST: parameter pollution, metodos HTTP inesperados,
+version enum (/v1, /v2, /v3), autenticacao bypass, HATEOAS discovery.
+So GraphQL tem cobertura dedicada hoje.
 
-13. Razão test:source crítica em 3 módulos:
-    - http2abuse.py (1648 linhas) → apenas 200 linhas de teste (12%) — sem testes para os 7 category dispatchers
-    - fileupload.py (918 linhas) → 122 linhas (13%) — sem testes para polyglot, SVG XXE, ZIP Slip
-    - businesslogic.py (928 linhas) → 139 linhas (15%) — sem testes para integer overflow, race condition
+### Client-side Prototype Pollution
+Modulo atual so testa server-side (reflexao em response).
+DOM-based PP detectaria sinks reais no browser (lodash, jQuery, express).
 
-14. Dockerfile multi-stage — ferramenta de pentest em container elimina "funciona na minha máquina" e facilita execução em CI/CD.
+## Avancado (semanas)
 
-15. Boilerplate copiado em 60+ módulos — todos compartilham o mesmo esqueleto: build_parser() idêntico, print_results() idêntico, safe_asyncio_run(run_scan(...)). Uma classe base BaseScanner com método run_scan() abstrato cortaria 80-100 linhas por módulo.
+### Ruby + .NET + Node.js Deserialization
+3 plataformas grandes sem cobertura de desserializacao.
+Ruby Marshal.load, .NET BinaryFormatter/ViewState, Node.js node-serialize.
 
-16. (Muito para frente) Web UI minimalista — opção --web no main.py que sobe um servidor HTTP local (ex: FastAPI/Starlette) com formulários para cada módulo. Útil para times de segurança não-técnicos.
+### Handlebars + Go + Blade + Razor SSTI
+4 engines populares nao testadas no modulo de SSTI atual.
+Handlebars (Node), Go text/template, Blade (PHP), Razor (.NET).
+
+### HTTP/2 Downgrade Smuggling + CL.0
+O modulo atual so cobre CL.TE / TE.CL classico.
+CL.0 (Content-Length ignorado pelo front-end) e h2c smuggling sao tecnicas modernas nao cobertas.
+
+### CDN-Specific Cache Poisoning
+Cloudflare, Akamai, Fastly tem behavior de cache key especifico.
+X-Forwarded-Port/Proto/Scheme, True-Client-IP, CF-Connecting-IP.
+Nao testado hoje.
+
+### Mobile API Testing
+Nada existe para Android/iOS/React Native/Flutter.
+Teste de API pinning, armazenamento local, OAuth2 implicit flow.
+
+## Complexo (meses)
+
+### HTML Report Generator
+CLI output e rico mas sem relatorio visual.
+Template HTML com findings, severidade, evidencias, timeline.
+Comparacao entre scans (diff de resultados).
+
+### Headless Browser (Playwright)
+Para testes em JS/SPA. DOM clobbering real, XSS em contexto renderizado,
+crawler de paginas com JavaScript, captura de screenshots.
+
+### Plugin System
+Arquitetura para terceiros escreverem modulos sem editar o core.
+Hook discovery, schema de metadados, isolated namespace.
+
+### Dependency Scanner
+Detecta bibliotecas front-end (npm, CDN) e back-end via fingerprint.
+Compara com banco de CVEs (tipo retire.js / WPScan lite).
+
+### CMS Fingerprinting
+WordPress, Joomla, Drupal, Magento detection.
+Versao especifica, plugins, temas, users.
+
+### Email Spoofing Ativo
+Hoje e so analise DNS (SPF/DKIM/DMARC).
+Envio de email de teste + verificacao de entrega validaria as politicas de verdade.
+
+### WebSocket Fuzzer
+Modulo atual testa protocolo (frames, opcodes, compression).
+Fuzzing de payload real em mensagens WebSocket.
