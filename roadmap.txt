@@ -43,3 +43,5 @@
 21. **Plugin System** — Arquitetura para modulos de terceiros sem editar o core. Hook discovery, schema de metadados, namespace isolado. Mudanca arquitetural profunda.
 
 22. **Headless Browser (Playwright)** — Testes em JS/SPA. DOM clobbering real, XSS renderizado, crawler JS, screenshots. Dependencia pesada, integracao complexa.
+
+23. **Verificacao de Segunda Ordem** — Reduz falsos positivos em modulos de injecao. Ao detectar match (conteudo, timing, erro), faz segundo request com payload diferente para confirmar. Ex: `; id` → uid= detectado → `; whoami` confirma se www-data. Implementavel em cmd/injection/LFI/SSRF/SSTI sem alterar arquitetura dos modulos. So adiciona ~40ms por alerta.

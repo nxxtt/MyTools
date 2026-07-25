@@ -146,6 +146,7 @@ mytools-reconall = "mytools.core.reconall:main"
 mytools-batch = "mytools.core.batch:main"
 mytools-lfi = "mytools.web.lfidetect:main"
 mytools-cmd = "mytools.web.cmdinject:main"
+mytools-csrf = "mytools.web.csrfscan:main"
 
 [build-system]
 requires = ["poetry-core"]
