@@ -143,6 +143,7 @@ mytools-infra = "mytools.web.infraattack:main"
 mytools-iot = "mytools.web.iotattack:main"
 mytools-analysis = "mytools.web.attackanalysis:main"
 mytools-reconall = "mytools.core.reconall:main"
+mytools-batch = "mytools.core.batch:main"
 
 [build-system]
 requires = ["poetry-core"]
