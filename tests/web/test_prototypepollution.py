@@ -12,7 +12,9 @@ from mytools.web.prototypepollution import (
     _CATEGORY_MAP,
     _CONSTRUCTOR_PAYLOADS,
     _DETECT_PAYLOADS,
+    _DOM_PAYLOADS,
     _IMPACT_PAYLOADS,
+    _LIBRARY_PAYLOADS,
     _SSI_PARAMS,
     PollAttempt,
     PollResult,
@@ -22,7 +24,9 @@ from mytools.web.prototypepollution import (
     _test_bypass,
     _test_constructor,
     _test_detect,
+    _test_dom,
     _test_impact,
+    _test_library,
     build_parser,
     main,
     print_results,
@@ -48,7 +52,13 @@ class TestCategoryMap:
         assert "impact" in _CATEGORY_MAP
 
     def test_count(self) -> None:
-        assert len(_CATEGORY_MAP) == 5
+        assert len(_CATEGORY_MAP) == 7
+
+    def test_has_dom(self) -> None:
+        assert "dom" in _CATEGORY_MAP
+
+    def test_has_library(self) -> None:
+        assert "library" in _CATEGORY_MAP
 
 
 class TestDetectPayloads:
@@ -504,6 +514,117 @@ class TestMain:
              patch("mytools.web.prototypepollution.run_main_loop", return_value=0):
             result = main()
             assert result == 0
+
+
+
+class TestDomPayloads:
+    """Testes para _DOM_PAYLOADS."""
+
+    def test_not_empty(self) -> None:
+        assert len(_DOM_PAYLOADS) > 0
+
+    def test_tuple_format(self) -> None:
+        for item in _DOM_PAYLOADS:
+            assert isinstance(item, tuple)
+            assert len(item) == 3
+
+    def test_has_hash_pollution(self) -> None:
+        techniques = [item[0] for item in _DOM_PAYLOADS]
+        assert any("hash" in t.lower() for t in techniques)
+
+    def test_has_json_parse(self) -> None:
+        techniques = [item[0] for item in _DOM_PAYLOADS]
+        assert any("json" in t.lower() for t in techniques)
+
+    def test_payloads_are_strings(self) -> None:
+        for _, payload, _ in _DOM_PAYLOADS:
+            assert isinstance(payload, str)
+
+    def test_indicators_are_lists(self) -> None:
+        for _, _, indicators in _DOM_PAYLOADS:
+            assert isinstance(indicators, list)
+
+
+class TestLibraryPayloads:
+    """Testes para _LIBRARY_PAYLOADS."""
+
+    def test_not_empty(self) -> None:
+        assert len(_LIBRARY_PAYLOADS) > 0
+
+    def test_tuple_format(self) -> None:
+        for item in _LIBRARY_PAYLOADS:
+            assert isinstance(item, tuple)
+            assert len(item) == 3
+
+    def test_has_jquery(self) -> None:
+        techniques = [item[0] for item in _LIBRARY_PAYLOADS]
+        assert any("jquery" in t.lower() for t in techniques)
+
+    def test_has_lodash(self) -> None:
+        techniques = [item[0] for item in _LIBRARY_PAYLOADS]
+        assert any("lodash" in t.lower() for t in techniques)
+
+    def test_has_vue(self) -> None:
+        techniques = [item[0] for item in _LIBRARY_PAYLOADS]
+        assert any("vue" in t.lower() for t in techniques)
+
+    def test_payloads_are_strings(self) -> None:
+        for _, payload, _ in _LIBRARY_PAYLOADS:
+            assert isinstance(payload, str)
+
+    def test_indicators_are_lists(self) -> None:
+        for _, _, indicators in _LIBRARY_PAYLOADS:
+            assert isinstance(indicators, list)
+
+
+class TestTestDom:
+    """Testes para _test_dom."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_dom_returns_poll_attempts(self) -> None:
+        respx.post("https://example.com").mock(return_value=httpx.Response(200, text="OK"))
+        async with httpx.AsyncClient() as client:
+            results = await _test_dom(client, "https://example.com", (200, 2, b"OK"))
+            assert isinstance(results, list)
+            assert len(results) > 0
+            for r in results:
+                assert isinstance(r, PollAttempt)
+                assert r.category == "dom"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_dom_error_handled(self) -> None:
+        respx.post("https://example.com").mock(side_effect=httpx.ConnectError("fail"))
+        async with httpx.AsyncClient() as client:
+            results = await _test_dom(client, "https://example.com", (200, 2, b"OK"))
+            assert len(results) > 0
+            assert all(r.error for r in results)
+
+
+class TestTestLibrary:
+    """Testes para _test_library."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_library_returns_poll_attempts(self) -> None:
+        respx.post("https://example.com").mock(return_value=httpx.Response(200, text="OK"))
+        async with httpx.AsyncClient() as client:
+            results = await _test_library(client, "https://example.com", (200, 2, b"OK"))
+            assert isinstance(results, list)
+            assert len(results) > 0
+            for r in results:
+                assert isinstance(r, PollAttempt)
+                assert r.category == "library"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_library_error_handled(self) -> None:
+        respx.post("https://example.com").mock(side_effect=httpx.ConnectError("fail"))
+        async with httpx.AsyncClient() as client:
+            results = await _test_library(client, "https://example.com", (200, 2, b"OK"))
+            assert len(results) > 0
+            assert all(r.error for r in results)
 
 
 class TestIntegration:

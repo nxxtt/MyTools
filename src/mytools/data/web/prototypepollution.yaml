@@ -29,6 +29,26 @@ category_map:
     - impact_settings
     - impact_rce
     - impact_xss
+  dom:
+    - dom_url_param
+    - dom_hash
+    - dom_json_parse
+    - dom_referrer
+    - dom_window_name
+    - dom_merge
+    - dom_array
+    - dom_nested
+    - dom_bracket
+    - dom_cookie
+  library:
+    - jquery_extend
+    - lodash_merge
+    - vue_reactive
+    - angular_scope
+    - node_require
+    - node_fs
+    - node_process
+    - node_eval
 
 detect_payloads:
   - - proto_basic
@@ -174,3 +194,77 @@ ssi_params:
   - item
   - object
   - model
+
+dom_payloads:
+  - - dom_url_param
+    - '{"__proto__":{"polluted":"PP_DOM_URL"}}'
+    - - polluted
+      - PP_DOM_URL
+  - - dom_hash
+    - '{"__proto__":{"polluted":"PP_DOM_HASH"}}'
+    - - polluted
+      - PP_DOM_HASH
+  - - dom_json_parse
+    - '{"__proto__":{"polluted":"PP_DOM_JSON"}}'
+    - - polluted
+      - PP_DOM_JSON
+  - - dom_referrer
+    - '{"__proto__":{"isAdmin":"PP_DOM_REF"}}'
+    - - isAdmin
+      - PP_DOM_REF
+  - - dom_window_name
+    - '{"__proto__":{"polluted":"PP_DOM_WIN"}}'
+    - - polluted
+      - PP_DOM_WIN
+  - - dom_merge
+    - '{"__proto__":{"polluted":"PP_DOM_MERGE"}}'
+    - - polluted
+      - PP_DOM_MERGE
+  - - dom_array
+    - '[{"__proto__":{"polluted":"PP_DOM_ARR"}}]'
+    - - polluted
+      - PP_DOM_ARR
+  - - dom_nested
+    - '{"a":{"__proto__":{"polluted":"PP_DOM_NEST"}}}'
+    - - polluted
+      - PP_DOM_NEST
+  - - dom_bracket
+    - '{"__proto__":{"polluted":"PP_DOM_BRK"}}'
+    - - polluted
+      - PP_DOM_BRK
+  - - dom_cookie
+    - '{"__proto__":{"polluted":"PP_DOM_CK"}}'
+    - - polluted
+      - PP_DOM_CK
+
+library_payloads:
+  - - jquery_extend
+    - '{"__proto__":{"polluted":"PP_JQUERY"}}'
+    - - polluted
+      - PP_JQUERY
+  - - lodash_merge
+    - '{"__proto__":{"polluted":"PP_LODASH"}}'
+    - - polluted
+      - PP_LODASH
+  - - vue_reactive
+    - '{"__proto__":{"$polluted":"PP_VUE"}}'
+    - - $polluted
+      - PP_VUE
+  - - angular_scope
+    - '{"__proto__":{"$$hashKey":"PP_ANGULAR"}}'
+    - - $$hashKey
+      - PP_ANGULAR
+  - - node_require
+    - '{"__proto__":{"child_process":{}}}'
+    - - child_process
+  - - node_fs
+    - '{"__proto__":{"fs":{}}}'
+    - - fs
+  - - node_process
+    - '{"__proto__":{"process":{"env":{}}}}'
+    - - process
+      - env
+  - - node_eval
+    - '{"__proto__":{"eval":"PP_NODE_EVAL"}}'
+    - - eval
+      - PP_NODE_EVAL
