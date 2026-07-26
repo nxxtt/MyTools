@@ -26,7 +26,9 @@ dependencies = [
     "networkx>=3.6.1",
     "matplotlib>=3.11.1",
     "curl-cffi>=0.15.0",
-    "httpx-socks[asyncio]>=0.11.0"
+    "httpx-socks[asyncio]>=0.11.0",
+    "androguard[full]>=4.1.4",
+    "lief>=1.0.0",
 ]
 [dependency-groups]
 dev = [
@@ -148,6 +150,7 @@ mytools-subtakeover = "mytools.web.subdomaintakeover:main"
 mytools-bruteforce = "mytools.web.loginbruteforce:main"
 mytools-bucket = "mytools.web.cloudbucketenum:main"
 mytools-restfuzz = "mytools.web.restapifuzz:main"
+mytools-mobile = "mytools.mobile.mobile_audit:main"
 
 [tool.poetry]
 packages = [

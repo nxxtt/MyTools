@@ -159,6 +159,7 @@ Isso instala os comandos CLI:
 | `mytools-bucket` | Cloud Bucket Enumeration (S3/GCP/Azure) |
 | `mytools-batch` | Batch Scanner (multi-target) |
 | `mytools-restfuzz` | REST API Fuzzer (auth bypass, content-type, HATEOAS) |
+| `mytools-mobile` | Mobile API Testing (Android/iOS) |
 | `mytools-analysis` | Attack Path Visualization & Exploit Suggestions |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
@@ -177,7 +178,7 @@ python -m mytools.dns.dnstransfer --help     # DNS Zone Transfer
 # Build
 docker build -t mytools .
 
-# Subcomando direto (110 comandos disponíveis)
+# Subcomando direto (111 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -1359,6 +1360,32 @@ mytools-restfuzz https://api.example.com --endpoints /users /products /orders
 mytools-restfuzz https://api.example.com -c hateoas --proxy http://127.0.0.1:8080
 ```
 
+### 111. Mobile API Testing (`mytools-mobile`)
+Análise estática de APK/IPA + teste de OAuth2 mobile. Detecta certificate pinning, endpoints, secrets hardcoded, Network Security Config, entitlements iOS.
+
+```bash
+mytools-mobile scan app.apk
+mytools-mobile scan MyApp.ipa
+mytools-mobile endpoints app.apk
+mytools-mobile secrets app.apk
+mytools-mobile pinning app.apk
+mytools-mobile oauth2 --idp https://auth.example.com --client-id abc123
+```
+
+**Checks:**
+- `apk_metadata` — Package, version, permissions, components, targetSdk
+- `apk_pinning` — SSL pinning (OkHttp, TrustManager, NSC, TrustKit)
+- `apk_endpoints` — URLs/endpoints em DEX bytecode
+- `apk_secrets` — API keys, tokens, passwords hardcoded
+- `apk_nsc` — network_security_config.xml analysis
+- `apk_sdk` — SDK fingerprinting (30+ SDKs)
+- `ipa_metadata` — Bundle ID, version, entitlements, ATS
+- `ipa_provisioning` — Provisioning profile analysis
+- `ipa_macho` — Mach-O imports, exports, rpaths, flags (via lief)
+- `ipa_secrets` — Secrets em Mach-O strings + Info.plist
+- `oauth2_test` — PKCE flow parameters (requer rede)
+- `jwt_validate` — Decode + validação JWT
+
 ---
 
 ## Flags
@@ -2013,7 +2040,20 @@ src/mytools/                    # Pacote principal
     web/xssvectors.yaml
     web/xxedetect.yaml
 
-tests/                          # Testes unitários (4926 testes)
+  mobile/                       # Mobile API Testing (Android/iOS)
+    __init__.py                 # Package marker
+    _common.py                  # MobileAttempt, MobileResult dataclasses
+    apk_analyzer.py             # APK metadata (androguard): package, SDK, components
+    apk_pinning.py              # SSL pinning detection (OkHttp, NSC, TrustKit)
+    apk_endpoints.py            # API endpoint extraction from DEX bytecode
+    apk_secrets.py              # Hardcoded secrets (AWS, Google, JWT, keys)
+    apk_nsc.py                  # Network Security Config analysis
+    ipa_analyzer.py             # IPA metadata (plistlib + lief): Info.plist, Mach-O
+    ipa_secrets.py              # IPA secrets (Mach-O strings + Info.plist)
+    oauth2_flows.py             # OAuth2 PKCE, Client Credentials, JWT validation
+    mobile_audit.py             # BaseScanner CLI: run_scan + colored output
+
+tests/                          # Testes unitários (5384 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -2023,6 +2063,7 @@ tests/                          # Testes unitários (4926 testes)
   email/                        # test_emailsecurity, ...
   vcs/                          # test_vcsleak
   config/                       # test_configfiledetect, ...
+  mobile/                       # test_apk_analyzer, test_ipa_analyzer, ...
 
 pyproject.toml                  # Configuração do projeto
 ```
