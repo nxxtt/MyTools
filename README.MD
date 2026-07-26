@@ -752,7 +752,7 @@ mytools-deserial https://example.com -c bypass
 - `bypass` — Bypass de filtros (URL encode, base64, gzip)
 
 ### 58. Cache Poisoning (`mytools-cachepoison`)
-Detecta cache key poisoning via headers nao-normalizados (X-Forwarded-Host, path).
+Detecta cache key poisoning via headers nao-normalizados, path manipulation e CDN-specific headers.
 
 ```bash
 mytools-cachepoison https://example.com
@@ -760,7 +760,15 @@ mytools-cachepoison https://example.com -c host
 mytools-cachepoison https://example.com -c path
 mytools-cachepoison https://example.com -c encoding
 mytools-cachepoison https://example.com -c bypass
+mytools-cachepoison https://example.com -c cdn
 ```
+
+**Categorias CDN:**
+- `cf_connecting_ip` — Cloudflare: CF-Connecting-IP
+- `true_client_ip` — Akamai/Cloudflare: True-Client-IP
+- `generic_forwarded_port` — Proxy reverso: X-Forwarded-Port
+- `generic_forwarded_proto` — Proxy reverso: X-Forwarded-Proto
+- `fastly_client_ip` — Fastly: Fastly-Client-IP
 
 ### 59. Web Cache Deception (`mytools-cachedec`)
 Detecta paths que o cache armazena mas a app não deveria — extension, path, framework, encoding, bypass.

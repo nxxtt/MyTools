@@ -33,6 +33,12 @@ category_map:
     - case_variation
     - unicode_path
     - backslash_path
+  cdn:
+    - cf_connecting_ip
+    - true_client_ip
+    - generic_forwarded_port
+    - generic_forwarded_proto
+    - fastly_client_ip
 
 host_payloads:
   - - xfwd_host
@@ -193,3 +199,40 @@ ssi_params:
   - item
   - object
   - model
+
+cdn_payloads:
+  - - cf_connecting_ip
+    - CF-Connecting-IP: 127.0.0.1
+    - - CF-Connecting-IP
+      - cloudflare
+      - cache
+      - ip
+      - bypass
+  - - true_client_ip
+    - True-Client-IP: 127.0.0.1
+    - - True-Client-IP
+      - akamai
+      - cache
+      - ip
+      - bypass
+  - - generic_forwarded_port
+    - X-Forwarded-Port: "443"
+    - - X-Forwarded-Port
+      - forwarded
+      - port
+      - cache
+      - proxy
+  - - generic_forwarded_proto
+    - X-Forwarded-Proto: https
+    - - X-Forwarded-Proto
+      - forwarded
+      - proto
+      - cache
+      - proxy
+  - - fastly_client_ip
+    - Fastly-Client-IP: 127.0.0.1
+    - - Fastly-Client-IP
+      - fastly
+      - cache
+      - ip
+      - bypass

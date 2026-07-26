@@ -9,6 +9,7 @@ import respx
 from mytools.web.cachepoisoning import (
     _BYPASS_PAYLOADS,
     _CATEGORY_MAP,
+    _CDN_PAYLOADS,
     _ENCODING_PAYLOADS,
     _HEADER_PAYLOADS,
     _HOST_PAYLOADS,
@@ -19,6 +20,7 @@ from mytools.web.cachepoisoning import (
     _check_cache_response,
     _test_baseline,
     _test_bypass,
+    _test_cdn,
     _test_encoding,
     _test_header,
     _test_host,
@@ -47,8 +49,11 @@ class TestCategoryMap:
     def test_has_bypass(self) -> None:
         assert "bypass" in _CATEGORY_MAP
 
+    def test_has_cdn(self) -> None:
+        assert "cdn" in _CATEGORY_MAP
+
     def test_count(self) -> None:
-        assert len(_CATEGORY_MAP) == 5
+        assert len(_CATEGORY_MAP) == 6
 
 
 class TestHostPayloads:
@@ -510,6 +515,70 @@ class TestMain:
              patch("mytools.web.cachepoisoning.run_main_loop", return_value=0):
             result = main()
             assert result == 0
+
+
+
+
+class TestCdnPayloads:
+    """Testes para _CDN_PAYLOADS."""
+
+    def test_not_empty(self) -> None:
+        assert len(_CDN_PAYLOADS) > 0
+
+    def test_count(self) -> None:
+        assert len(_CDN_PAYLOADS) == 5
+
+    def test_has_cf_connecting_ip(self) -> None:
+        names = [t[0] for t in _CDN_PAYLOADS]
+        assert "cf_connecting_ip" in names
+
+    def test_has_true_client_ip(self) -> None:
+        names = [t[0] for t in _CDN_PAYLOADS]
+        assert "true_client_ip" in names
+
+    def test_has_fastly_client_ip(self) -> None:
+        names = [t[0] for t in _CDN_PAYLOADS]
+        assert "fastly_client_ip" in names
+
+    def test_has_generic_forwarded_port(self) -> None:
+        names = [t[0] for t in _CDN_PAYLOADS]
+        assert "generic_forwarded_port" in names
+
+    def test_has_generic_forwarded_proto(self) -> None:
+        names = [t[0] for t in _CDN_PAYLOADS]
+        assert "generic_forwarded_proto" in names
+
+    def test_tuple_format(self) -> None:
+        for item in _CDN_PAYLOADS:
+            assert isinstance(item, (list, tuple))
+            assert len(item) == 3
+
+    def test_headers_are_dicts(self) -> None:
+        for _, headers, _ in _CDN_PAYLOADS:
+            assert isinstance(headers, dict)
+
+
+class TestTestCdn:
+    """Testes para _test_cdn."""
+
+    @pytest.mark.asyncio
+    async def test_returns_attempts(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"cache"
+        mock_resp.headers = {"x-cache": "HIT"}
+        mock_client.get.return_value = mock_resp
+        results = await _test_cdn(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("fail")
+        results = await _test_cdn(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+        assert all(r.error for r in results)
 
 
 class TestIntegration:

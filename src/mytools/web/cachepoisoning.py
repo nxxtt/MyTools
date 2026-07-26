@@ -66,6 +66,8 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 
     "bypass": ["double_encode", "null_byte", "case_variation", "unicode_path", "backslash_path"],
 
+    "cdn": ["cf_connecting_ip", "true_client_ip", "generic_forwarded_port", "generic_forwarded_proto", "fastly_client_ip"],
+
 }
 
 
@@ -360,6 +362,62 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 
 
 
+_CDN_PAYLOADS_DEFAULT: list[tuple[str, dict[str, str], list[str]]] = [
+
+    (
+
+        "cf_connecting_ip",
+
+        {"CF-Connecting-IP": "127.0.0.1"},
+
+        ["CF-Connecting-IP", "cloudflare", "cache", "ip", "bypass"],
+
+    ),
+
+    (
+
+        "true_client_ip",
+
+        {"True-Client-IP": "127.0.0.1"},
+
+        ["True-Client-IP", "akamai", "cache", "ip", "bypass"],
+
+    ),
+
+    (
+
+        "generic_forwarded_port",
+
+        {"X-Forwarded-Port": "443"},
+
+        ["X-Forwarded-Port", "forwarded", "port", "cache", "proxy"],
+
+    ),
+
+    (
+
+        "generic_forwarded_proto",
+
+        {"X-Forwarded-Proto": "https"},
+
+        ["X-Forwarded-Proto", "forwarded", "proto", "cache", "proxy"],
+
+    ),
+
+    (
+
+        "fastly_client_ip",
+
+        {"Fastly-Client-IP": "127.0.0.1"},
+
+        ["Fastly-Client-IP", "fastly", "cache", "ip", "bypass"],
+
+    ),
+
+]
+
+
+
 _SSI_PARAMS_DEFAULT: list[str] = [
 
     "data", "json", "payload", "input", "value",
@@ -388,6 +446,8 @@ def _load_cachepoisoning_data() -> tuple[
 
     list[tuple[str, str, list[str]]],
 
+    list[tuple[str, dict[str, str], list[str]]],
+
     list[str],
 
 ]:
@@ -408,6 +468,8 @@ def _load_cachepoisoning_data() -> tuple[
 
         "bypass_payloads": _BYPASS_PAYLOADS_DEFAULT,
 
+        "cdn_payloads": _CDN_PAYLOADS_DEFAULT,
+
         "ssi_params": _SSI_PARAMS_DEFAULT,
 
     })
@@ -426,13 +488,15 @@ def _load_cachepoisoning_data() -> tuple[
 
         data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT),
 
+        data.get("cdn_payloads", _CDN_PAYLOADS_DEFAULT),
+
         data.get("ssi_params", _SSI_PARAMS_DEFAULT),
 
     )
 
 
 
-_CATEGORY_MAP, _HOST_PAYLOADS, _PATH_PAYLOADS, _HEADER_PAYLOADS, _ENCODING_PAYLOADS, _BYPASS_PAYLOADS, _SSI_PARAMS = _load_cachepoisoning_data()
+_CATEGORY_MAP, _HOST_PAYLOADS, _PATH_PAYLOADS, _HEADER_PAYLOADS, _ENCODING_PAYLOADS, _BYPASS_PAYLOADS, _CDN_PAYLOADS, _SSI_PARAMS = _load_cachepoisoning_data()
 
 
 
@@ -1157,6 +1221,109 @@ async def _test_bypass(
 
 
 
+async def _test_cdn(
+
+    client: httpx.AsyncClient,
+
+    url: str,
+
+    baseline: tuple[int, int, bytes],
+
+) -> list[CacheAttempt]:
+
+    """Testa CDN-specific cache poisoning via forwarded headers."""
+
+    b_status, b_size, _ = baseline
+
+    results: list[CacheAttempt] = []
+
+
+
+    for technique, extra_headers, indicators in _CDN_PAYLOADS:
+
+        for param in _SSI_PARAMS[:3]:
+
+            try:
+
+                resp = await client.get(url, headers=extra_headers, follow_redirects=True)
+
+                vulnerable = _check_cache_response(resp.content, resp.status_code, dict(resp.headers), indicators)
+
+                results.append(CacheAttempt(
+
+                    technique=technique,
+
+                    category="cdn",
+
+                    payload=str(extra_headers),
+
+                    param=param,
+
+                    method="get_headers",
+
+                    status_baseline=b_status,
+
+                    status_test=resp.status_code,
+
+                    size_baseline=b_size,
+
+                    size_test=len(resp.content),
+
+                    status_changed=resp.status_code != b_status,
+
+                    size_changed=len(resp.content) != b_size,
+
+                    vulnerable=vulnerable,
+
+                    details=f"CDN header: {extra_headers}, indicators={indicators}" if vulnerable else "",
+
+                    error="",
+
+                    exploit=f"curl -H '{next(iter(extra_headers.keys()))}: {next(iter(extra_headers.values()))}' {url}" if vulnerable else "",
+
+                    tool="curl",
+
+                ))
+
+            except httpx.RequestError as e:
+
+                results.append(CacheAttempt(
+
+                    technique=technique,
+
+                    category="cdn",
+
+                    payload=str(extra_headers),
+
+                    param=param,
+
+                    method="get_headers",
+
+                    status_baseline=b_status,
+
+                    status_test=0,
+
+                    size_baseline=b_size,
+
+                    size_test=0,
+
+                    status_changed=False,
+
+                    size_changed=False,
+
+                    vulnerable=False,
+
+                    details="",
+
+                    error=str(e)[:100],
+
+                ))
+
+
+
+    return results
+
+
 
 
 def print_results(result: CacheResult) -> None:
@@ -1276,6 +1443,10 @@ async def run_scan(
             elif cat == "bypass":
 
                 attempts = await _test_bypass(client, target, (b_status, b_size, b""))
+
+            elif cat == "cdn":
+
+                attempts = await _test_cdn(client, target, (b_status, b_size, b""))
 
             else:
 
