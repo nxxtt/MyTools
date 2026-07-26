@@ -58,8 +58,20 @@ class TestDetectPayloads:
     def test_has_velocity_math(self) -> None:
         assert any("velocity_math" in p[0] for p in _DETECT_PAYLOADS)
 
+    def test_has_handlebars_math(self) -> None:
+        assert any("handlebars_math" in p[0] for p in _DETECT_PAYLOADS)
+
+    def test_has_go_math(self) -> None:
+        assert any("go_math" in p[0] for p in _DETECT_PAYLOADS)
+
+    def test_has_blade_math(self) -> None:
+        assert any("blade_math" in p[0] for p in _DETECT_PAYLOADS)
+
+    def test_has_razor_math(self) -> None:
+        assert any("razor_math" in p[0] for p in _DETECT_PAYLOADS)
+
     def test_count(self) -> None:
-        assert len(_DETECT_PAYLOADS) == 15
+        assert len(_DETECT_PAYLOADS) == 23
 
 
 class TestExploitPayloads:
@@ -77,8 +89,20 @@ class TestExploitPayloads:
     def test_has_twig_os(self) -> None:
         assert any("twig_os" in p[0] for p in _EXPLOIT_PAYLOADS)
 
+    def test_has_handlebars_rce(self) -> None:
+        assert any("handlebars_rce" in p[0] for p in _EXPLOIT_PAYLOADS)
+
+    def test_has_go_env(self) -> None:
+        assert any("go_env" in p[0] for p in _EXPLOIT_PAYLOADS)
+
+    def test_has_blade_config(self) -> None:
+        assert any("blade_config" in p[0] for p in _EXPLOIT_PAYLOADS)
+
+    def test_has_razor_process(self) -> None:
+        assert any("razor_process" in p[0] for p in _EXPLOIT_PAYLOADS)
+
     def test_count(self) -> None:
-        assert len(_EXPLOIT_PAYLOADS) == 6
+        assert len(_EXPLOIT_PAYLOADS) == 10
 
 
 class TestBypassPayloads:
@@ -93,8 +117,20 @@ class TestBypassPayloads:
     def test_has_twig_comment(self) -> None:
         assert any("twig_comment" in p[0] for p in _BYPASS_PAYLOADS)
 
+    def test_has_handlebars_space(self) -> None:
+        assert any("handlebars_space" in p[0] for p in _BYPASS_PAYLOADS)
+
+    def test_has_go_space(self) -> None:
+        assert any("go_space" in p[0] for p in _BYPASS_PAYLOADS)
+
+    def test_has_blade_space(self) -> None:
+        assert any("blade_space" in p[0] for p in _BYPASS_PAYLOADS)
+
+    def test_has_razor_space(self) -> None:
+        assert any("razor_space" in p[0] for p in _BYPASS_PAYLOADS)
+
     def test_count(self) -> None:
-        assert len(_BYPASS_PAYLOADS) == 11
+        assert len(_BYPASS_PAYLOADS) == 15
 
 
 class TestCategoryMap:
@@ -162,6 +198,18 @@ class TestExtractEngine:
 
     def test_unknown(self) -> None:
         assert _extract_engine("other") == "unknown"
+
+    def test_handlebars(self) -> None:
+        assert _extract_engine("handlebars_math") == "handlebars"
+
+    def test_go(self) -> None:
+        assert _extract_engine("go_math") == "go"
+
+    def test_blade(self) -> None:
+        assert _extract_engine("blade_math") == "blade"
+
+    def test_razor(self) -> None:
+        assert _extract_engine("razor_math") == "razor"
 
 
 class TestCheckResponse:
@@ -391,7 +439,7 @@ class TestTestBypass:
         attempts = await _test_bypass(
             client, "https://example.com", (200, 100, b"ok"),
         )
-        assert len(attempts) == 11
+        assert len(attempts) == 15
 
 
 @pytest.mark.smoke

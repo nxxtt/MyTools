@@ -177,7 +177,7 @@ python -m mytools.dns.dnstransfer --help     # DNS Zone Transfer
 # Build
 docker build -t mytools .
 
-# Subcomando direto (109 comandos disponíveis)
+# Subcomando direto (110 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -635,13 +635,23 @@ mytools-crlfinject https://example.com -c header
 ```
 
 ### 49. SSTI Detection (`mytools-sstdetect`)
-Detecta Server-Side Template Injection em web apps.
+Detecta Server-Side Template Injection em 12 engines: Jinja2, Twig, Freemarker, Mako, Pebble, Smarty, ERB, Velocity, Handlebars, Go, Blade, Razor.
 
 ```bash
 mytools-sstdetect https://example.com
 mytools-sstdetect https://example.com -c detect
 mytools-sstdetect https://example.com -c exploit
+mytools-sstdetect https://example.com -c bypass
+mytools-sstdetect https://example.com -c header
+mytools-sstdetect https://example.com -c body
 ```
+
+**Categorias:**
+- `detect` — Math payloads: `{{7*7}}`, `${7*7}`, `@(7*7)` para cada engine
+- `exploit` — RCE: config dump, OS exec, file read
+- `bypass` — Bypass de filtros: espaços, comments, concat, hex
+- `header` — Injeção via User-Agent, Referer, Cookie
+- `body` — Injeção via JSON/form body
 
 ### 50. SSRF Detection (`mytools-ssrfdetect`)
 Detecta Server-Side Request Forgery em web apps.
@@ -1632,6 +1642,24 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 |------|------|--------|-----------|
 | `-c`, `--category` | `choice` | `None` | Categoria: `detect`, `constructor`, `bypass`, `blind`, `impact`, `dom`, `library` |
 | `--callback-url` | `str` | `None` | URL de callback para detecção out-of-band |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-deserial` (Deserialization Injection)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `None` | Categoria: `php`, `java`, `python`, `ruby`, `dotnet`, `nodejs`, `detect`, `bypass` |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-cachepoison` (Cache Poisoning)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `None` | Categoria: `host`, `path`, `header`, `encoding`, `bypass`, `cdn` |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-sstdetect` (SSTI Detection)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `None` | Categoria: `detect`, `exploit`, `bypass`, `header`, `body` |
 | `--concurrency` | `int` | `5` | Requisições simultâneas |
 
 ### Compatibilidade de Flags por Tipo de Módulo
