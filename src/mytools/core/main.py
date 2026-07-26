@@ -51,6 +51,7 @@ from mytools.web import (
     overlongencoding,
     pathtraversal,
     prototypepollution,
+    restapifuzz,
     rtloverride,
     sourcemapdiscovery,
     sqliscan,
@@ -142,9 +143,10 @@ Painel interativo central que permite alternar entre:
         70. BruteForce   - Login Brute Force / Credential Testing
         71. CloudBucket  - Cloud Bucket Enumeration (S3/GCP/Azure)
         72. Subdomain Take - Subdomain Takeover (dangling CNAMEs)
-        73. ReconAll     - Todos os modulos contra um alvo
-        74. Ajuda        - Exemplos rapidos
-        75. Limpar       - Limpar terminal
+        73. REST Fuzz    - REST API Fuzzer (auth bypass, content-type, version enum, HATEOAS)
+        74. ReconAll     - Todos os modulos contra um alvo
+        75. Ajuda        - Exemplos rapidos
+        76. Limpar       - Limpar terminal
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -241,9 +243,10 @@ def menu() -> None:
     print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('BruteForce', Cyber.CYAN)}       Login brute force / credential testing")
     print(f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('CloudBucket', Cyber.CYAN)}      Cloud bucket enumeration (S3/GCP/Azure)")
     print(f"  {color('72', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)")
-    print(f"  {color('73', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('74', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('75', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('73', Cyber.GREEN, Cyber.BOLD)} {color('REST Fuzz', Cyber.CYAN)}       REST API Fuzzer — auth bypass, content-type, HATEOAS")
+    print(f"  {color('74', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('75', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('76', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1260,6 +1263,24 @@ def launch_cloudbucketenum() -> None:
     )
 
 
+def launch_restapifuzz() -> None:
+    """Inicia o módulo REST API Fuzzer em modo interativo."""
+    parser = restapifuzz.build_parser()
+    run_interactive_shell(
+        parser, "restfuzz> ", restapifuzz.run_once,
+        description="REST API Fuzzer — auth bypass, content-type, version enum, HATEOAS.",
+        example="https://api.example.com",
+        banner_fn=restapifuzz.banner_art,
+        contextual_help=(
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            "  https://api.example.com\n"
+            "  https://api.example.com -c auth_bypass\n"
+            "  https://api.example.com --endpoints /users /orders"
+        ),
+    )
+
+
 def launch_subdomaintakeover() -> None:
     """Inicia o módulo Subdomain Takeover em modo interativo."""
     parser = subdomaintakeover.build_parser()
@@ -2044,12 +2065,14 @@ def main() -> int:
                 launch_cloudbucketenum()
             case "72" | "subtakeover" | "takeover" | "subdomain":
                 launch_subdomaintakeover()
-            case "73" | "reconall" | "all" | "full":
+            case "73" | "restfuzz" | "restapi" | "apifuzz":
+                launch_restapifuzz()
+            case "74" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "74" | "help" | "ajuda" | "h":
+            case "75" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "75" | "clear" | "limpar" | "cls":
+            case "76" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

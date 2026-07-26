@@ -147,6 +147,7 @@ mytools-sqli = "mytools.web.sqliscan:main"
 mytools-subtakeover = "mytools.web.subdomaintakeover:main"
 mytools-bruteforce = "mytools.web.loginbruteforce:main"
 mytools-bucket = "mytools.web.cloudbucketenum:main"
+mytools-restfuzz = "mytools.web.restapifuzz:main"
 
 [tool.poetry]
 packages = [

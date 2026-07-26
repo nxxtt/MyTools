@@ -158,6 +158,7 @@ Isso instala os comandos CLI:
 | `mytools-bruteforce` | Login Brute Force / Credential Testing |
 | `mytools-bucket` | Cloud Bucket Enumeration (S3/GCP/Azure) |
 | `mytools-batch` | Batch Scanner (multi-target) |
+| `mytools-restfuzz` | REST API Fuzzer (auth bypass, content-type, HATEOAS) |
 | `mytools-analysis` | Attack Path Visualization & Exploit Suggestions |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
@@ -176,7 +177,7 @@ python -m mytools.dns.dnstransfer --help     # DNS Zone Transfer
 # Build
 docker build -t mytools .
 
-# Subcomando direto (108 comandos disponíveis)
+# Subcomando direto (109 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -1304,6 +1305,17 @@ mytools-batch targets.txt --severity high --output report.json
 mytools-batch targets.txt --parallel 5
 ```
 
+### 110. REST API Fuzzer (`mytools-restfuzz`)
+Fuzzing genérico de APIs REST: auth bypass, content-type switching, version enumeration, HATEOAS. Auto-detecta endpoints via OpenAPI spec.
+
+```bash
+mytools-restfuzz https://api.example.com
+mytools-restfuzz https://api.example.com -c auth_bypass
+mytools-restfuzz https://api.example.com -c content_type version_enum
+mytools-restfuzz https://api.example.com --endpoints /users /products /orders
+mytools-restfuzz https://api.example.com -c hateoas --proxy http://127.0.0.1:8080
+```
+
 ---
 
 ## Flags
@@ -1575,6 +1587,13 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 | `--fail-fast` | `flag` | `False` | Para no 1º erro (apenas --parallel 1) |
 | `--format` | `choice` | `text` | Formato: `text`, `json` |
 
+#### `mytools-restfuzz` (REST API Fuzzer)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--categories` | `nargs="+"` | `["all"]` | Categorias: `auth_bypass`, `content_type`, `version_enum`, `hateoas`, `all` |
+| `--endpoints` | `nargs="+"` | `None` | Endpoints para testar (default: auto-detect via /openapi.json) |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
 ### Compatibilidade de Flags por Tipo de Módulo
 
 | Flag | web | dns | email | osint | network | vcs | config |
@@ -1607,7 +1626,7 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 ```bash
 mytools
 ```
-O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `lfi`, `rtlo`, `overlong`, `cmd`, `bominject`, `charsetbypass`, `csrf`, `sqli`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `bruteforce`, `bucket`, `subtakeover`, `batch`, `analysis`, `cred`, `reconall`.
+O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `lfi`, `rtlo`, `overlong`, `cmd`, `bominject`, `charsetbypass`, `csrf`, `sqli`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `bruteforce`, `bucket`, `subtakeover`, `batch`, `restfuzz`, `analysis`, `cred`, `reconall`.
 
 ### Modo interativo
 Cada módulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
@@ -1729,6 +1748,8 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-bruteforce https://example.com` | Login Brute Force / Credential Testing |
 | `mytools-bucket example.com` | Cloud Bucket Enumeration (S3/GCP/Azure) |
 | `mytools-batch targets.txt` | Batch Scanner (multi-target) |
+| `mytools-restfuzz https://api.example.com` | REST API Fuzzer |
+| `mytools-restfuzz https://api.example.com -c auth_bypass` | Auth bypass testing |
 | `mytools-analysis findings.json` | Attack path visualization |
 | `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 

@@ -1,0 +1,145 @@
+# REST API Fuzzer Payloads
+# Usado por restapifuzz.py
+
+# Auto-detect endpoints via OpenAPI spec
+openapi_probe_paths:
+  - /openapi.json
+  - /openapi.yaml
+  - /swagger.json
+  - /swagger.yaml
+  - /api-docs
+  - /api/docs
+  - /docs
+  - /v1/openapi.json
+  - /v2/openapi.json
+  - /api/openapi.json
+
+# Fallback endpoints when auto-detect fails
+fallback_endpoints:
+  - /api
+  - /users
+  - /products
+  - /orders
+  - /auth
+  - /login
+  - /register
+  - /search
+
+# auth_bypass: payloads to test authentication bypass
+auth_bypass:
+  bearer_tokens:
+    - ""
+    - "null"
+    - "undefined"
+    - "false"
+    - "0"
+    - "admin"
+    - "test"
+    - "token"
+    - "Bearer "
+    - "Bearer null"
+    - "Bearer undefined"
+
+  headers:
+    - ["X-Auth-Token", ""]
+    - ["X-Auth-Token", "null"]
+    - ["X-Api-Key", ""]
+    - ["X-Api-Key", "null"]
+    - ["X-Forwarded-For", "127.0.0.1"]
+    - ["X-Forwarded-For", "::1"]
+    - ["X-Real-IP", "127.0.0.1"]
+    - ["X-Original-URL", "/admin"]
+    - ["X-Rewrite-URL", "/admin"]
+    - ["X-Custom-IP-Authorization", "127.0.0.1"]
+
+  cookies:
+    - ["session", ""]
+    - ["session", "null"]
+    - ["token", ""]
+    - ["auth", ""]
+    - ["sid", ""]
+
+# content_type: content-type switching and charset fuzzing
+content_type:
+  switch_types:
+    - "application/xml"
+    - "text/xml"
+    - "application/x-www-form-urlencoded"
+    - "multipart/form-data"
+    - "text/plain"
+    - "application/json"
+    - "application/vnd.api+json"
+    - "application/hal+json"
+    - "application/ld+json"
+
+  charsets:
+    - "application/json; charset=UTF-7"
+    - "application/json; charset=UTF-16"
+    - "application/json; charset=UTF-32"
+    - "application/json; charset=ISO-8859-1"
+    - "application/json; charset=Windows-1252"
+
+  boundary_injection:
+    - "------WebKitFormBoundary"
+    - "------=_Part_"
+    - "boundary=----"
+    - "\""
+    - "'"
+    - "\r\n\r\n"
+    - "%0d%0a%0d%0a"
+
+# version_enum: API version enumeration paths
+version_enum:
+  prefixes:
+    - ""
+    - /api
+    - /v
+    - /api/v
+
+  versions:
+    - "1"
+    - "2"
+    - "3"
+    - "4"
+    - "5"
+    - "0"
+    - "1.0"
+    - "2.0"
+    - "beta"
+    - "latest"
+    - "stable"
+    - "draft"
+
+  suffixes:
+    - ""
+    - "/"
+    - ".json"
+    - ".xml"
+
+# hateoas: HATEOAS and REST-specific manipulation
+hateoas:
+  method_override:
+    - "_method"
+    - "X-HTTP-Method-Override"
+    - "X-HTTP-Method"
+    - "X-Method-Override"
+
+  format_params:
+    - "_format"
+    - "format"
+    - "output"
+    - "response_format"
+
+  link_headers:
+    - "Link"
+    - "X-Link"
+    - "X-Pagination-Link"
+
+  rest_verbs:
+    - "PUT"
+    - "PATCH"
+    - "DELETE"
+    - "OPTIONS"
+    - "HEAD"
+    - "TRACE"
+    - "CONNECT"
