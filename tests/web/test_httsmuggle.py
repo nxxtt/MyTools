@@ -12,7 +12,9 @@ from mytools.web.httsmuggle import (
     SmuggleAttempt,
     SmuggleResult,
     _build_chunked_cl_payload,
+    _build_cl0_payload,
     _build_clte_payload,
+    _build_h2c_payload,
     _build_pipeline_payload,
     _build_tecl_payload,
     _build_tete_duplicate,
@@ -100,8 +102,8 @@ class TestSmuggleResult:
 
 
 class TestCategoryMap:
-    def test_has_five_categories(self) -> None:
-        assert len(_CATEGORY_MAP) == 5
+    def test_has_seven_categories(self) -> None:
+        assert len(_CATEGORY_MAP) == 7
 
     def test_categories_match_dispatch(self) -> None:
         for cat in _CATEGORY_MAP:
@@ -118,6 +120,16 @@ class TestCategoryMap:
 
     def test_pipeline_techniques(self) -> None:
         assert "pipeline_basic" in _CATEGORY_MAP["pipeline"]
+
+    def test_cl0_techniques(self) -> None:
+        assert "cl0_basic" in _CATEGORY_MAP["cl0"]
+        assert "cl0_chunked" in _CATEGORY_MAP["cl0"]
+        assert "cl0_overlap" in _CATEGORY_MAP["cl0"]
+
+    def test_h2c_techniques(self) -> None:
+        assert "h2c_upgrade" in _CATEGORY_MAP["h2c"]
+        assert "h2c_direct" in _CATEGORY_MAP["h2c"]
+        assert "h2c_downgrade" in _CATEGORY_MAP["h2c"]
 
 
 # ─── URL Parser Tests ────────────────────────────────────────────────────────
@@ -191,6 +203,28 @@ class TestPayloadBuilders:
         assert b"GET / HTTP/1.1" in payload
         assert b"GET /admin HTTP/1.1" in payload
         assert b"X-Smuggled: PIPELINE" in payload
+
+    def test_cl0(self) -> None:
+        payload = _build_cl0_payload("POST", "/", "example.com")
+        assert b"Content-Length: 0" in payload
+        assert b"0\r\n\r\n" in payload
+        assert b"X-Smuggled: CL0" in payload
+
+    def test_cl0_custom_path(self) -> None:
+        payload = _build_cl0_payload("GET", "/test", "example.com", smuggled_path="/secret")
+        assert b"GET /test HTTP/1.1" in payload
+        assert b"GET /secret HTTP/1.1" in payload
+
+    def test_h2c(self) -> None:
+        payload = _build_h2c_payload("POST", "/", "example.com")
+        assert b"Upgrade: h2c" in payload
+        assert b"Connection: Upgrade" in payload
+        assert b"X-Smuggled: H2C" in payload
+
+    def test_h2c_custom_path(self) -> None:
+        payload = _build_h2c_payload("GET", "/test", "example.com", smuggled_path="/secret")
+        assert b"GET /test HTTP/1.1" in payload
+        assert b"GET /secret HTTP/1.1" in payload
 
 
 # ─── Response Analysis Tests ─────────────────────────────────────────────────

