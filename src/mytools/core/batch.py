@@ -58,7 +58,7 @@ def _discover_modules() -> dict[str, str]:
     modules: dict[str, str] = {}
     in_scripts = False
     for line in text.splitlines():
-        if line.strip() == "[tool.poetry.scripts]":
+        if line.strip() in ("[tool.poetry.scripts]", "[project.scripts]"):
             in_scripts = True
             continue
         if in_scripts:

@@ -27,6 +27,7 @@ from mytools.web import (
     cachepoisoning,
     charsetbypass,
     clickjacking,
+    cloudbucketenum,
     cmdinject,
     corsmisconfig,
     crlfinjection,
@@ -108,15 +109,42 @@ Painel interativo central que permite alternar entre:
     37. Null Byte    - Testa injecao de null bytes em URLs, headers e parametros
     38. DblURL Encode - Testa bypass de filtros via encoding duplo de URLs
         39. Ptraversal   - Path traversal via encoding
-        40. Overlong    - Overlong UTF-8 encoding bypass
-        41. BOM Inject  - Byte Order Mark injection
-        42. Charset Bypass - Charset detection bypass
-        43. RTLO Bypass  - RTL Override para confundir URLs
-        44. Open Redirect - Detecta redirecionamentos abusivos
-        45. CRLF Inject  - Injecao de headers via \\r\\n em HTTP
-        46. SSTI Detect  - Server-Side Template Injection
-        47. SSRF Detect  - Server-Side Request Forgery
-        48. ReconAll     - Todos os modulos contra um alvo
+        40. LFI/RFI      - File Inclusion (local e remota)
+        41. Overlong     - Overlong UTF-8 encoding bypass
+        42. Cmd Inject   - Command Injection via OS commands
+        43. CSRF         - Cross-Site Request Forgery
+        44. SQLi         - SQL Injection (error, blind, union, bypass)
+        45. BOM Inject   - Byte Order Mark injection
+        46. Charset Bypass - Charset detection bypass
+        47. RTLO Bypass  - RTL Override para confundir URLs
+        48. Open Redirect - Detecta redirecionamentos abusivos
+        49. CRLF Inject  - Injecao de headers via \\r\\n em HTTP
+        50. SSTI Detect  - Server-Side Template Injection
+        51. SSRF Detect  - Server-Side Request Forgery
+        52. XXE Detect   - XML External Entity
+        53. NoSQL Inject - NoSQL Injection (MongoDB, Redis, CouchDB)
+        54. LDAP Inject  - LDAP Injection
+        55. XPath Inject - XPath Injection
+        56. SSI Inject   - Server-Side Includes
+        57. Proto Poll   - Prototype Pollution
+        58. Deserial     - Deserialization Injection
+        59. Cache Poison - HTTP Cache Poisoning
+        60. Cache Dec    - Web Cache Deception
+        61. Method Override - HTTP Method Override
+        62. HPP          - HTTP Parameter Pollution
+        63. Blind XSS    - Blind XSS via callback
+        64. CORS         - CORS Misconfiguration
+        65. Clickjack    - Clickjacking
+        66. Host Inject  - Host Header Injection
+        67. Header Inject - Header Injection via URL params
+        68. Log Inject   - Log Injection
+        69. Log4Shell    - JNDI Injection (CVE-2021-44228)
+        70. BruteForce   - Login Brute Force / Credential Testing
+        71. CloudBucket  - Cloud Bucket Enumeration (S3/GCP/Azure)
+        72. Subdomain Take - Subdomain Takeover (dangling CNAMEs)
+        73. ReconAll     - Todos os modulos contra um alvo
+        74. Ajuda        - Exemplos rapidos
+        75. Limpar       - Limpar terminal
 
 Cada modulo e lancado em modo interativo com seu proprio shell de comandos.
 O usuario pode usar argumentos CLI normalmente dentro de cada shell.
@@ -180,39 +208,42 @@ def menu() -> None:
     print(f"  {color('37', Cyber.GREEN, Cyber.BOLD)} {color('Null Byte', Cyber.CYAN)}    Testa injecao de null bytes em web apps")
     print(f"  {color('38', Cyber.GREEN, Cyber.BOLD)} {color('DblURL Encode', Cyber.CYAN)} Testa bypass via encoding duplo de URLs")
     print(f"  {color('39', Cyber.GREEN, Cyber.BOLD)} {color('Ptraversal', Cyber.CYAN)}    Path traversal via encoding")
-    print(f"  {color('40', Cyber.GREEN, Cyber.BOLD)} {color('Overlong', Cyber.CYAN)}       Overlong UTF-8 encoding bypass")
-    print(f"  {color('41', Cyber.GREEN, Cyber.BOLD)} {color('BOM Inject', Cyber.CYAN)}     Byte Order Mark injection")
-    print(f"  {color('42', Cyber.GREEN, Cyber.BOLD)} {color('Charset Bypass', Cyber.CYAN)} Charset detection bypass")
+    print(f"  {color('40', Cyber.GREEN, Cyber.BOLD)} {color('LFI', Cyber.CYAN)}           LFI/RFI Scanner — file inclusion remota e local")
+    print(f"  {color('41', Cyber.GREEN, Cyber.BOLD)} {color('Overlong', Cyber.CYAN)}       Overlong UTF-8 encoding bypass")
+    print(f"  {color('42', Cyber.GREEN, Cyber.BOLD)} {color('Cmd Inject', Cyber.CYAN)}    Command Injection Scanner — OS cmd injection")
     print(f"  {color('43', Cyber.GREEN, Cyber.BOLD)} {color('CSRF', Cyber.CYAN)}       CSRF Scanner — detecta e testa protecao CSRF")
     print(f"  {color('44', Cyber.GREEN, Cyber.BOLD)} {color('SQLi', Cyber.CYAN)}        SQL Injection Scanner — error, blind, union, bypass")
-    print(f"  {color('45', Cyber.GREEN, Cyber.BOLD)} {color('RTLO Bypass', Cyber.CYAN)}  RTL Override para confundir URLs")
-    print(f"  {color('46', Cyber.GREEN, Cyber.BOLD)} {color('Open Redirect', Cyber.CYAN)} Detecta redirecionamentos abusivos")
-    print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('CRLF Inject', Cyber.CYAN)}  Injecao de headers via \\r\\n")
-    print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('SSTI Detect', Cyber.CYAN)} Server-Side Template Injection")
-    print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery")
-    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('XXE Detect', Cyber.CYAN)}   XML External Entity Detection")
-    print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)")
-    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP")
-    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('XPath Inject', Cyber.CYAN)} Injecao em consultas XPath")
-    print(f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('SSI Inject', Cyber.CYAN)}   Server-Side Injection (RCE/leitura)")
-    print(f"  {color('55', Cyber.GREEN, Cyber.BOLD)} {color('Proto Poll', Cyber.CYAN)}  Prototype Pollution (JS __proto__)")
-    print(f"  {color('56', Cyber.GREEN, Cyber.BOLD)} {color('Deserial', Cyber.CYAN)}     Deserialization (PHP/Java/Python)")
-    print(f"  {color('57', Cyber.GREEN, Cyber.BOLD)} {color('Cache Poison', Cyber.CYAN)}  Cache Poisoning (headers/path)")
-    print(f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('Cache Dec', Cyber.CYAN)}   Web Cache Deception (extensions)")
-    print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Method Override', Cyber.CYAN)} HTTP Method Override (bypass ACL)")
-    print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution")
-    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
-    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration")
-    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
-    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection")
-    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
-    print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
-    print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers")
-    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('BruteForce', Cyber.CYAN)}       Login brute force / credential testing")
-    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)")
-    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('72', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(f"  {color('45', Cyber.GREEN, Cyber.BOLD)} {color('BOM Inject', Cyber.CYAN)}     Byte Order Mark injection")
+    print(f"  {color('46', Cyber.GREEN, Cyber.BOLD)} {color('Charset Bypass', Cyber.CYAN)} Charset detection bypass")
+    print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('RTLO Bypass', Cyber.CYAN)}  RTL Override para confundir URLs")
+    print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('Open Redirect', Cyber.CYAN)} Detecta redirecionamentos abusivos")
+    print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('CRLF Inject', Cyber.CYAN)}  Injecao de headers via \\r\\n")
+    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('SSTI Detect', Cyber.CYAN)} Server-Side Template Injection")
+    print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery")
+    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('XXE Detect', Cyber.CYAN)}   XML External Entity Detection")
+    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)")
+    print(f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP")
+    print(f"  {color('55', Cyber.GREEN, Cyber.BOLD)} {color('XPath Inject', Cyber.CYAN)} Injecao em consultas XPath")
+    print(f"  {color('56', Cyber.GREEN, Cyber.BOLD)} {color('SSI Inject', Cyber.CYAN)}   Server-Side Injection (RCE/leitura)")
+    print(f"  {color('57', Cyber.GREEN, Cyber.BOLD)} {color('Proto Poll', Cyber.CYAN)}  Prototype Pollution (JS __proto__)")
+    print(f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('Deserial', Cyber.CYAN)}     Deserialization (PHP/Java/Python)")
+    print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Cache Poison', Cyber.CYAN)}  Cache Poisoning (headers/path)")
+    print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('Cache Dec', Cyber.CYAN)}   Web Cache Deception (extensions)")
+    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Method Override', Cyber.CYAN)} HTTP Method Override (bypass ACL)")
+    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution")
+    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
+    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration")
+    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
+    print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection")
+    print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
+    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
+    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers")
+    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('BruteForce', Cyber.CYAN)}       Login brute force / credential testing")
+    print(f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('CloudBucket', Cyber.CYAN)}      Cloud bucket enumeration (S3/GCP/Azure)")
+    print(f"  {color('72', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)")
+    print(f"  {color('73', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
+    print(f"  {color('74', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
+    print(f"  {color('75', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -1211,6 +1242,24 @@ def launch_loginbruteforce() -> None:
     )
 
 
+def launch_cloudbucketenum() -> None:
+    """Inicia o módulo Cloud Bucket Enumeration em modo interativo."""
+    parser = cloudbucketenum.build_parser()
+    run_interactive_shell(
+        parser, "bucket> ", cloudbucketenum.run_once,
+        description="Cloud Bucket Enumeration — detecta buckets abertos em S3, GCP, Azure.",
+        example="example.com",
+        banner_fn=cloudbucketenum.banner_art,
+        contextual_help=(
+            "Uso: <domain> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com -p s3\n"
+            "  example.com -p gcp --timeout 15"
+        ),
+    )
+
+
 def launch_subdomaintakeover() -> None:
     """Inicia o módulo Subdomain Takeover em modo interativo."""
     parser = subdomaintakeover.build_parser()
@@ -1991,14 +2040,16 @@ def main() -> int:
                 launch_log4shell()
             case "70" | "bruteforce" | "brute" | "login":
                 launch_loginbruteforce()
-            case "71" | "subtakeover" | "takeover" | "subdomain":
+            case "71" | "bucket" | "cloudbucket" | "s3":
+                launch_cloudbucketenum()
+            case "72" | "subtakeover" | "takeover" | "subdomain":
                 launch_subdomaintakeover()
-            case "72" | "reconall" | "all" | "full":
+            case "73" | "reconall" | "all" | "full":
                 launch_reconall()
-            case "73" | "help" | "ajuda" | "h":
+            case "74" | "help" | "ajuda" | "h":
                 help_screen()
                 input(color("Enter para voltar...", Cyber.GRAY))
-            case "74" | "clear" | "limpar" | "cls":
+            case "75" | "clear" | "limpar" | "cls":
                 clear_console()
                 continue
             case _:

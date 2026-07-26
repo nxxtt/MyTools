@@ -150,6 +150,14 @@ Isso instala os comandos CLI:
 | `mytools-docker` | Docker Attack Testing |
 | `mytools-infra` | Infrastructure Attack Testing |
 | `mytools-iot` | IoT & Industrial Attack Testing |
+| `mytools-lfi` | LFI/RFI Scanner |
+| `mytools-cmd` | Command Injection Scanner |
+| `mytools-csrf` | CSRF Scanner |
+| `mytools-sqli` | SQL Injection Scanner |
+| `mytools-subtakeover` | Subdomain Takeover Detection |
+| `mytools-bruteforce` | Login Brute Force / Credential Testing |
+| `mytools-bucket` | Cloud Bucket Enumeration (S3/GCP/Azure) |
+| `mytools-batch` | Batch Scanner (multi-target) |
 | `mytools-analysis` | Attack Path Visualization & Exploit Suggestions |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
@@ -168,7 +176,7 @@ python -m mytools.dns.dnstransfer --help     # DNS Zone Transfer
 # Build
 docker build -t mytools .
 
-# Subcomando direto (101 comandos disponíveis)
+# Subcomando direto (108 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -1177,7 +1185,78 @@ mytools-cookieboundary https://example.com -c cookie_quoting
 mytools-cookieboundary https://example.com --proxy http://proxy:8080
 ```
 
-### 99. ReconAll (`mytools-reconall`)
+### 99. LFI/RFI Scanner (`mytools-lfi`)
+Detecta Local File Inclusion e Remote File Inclusion via parâmetros HTTP. Payloads de path traversal, wrappers PHP, e protocolos remotos.
+
+```bash
+mytools-lfi http://target.com/page?file=home
+mytools-lfi http://target.com/page?file=home -c lfi
+mytools-lfi http://target.com/page?file=home -c rfi
+mytools-lfi http://target.com/page?file=home --proxy http://proxy:8080
+```
+
+### 100. Command Injection Scanner (`mytools-cmd`)
+Detecta Command Injection em parâmetros HTTP, headers e cookies. Testa payloads de OS command injection via timing, erro e reflexão.
+
+```bash
+mytools-cmd http://target.com/api?cmd=ls
+mytools-cmd http://target.com/api?cmd=ls -c timing
+mytools-cmd http://target.com/api?cmd=ls -c error
+mytools-cmd http://target.com/api?cmd=ls -c reflexion
+mytools-cmd http://target.com/api?cmd=ls --proxy http://proxy:8080
+```
+
+### 101. CSRF Scanner (`mytools-csrf`)
+Testa ativamente tokens CSRF: remoção, reutilização, troca de método. Detecta formulários sem proteção CSRF.
+
+```bash
+mytools-csrf http://target.com/form
+mytools-csrf http://target.com/form -c token
+mytools-csrf http://target.com/form -c method
+mytools-csrf http://target.com/form --proxy http://proxy:8080
+```
+
+### 102. SQL Injection Scanner (`mytools-sqli`)
+Scanner standalone de SQL Injection: error-based, blind, time-based, union, bypass. Detecção por timing e análise de response.
+
+```bash
+mytools-sqli http://target.com/search?q=test
+mytools-sqli http://target.com/search?q=test -c error
+mytools-sqli http://target.com/search?q=test -c blind
+mytools-sqli http://target.com/search?q=test -c union
+mytools-sqli http://target.com/search?q=test --proxy http://proxy:8080
+```
+
+### 103. Subdomain Takeover (`mytools-subtakeover`)
+Detecta dangling CNAMEs apontando para serviços não reclamados (S3, Azure, Heroku, GitHub Pages). Enumeração via crt.sh + wordlist embutida.
+
+```bash
+mytools-subtakeover example.com
+mytools-subtakeover example.com --wordlist extras.txt
+mytools-subtakeover example.com --concurrency 20
+```
+
+### 104. Login Brute Force (`mytools-bruteforce`)
+Testa segurança de endpoints de login: rate limiting, account lockout, credential stuffing, password spray. Detecção automática de formulário de login.
+
+```bash
+mytools-bruteforce https://target.com/login
+mytools-bruteforce https://target.com/login -c rate_limit
+mytools-bruteforce https://target.com/login -c credential --username admin
+mytools-bruteforce https://target.com/login -c spray --password 123456
+```
+
+### 105. Cloud Bucket Enumeration (`mytools-bucket`)
+Detecta buckets abertos em S3, GCP e Azure. Gera nomes de bucket a partir do domínio e testa cada provedor.
+
+```bash
+mytools-bucket example.com
+mytools-bucket example.com -p s3
+mytools-bucket example.com -p gcp --timeout 15
+mytools-bucket example.com -p azure
+```
+
+### 106. ReconAll (`mytools-reconall`)
 Executa todos os módulos contra um alvo de uma vez.
 
 ```bash
@@ -1186,7 +1265,7 @@ mytools-reconall example.com --skip dnstransfer --skip subenum
 mytools-reconall example.com --deep --test-vulns --cve
 ```
 
-### 100. Attack Path Visualization (`mytools-analysis`)
+### 107. Attack Path Visualization (`mytools-analysis`)
 Gera grafos de ataque baseados em findings de segurança. Exporta PNG/SVG e DOT format.
 
 ```bash
@@ -1206,13 +1285,23 @@ mytools-analysis findings.json --exploits-only
 **Campo `exploit` e `tool` em 75+ módulos:**
 Todos os módulos de detecção agora incluem campo `exploit` com comandos/payloads utilizáveis e campo `tool` com a ferramenta recomendada quando a vulnerabilidade é detectada. Formato usa placeholder `<TARGET>`. A saída CLI mostra ambos os campos em destaque (Exploit: amarelo, Ferramenta: cyan).
 
-### 101. Credential Manager (`mytools-cred`)
+### 108. Credential Manager (`mytools-cred`)
 Gerenciador de credenciais com keyring do sistema. Armazena, recupera e lista credenciais de forma segura.
 
 ```bash
 mytools-cred set my-api-key
 mytools-cred get my-api-key
 mytools-cred del my-api-key
+```
+
+### 109. Batch Scanner (`mytools-batch`)
+Executa múltiplos módulos contra múltiplos alvos a partir de um arquivo de configuração YAML. Gera relatório consolidado com resumo de findings por severidade.
+
+```bash
+mytools-batch targets.txt
+mytools-batch targets.txt --module mytools-port --module mytools-dns
+mytools-batch targets.txt --severity high --output report.json
+mytools-batch targets.txt --parallel 5
 ```
 
 ---
@@ -1427,6 +1516,65 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 | `-p`, `--ports` | `str` | Portas para portscanner. Padrão: `top100` |
 | `--skip` | `append` | Módulo para pular (repetível) |
 
+#### `mytools-lfi` (LFI/RFI Scanner)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `all` | Categoria: `lfi`, `rfi`, `all` |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-cmd` (Command Injection Scanner)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `all` | Categoria: `os_command`, `blind`, `bypass`, `all` |
+| `--param` | `str` | `None` | Nome do parâmetro (override auto-detect) |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-csrf` (CSRF Scanner)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `all` | Categoria: `form_detection`, `cookie_analysis`, `origin_referer`, `token_analysis`, `all` |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-sqli` (SQL Injection Scanner)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `all` | Categoria: `error`, `blind`, `union`, `bypass`, `all` |
+| `--param` | `str` | `None` | Nome do parâmetro (override auto-detect) |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+| `--time-threshold` | `float` | `1.5` | Threshold em segundos para time-based blind |
+
+#### `mytools-subtakeover` (Subdomain Takeover)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `--wordlist` | `str` | `None` | Arquivo com subdomínios extras (1 por linha) |
+| `--concurrency` | `int` | `10` | Requisições simultâneas |
+
+#### `mytools-bruteforce` (Login Brute Force)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-c`, `--category` | `choice` | `all` | Categoria: `rate_limit`, `lockout`, `credential`, `spray`, `all` (all = rate_limit + lockout) |
+| `--username` | `str` | `admin` | Username para testes |
+| `--password` | `str` | `password` | Senha para testes |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-bucket` (Cloud Bucket Enumeration)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `-p`, `--providers` | `choice` | `all` | Provedores: `s3`, `gcp`, `azure`, `all` |
+| `--concurrency` | `int` | `5` | Requisições simultâneas |
+
+#### `mytools-batch` (Batch Scanner)
+| Flag | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `targets` | positional | — | Arquivo com alvos (1 por linha) |
+| `modules` | positional (n="+") | — | Módulos ou `all` |
+| `-p`, `--parallel` | `int` | `1` | Targets simultâneos |
+| `-o`, `--output-dir` | `str` | `None` | Diretório para JSONs |
+| `--skip` | `append` | `[]` | Módulo para pular |
+| `--strict` | `flag` | `False` | Exit 2 se encontrar vulns |
+| `--fail-fast` | `flag` | `False` | Para no 1º erro (apenas --parallel 1) |
+| `--format` | `choice` | `text` | Formato: `text`, `json` |
+
 ### Compatibilidade de Flags por Tipo de Módulo
 
 | Flag | web | dns | email | osint | network | vcs | config |
@@ -1459,7 +1607,7 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 ```bash
 mytools
 ```
-O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `rtlo`, `overlong`, `bominject`, `charsetbypass`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `analysis`, `cred`, `reconall`.
+O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `lfi`, `rtlo`, `overlong`, `cmd`, `bominject`, `charsetbypass`, `csrf`, `sqli`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `bruteforce`, `bucket`, `subtakeover`, `batch`, `analysis`, `cred`, `reconall`.
 
 ### Modo interativo
 Cada módulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
@@ -1573,6 +1721,14 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-docker localhost:2375` | Docker Security Testing |
 | `mytools-infra https://cloud.example.com` | Cloud Infrastructure Testing |
 | `mytools-iot http://device:80` | IoT/Industrial Security |
+| `mytools-lfi https://example.com` | LFI/RFI Scanner |
+| `mytools-cmd https://example.com` | Command Injection Scanner |
+| `mytools-csrf https://example.com` | CSRF Scanner |
+| `mytools-sqli https://example.com` | SQL Injection Scanner |
+| `mytools-subtakeover example.com` | Subdomain Takeover Detection |
+| `mytools-bruteforce https://example.com` | Login Brute Force / Credential Testing |
+| `mytools-bucket example.com` | Cloud Bucket Enumeration (S3/GCP/Azure) |
+| `mytools-batch targets.txt` | Batch Scanner (multi-target) |
 | `mytools-analysis findings.json` | Attack path visualization |
 | `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 

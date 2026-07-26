@@ -1,0 +1,63 @@
+suffixes:
+  - ""
+  - "-backup"
+  - "-logs"
+  - "-dev"
+  - "-staging"
+  - "-prod"
+  - "-test"
+  - "-data"
+  - "-assets"
+  - "-media"
+  - "-static"
+  - "-config"
+  - "-db"
+  - "-archive"
+
+prefixes:
+  - ""
+  - "backup-"
+  - "logs-"
+  - "dev-"
+  - "staging-"
+  - "prod-"
+  - "test-"
+  - "data-"
+  - "assets-"
+  - "media-"
+
+s3_indicators:
+  open:
+    - "ListBucketResult"
+    - "<Key>"
+    - "<Prefix>"
+    - "<Delimiter>"
+    - "<MaxKeys>"
+  exists:
+    - "NoSuchBucket"
+  access_denied:
+    - "AccessDenied"
+    - "AllAccessDisabled"
+
+gcp_indicators:
+  open:
+    - "items"
+    - "kind"
+    - "storage#buckets"
+    - "storage#objects"
+  not_found:
+    - "NoSuchBucket"
+    - "Not Found"
+    - "The specified bucket does not exist"
+
+azure_indicators:
+  open:
+    - "EnumerationResults"
+    - "<Blobs>"
+    - "<Blob>"
+    - "<Name>"
+    - "<Url>"
+  not_found:
+    - "BlobNotFound"
+    - "NotFound"
+    - "The specified container does not exist"

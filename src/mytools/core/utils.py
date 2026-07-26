@@ -53,7 +53,7 @@ def _read_version() -> str:
         pyproject = Path(__file__).parent.parent.parent.parent / "pyproject.toml"
         with pyproject.open("rb") as fh:
             data = tomllib.load(fh)
-        return data["tool"]["poetry"]["version"]
+        return data["project"]["version"]
     except FileNotFoundError, KeyError, ValueError:
         pass
     return "0.0.0"
