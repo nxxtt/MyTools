@@ -728,15 +728,28 @@ mytools-protopoll https://example.com --callback-url https://evil.com/hook
 - `library` — Bibliotecas: jQuery.extend, Lodash.merge, Vue.js, Angular, Node.js
 
 ### 57. Deserialization Injection (`mytools-deserial`)
-Detecta desserializacao em PHP/Java/Python (O:, pickle, ObjectInputStream).
+Detecta desserializacao em PHP/Java/Python/Ruby/.NET/Node.js.
 
 ```bash
 mytools-deserial https://example.com
 mytools-deserial https://example.com -c php
 mytools-deserial https://example.com -c java
 mytools-deserial https://example.com -c python
+mytools-deserial https://example.com -c ruby
+mytools-deserial https://example.com -c dotnet
+mytools-deserial https://example.com -c nodejs
 mytools-deserial https://example.com -c bypass
 ```
+
+**Categorias:**
+- `php` — PHP serialize/unserialize (O:, a:, R:)
+- `java` — Java ObjectInputStream, magic bytes, gadget chains
+- `python` — Python pickle, reduce, YAML, marshal, shelve
+- `ruby` — Ruby Marshal.load, YAML.load, ERB, Psych, Symbol
+- `dotnet` — .NET BinaryFormatter, ViewState, Json.NET, SoapFormatter
+- `nodejs` — Node.js node-serialize, child_process, fs, eval, process
+- `detect` — Deteccao generica (erros, timing, reflexao)
+- `bypass` — Bypass de filtros (URL encode, base64, gzip)
 
 ### 58. Cache Poisoning (`mytools-cachepoison`)
 Detecta cache key poisoning via headers nao-normalizados (X-Forwarded-Host, path).

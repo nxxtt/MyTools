@@ -10,9 +10,12 @@ from mytools.web.deserialinject import (
     _BYPASS_PAYLOADS,
     _CATEGORY_MAP,
     _DETECT_PAYLOADS,
+    _DOTNET_PAYLOADS,
     _JAVA_PAYLOADS,
+    _NODEJS_PAYLOADS,
     _PHP_PAYLOADS,
     _PYTHON_PAYLOADS,
+    _RUBY_PAYLOADS,
     _SSI_PARAMS,
     DeserialAttempt,
     DeserialResult,
@@ -20,9 +23,12 @@ from mytools.web.deserialinject import (
     _test_baseline,
     _test_bypass,
     _test_detect,
+    _test_dotnet,
     _test_java,
+    _test_nodejs,
     _test_php,
     _test_python,
+    _test_ruby,
     build_parser,
     main,
     print_results,
@@ -47,8 +53,17 @@ class TestCategoryMap:
     def test_has_bypass(self) -> None:
         assert "bypass" in _CATEGORY_MAP
 
+    def test_has_ruby(self) -> None:
+        assert "ruby" in _CATEGORY_MAP
+
+    def test_has_dotnet(self) -> None:
+        assert "dotnet" in _CATEGORY_MAP
+
+    def test_has_nodejs(self) -> None:
+        assert "nodejs" in _CATEGORY_MAP
+
     def test_count(self) -> None:
-        assert len(_CATEGORY_MAP) == 5
+        assert len(_CATEGORY_MAP) == 8
 
 
 class TestPHPPayloads:
@@ -504,6 +519,155 @@ class TestMain:
              patch("mytools.web.deserialinject.run_main_loop", return_value=0):
             result = main()
             assert result == 0
+
+
+
+
+class TestRubyPayloads:
+    """Testes para _RUBY_PAYLOADS."""
+
+    def test_not_empty(self) -> None:
+        assert len(_RUBY_PAYLOADS) > 0
+
+    def test_count(self) -> None:
+        assert len(_RUBY_PAYLOADS) == 5
+
+    def test_has_marshal(self) -> None:
+        names = [t[0] for t in _RUBY_PAYLOADS]
+        assert "ruby_marshal" in names
+
+    def test_has_yaml(self) -> None:
+        names = [t[0] for t in _RUBY_PAYLOADS]
+        assert "ruby_yaml" in names
+
+    def test_has_erb(self) -> None:
+        names = [t[0] for t in _RUBY_PAYLOADS]
+        assert "ruby_erb" in names
+
+    def test_tuple_format(self) -> None:
+        for item in _RUBY_PAYLOADS:
+            assert isinstance(item, tuple)
+            assert len(item) == 3
+
+
+class TestDotnetPayloads:
+    """Testes para _DOTNET_PAYLOADS."""
+
+    def test_not_empty(self) -> None:
+        assert len(_DOTNET_PAYLOADS) > 0
+
+    def test_count(self) -> None:
+        assert len(_DOTNET_PAYLOADS) == 5
+
+    def test_has_binary(self) -> None:
+        names = [t[0] for t in _DOTNET_PAYLOADS]
+        assert "dotnet_binary" in names
+
+    def test_has_viewstate(self) -> None:
+        names = [t[0] for t in _DOTNET_PAYLOADS]
+        assert "dotnet_viewstate" in names
+
+    def test_has_jsonnet(self) -> None:
+        names = [t[0] for t in _DOTNET_PAYLOADS]
+        assert "dotnet_jsonnet" in names
+
+    def test_tuple_format(self) -> None:
+        for item in _DOTNET_PAYLOADS:
+            assert isinstance(item, tuple)
+            assert len(item) == 3
+
+
+class TestNodejsPayloads:
+    """Testes para _NODEJS_PAYLOADS."""
+
+    def test_not_empty(self) -> None:
+        assert len(_NODEJS_PAYLOADS) > 0
+
+    def test_count(self) -> None:
+        assert len(_NODEJS_PAYLOADS) == 5
+
+    def test_has_serialize(self) -> None:
+        names = [t[0] for t in _NODEJS_PAYLOADS]
+        assert "node_serialize" in names
+
+    def test_has_child(self) -> None:
+        names = [t[0] for t in _NODEJS_PAYLOADS]
+        assert "node_child" in names
+
+    def test_has_fs(self) -> None:
+        names = [t[0] for t in _NODEJS_PAYLOADS]
+        assert "node_fs" in names
+
+    def test_tuple_format(self) -> None:
+        for item in _NODEJS_PAYLOADS:
+            assert isinstance(item, tuple)
+            assert len(item) == 3
+
+
+class TestTestRuby:
+    """Testes para _test_ruby."""
+
+    @pytest.mark.asyncio
+    async def test_returns_attempts(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"admin"
+        mock_client.post.return_value = mock_resp
+        results = await _test_ruby(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = httpx.ConnectError("fail")
+        results = await _test_ruby(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+        assert all(r.error for r in results)
+
+
+class TestTestDotnet:
+    """Testes para _test_dotnet."""
+
+    @pytest.mark.asyncio
+    async def test_returns_attempts(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"admin"
+        mock_client.post.return_value = mock_resp
+        results = await _test_dotnet(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = httpx.ConnectError("fail")
+        results = await _test_dotnet(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+        assert all(r.error for r in results)
+
+
+class TestTestNodejs:
+    """Testes para _test_nodejs."""
+
+    @pytest.mark.asyncio
+    async def test_returns_attempts(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"admin"
+        mock_client.post.return_value = mock_resp
+        results = await _test_nodejs(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = httpx.ConnectError("fail")
+        results = await _test_nodejs(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) > 0
+        assert all(r.error for r in results)
 
 
 class TestIntegration:

