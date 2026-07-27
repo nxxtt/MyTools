@@ -1015,12 +1015,13 @@ mytools-headeredge https://target.com --timeout 10
 ```
 
 ### 78. WebSocket Security Testing (`mytools-wsattack`)
-Testa endpoints WebSocket para vulnerabilidades: CSWSH, hijacking, upgrade abuse, message injection, DoS e compression bomb. 100% raw sockets.
+Testa endpoints WebSocket para vulnerabilidades: CSWSH, hijacking, upgrade abuse, message injection, DoS, compression bomb e **payload fuzzing** (XSS, SQLi, CMDi, Path Traversal, NoSQL, SSTI, Log Injection). Detecção por reflection + timing. 100% raw sockets.
 
 ```bash
 mytools-wsattack wss://target.com/ws
 mytools-wsattack wss://target.com/ws -c ws_scanner
 mytools-wsattack wss://target.com/ws -c ws_dos ws_compression_bomb
+mytools-wsattack wss://target.com/ws -c ws_payload_fuzz
 mytools-wsattack wss://target.com/ws -c ws_upgrade_abuse ws_message_inject
 mytools-wsattack wss://target.com/ws --timeout 10
 ```
@@ -2053,7 +2054,7 @@ src/mytools/                    # Pacote principal
     oauth2_flows.py             # OAuth2 PKCE, Client Credentials, JWT validation
     mobile_audit.py             # BaseScanner CLI: run_scan + colored output
 
-tests/                          # Testes unitários (5384 testes)
+tests/                          # Testes unitários (5405 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...

@@ -9,6 +9,7 @@ import pytest
 from mytools.web.websocketattack import (
     _CATEGORY_DISPATCH,
     _CATEGORY_MAP,
+    _PAYLOADS_WS_FUZZ,
     WSAttackAttempt,
     WSAttackResult,
     _build_ws_frame,
@@ -17,6 +18,7 @@ from mytools.web.websocketattack import (
     _parse_url,
     _recv_ws_frame,
     _send_ws_frame,
+    _test_ws_payload_fuzz,
     build_parser,
     print_results,
 )
@@ -84,8 +86,8 @@ class TestWSAttackResult:
 
 
 class TestCategoryMap:
-    def test_has_five_categories(self) -> None:
-        assert len(_CATEGORY_MAP) == 5
+    def test_has_six_categories(self) -> None:
+        assert len(_CATEGORY_MAP) == 6
 
     def test_categories_match_dispatch(self) -> None:
         for cat in _CATEGORY_MAP:
@@ -105,6 +107,9 @@ class TestCategoryMap:
 
     def test_ws_compression_bomb_techniques(self) -> None:
         assert len(_CATEGORY_MAP["ws_compression_bomb"]) == 5
+
+    def test_ws_payload_fuzz_techniques(self) -> None:
+        assert len(_CATEGORY_MAP["ws_payload_fuzz"]) == 7
 
     def test_all_categories_have_unique_techniques(self) -> None:
         all_techs: list[str] = []
@@ -351,3 +356,167 @@ class TestPrintResults:
         print_results(result)
         output = capsys.readouterr().out
         assert "Issues:" in output
+
+
+# ─── Payload Fuzz Tests ──────────────────────────────────────────────────────
+
+
+class TestPayloadFuzzData:
+    def test_payloads_has_seven_techniques(self) -> None:
+        assert len(_PAYLOADS_WS_FUZZ) == 7
+
+    def test_each_technique_has_six_fields(self) -> None:
+        for entry in _PAYLOADS_WS_FUZZ:
+            assert len(entry) == 6
+
+    def test_technique_names(self) -> None:
+        names = [e[0] for e in _PAYLOADS_WS_FUZZ]
+        assert "xss_reflected" in names
+        assert "sqli_error" in names
+        assert "cmdi_os" in names
+        assert "path_traversal" in names
+        assert "nosql_injection" in names
+        assert "template_injection" in names
+        assert "log_injection" in names
+
+    def test_xss_has_reflection_payloads(self) -> None:
+        entry = next(e for e in _PAYLOADS_WS_FUZZ if e[0] == "xss_reflected")
+        assert len(entry[2]) >= 3
+
+    def test_sqli_has_timing_payloads(self) -> None:
+        entry = next(e for e in _PAYLOADS_WS_FUZZ if e[0] == "sqli_error")
+        assert len(entry[4]) >= 1
+
+    def test_cmdi_has_timing_payloads(self) -> None:
+        entry = next(e for e in _PAYLOADS_WS_FUZZ if e[0] == "cmdi_os")
+        assert len(entry[4]) >= 1
+
+    def test_nosql_has_timing_payloads(self) -> None:
+        entry = next(e for e in _PAYLOADS_WS_FUZZ if e[0] == "nosql_injection")
+        assert len(entry[4]) >= 1
+
+    def test_ssti_has_timing_payloads(self) -> None:
+        entry = next(e for e in _PAYLOADS_WS_FUZZ if e[0] == "template_injection")
+        assert len(entry[4]) >= 1
+
+    def test_log_injection_no_timing(self) -> None:
+        entry = next(e for e in _PAYLOADS_WS_FUZZ if e[0] == "log_injection")
+        assert len(entry[4]) == 0
+
+    def test_timing_thresholds(self) -> None:
+        for entry in _PAYLOADS_WS_FUZZ:
+            threshold = entry[5]
+            if entry[4]:
+                assert threshold >= 5.0, f"{entry[0]} threshold too low"
+
+    def test_nosql_thresholdHigher(self) -> None:
+        entry = next(e for e in _PAYLOADS_WS_FUZZ if e[0] == "nosql_injection")
+        assert entry[5] >= 8.0
+
+
+class TestPayloadFuzzDetection:
+    @pytest.mark.asyncio
+    async def test_reflection_detected(self) -> None:
+        mock_sock = MagicMock()
+        ws_key = "dGVzdA=="
+        reflected = b'<script>alert(1)</script>'
+
+        with (
+            patch("mytools.web.websocketattack._ws_handshake", return_value=(mock_sock, ws_key)),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", return_value=(0x1, reflected)),
+        ):
+            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            vuln = [r for r in results if r.vulnerable and r.technique == "xss_reflected"]
+            assert len(vuln) >= 1
+
+    @pytest.mark.asyncio
+    async def test_no_reflection_not_vulnerable(self) -> None:
+        with (
+            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", return_value=(0x1, b"different response")),
+        ):
+            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            xss_vuln = [r for r in results if r.vulnerable and r.technique == "xss_reflected"]
+            assert len(xss_vuln) == 0
+
+    @pytest.mark.asyncio
+    async def test_log_injection_close_frame(self) -> None:
+        with (
+            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", return_value=(0x8, b"")),
+        ):
+            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            log_vuln = [r for r in results if r.vulnerable and r.technique == "log_injection"]
+            assert len(log_vuln) >= 1
+
+    @pytest.mark.asyncio
+    async def test_log_injection_none_response(self) -> None:
+        with (
+            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", return_value=None),
+        ):
+            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            log_vuln = [r for r in results if r.vulnerable and r.technique == "log_injection"]
+            assert len(log_vuln) >= 1
+
+    @pytest.mark.asyncio
+    async def test_handshake_failure_skips(self) -> None:
+        with (
+            patch("mytools.web.websocketattack._ws_handshake", return_value=None),
+            patch("mytools.web.websocketattack._send_ws_frame") as mock_send,
+        ):
+            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            assert results == []
+            mock_send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_timing_detected(self) -> None:
+        import time as _time
+
+        call_count = 0
+
+        def slow_recv(_sock: MagicMock, _timeout: float) -> tuple[int, bytes] | None:
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 3:
+                _time.sleep(0.05)
+                return (0x1, b"ok")
+            _time.sleep(0.1)
+            return (0x1, b"ok")
+
+        with (
+            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", side_effect=slow_recv),
+        ):
+            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            timing_vuln = [r for r in results if r.vulnerable and "_timing" in r.technique]
+            assert len(timing_vuln) == 0
+
+    @pytest.mark.asyncio
+    async def test_all_results_are_ws_attack_attempt(self) -> None:
+        with (
+            patch("mytools.web.websocketattack._ws_handshake", return_value=None),
+        ):
+            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            for r in results:
+                assert isinstance(r, WSAttackAttempt)
+
+
+class TestPayloadFuzzParser:
+    def test_parser_accepts_payload_fuzz(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["wss://example.com/ws", "-c", "ws_payload_fuzz"])
+        assert args.categories == ["ws_payload_fuzz"]
+
+    def test_parser_accepts_mixed_categories(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args([
+            "wss://example.com/ws",
+            "-c", "ws_scanner", "ws_payload_fuzz",
+        ])
+        assert "ws_payload_fuzz" in args.categories
