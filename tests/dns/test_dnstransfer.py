@@ -22,12 +22,22 @@ from mytools.dns.dnstransfer import (
 
 class TestXfrResult:
     def test_frozen(self):
-        result = XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False)
+        result = XfrResult(
+            domain="example.com",
+            nameserver="ns1.example.com",
+            ns_ip="1.2.3.4",
+            zone_transferred=False,
+        )
         with pytest.raises(AttributeError):
             result.domain = "other.com"  # type: ignore[reportAttributeAccessIssue]
 
     def test_default_values(self):
-        result = XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False)
+        result = XfrResult(
+            domain="example.com",
+            nameserver="ns1.example.com",
+            ns_ip="1.2.3.4",
+            zone_transferred=False,
+        )
         assert result.record_count == 0
         assert result.records == []
         assert result.error == ""
@@ -60,8 +70,18 @@ class TestXfrResult:
         assert result.error == "AXFR recusado"
 
     def test_records_default_factory(self):
-        r1 = XfrResult(domain="a.com", nameserver="ns.a.com", ns_ip="1.1.1.1", zone_transferred=False)
-        r2 = XfrResult(domain="b.com", nameserver="ns.b.com", ns_ip="2.2.2.2", zone_transferred=False)
+        r1 = XfrResult(
+            domain="a.com",
+            nameserver="ns.a.com",
+            ns_ip="1.1.1.1",
+            zone_transferred=False,
+        )
+        r2 = XfrResult(
+            domain="b.com",
+            nameserver="ns.b.com",
+            ns_ip="2.2.2.2",
+            zone_transferred=False,
+        )
         assert r1.records is not r2.records
 
 
@@ -87,17 +107,26 @@ class TestGetNameservers:
         result = get_nameservers("example.com")
         assert result == ["ns.example.com"]
 
-    @patch("mytools.dns.dnstransfer.dns.resolver.resolve", side_effect=dns.resolver.NoAnswer())
+    @patch(
+        "mytools.dns.dnstransfer.dns.resolver.resolve",
+        side_effect=dns.resolver.NoAnswer(),
+    )
     def test_returns_empty_on_noanswer(self, mock_resolve):
         result = get_nameservers("example.com")
         assert result == []
 
-    @patch("mytools.dns.dnstransfer.dns.resolver.resolve", side_effect=dns.resolver.NXDOMAIN())
+    @patch(
+        "mytools.dns.dnstransfer.dns.resolver.resolve",
+        side_effect=dns.resolver.NXDOMAIN(),
+    )
     def test_returns_empty_on_nxdomain(self, mock_resolve):
         result = get_nameservers("nonexistent.com")
         assert result == []
 
-    @patch("mytools.dns.dnstransfer.dns.resolver.resolve", side_effect=dns.exception.DNSException("fail"))
+    @patch(
+        "mytools.dns.dnstransfer.dns.resolver.resolve",
+        side_effect=dns.exception.DNSException("fail"),
+    )
     def test_returns_empty_on_dns_exception(self, mock_resolve):
         result = get_nameservers("example.com")
         assert result == []
@@ -123,7 +152,10 @@ class TestResolveNsToIp:
         assert ip == "1.2.3.4"
         mock_resolve.assert_called_once_with("ns1.example.com", "A")
 
-    @patch("mytools.dns.dnstransfer.dns.resolver.resolve", side_effect=dns.exception.DNSException("fail"))
+    @patch(
+        "mytools.dns.dnstransfer.dns.resolver.resolve",
+        side_effect=dns.exception.DNSException("fail"),
+    )
     def test_raises_on_failure(self, mock_resolve):
         with pytest.raises(ValueError) as exc_info:
             resolve_ns_to_ip("ns1.example.com")
@@ -137,7 +169,9 @@ class TestTryZoneTransfer:
         mock_zone.nodes = {}
         mock_axfr.return_value = mock_zone
 
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
+        )
         assert result.zone_transferred is True
         assert result.record_count == 0
         assert result.elapsed >= 0
@@ -152,43 +186,69 @@ class TestTryZoneTransfer:
 
         mock_rdataset = MagicMock()
         mock_rdataset.rdtype = dns.rdatatype.A  # type: ignore[reportAttributeAccessIssue]
-        mock_rdataset.__iter__ = lambda self: iter([MagicMock(__str__=lambda s: "1.2.3.4")])  # type: ignore[reportAttributeAccessIssue]
+        mock_rdataset.__iter__ = lambda self: iter(
+            [MagicMock(__str__=lambda s: "1.2.3.4")]
+        )  # type: ignore[reportAttributeAccessIssue]
 
         mock_node.rdatasets = [mock_rdataset]
         mock_zone.nodes = {dns.name.from_text("example.com."): mock_node}  # type: ignore[reportAttributeAccessIssue]
         mock_axfr.return_value = mock_zone
 
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
+        )
         assert result.zone_transferred is True
         assert result.record_count >= 1
 
     @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr", return_value=None)
     def test_empty_zone_returns_not_transferred(self, mock_axfr):
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
+        )
         assert result.zone_transferred is False
         assert "vazia" in result.error
 
-    @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr", side_effect=dns.exception.FormError("refused"))
+    @patch(
+        "mytools.dns.dnstransfer.dns.query.inbound_xfr",
+        side_effect=dns.exception.FormError("refused"),
+    )
     def test_form_error_means_refused(self, mock_axfr):
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
+        )
         assert result.zone_transferred is False
         assert "recusado" in result.error
 
-    @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr", side_effect=dns.exception.Timeout())
+    @patch(
+        "mytools.dns.dnstransfer.dns.query.inbound_xfr",
+        side_effect=dns.exception.Timeout(),
+    )
     def test_timeout_error(self, mock_axfr):
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=1)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=1
+        )
         assert result.zone_transferred is False
         assert "timeout" in result.error.lower()
 
-    @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr", side_effect=dns.exception.DNSException("generic"))
+    @patch(
+        "mytools.dns.dnstransfer.dns.query.inbound_xfr",
+        side_effect=dns.exception.DNSException("generic"),
+    )
     def test_dns_exception(self, mock_axfr):
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
+        )
         assert result.zone_transferred is False
         assert "DNS" in result.error
 
-    @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr", side_effect=RuntimeError("unexpected"))
+    @patch(
+        "mytools.dns.dnstransfer.dns.query.inbound_xfr",
+        side_effect=RuntimeError("unexpected"),
+    )
     def test_generic_exception(self, mock_axfr):
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
+        )
         assert result.zone_transferred is False
         assert "inesperado" in result.error
 
@@ -198,7 +258,9 @@ class TestTryZoneTransfer:
         mock_zone.nodes = {}
         mock_axfr.return_value = mock_zone
 
-        result = try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        result = try_zone_transfer(
+            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
+        )
         assert result.elapsed >= 0.0
 
     @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr")
@@ -229,7 +291,10 @@ class TestRunXfrScan:
 
     @patch("mytools.dns.dnstransfer.try_zone_transfer")
     @patch("mytools.dns.dnstransfer.resolve_ns_to_ip", return_value="1.2.3.4")
-    @patch("mytools.dns.dnstransfer.get_nameservers", return_value=["ns1.example.com", "ns2.example.com"])
+    @patch(
+        "mytools.dns.dnstransfer.get_nameservers",
+        return_value=["ns1.example.com", "ns2.example.com"],
+    )
     def test_multiple_ns(self, mock_ns, mock_ip, mock_xfr):
         mock_xfr.return_value = XfrResult(
             domain="example.com",
@@ -316,7 +381,12 @@ class TestRunOnce:
     @patch("mytools.dns.dnstransfer.run_xfr_scan")
     def test_returns_0_when_not_vulnerable(self, mock_scan):
         mock_scan.return_value = [
-            XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False),
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=False,
+            ),
         ]
         args = build_parser().parse_args(["example.com"])
         result = run_once(args)
@@ -325,7 +395,13 @@ class TestRunOnce:
     @patch("mytools.dns.dnstransfer.run_xfr_scan")
     def test_returns_1_when_vulnerable(self, mock_scan):
         mock_scan.return_value = [
-            XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=True, record_count=5),
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=True,
+                record_count=5,
+            ),
         ]
         args = build_parser().parse_args(["example.com"])
         result = run_once(args)
@@ -335,7 +411,12 @@ class TestRunOnce:
     @patch("mytools.dns.dnstransfer.run_xfr_scan")
     def test_saves_output(self, mock_scan, mock_write):
         mock_scan.return_value = [
-            XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False),
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=False,
+            ),
         ]
         args = build_parser().parse_args(["example.com", "-o", "out.json"])
         run_once(args)
@@ -350,7 +431,12 @@ class TestRunOnce:
     @patch("mytools.dns.dnstransfer.run_xfr_scan")
     def test_quiet_mode(self, mock_scan, capsys):
         mock_scan.return_value = [
-            XfrResult(domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False),
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=False,
+            ),
         ]
         args = build_parser().parse_args(["example.com", "-q", "-o", "out.json"])
         run_once(args)

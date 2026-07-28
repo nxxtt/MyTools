@@ -4,8 +4,26 @@ import sys
 
 from mytools.config import backupfiledetect, configfiledetect
 from mytools.core import reconall
-from mytools.core.utils import Cyber, __version__, clear_console, color, create_banner, run_interactive_shell
-from mytools.dns import caacheck, dnsamplification, dnshistory, dnsrebinding, dnssecvalidation, dnstransfer, dnstunnel, dnswatorture, nsecwalking, subdomainenum
+from mytools.core.utils import (
+    Cyber,
+    __version__,
+    clear_console,
+    color,
+    create_banner,
+    run_interactive_shell,
+)
+from mytools.dns import (
+    caacheck,
+    dnsamplification,
+    dnshistory,
+    dnsrebinding,
+    dnssecvalidation,
+    dnstransfer,
+    dnstunnel,
+    dnswatorture,
+    nsecwalking,
+    subdomainenum,
+)
 from mytools.email import (
     emailaddressbypass,
     emailattachmentbypass,
@@ -17,7 +35,14 @@ from mytools.email import (
     smtpinjection,
 )
 from mytools.network import dirscanner, portscanner
-from mytools.osint import darkwebmonitor, emailbreachcheck, googledorking, ipasninfo, pasteleak, socialengrecon
+from mytools.osint import (
+    darkwebmonitor,
+    emailbreachcheck,
+    googledorking,
+    ipasninfo,
+    pasteleak,
+    socialengrecon,
+)
 from mytools.vcs import vcsleak
 from mytools.web import (
     attackaudit,
@@ -174,82 +199,234 @@ def banner() -> None:
 def menu() -> None:
     """Exibe o menu interativo com opções de ferramentas."""
     print(color("Escolha uma tool:", Cyber.WHITE, Cyber.BOLD))
-    print(f"  {color('1', Cyber.GREEN, Cyber.BOLD)} {color('PortScanner', Cyber.CYAN)}      TCP ports, CIDR, banners, JSON/CSV")
-    print(f"  {color('2', Cyber.GREEN, Cyber.BOLD)} {color('DirScanner', Cyber.CYAN)}       HTTP dirs/files, status filters, wordlist")
-    print(f"  {color('3', Cyber.GREEN, Cyber.BOLD)} {color('WebRecon', Cyber.CYAN)}         HTTP headers, robots, security checks")
-    print(f"  {color('4', Cyber.GREEN, Cyber.BOLD)} {color('AttackAudit', Cyber.CYAN)}      red/blue web audit pesado, score, JSON/CSV")
-    print(f"  {color('5', Cyber.GREEN, Cyber.BOLD)} {color('DNS Xfer', Cyber.CYAN)}         DNS zone transfer (AXFR)")
-    print(f"  {color('6', Cyber.GREEN, Cyber.BOLD)} {color('SubEnum', Cyber.CYAN)}          Subdomain enumeration (DNS brute-force)")
-    print(f"  {color('7', Cyber.GREEN, Cyber.BOLD)} {color('DNS History', Cyber.CYAN)}      DNS history via OSINT APIs")
-    print(f"  {color('8', Cyber.GREEN, Cyber.BOLD)} {color('WHOIS History', Cyber.CYAN)}   WHOIS history via OSINT APIs")
-    print(f"  {color('9', Cyber.GREEN, Cyber.BOLD)} {color('IP ASN Info', Cyber.CYAN)}     IP -> ASN/org/ISP/country enrichment")
-    print(f"  {color('10', Cyber.GREEN, Cyber.BOLD)} {color('Tech Fingerprint', Cyber.CYAN)} Detecta tecnologias com versoes exatas")
-    print(f"  {color('11', Cyber.GREEN, Cyber.BOLD)} {color('OpenAPI/Swagger', Cyber.CYAN)}  Busca specs OpenAPI/Swagger expostas")
-    print(f"  {color('12', Cyber.GREEN, Cyber.BOLD)} {color('GraphQL Playground', Cyber.CYAN)} Descobre GraphQL playgrounds e introspection")
-    print(f"  {color('13', Cyber.GREEN, Cyber.BOLD)} {color('Source Map Discovery', Cyber.CYAN)} Busca .map files de JavaScript expostos")
-    print(f"  {color('14', Cyber.GREEN, Cyber.BOLD)} {color('VCS Leak Detection', Cyber.CYAN)} Detecta .git, .svn, .hg expostos")
-    print(f"  {color('15', Cyber.GREEN, Cyber.BOLD)} {color('Config File Detection', Cyber.CYAN)} Busca .env, config.json, settings.py expostos")
-    print(f"  {color('16', Cyber.GREEN, Cyber.BOLD)} {color('Backup File Detection', Cyber.CYAN)} Busca .bak, .old, .swp, .sql, .zip expostos")
-    print(f"  {color('17', Cyber.GREEN, Cyber.BOLD)} {color('Google Dorking', Cyber.CYAN)}       Gera dorks, busca via DuckDuckGo")
-    print(f"  {color('18', Cyber.GREEN, Cyber.BOLD)} {color('Email Breach Check', Cyber.CYAN)} Verifica emails em vazamentos")
-    print(f"  {color('19', Cyber.GREEN, Cyber.BOLD)} {color('Social Eng Recon', Cyber.CYAN)}  Coleta emails, nomes, cargos")
-    print(f"  {color('20', Cyber.GREEN, Cyber.BOLD)} {color('Paste/Leak Monitor', Cyber.CYAN)} Busca credenciais em pastes/repos")
-    print(f"  {color('21', Cyber.GREEN, Cyber.BOLD)} {color('Dark Web Monitor', Cyber.CYAN)}  Mencoes em sites .onion")
-    print(f"  {color('22', Cyber.GREEN, Cyber.BOLD)} {color('DNS Rebinding', Cyber.CYAN)}      Testa vuln rebinding (TTL, IP, CNAME)")
-    print(f"  {color('23', Cyber.GREEN, Cyber.BOLD)} {color('DNS Water Torture', Cyber.CYAN)} Stress test DNS (subdominios aleatorios)")
-    print(f"  {color('24', Cyber.GREEN, Cyber.BOLD)} {color('DNS Amplification', Cyber.CYAN)}  Detecta amplificacao DNS (audit)")
-    print(f"  {color('25', Cyber.GREEN, Cyber.BOLD)} {color('DNS Tunnel', Cyber.CYAN)}        Detecta DNS tunneling via padroes")
-    print(f"  {color('26', Cyber.GREEN, Cyber.BOLD)} {color('DNSSEC Validation', Cyber.CYAN)} Verifica se DNSSEC esta correto")
-    print(f"  {color('27', Cyber.GREEN, Cyber.BOLD)} {color('NSEC Walking', Cyber.CYAN)}      Enumera zona via NSEC records")
-    print(f"  {color('28', Cyber.GREEN, Cyber.BOLD)} {color('CAA Record Check', Cyber.CYAN)} Verifica registros CAA de certificados")
-    print(f"  {color('29', Cyber.GREEN, Cyber.BOLD)} {color('Email Security', Cyber.CYAN)}   Verifica DMARC/SPF/DKIM")
-    print(f"  {color('30', Cyber.GREEN, Cyber.BOLD)} {color('Email Spoofing', Cyber.CYAN)}  Analise de vulnerabilidade a spoofing")
-    print(f"  {color('31', Cyber.GREEN, Cyber.BOLD)} {color('SMTP Injection', Cyber.CYAN)} Testa injecao CRLF em campos de email")
-    print(f"  {color('32', Cyber.GREEN, Cyber.BOLD)} {color('SMTP Downgrade', Cyber.CYAN)} Forca downgrade de STARTTLS para plaintext")
-    print(f"  {color('33', Cyber.GREEN, Cyber.BOLD)} {color('Template Inject', Cyber.CYAN)} Testa injecao em templates de email")
-    print(f"  {color('34', Cyber.GREEN, Cyber.BOLD)} {color('Attach Bypass', Cyber.CYAN)}  Testa bypass de filtros de anexos")
-    print(f"  {color('35', Cyber.GREEN, Cyber.BOLD)} {color('Addr Bypass', Cyber.CYAN)}   Testa bypass de blocklists (quoted)")
-    print(f"  {color('36', Cyber.GREEN, Cyber.BOLD)} {color('Link Tracking', Cyber.CYAN)} Detecta tracking pixels e link rewrites")
-    print(f"  {color('37', Cyber.GREEN, Cyber.BOLD)} {color('Null Byte', Cyber.CYAN)}    Testa injecao de null bytes em web apps")
-    print(f"  {color('38', Cyber.GREEN, Cyber.BOLD)} {color('DblURL Encode', Cyber.CYAN)} Testa bypass via encoding duplo de URLs")
-    print(f"  {color('39', Cyber.GREEN, Cyber.BOLD)} {color('Ptraversal', Cyber.CYAN)}    Path traversal via encoding")
-    print(f"  {color('40', Cyber.GREEN, Cyber.BOLD)} {color('LFI', Cyber.CYAN)}           LFI/RFI Scanner — file inclusion remota e local")
-    print(f"  {color('41', Cyber.GREEN, Cyber.BOLD)} {color('Overlong', Cyber.CYAN)}       Overlong UTF-8 encoding bypass")
-    print(f"  {color('42', Cyber.GREEN, Cyber.BOLD)} {color('Cmd Inject', Cyber.CYAN)}    Command Injection Scanner — OS cmd injection")
-    print(f"  {color('43', Cyber.GREEN, Cyber.BOLD)} {color('CSRF', Cyber.CYAN)}       CSRF Scanner — detecta e testa protecao CSRF")
-    print(f"  {color('44', Cyber.GREEN, Cyber.BOLD)} {color('SQLi', Cyber.CYAN)}        SQL Injection Scanner — error, blind, union, bypass")
-    print(f"  {color('45', Cyber.GREEN, Cyber.BOLD)} {color('BOM Inject', Cyber.CYAN)}     Byte Order Mark injection")
-    print(f"  {color('46', Cyber.GREEN, Cyber.BOLD)} {color('Charset Bypass', Cyber.CYAN)} Charset detection bypass")
-    print(f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('RTLO Bypass', Cyber.CYAN)}  RTL Override para confundir URLs")
-    print(f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('Open Redirect', Cyber.CYAN)} Detecta redirecionamentos abusivos")
-    print(f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('CRLF Inject', Cyber.CYAN)}  Injecao de headers via \\r\\n")
-    print(f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('SSTI Detect', Cyber.CYAN)} Server-Side Template Injection")
-    print(f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery")
-    print(f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('XXE Detect', Cyber.CYAN)}   XML External Entity Detection")
-    print(f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)")
-    print(f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP")
-    print(f"  {color('55', Cyber.GREEN, Cyber.BOLD)} {color('XPath Inject', Cyber.CYAN)} Injecao em consultas XPath")
-    print(f"  {color('56', Cyber.GREEN, Cyber.BOLD)} {color('SSI Inject', Cyber.CYAN)}   Server-Side Injection (RCE/leitura)")
-    print(f"  {color('57', Cyber.GREEN, Cyber.BOLD)} {color('Proto Poll', Cyber.CYAN)}  Prototype Pollution (JS __proto__)")
-    print(f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('Deserial', Cyber.CYAN)}     Deserialization (PHP/Java/Python)")
-    print(f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Cache Poison', Cyber.CYAN)}  Cache Poisoning (headers/path)")
-    print(f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('Cache Dec', Cyber.CYAN)}   Web Cache Deception (extensions)")
-    print(f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Method Override', Cyber.CYAN)} HTTP Method Override (bypass ACL)")
-    print(f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution")
-    print(f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback")
-    print(f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration")
-    print(f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames")
-    print(f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection")
-    print(f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params")
-    print(f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers")
-    print(f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers")
-    print(f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('BruteForce', Cyber.CYAN)}       Login brute force / credential testing")
-    print(f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('CloudBucket', Cyber.CYAN)}      Cloud bucket enumeration (S3/GCP/Azure)")
-    print(f"  {color('72', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)")
-    print(f"  {color('73', Cyber.GREEN, Cyber.BOLD)} {color('REST Fuzz', Cyber.CYAN)}       REST API Fuzzer — auth bypass, content-type, HATEOAS")
-    print(f"  {color('74', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo")
-    print(f"  {color('75', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos")
-    print(f"  {color('76', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal")
+    print(
+        f"  {color('1', Cyber.GREEN, Cyber.BOLD)} {color('PortScanner', Cyber.CYAN)}      TCP ports, CIDR, banners, JSON/CSV"
+    )
+    print(
+        f"  {color('2', Cyber.GREEN, Cyber.BOLD)} {color('DirScanner', Cyber.CYAN)}       HTTP dirs/files, status filters, wordlist"
+    )
+    print(
+        f"  {color('3', Cyber.GREEN, Cyber.BOLD)} {color('WebRecon', Cyber.CYAN)}         HTTP headers, robots, security checks"
+    )
+    print(
+        f"  {color('4', Cyber.GREEN, Cyber.BOLD)} {color('AttackAudit', Cyber.CYAN)}      red/blue web audit pesado, score, JSON/CSV"
+    )
+    print(
+        f"  {color('5', Cyber.GREEN, Cyber.BOLD)} {color('DNS Xfer', Cyber.CYAN)}         DNS zone transfer (AXFR)"
+    )
+    print(
+        f"  {color('6', Cyber.GREEN, Cyber.BOLD)} {color('SubEnum', Cyber.CYAN)}          Subdomain enumeration (DNS brute-force)"
+    )
+    print(
+        f"  {color('7', Cyber.GREEN, Cyber.BOLD)} {color('DNS History', Cyber.CYAN)}      DNS history via OSINT APIs"
+    )
+    print(
+        f"  {color('8', Cyber.GREEN, Cyber.BOLD)} {color('WHOIS History', Cyber.CYAN)}   WHOIS history via OSINT APIs"
+    )
+    print(
+        f"  {color('9', Cyber.GREEN, Cyber.BOLD)} {color('IP ASN Info', Cyber.CYAN)}     IP -> ASN/org/ISP/country enrichment"
+    )
+    print(
+        f"  {color('10', Cyber.GREEN, Cyber.BOLD)} {color('Tech Fingerprint', Cyber.CYAN)} Detecta tecnologias com versoes exatas"
+    )
+    print(
+        f"  {color('11', Cyber.GREEN, Cyber.BOLD)} {color('OpenAPI/Swagger', Cyber.CYAN)}  Busca specs OpenAPI/Swagger expostas"
+    )
+    print(
+        f"  {color('12', Cyber.GREEN, Cyber.BOLD)} {color('GraphQL Playground', Cyber.CYAN)} Descobre GraphQL playgrounds e introspection"
+    )
+    print(
+        f"  {color('13', Cyber.GREEN, Cyber.BOLD)} {color('Source Map Discovery', Cyber.CYAN)} Busca .map files de JavaScript expostos"
+    )
+    print(
+        f"  {color('14', Cyber.GREEN, Cyber.BOLD)} {color('VCS Leak Detection', Cyber.CYAN)} Detecta .git, .svn, .hg expostos"
+    )
+    print(
+        f"  {color('15', Cyber.GREEN, Cyber.BOLD)} {color('Config File Detection', Cyber.CYAN)} Busca .env, config.json, settings.py expostos"
+    )
+    print(
+        f"  {color('16', Cyber.GREEN, Cyber.BOLD)} {color('Backup File Detection', Cyber.CYAN)} Busca .bak, .old, .swp, .sql, .zip expostos"
+    )
+    print(
+        f"  {color('17', Cyber.GREEN, Cyber.BOLD)} {color('Google Dorking', Cyber.CYAN)}       Gera dorks, busca via DuckDuckGo"
+    )
+    print(
+        f"  {color('18', Cyber.GREEN, Cyber.BOLD)} {color('Email Breach Check', Cyber.CYAN)} Verifica emails em vazamentos"
+    )
+    print(
+        f"  {color('19', Cyber.GREEN, Cyber.BOLD)} {color('Social Eng Recon', Cyber.CYAN)}  Coleta emails, nomes, cargos"
+    )
+    print(
+        f"  {color('20', Cyber.GREEN, Cyber.BOLD)} {color('Paste/Leak Monitor', Cyber.CYAN)} Busca credenciais em pastes/repos"
+    )
+    print(
+        f"  {color('21', Cyber.GREEN, Cyber.BOLD)} {color('Dark Web Monitor', Cyber.CYAN)}  Mencoes em sites .onion"
+    )
+    print(
+        f"  {color('22', Cyber.GREEN, Cyber.BOLD)} {color('DNS Rebinding', Cyber.CYAN)}      Testa vuln rebinding (TTL, IP, CNAME)"
+    )
+    print(
+        f"  {color('23', Cyber.GREEN, Cyber.BOLD)} {color('DNS Water Torture', Cyber.CYAN)} Stress test DNS (subdominios aleatorios)"
+    )
+    print(
+        f"  {color('24', Cyber.GREEN, Cyber.BOLD)} {color('DNS Amplification', Cyber.CYAN)}  Detecta amplificacao DNS (audit)"
+    )
+    print(
+        f"  {color('25', Cyber.GREEN, Cyber.BOLD)} {color('DNS Tunnel', Cyber.CYAN)}        Detecta DNS tunneling via padroes"
+    )
+    print(
+        f"  {color('26', Cyber.GREEN, Cyber.BOLD)} {color('DNSSEC Validation', Cyber.CYAN)} Verifica se DNSSEC esta correto"
+    )
+    print(
+        f"  {color('27', Cyber.GREEN, Cyber.BOLD)} {color('NSEC Walking', Cyber.CYAN)}      Enumera zona via NSEC records"
+    )
+    print(
+        f"  {color('28', Cyber.GREEN, Cyber.BOLD)} {color('CAA Record Check', Cyber.CYAN)} Verifica registros CAA de certificados"
+    )
+    print(
+        f"  {color('29', Cyber.GREEN, Cyber.BOLD)} {color('Email Security', Cyber.CYAN)}   Verifica DMARC/SPF/DKIM"
+    )
+    print(
+        f"  {color('30', Cyber.GREEN, Cyber.BOLD)} {color('Email Spoofing', Cyber.CYAN)}  Analise de vulnerabilidade a spoofing"
+    )
+    print(
+        f"  {color('31', Cyber.GREEN, Cyber.BOLD)} {color('SMTP Injection', Cyber.CYAN)} Testa injecao CRLF em campos de email"
+    )
+    print(
+        f"  {color('32', Cyber.GREEN, Cyber.BOLD)} {color('SMTP Downgrade', Cyber.CYAN)} Forca downgrade de STARTTLS para plaintext"
+    )
+    print(
+        f"  {color('33', Cyber.GREEN, Cyber.BOLD)} {color('Template Inject', Cyber.CYAN)} Testa injecao em templates de email"
+    )
+    print(
+        f"  {color('34', Cyber.GREEN, Cyber.BOLD)} {color('Attach Bypass', Cyber.CYAN)}  Testa bypass de filtros de anexos"
+    )
+    print(
+        f"  {color('35', Cyber.GREEN, Cyber.BOLD)} {color('Addr Bypass', Cyber.CYAN)}   Testa bypass de blocklists (quoted)"
+    )
+    print(
+        f"  {color('36', Cyber.GREEN, Cyber.BOLD)} {color('Link Tracking', Cyber.CYAN)} Detecta tracking pixels e link rewrites"
+    )
+    print(
+        f"  {color('37', Cyber.GREEN, Cyber.BOLD)} {color('Null Byte', Cyber.CYAN)}    Testa injecao de null bytes em web apps"
+    )
+    print(
+        f"  {color('38', Cyber.GREEN, Cyber.BOLD)} {color('DblURL Encode', Cyber.CYAN)} Testa bypass via encoding duplo de URLs"
+    )
+    print(
+        f"  {color('39', Cyber.GREEN, Cyber.BOLD)} {color('Ptraversal', Cyber.CYAN)}    Path traversal via encoding"
+    )
+    print(
+        f"  {color('40', Cyber.GREEN, Cyber.BOLD)} {color('LFI', Cyber.CYAN)}           LFI/RFI Scanner — file inclusion remota e local"
+    )
+    print(
+        f"  {color('41', Cyber.GREEN, Cyber.BOLD)} {color('Overlong', Cyber.CYAN)}       Overlong UTF-8 encoding bypass"
+    )
+    print(
+        f"  {color('42', Cyber.GREEN, Cyber.BOLD)} {color('Cmd Inject', Cyber.CYAN)}    Command Injection Scanner — OS cmd injection"
+    )
+    print(
+        f"  {color('43', Cyber.GREEN, Cyber.BOLD)} {color('CSRF', Cyber.CYAN)}       CSRF Scanner — detecta e testa protecao CSRF"
+    )
+    print(
+        f"  {color('44', Cyber.GREEN, Cyber.BOLD)} {color('SQLi', Cyber.CYAN)}        SQL Injection Scanner — error, blind, union, bypass"
+    )
+    print(
+        f"  {color('45', Cyber.GREEN, Cyber.BOLD)} {color('BOM Inject', Cyber.CYAN)}     Byte Order Mark injection"
+    )
+    print(
+        f"  {color('46', Cyber.GREEN, Cyber.BOLD)} {color('Charset Bypass', Cyber.CYAN)} Charset detection bypass"
+    )
+    print(
+        f"  {color('47', Cyber.GREEN, Cyber.BOLD)} {color('RTLO Bypass', Cyber.CYAN)}  RTL Override para confundir URLs"
+    )
+    print(
+        f"  {color('48', Cyber.GREEN, Cyber.BOLD)} {color('Open Redirect', Cyber.CYAN)} Detecta redirecionamentos abusivos"
+    )
+    print(
+        f"  {color('49', Cyber.GREEN, Cyber.BOLD)} {color('CRLF Inject', Cyber.CYAN)}  Injecao de headers via \\r\\n"
+    )
+    print(
+        f"  {color('50', Cyber.GREEN, Cyber.BOLD)} {color('SSTI Detect', Cyber.CYAN)} Server-Side Template Injection"
+    )
+    print(
+        f"  {color('51', Cyber.GREEN, Cyber.BOLD)} {color('SSRF Detect', Cyber.CYAN)} Server-Side Request Forgery"
+    )
+    print(
+        f"  {color('52', Cyber.GREEN, Cyber.BOLD)} {color('XXE Detect', Cyber.CYAN)}   XML External Entity Detection"
+    )
+    print(
+        f"  {color('53', Cyber.GREEN, Cyber.BOLD)} {color('NoSQL Inject', Cyber.CYAN)} Injecao NoSQL (MongoDB, Redis, CouchDB)"
+    )
+    print(
+        f"  {color('54', Cyber.GREEN, Cyber.BOLD)} {color('LDAP Inject', Cyber.CYAN)}  Injecao em filtros LDAP"
+    )
+    print(
+        f"  {color('55', Cyber.GREEN, Cyber.BOLD)} {color('XPath Inject', Cyber.CYAN)} Injecao em consultas XPath"
+    )
+    print(
+        f"  {color('56', Cyber.GREEN, Cyber.BOLD)} {color('SSI Inject', Cyber.CYAN)}   Server-Side Injection (RCE/leitura)"
+    )
+    print(
+        f"  {color('57', Cyber.GREEN, Cyber.BOLD)} {color('Proto Poll', Cyber.CYAN)}  Prototype Pollution (JS __proto__)"
+    )
+    print(
+        f"  {color('58', Cyber.GREEN, Cyber.BOLD)} {color('Deserial', Cyber.CYAN)}     Deserialization (PHP/Java/Python)"
+    )
+    print(
+        f"  {color('59', Cyber.GREEN, Cyber.BOLD)} {color('Cache Poison', Cyber.CYAN)}  Cache Poisoning (headers/path)"
+    )
+    print(
+        f"  {color('60', Cyber.GREEN, Cyber.BOLD)} {color('Cache Dec', Cyber.CYAN)}   Web Cache Deception (extensions)"
+    )
+    print(
+        f"  {color('61', Cyber.GREEN, Cyber.BOLD)} {color('Method Override', Cyber.CYAN)} HTTP Method Override (bypass ACL)"
+    )
+    print(
+        f"  {color('62', Cyber.GREEN, Cyber.BOLD)} {color('HPP', Cyber.CYAN)}              HTTP Parameter Pollution"
+    )
+    print(
+        f"  {color('63', Cyber.GREEN, Cyber.BOLD)} {color('Blind XSS', Cyber.CYAN)}       Blind XSS via callback"
+    )
+    print(
+        f"  {color('64', Cyber.GREEN, Cyber.BOLD)} {color('CORS', Cyber.CYAN)}             CORS Misconfiguration"
+    )
+    print(
+        f"  {color('65', Cyber.GREEN, Cyber.BOLD)} {color('Clickjack', Cyber.CYAN)}       Clickjacking via frames"
+    )
+    print(
+        f"  {color('66', Cyber.GREEN, Cyber.BOLD)} {color('Host Inject', Cyber.CYAN)}     Host Header Injection"
+    )
+    print(
+        f"  {color('67', Cyber.GREEN, Cyber.BOLD)} {color('Header Inject', Cyber.CYAN)}  Header Injection via URL params"
+    )
+    print(
+        f"  {color('68', Cyber.GREEN, Cyber.BOLD)} {color('Log Inject', Cyber.CYAN)}      Log Injection via headers"
+    )
+    print(
+        f"  {color('69', Cyber.GREEN, Cyber.BOLD)} {color('Log4Shell', Cyber.CYAN)}        JNDI injection via headers"
+    )
+    print(
+        f"  {color('70', Cyber.GREEN, Cyber.BOLD)} {color('BruteForce', Cyber.CYAN)}       Login brute force / credential testing"
+    )
+    print(
+        f"  {color('71', Cyber.GREEN, Cyber.BOLD)} {color('CloudBucket', Cyber.CYAN)}      Cloud bucket enumeration (S3/GCP/Azure)"
+    )
+    print(
+        f"  {color('72', Cyber.GREEN, Cyber.BOLD)} {color('Subdomain Take', Cyber.CYAN)}  Dangling CNAMEs (takeover)"
+    )
+    print(
+        f"  {color('73', Cyber.GREEN, Cyber.BOLD)} {color('REST Fuzz', Cyber.CYAN)}       REST API Fuzzer — auth bypass, content-type, HATEOAS"
+    )
+    print(
+        f"  {color('74', Cyber.GREEN, Cyber.BOLD)} {color('ReconAll', Cyber.CYAN)}          Todos os modulos contra um alvo"
+    )
+    print(
+        f"  {color('75', Cyber.GREEN, Cyber.BOLD)} {color('Ajuda', Cyber.CYAN)}            exemplos rapidos"
+    )
+    print(
+        f"  {color('76', Cyber.GREEN, Cyber.BOLD)} {color('Limpar', Cyber.CYAN)}           limpar terminal"
+    )
     print(f"  {color('0', Cyber.RED, Cyber.BOLD)} {color('Sair', Cyber.CYAN)}")
 
 
@@ -398,7 +575,9 @@ def help_screen() -> None:
     print(color("\nNull Byte Injection:", Cyber.CYAN))
     print("  mytools-nullbyte https://target.com")
     print("  mytools-nullbyte https://target.com -c url")
-    print("  mytools-nullbyte https://target.com -c header --proxy http://127.0.0.1:8080")
+    print(
+        "  mytools-nullbyte https://target.com -c header --proxy http://127.0.0.1:8080"
+    )
     print("  mytools-nullbyte https://target.com -c traversal --timeout 15")
     print(color("\nDouble URL Encoding:", Cyber.CYAN))
     print("  mytools-dblurl https://target.com")
@@ -409,7 +588,9 @@ def help_screen() -> None:
     print("  mytools-ptraversal https://target.com")
     print("  mytools-ptraversal https://target.com -c path")
     print("  mytools-ptraversal https://target.com -c semicolon")
-    print("  mytools-ptraversal https://target.com -c platform --proxy http://127.0.0.1:8080")
+    print(
+        "  mytools-ptraversal https://target.com -c platform --proxy http://127.0.0.1:8080"
+    )
     print(color("\nRTL Override:", Cyber.CYAN))
     print("  mytools-rtlo https://target.com")
     print("  mytools-rtlo https://target.com -m gen")
@@ -419,7 +600,9 @@ def help_screen() -> None:
     print("  python3 reconall.py example.com")
     print("  python3 reconall.py example.com --deep --skip dnstransfer")
     print(color("\nDentro do menu:", Cyber.CYAN))
-    print("  escolha uma tool e digite os argumentos como faria depois do nome do script.")
+    print(
+        "  escolha uma tool e digite os argumentos como faria depois do nome do script."
+    )
     print("  use 'exit' dentro de cada scanner para voltar ao menu.\n")
 
 
@@ -476,7 +659,9 @@ def launch_webrecon() -> None:
         description="WebRecon interativo.",
         example="https://example.com -o recon.json",
         banner_fn=webrecon.banner,
-        contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com --cve --deep\n  -l urls.txt -o recon.json"),
+        contextual_help=(
+            "Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com --cve --deep\n  -l urls.txt -o recon.json"
+        ),
     )
 
 
@@ -506,7 +691,9 @@ def launch_dnstransfer() -> None:
         description="DNS Zone Transfer interativo.",
         example="example.com -o xfr.json",
         banner_fn=dnstransfer.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -o xfr.json"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -o xfr.json"
+        ),
     )
 
 
@@ -520,7 +707,9 @@ def launch_subdomainenum() -> None:
         description="Subdomain Enumeration interativo.",
         example="example.com -o subs.json",
         banner_fn=subdomainenum.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -w wordlist.txt -o subs.json"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -w wordlist.txt -o subs.json"
+        ),
     )
 
 
@@ -596,7 +785,9 @@ def launch_techfingerprint() -> None:
         description="Tech Fingerprint interativo — detecta tecnologias com versoes exatas.",
         example="https://example.com -o tech.json",
         banner_fn=create_banner(techfingerprint.BANNER_ART, "Technology Fingerprint"),
-        contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"),
+        contextual_help=(
+            "Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"
+        ),
     )
 
 
@@ -610,7 +801,9 @@ def launch_openapidiscovery() -> None:
         description="OpenAPI/Swagger Discovery interativo — busca specs expostas.",
         example="http://target.com --endpoints",
         banner_fn=openapidiscovery.banner,
-        contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  http://target.com\n  http://target.com --endpoints\n  -l urls.txt -o oas.json"),
+        contextual_help=(
+            "Uso: <url> [opcoes]\nExemplos:\n  http://target.com\n  http://target.com --endpoints\n  -l urls.txt -o oas.json"
+        ),
     )
 
 
@@ -830,7 +1023,9 @@ def launch_dnsrebinding() -> None:
         description="DNS Rebinding Detection interativo.",
         example="example.com --queries 10",
         banner_fn=dnsrebinding.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 10\n  -l domains.txt -o results.json"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 10\n  -l domains.txt -o results.json"
+        ),
     )
 
 
@@ -865,7 +1060,9 @@ def launch_dnsamplification() -> None:
         description="DNS Amplification Detection interativo.",
         example="example.com --record-types ANY,TXT,MX",
         banner_fn=dnsamplification.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types ANY,TXT,MX"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types ANY,TXT,MX"
+        ),
     )
 
 
@@ -895,7 +1092,9 @@ def launch_dnssecvalidation() -> None:
         description="DNSSEC Validation interativo.",
         example="example.com --nameserver 8.8.8.8",
         banner_fn=dnssecvalidation.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1\n  example.com --query-timeout 10"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1\n  example.com --query-timeout 10"
+        ),
     )
 
 
@@ -909,7 +1108,9 @@ def launch_nsecwalking() -> None:
         description="NSEC Walking interativo.",
         example="example.com --max-hops 500",
         banner_fn=nsecwalking.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --max-hops 500\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --max-hops 500\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 
@@ -923,7 +1124,9 @@ def launch_caacheck() -> None:
         description="CAA Record Check interativo.",
         example="example.com --nameserver 8.8.8.8",
         banner_fn=caacheck.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 
@@ -937,7 +1140,9 @@ def launch_emailsecurity() -> None:
         description="Email Security interativo — verifica DMARC/SPF/DKIM.",
         example="example.com --selectors default,google",
         banner_fn=emailsecurity.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 
@@ -951,7 +1156,9 @@ def launch_emailspoof() -> None:
         description="Email Spoofing — analise de vulnerabilidade a spoofing.",
         example="example.com --selectors default,google",
         banner_fn=emailspoof.banner,
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 
@@ -965,7 +1172,9 @@ def launch_smtpinjection() -> None:
         description="SMTP Injection — testa injecao CRLF em campos de email.",
         example="mail.example.com --port 587 --from-addr admin@test.com",
         banner_fn=smtpinjection.banner_art,
-        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25 --no-tls\n  mail.example.com --fields To,Subject"),
+        contextual_help=(
+            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25 --no-tls\n  mail.example.com --fields To,Subject"
+        ),
     )
 
 
@@ -979,7 +1188,9 @@ def launch_smtpdowngrade() -> None:
         description="SMTP Downgrade — testa forcar downgrade de STARTTLS.",
         example="mail.example.com --port 587",
         banner_fn=smtpdowngrade.banner_art,
-        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"),
+        contextual_help=(
+            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"
+        ),
     )
 
 
@@ -993,7 +1204,9 @@ def launch_emailtemplateinject() -> None:
         description="Email Template Injection — testa injecao de codigo em templates de email.",
         example="mail.example.com --port 587",
         banner_fn=emailtemplateinject.banner_art,
-        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"),
+        contextual_help=(
+            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"
+        ),
     )
 
 
@@ -1242,7 +1455,9 @@ def launch_cloudbucketenum() -> None:
         description="Cloud Bucket Enumeration — detecta buckets abertos em S3, GCP, Azure.",
         example="example.com",
         banner_fn=cloudbucketenum.banner_art,
-        contextual_help=("Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com -p s3\n  example.com -p gcp --timeout 15"),
+        contextual_help=(
+            "Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com -p s3\n  example.com -p gcp --timeout 15"
+        ),
     )
 
 
@@ -1276,7 +1491,9 @@ def launch_subdomaintakeover() -> None:
         description="Subdomain Takeover — detecta dangling CNAMEs para servicos nao reclamados.",
         example="example.com",
         banner_fn=subdomaintakeover.banner_art,
-        contextual_help=("Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20"),
+        contextual_help=(
+            "Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20"
+        ),
     )
 
 
@@ -2025,7 +2242,9 @@ def main() -> int:
         banner()
         menu()
         try:
-            choice = input(color("\nuser-agent> ", Cyber.GREEN, Cyber.BOLD)).strip().lower()
+            choice = (
+                input(color("\nuser-agent> ", Cyber.GREEN, Cyber.BOLD)).strip().lower()
+            )
         except EOFError, KeyboardInterrupt:
             print()
             return 0

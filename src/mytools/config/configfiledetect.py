@@ -177,12 +177,62 @@ _SENSITIVE_BASENAMES_DEFAULT: frozenset[str] = frozenset(
 )
 
 _SENSITIVE_PATTERNS_DEFAULT: dict[str, list[str]] = {
-    "env": ["=", "DB_", "API_KEY", "SECRET", "PASSWORD", "TOKEN", "MYSQL", "POSTGRES", "REDIS"],
+    "env": [
+        "=",
+        "DB_",
+        "API_KEY",
+        "SECRET",
+        "PASSWORD",
+        "TOKEN",
+        "MYSQL",
+        "POSTGRES",
+        "REDIS",
+    ],
     "config": ["config", "setting", "database", "host", "port", "password"],
-    "framework": ["DB_NAME", "DB_USER", "DB_PASSWORD", "wp_", "APP_KEY", "SECRET_KEY", "database", "password", "<configuration", "system.web"],
-    "database": ["mysql", "postgres", "host", "port", "database", "user", "password", "mongodb", "redis"],
-    "docker": ["services:", "version:", "image:", "container_name:", "build:", "volumes:", "FROM"],
-    "credentials": ["private_key", "client_email", "project_id", "key:", "secret:", "token:", "password:", "$apr1$", "$2b$", "$2a$"],
+    "framework": [
+        "DB_NAME",
+        "DB_USER",
+        "DB_PASSWORD",
+        "wp_",
+        "APP_KEY",
+        "SECRET_KEY",
+        "database",
+        "password",
+        "<configuration",
+        "system.web",
+    ],
+    "database": [
+        "mysql",
+        "postgres",
+        "host",
+        "port",
+        "database",
+        "user",
+        "password",
+        "mongodb",
+        "redis",
+    ],
+    "docker": [
+        "services:",
+        "version:",
+        "image:",
+        "container_name:",
+        "build:",
+        "volumes:",
+        "FROM",
+    ],
+    "credentials": [
+        "private_key",
+        "client_email",
+        "project_id",
+        "key:",
+        "secret:",
+        "token:",
+        "password:",
+        "$apr1$",
+        "$2b$",
+        "$2a$",
+    ],
 }
 
 
@@ -215,7 +265,9 @@ def _load_config_paths() -> None:
     DATABASE_PATHS = data.get("database", _DATABASE_PATHS_DEFAULT)
     DOCKER_PATHS = data.get("docker", _DOCKER_PATHS_DEFAULT)
     CREDENTIALS_PATHS = data.get("credentials", _CREDENTIALS_PATHS_DEFAULT)
-    SENSITIVE_BASENAMES = frozenset(data.get("sensitive_basenames", _SENSITIVE_BASENAMES_DEFAULT))
+    SENSITIVE_BASENAMES = frozenset(
+        data.get("sensitive_basenames", _SENSITIVE_BASENAMES_DEFAULT)
+    )
     _SENSITIVE_PATTERNS = data.get("sensitive_patterns", _SENSITIVE_PATTERNS_DEFAULT)
 
     ALL_CATEGORIES = {
@@ -226,7 +278,9 @@ def _load_config_paths() -> None:
         "docker": DOCKER_PATHS,
         "credentials": CREDENTIALS_PATHS,
     }
-    ALL_PATHS = list(dict.fromkeys(p for paths in ALL_CATEGORIES.values() for p in paths))
+    ALL_PATHS = list(
+        dict.fromkeys(p for paths in ALL_CATEGORIES.values() for p in paths)
+    )
 
 
 _load_config_paths()
@@ -296,7 +350,9 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
     # Validação específica por categoria
     if category == "env":
         lines = text.splitlines()
-        has_assignment = any("=" in line and not line.startswith("#") for line in lines[:50])
+        has_assignment = any(
+            "=" in line and not line.startswith("#") for line in lines[:50]
+        )
         if has_assignment:
             snippet = text[:100].replace("\n", " ")
             return True, snippet
@@ -465,11 +521,15 @@ async def scan_configs(
     async def _limited_probe(path: str) -> ConfigLeak | None:
         nonlocal completed
         async with sem:
-            result = await _probe_path(client, rate_limiter, base_url, path, timeout, retries)
+            result = await _probe_path(
+                client, rate_limiter, base_url, path, timeout, retries
+            )
             async with completed_lock:
                 completed += 1
                 if completed % 20 == 0 or completed == total:
-                    sys.stdout.write(f"\r  Progresso: {completed}/{total} paths testados...")
+                    sys.stdout.write(
+                        f"\r  Progresso: {completed}/{total} paths testados..."
+                    )
                     sys.stdout.flush()
             return result
 
@@ -556,7 +616,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
     parser.add_argument(
         "--concurrency",
         type=int,
@@ -565,7 +630,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--category",
-        choices=["env", "config", "framework", "database", "docker", "credentials", "all"],
+        choices=[
+            "env",
+            "config",
+            "framework",
+            "database",
+            "docker",
+            "credentials",
+            "all",
+        ],
         default="all",
         help="Categoria de configs para buscar. Padrao: all",
     )
@@ -594,13 +667,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if getattr(args, "dry_run", False):
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
-            base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
             logger.info("Alvo: %s", base_url)
         return 0
 
     all_leaks: list[ConfigLeak] = []
     for url in urls:
-        base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+        base_url = normalize_url(
+            url, default_scheme="https", ensure_trailing_slash=True
+        )
         custom_paths = _load_paths_from_args(args)
 
         leaks = await scan_configs(

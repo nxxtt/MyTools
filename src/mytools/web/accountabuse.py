@@ -97,16 +97,41 @@ _COUPON_PAYLOADS: list[tuple[str, str, dict[str, str], list[str]]] = [
     ("coupon_brute_force", "coupon=AAAA", {"coupon": "AAAA"}, ["discount", "coupon"]),
     ("expired_coupon", "coupon=SAVE100", {"coupon": "SAVE100"}, ["expired", "coupon"]),
     ("multi_use", "coupon=SINGLE10", {"coupon": "SINGLE10"}, ["single", "coupon"]),
-    ("format_bypass", "coupon=../../../etc", {"coupon": "../../../etc"}, ["coupon", "discount"]),
+    (
+        "format_bypass",
+        "coupon=../../../etc",
+        {"coupon": "../../../etc"},
+        ["coupon", "discount"],
+    ),
 ]
 
 
 _LOYALTY_PAYLOADS: list[tuple[str, str, dict[str, str], list[str]]] = [
-    ("transfer_abuse", "transfer_to=victim&points=99999", {"transfer_to": "victim", "points": "99999"}, ["transfer", "points"]),
-    ("self_transfer", "transfer_to=self&points=1000", {"transfer_to": "self", "points": "1000"}, ["transfer", "self"]),
+    (
+        "transfer_abuse",
+        "transfer_to=victim&points=99999",
+        {"transfer_to": "victim", "points": "99999"},
+        ["transfer", "points"],
+    ),
+    (
+        "self_transfer",
+        "transfer_to=self&points=1000",
+        {"transfer_to": "self", "points": "1000"},
+        ["transfer", "self"],
+    ),
     ("negative_points", "points=-500", {"points": "-500"}, ["points", "balance"]),
-    ("points_overflow", "points=999999999999", {"points": "999999999999"}, ["points", "balance"]),
-    ("race_transfer", "transfer_to=victim&points=100", {"transfer_to": "victim", "points": "100"}, ["transfer", "race"]),
+    (
+        "points_overflow",
+        "points=999999999999",
+        {"points": "999999999999"},
+        ["points", "balance"],
+    ),
+    (
+        "race_transfer",
+        "transfer_to=victim&points=100",
+        {"transfer_to": "victim", "points": "100"},
+        ["transfer", "race"],
+    ),
 ]
 
 
@@ -120,27 +145,82 @@ _GIFT_CARD_PAYLOADS: list[tuple[str, str, dict[str, str], list[str]]] = [
 
 
 _REFUND_PAYLOADS: list[tuple[str, str, dict[str, str], list[str]]] = [
-    ("amount_manipulation", "refund_amount=999999", {"refund_amount": "999999"}, ["refund", "amount"]),
-    ("negative_refund", "refund_amount=-100", {"refund_amount": "-100"}, ["refund", "amount"]),
-    ("double_refund", "refund=true&double=true", {"refund": "true", "double": "true"}, ["refund", "double"]),
-    ("max_refund", "refund_amount=999999999", {"refund_amount": "999999999"}, ["refund", "max"]),
-    ("race_refund", "refund=true&concurrent=true", {"refund": "true", "concurrent": "true"}, ["refund", "race"]),
+    (
+        "amount_manipulation",
+        "refund_amount=999999",
+        {"refund_amount": "999999"},
+        ["refund", "amount"],
+    ),
+    (
+        "negative_refund",
+        "refund_amount=-100",
+        {"refund_amount": "-100"},
+        ["refund", "amount"],
+    ),
+    (
+        "double_refund",
+        "refund=true&double=true",
+        {"refund": "true", "double": "true"},
+        ["refund", "double"],
+    ),
+    (
+        "max_refund",
+        "refund_amount=999999999",
+        {"refund_amount": "999999999"},
+        ["refund", "max"],
+    ),
+    (
+        "race_refund",
+        "refund=true&concurrent=true",
+        {"refund": "true", "concurrent": "true"},
+        ["refund", "race"],
+    ),
 ]
 
 
 _SUBSCRIPTION_PAYLOADS: list[tuple[str, str, dict[str, str], list[str]]] = [
-    ("cookie_bypass", "session=premium_expired", {"session": "premium_expired"}, ["premium", "session"]),
-    ("header_bypass", "X-Subscription-Tier: premium", {"X-Subscription-Tier": "premium"}, ["premium", "tier"]),
-    ("expired_subscription", "subscription=active", {"subscription": "active"}, ["expired", "subscription"]),
-    ("trial_abuse", "trial=new&email=test@test.com", {"trial": "new", "email": "test@test.com"}, ["trial", "abuse"]),
-    ("downgrade_bypass", "plan=enterprise&downgrade=true", {"plan": "enterprise", "downgrade": "true"}, ["plan", "downgrade"]),
+    (
+        "cookie_bypass",
+        "session=premium_expired",
+        {"session": "premium_expired"},
+        ["premium", "session"],
+    ),
+    (
+        "header_bypass",
+        "X-Subscription-Tier: premium",
+        {"X-Subscription-Tier": "premium"},
+        ["premium", "tier"],
+    ),
+    (
+        "expired_subscription",
+        "subscription=active",
+        {"subscription": "active"},
+        ["expired", "subscription"],
+    ),
+    (
+        "trial_abuse",
+        "trial=new&email=test@test.com",
+        {"trial": "new", "email": "test@test.com"},
+        ["trial", "abuse"],
+    ),
+    (
+        "downgrade_bypass",
+        "plan=enterprise&downgrade=true",
+        {"plan": "enterprise", "downgrade": "true"},
+        ["plan", "downgrade"],
+    ),
 ]
 
 
 _CATEGORY_TESTERS: dict[str, Callable[..., Awaitable[list[AccountAttempt]]]] = {}
 
 
-def _register_category(name: str) -> Callable[[Callable[..., Awaitable[list[AccountAttempt]]]], Callable[..., Awaitable[list[AccountAttempt]]]]:
+def _register_category(
+    name: str,
+) -> Callable[
+    [Callable[..., Awaitable[list[AccountAttempt]]]],
+    Callable[..., Awaitable[list[AccountAttempt]]],
+]:
 
     def decorator(
         fn: Callable[..., Awaitable[list[AccountAttempt]]],
@@ -274,7 +354,9 @@ async def _test_category(
         try:
             body_str = "&".join(f"{k}={v}" for k, v in body_dict.items())
 
-            resp = await client.post(target, content=body_str.encode(), follow_redirects=True)
+            resp = await client.post(
+                target, content=body_str.encode(), follow_redirects=True
+            )
 
             body = resp.text
 
@@ -332,7 +414,9 @@ async def _test_coupon(
 ) -> list[AccountAttempt]:
     """Testa cupom de desconto."""
 
-    return await _test_category(client, target, _COUPON_PAYLOADS, "coupon", baseline_status, baseline_size)
+    return await _test_category(
+        client, target, _COUPON_PAYLOADS, "coupon", baseline_status, baseline_size
+    )
 
 
 @_register_category("loyalty_points")
@@ -345,7 +429,14 @@ async def _test_loyalty_points(
 ) -> list[AccountAttempt]:
     """Testa abuso de pontos de fidelidade."""
 
-    return await _test_category(client, target, _LOYALTY_PAYLOADS, "loyalty_points", baseline_status, baseline_size)
+    return await _test_category(
+        client,
+        target,
+        _LOYALTY_PAYLOADS,
+        "loyalty_points",
+        baseline_status,
+        baseline_size,
+    )
 
 
 @_register_category("gift_card")
@@ -358,7 +449,9 @@ async def _test_gift_card(
 ) -> list[AccountAttempt]:
     """Testa abuso de gift card."""
 
-    return await _test_category(client, target, _GIFT_CARD_PAYLOADS, "gift_card", baseline_status, baseline_size)
+    return await _test_category(
+        client, target, _GIFT_CARD_PAYLOADS, "gift_card", baseline_status, baseline_size
+    )
 
 
 @_register_category("refund")
@@ -371,7 +464,9 @@ async def _test_refund(
 ) -> list[AccountAttempt]:
     """Testa manipulacao de reembolso."""
 
-    return await _test_category(client, target, _REFUND_PAYLOADS, "refund", baseline_status, baseline_size)
+    return await _test_category(
+        client, target, _REFUND_PAYLOADS, "refund", baseline_status, baseline_size
+    )
 
 
 @_register_category("subscription")
@@ -384,7 +479,14 @@ async def _test_subscription(
 ) -> list[AccountAttempt]:
     """Testa bypass de assinatura."""
 
-    return await _test_category(client, target, _SUBSCRIPTION_PAYLOADS, "subscription", baseline_status, baseline_size)
+    return await _test_category(
+        client,
+        target,
+        _SUBSCRIPTION_PAYLOADS,
+        "subscription",
+        baseline_status,
+        baseline_size,
+    )
 
 
 def print_results(result: AccountResult) -> None:
@@ -421,7 +523,10 @@ def print_results(result: AccountResult) -> None:
 
     print(color("  TLS: ", Cyber.CYAN) + ("Sim" if result.tls else "Nao"))
 
-    print(color("  Baseline: ", Cyber.CYAN) + f"HTTP {result.baseline_status} ({result.baseline_size} bytes)")
+    print(
+        color("  Baseline: ", Cyber.CYAN)
+        + f"HTTP {result.baseline_status} ({result.baseline_size} bytes)"
+    )
 
     if result.account_url:
         print(color("  Account URL: ", Cyber.CYAN) + result.account_url)
@@ -460,9 +565,15 @@ def print_results(result: AccountResult) -> None:
 
             print(color(f"    {icon} {a.technique}", Cyber.WHITE))
 
-            print(color("      Baseline: ", Cyber.GRAY) + f"HTTP {a.status_baseline} ({a.size_baseline}B)")
+            print(
+                color("      Baseline: ", Cyber.GRAY)
+                + f"HTTP {a.status_baseline} ({a.size_baseline}B)"
+            )
 
-            print(color("      Test:     ", Cyber.GRAY) + f"HTTP {a.status_test} ({a.size_test}B)")
+            print(
+                color("      Test:     ", Cyber.GRAY)
+                + f"HTTP {a.status_test} ({a.size_test}B)"
+            )
 
             if a.status_changed:
                 print(color("      Status MUDOU", Cyber.YELLOW))
@@ -484,7 +595,10 @@ def print_results(result: AccountResult) -> None:
 
     print(color("  Bloqueados: ", Cyber.CYAN) + color(str(blocked_count), Cyber.YELLOW))
 
-    print(color("  Seguros: ", Cyber.CYAN) + color(str(total - vuln_count - blocked_count), Cyber.GREEN))
+    print(
+        color("  Seguros: ", Cyber.CYAN)
+        + color(str(total - vuln_count - blocked_count), Cyber.GREEN)
+    )
 
     print(color(f"{'=' * 60}\n", Cyber.CYAN))
 
@@ -510,7 +624,9 @@ async def run_scan(
     tls = target.startswith("https://")
 
     async with create_async_client(timeout=timeout) as client:
-        b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+        b_status, _b_headers, b_body, _b_raw = await fetch(
+            client, target, timeout=timeout
+        )
 
         b_size = len(b_body)
 
@@ -531,7 +647,9 @@ async def run_scan(
                 continue
 
             try:
-                raw = await tester(client, account_url or target, timeout, b_status, b_size)
+                raw = await tester(
+                    client, account_url or target, timeout, b_status, b_size
+                )
 
                 all_attempts.extend(raw)
 
@@ -540,9 +658,13 @@ async def run_scan(
 
     vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-    blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and a.status_changed})
+    blocked_techs = list(
+        {a.technique for a in all_attempts if not a.vulnerable and a.status_changed}
+    )
 
-    overall = "VULNERAVEL" if vuln_techs else ("BLOQUEADO" if blocked_techs else "SEGURO")
+    overall = (
+        "VULNERAVEL" if vuln_techs else ("BLOQUEADO" if blocked_techs else "SEGURO")
+    )
 
     result = AccountResult(
         target=target,
@@ -586,7 +708,9 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   accountabuse: coupon, loyalty_points, gift_card, refund, subscription")()
+    create_banner(
+        art, "   accountabuse: coupon, loyalty_points, gift_card, refund, subscription"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -614,7 +738,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "coupon", "loyalty_points", "gift_card", "refund", "subscription"],
+        choices=[
+            "all",
+            "coupon",
+            "loyalty_points",
+            "gift_card",
+            "refund",
+            "subscription",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -642,7 +773,9 @@ def run_once(args: argparse.Namespace) -> int:
         ),
     )
 
-    return 1 if isinstance(result, AccountResult) and result.vulnerable_techniques else 0
+    return (
+        1 if isinstance(result, AccountResult) and result.vulnerable_techniques else 0
+    )
 
 
 def main() -> int:
@@ -652,7 +785,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="accountabuse> ",
         description="Account Abuse Attack Detection interativo.",
         example="https://target.com/account -c coupon",

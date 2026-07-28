@@ -78,7 +78,9 @@ class TestGetVerifyPayload:
                 assert len(value) == 2, f"{module}.{cat} length != 2"
                 payload, indicators = value
                 assert isinstance(payload, str), f"{module}.{cat} payload is not str"
-                assert isinstance(indicators, list), f"{module}.{cat} indicators is not list"
+                assert isinstance(indicators, list), (
+                    f"{module}.{cat} indicators is not list"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +125,9 @@ class TestVerifyPositive:
         async def _handler(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("fail")
 
-        respx.route(method="GET", url="https://example.com/?param=whoami").mock(side_effect=_handler)
+        respx.route(method="GET", url="https://example.com/?param=whoami").mock(
+            side_effect=_handler
+        )
         async with httpx.AsyncClient() as client:
             confirmed, found = await verify_positive(
                 client,
@@ -137,7 +141,9 @@ class TestVerifyPositive:
     @pytest.mark.asyncio
     async def test_sql_verify(self) -> None:
         respx.get("https://example.com/?param=%22+OR+1%3D1--").mock(
-            return_value=httpx.Response(200, text="You have an error in your SQL syntax"),
+            return_value=httpx.Response(
+                200, text="You have an error in your SQL syntax"
+            ),
         )
         async with httpx.AsyncClient() as client:
             confirmed, found = await verify_positive(

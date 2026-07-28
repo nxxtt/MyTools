@@ -114,7 +114,9 @@ class TestProbeStatus:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_status_on_success(self, async_client):
-        respx.get("http://example.com/robots.txt").mock(return_value=httpx.Response(200, text="User-agent: *"))
+        respx.get("http://example.com/robots.txt").mock(
+            return_value=httpx.Response(200, text="User-agent: *")
+        )
         client = async_client
         result = await probe_status(client, "http://example.com/robots.txt", 5.0)
         assert result == 200
@@ -122,7 +124,9 @@ class TestProbeStatus:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_none_on_error(self, async_client):
-        respx.get("http://example.com/robots.txt").mock(side_effect=httpx.ConnectError("refused"))
+        respx.get("http://example.com/robots.txt").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
         client = async_client
         result = await probe_status(client, "http://example.com/robots.txt", 5.0)
         assert result is None
@@ -172,63 +176,97 @@ class TestReconResultDataclass:
 
 class TestDetectTechnologies:
     def test_wordpress_by_body(self):
-        tech = detect_technologies({}, '<html><link href="/wp-content/style.css">', "https://example.com")
+        tech = detect_technologies(
+            {}, '<html><link href="/wp-content/style.css">', "https://example.com"
+        )
         assert "WordPress" in tech["cms"]
 
     def test_wordpress_by_header(self):
-        tech = detect_technologies({"X-Pingback": "https://example.com/xmlrpc.php"}, "", "https://example.com")
+        tech = detect_technologies(
+            {"X-Pingback": "https://example.com/xmlrpc.php"}, "", "https://example.com"
+        )
         assert "WordPress" in tech["cms"]
 
     def test_wordpress_by_cookie(self):
-        tech = detect_technologies({}, "", "https://example.com", cookies=["wordpress_logged_in_abc=123"])
+        tech = detect_technologies(
+            {}, "", "https://example.com", cookies=["wordpress_logged_in_abc=123"]
+        )
         assert "WordPress" in tech["cms"]
 
     def test_django_by_cookie(self):
-        tech = detect_technologies({}, "", "https://example.com", cookies=["csrftoken=xyz"])
+        tech = detect_technologies(
+            {}, "", "https://example.com", cookies=["csrftoken=xyz"]
+        )
         assert "Django" in tech["frameworks"]
 
     def test_django_by_body(self):
-        tech = detect_technologies({}, '<input type="hidden" name="csrfmiddlewaretoken">', "https://example.com")
+        tech = detect_technologies(
+            {},
+            '<input type="hidden" name="csrfmiddlewaretoken">',
+            "https://example.com",
+        )
         assert "Django" in tech["frameworks"]
 
     def test_express_by_header(self):
-        tech = detect_technologies({"X-Powered-By": "Express"}, "", "https://example.com")
+        tech = detect_technologies(
+            {"X-Powered-By": "Express"}, "", "https://example.com"
+        )
         assert "Express" in tech["frameworks"]
 
     def test_laravel_by_cookie(self):
-        tech = detect_technologies({}, "", "https://example.com", cookies=["laravel_session=eyJ"])
+        tech = detect_technologies(
+            {}, "", "https://example.com", cookies=["laravel_session=eyJ"]
+        )
         assert "Laravel" in tech["frameworks"]
 
     def test_jquery_by_body(self):
-        tech = detect_technologies({}, '<script src="jquery-3.6.0.min.js">', "https://example.com")
+        tech = detect_technologies(
+            {}, '<script src="jquery-3.6.0.min.js">', "https://example.com"
+        )
         assert "jQuery" in tech["libraries"]
 
     def test_bootstrap_by_body(self):
-        tech = detect_technologies({}, '<link rel="stylesheet" href="bootstrap.min.css">', "https://example.com")
+        tech = detect_technologies(
+            {},
+            '<link rel="stylesheet" href="bootstrap.min.css">',
+            "https://example.com",
+        )
         assert "Bootstrap" in tech["libraries"]
 
     def test_react_by_body(self):
-        tech = detect_technologies({}, "<script>__REACT_DEVTOOLS_GLOBAL_HOOK__</script>", "https://example.com")
+        tech = detect_technologies(
+            {}, "<script>__REACT_DEVTOOLS_GLOBAL_HOOK__</script>", "https://example.com"
+        )
         assert "React" in tech["libraries"]
 
     def test_vue_by_body(self):
-        tech = detect_technologies({}, "<script>Vue.__vue__</script>", "https://example.com")
+        tech = detect_technologies(
+            {}, "<script>Vue.__vue__</script>", "https://example.com"
+        )
         assert "Vue.js" in tech["libraries"]
 
     def test_angular_by_body(self):
-        tech = detect_technologies({}, '<app-root ng-version="14.0.0">', "https://example.com")
+        tech = detect_technologies(
+            {}, '<app-root ng-version="14.0.0">', "https://example.com"
+        )
         assert "Angular" in tech["libraries"]
 
     def test_server_nginx(self):
-        tech = detect_technologies({"Server": "nginx/1.24.0"}, "", "https://example.com")
+        tech = detect_technologies(
+            {"Server": "nginx/1.24.0"}, "", "https://example.com"
+        )
         assert "Nginx" in tech["server"]
 
     def test_server_apache(self):
-        tech = detect_technologies({"Server": "Apache/2.4.57"}, "", "https://example.com")
+        tech = detect_technologies(
+            {"Server": "Apache/2.4.57"}, "", "https://example.com"
+        )
         assert "Apache" in tech["server"]
 
     def test_server_iis(self):
-        tech = detect_technologies({"Server": "Microsoft-IIS/10.0"}, "", "https://example.com")
+        tech = detect_technologies(
+            {"Server": "Microsoft-IIS/10.0"}, "", "https://example.com"
+        )
         assert "IIS" in tech["server"]
 
     def test_multiple_cms(self):
@@ -244,21 +282,31 @@ class TestDetectTechnologies:
         assert tech["libraries"] == []
 
     def test_no_false_positives(self):
-        tech = detect_technologies({"Server": "nginx"}, "<html><body>Hello</body></html>", "https://example.com")
+        tech = detect_technologies(
+            {"Server": "nginx"},
+            "<html><body>Hello</body></html>",
+            "https://example.com",
+        )
         assert tech["cms"] == []
         assert tech["frameworks"] == []
         assert tech["libraries"] == []
 
     def test_shopify_by_body(self):
-        tech = detect_technologies({}, "<script>Shopify.theme</script>", "https://example.com")
+        tech = detect_technologies(
+            {}, "<script>Shopify.theme</script>", "https://example.com"
+        )
         assert "Shopify" in tech["cms"]
 
     def test_aspnet_by_header(self):
-        tech = detect_technologies({"X-AspNet-Version": "4.0.30319"}, "", "https://example.com")
+        tech = detect_technologies(
+            {"X-AspNet-Version": "4.0.30319"}, "", "https://example.com"
+        )
         assert "ASP.NET" in tech["frameworks"]
 
     def test_flask_by_cookie(self):
-        tech = detect_technologies({}, "", "https://example.com", cookies=["session=eyJhbGciOiJIUzI1NiJ9"])
+        tech = detect_technologies(
+            {}, "", "https://example.com", cookies=["session=eyJhbGciOiJIUzI1NiJ9"]
+        )
         assert "Flask" in tech["frameworks"]
 
 
@@ -309,7 +357,9 @@ class TestBuildParser:
 
     def test_has_proxy_argument(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--proxy", "http://proxy:8080"])
+        args = parser.parse_args(
+            ["https://example.com", "--proxy", "http://proxy:8080"]
+        )
         assert args.proxy == "http://proxy:8080"
 
     def test_has_verbose_argument(self):
@@ -487,12 +537,23 @@ class TestLookupCves:
                     "cve": {
                         "id": "CVE-2021-44228",
                         "descriptions": [{"lang": "en", "value": "Apache Log4j2 RCE"}],
-                        "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}]},
+                        "metrics": {
+                            "cvssMetricV31": [
+                                {
+                                    "cvssData": {
+                                        "baseScore": 10.0,
+                                        "baseSeverity": "CRITICAL",
+                                    }
+                                }
+                            ]
+                        },
                     }
                 }
             ],
         }
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(200, json=mock_response))
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
         findings = await lookup_cves([("Apache", "2.4.41")])
         assert len(findings) == 1
         assert findings[0].cve_id == "CVE-2021-44228"
@@ -510,12 +571,23 @@ class TestLookupCves:
                     "cve": {
                         "id": "CVE-2021-44228",
                         "descriptions": [{"lang": "en", "value": "Log4j RCE"}],
-                        "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}]},
+                        "metrics": {
+                            "cvssMetricV31": [
+                                {
+                                    "cvssData": {
+                                        "baseScore": 10.0,
+                                        "baseSeverity": "CRITICAL",
+                                    }
+                                }
+                            ]
+                        },
                     }
                 }
             ],
         }
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(200, json=mock_response))
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
         findings = await lookup_cves([("Apache", "2.4.41"), ("Apache", "2.4.41")])
         assert len(findings) == 1
 
@@ -556,7 +628,9 @@ class TestDetectWaf:
         assert "Cloudflare" in waf
 
     def test_akamai_by_header(self):
-        waf = detect_waf({"X-Akamai-Transformed": "9 - 0 pmb=mRUM"}, "", "https://example.com")
+        waf = detect_waf(
+            {"X-Akamai-Transformed": "9 - 0 pmb=mRUM"}, "", "https://example.com"
+        )
         assert "Akamai" in waf
 
     def test_sucuri_by_header(self):
@@ -576,7 +650,9 @@ class TestDetectWaf:
         assert "ModSecurity" in waf
 
     def test_modsecurity_by_body(self):
-        waf = detect_waf({}, "<html><body>mod_security error</body></html>", "https://example.com")
+        waf = detect_waf(
+            {}, "<html><body>mod_security error</body></html>", "https://example.com"
+        )
         assert "ModSecurity" in waf
 
     def test_fortinet_by_header(self):
@@ -584,7 +660,9 @@ class TestDetectWaf:
         assert "Fortinet" in waf
 
     def test_aws_waf_by_cookie(self):
-        waf = detect_waf({}, "", "https://example.com", cookies=["aws-waf-token=abc123"])
+        waf = detect_waf(
+            {}, "", "https://example.com", cookies=["aws-waf-token=abc123"]
+        )
         assert "AWS WAF" in waf
 
     def test_varnish_by_header(self):
@@ -668,7 +746,9 @@ class TestHarvestEmails:
         assert harvest_emails("<html><body>Hello world</body></html>") == []
 
     def test_extracts_from_robots(self):
-        robots = "# Comment\nUser-agent: *\nDisallow: /admin/\nContact: admin@example.com"
+        robots = (
+            "# Comment\nUser-agent: *\nDisallow: /admin/\nContact: admin@example.com"
+        )
         emails = harvest_emails(robots)
         assert "admin@example.com" in emails
 
@@ -682,11 +762,19 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_crawls_internal_links(self, async_client):
-        respx.get("http://example.com/contact").mock(return_value=httpx.Response(200, text="<html><p>Email: info@example.com</p></html>"))
-        respx.get("http://example.com/about").mock(return_value=httpx.Response(200, text="<html><p>No emails here</p></html>"))
+        respx.get("http://example.com/contact").mock(
+            return_value=httpx.Response(
+                200, text="<html><p>Email: info@example.com</p></html>"
+            )
+        )
+        respx.get("http://example.com/about").mock(
+            return_value=httpx.Response(200, text="<html><p>No emails here</p></html>")
+        )
         client = async_client
         body = '<html><a href="/contact">Contact</a> <a href="/about">About</a></html>'
-        emails = await crawl_internal_links(client, "http://example.com", body, 5.0, max_links=2)
+        emails = await crawl_internal_links(
+            client, "http://example.com", body, 5.0, max_links=2
+        )
         assert "info@example.com" in emails
 
     @pytest.mark.asyncio
@@ -700,10 +788,14 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_respects_max_links(self, async_client):
-        respx.get("http://example.com/a").mock(return_value=httpx.Response(200, text="<html><p>a@test.com</p></html>"))
+        respx.get("http://example.com/a").mock(
+            return_value=httpx.Response(200, text="<html><p>a@test.com</p></html>")
+        )
         body = '<html><a href="/a">A</a> <a href="/b">B</a> <a href="/c">C</a></html>'
         client = async_client
-        emails = await crawl_internal_links(client, "http://example.com", body, 5.0, max_links=1)
+        emails = await crawl_internal_links(
+            client, "http://example.com", body, 5.0, max_links=1
+        )
         assert respx.get("http://example.com/b").called is False
         assert respx.get("http://example.com/c").called is False
         assert "a@test.com" in emails
@@ -711,7 +803,9 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_handles_fetch_error(self, async_client):
-        respx.get("http://example.com/broken").mock(side_effect=httpx.ConnectError("refused"))
+        respx.get("http://example.com/broken").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
         body = '<html><a href="/broken">Broken</a></html>'
         client = async_client
         emails = await crawl_internal_links(client, "http://example.com", body, 5.0)
@@ -719,7 +813,9 @@ class TestCrawlInternalLinks:
 
     @pytest.mark.asyncio
     async def test_skips_anchors_and_javascript(self, async_client):
-        body = '<html><a href="#section">S</a> <a href="javascript:void(0)">JS</a></html>'
+        body = (
+            '<html><a href="#section">S</a> <a href="javascript:void(0)">JS</a></html>'
+        )
         client = async_client
         emails = await crawl_internal_links(client, "http://example.com", body, 5.0)
         assert emails == []
@@ -727,7 +823,9 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_deduplicates_urls(self, async_client):
-        respx.get("http://example.com/page").mock(return_value=httpx.Response(200, text="<html><p>x@y.com</p></html>"))
+        respx.get("http://example.com/page").mock(
+            return_value=httpx.Response(200, text="<html><p>x@y.com</p></html>")
+        )
         body = '<html><a href="/page">P1</a> <a href="/page">P2</a></html>'
         client = async_client
         emails = await crawl_internal_links(client, "http://example.com", body, 5.0)
@@ -855,7 +953,9 @@ class TestRunWhois:
 
         import whois as _whois
 
-        with unittest.mock.patch.object(_whois, "whois", side_effect=Exception("connection refused")):
+        with unittest.mock.patch.object(
+            _whois, "whois", side_effect=Exception("connection refused")
+        ):
             result = await run_whois("nonexistent.invalid")
             assert result is None
 
@@ -895,7 +995,9 @@ class TestProbeStatusEdgeCases:
     @pytest.mark.asyncio
     @respx.mock
     async def test_timeout_returns_none(self, async_client):
-        respx.get("http://example.com/robots.txt").mock(side_effect=httpx.TimeoutException("timeout"))
+        respx.get("http://example.com/robots.txt").mock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
         result = await probe_status(async_client, "http://example.com/robots.txt", 0.1)
         assert result is None
 
@@ -919,22 +1021,32 @@ class TestCrawlInternalLinksEdgeCases:
     @respx.mock
     async def test_connection_refused_returns_empty(self, async_client):
         respx.get("http://example.com/").mock(side_effect=httpx.ConnectError("refused"))
-        result = await crawl_internal_links(async_client, "http://example.com", "<html></html>", timeout=1.0)
+        result = await crawl_internal_links(
+            async_client, "http://example.com", "<html></html>", timeout=1.0
+        )
         assert result == []
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_timeout_returns_empty(self, async_client):
-        respx.get("http://example.com/").mock(side_effect=httpx.TimeoutException("timeout"))
-        result = await crawl_internal_links(async_client, "http://example.com", "<html></html>", timeout=0.1)
+        respx.get("http://example.com/").mock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        result = await crawl_internal_links(
+            async_client, "http://example.com", "<html></html>", timeout=0.1
+        )
         assert result == []
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_malformed_html_handled(self, async_client):
-        respx.get("http://example.com/page").mock(return_value=httpx.Response(200, text="Contact: admin@example.com"))
+        respx.get("http://example.com/page").mock(
+            return_value=httpx.Response(200, text="Contact: admin@example.com")
+        )
         body = "<html><body><a href='/page'>link</a></body></html>"
-        result = await crawl_internal_links(async_client, "http://example.com", body, timeout=5.0)
+        result = await crawl_internal_links(
+            async_client, "http://example.com", body, timeout=5.0
+        )
         assert "admin@example.com" in result
 
 
@@ -948,7 +1060,9 @@ class TestLookupCvesEdgeCases:
     @pytest.mark.asyncio
     @respx.mock
     async def test_connection_error_returns_empty(self):
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(side_effect=httpx.ConnectError("refused"))
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
         result = await lookup_cves([("nginx", "1.21.0")])
         assert result == []
 
@@ -1009,7 +1123,9 @@ class TestMain:
             cookie=None,
             header=[],
         )
-        with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args
+        ):
             result = main()
             assert result == 0
             mock_shell.assert_called_once()
@@ -1039,7 +1155,9 @@ class TestMain:
             cookie=None,
             header=[],
         )
-        with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args
+        ):
             result = main()
             assert result == 1
 
@@ -1070,7 +1188,9 @@ class TestMain:
             cookie=None,
             header=[],
         )
-        with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args
+        ):
             result = main()
             assert result == 0
             mock_run_once.assert_called_once()
@@ -1102,6 +1222,8 @@ class TestMain:
             cookie=None,
             header=[],
         )
-        with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args
+        ):
             result = main()
             assert result == 1

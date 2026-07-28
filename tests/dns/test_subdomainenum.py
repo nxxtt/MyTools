@@ -1,6 +1,6 @@
 import argparse
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import dns.exception
 import dns.resolver
@@ -226,7 +226,10 @@ class TestEnumerateSubdomains:
     def test_empty_domain(self):
         with pytest.raises(ValueError) as excinfo:
             enumerate_subdomains("", ["www"])
-        assert "dominio" in str(excinfo.value).lower() or "domínio" in str(excinfo.value).lower()
+        assert (
+            "dominio" in str(excinfo.value).lower()
+            or "domínio" in str(excinfo.value).lower()
+        )
 
     def test_whitespace_domain_stripped(self):
         with pytest.raises(ValueError):
@@ -234,7 +237,9 @@ class TestEnumerateSubdomains:
 
     @patch("mytools.dns.subdomainenum._resolve_subdomain")
     def test_returns_only_resolved(self, mock_resolve):
-        r1 = SubdomainResult(subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved")
+        r1 = SubdomainResult(
+            subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved"
+        )
         r2 = SubdomainResult(subdomain="nope.example.com", status="nxdomain")
         mock_resolve.side_effect = [r1, r2]
 
@@ -244,8 +249,12 @@ class TestEnumerateSubdomains:
 
     @patch("mytools.dns.subdomainenum._resolve_subdomain")
     def test_all_resolved(self, mock_resolve):
-        r1 = SubdomainResult(subdomain="a.example.com", ip_addresses=["1.1.1.1"], status="resolved")
-        r2 = SubdomainResult(subdomain="b.example.com", ip_addresses=["2.2.2.2"], status="resolved")
+        r1 = SubdomainResult(
+            subdomain="a.example.com", ip_addresses=["1.1.1.1"], status="resolved"
+        )
+        r2 = SubdomainResult(
+            subdomain="b.example.com", ip_addresses=["2.2.2.2"], status="resolved"
+        )
         mock_resolve.side_effect = [r1, r2]
 
         results = enumerate_subdomains("example.com", ["a", "b"], threads=1)
@@ -253,7 +262,9 @@ class TestEnumerateSubdomains:
 
     @patch("mytools.dns.subdomainenum._resolve_subdomain")
     def test_none_resolved(self, mock_resolve):
-        mock_resolve.return_value = SubdomainResult(subdomain="x.example.com", status="nxdomain")
+        mock_resolve.return_value = SubdomainResult(
+            subdomain="x.example.com", status="nxdomain"
+        )
 
         results = enumerate_subdomains("example.com", ["x"], threads=1)
         assert len(results) == 0
@@ -266,7 +277,9 @@ class TestEnumerateSubdomains:
 
     @patch("mytools.dns.subdomainenum._resolve_subdomain")
     def test_threads_passed(self, mock_resolve):
-        mock_resolve.return_value = SubdomainResult(subdomain="x.example.com", status="nxdomain")
+        mock_resolve.return_value = SubdomainResult(
+            subdomain="x.example.com", status="nxdomain"
+        )
 
         enumerate_subdomains("example.com", ["x", "y"], threads=2)
         assert mock_resolve.call_count == 2
@@ -279,9 +292,13 @@ class TestRunEnumScan:
         mock_load.return_value = ["www"]
         mock_enum.return_value = []
 
-        results = run_enum_scan("example.com", wordlist_path=None, threads=10, timeout=5.0)
+        results = run_enum_scan(
+            "example.com", wordlist_path=None, threads=10, timeout=5.0
+        )
         mock_load.assert_called_once_with(None)
-        mock_enum.assert_called_once_with("example.com", ["www"], threads=10, timeout=5.0, skip_names=None)
+        mock_enum.assert_called_once_with(
+            "example.com", ["www"], threads=10, timeout=5.0, skip_names=None
+        )
         assert results == []
 
     @patch("mytools.dns.subdomainenum.enumerate_subdomains")
@@ -298,7 +315,11 @@ class TestRunEnumScan:
     @patch("mytools.dns.subdomainenum.load_wordlist")
     def test_returns_results(self, mock_load, mock_enum):
         mock_load.return_value = ["www"]
-        expected = [SubdomainResult(subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved")]
+        expected = [
+            SubdomainResult(
+                subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved"
+            )
+        ]
         mock_enum.return_value = expected
 
         results = run_enum_scan("example.com")
@@ -326,7 +347,9 @@ class TestBuildParser:
         assert args.wordlist == "test_wordlist.txt"
 
     def test_wordlist_long(self):
-        args = self.parser.parse_args(["example.com", "--wordlist", "test_wordlist.txt"])
+        args = self.parser.parse_args(
+            ["example.com", "--wordlist", "test_wordlist.txt"]
+        )
         assert args.wordlist == "test_wordlist.txt"
 
     def test_threads_short(self):
@@ -397,7 +420,11 @@ class TestRunOnce:
     @patch("mytools.dns.subdomainenum.run_enum_scan")
     @patch("mytools.dns.subdomainenum.write_output")
     def test_saves_output(self, mock_write, mock_scan):
-        mock_scan.return_value = [SubdomainResult(subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved")]
+        mock_scan.return_value = [
+            SubdomainResult(
+                subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved"
+            )
+        ]
         args = _make_args(output="out.json")
         run_once(args)
         mock_write.assert_called_once()
@@ -414,14 +441,20 @@ class TestMain:
         with patch("mytools.core.utils.run_interactive_shell") as mock_shell:
             mock_shell.return_value = 0
             args = _make_args(domain=None)
-            with patch("mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
+            with patch(
+                "mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args",
+                return_value=args,
+            ):
                 result = main()
                 assert result == 0
                 mock_shell.assert_called_once()
 
     def test_quiet_without_output_returns_1(self):
         args = _make_args(quiet=True, output=None)
-        with patch("mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1
 
@@ -430,7 +463,10 @@ class TestMain:
     def test_valid_domain_calls_run_once(self, mock_banner, mock_run_once):
         mock_run_once.return_value = 0
         args = _make_args(domain="example.com")
-        with patch("mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 0
             mock_run_once.assert_called_once()
@@ -439,7 +475,13 @@ class TestMain:
     def test_quiet_with_output_skips_banner(self, mock_run_once):
         mock_run_once.return_value = 0
         args = _make_args(quiet=True, output="out.json")
-        with patch("mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args", return_value=args), patch("mytools.core.utils.show_banner") as mock_banner:
+        with (
+            patch(
+                "mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args",
+                return_value=args,
+            ),
+            patch("mytools.core.utils.show_banner") as mock_banner,
+        ):
             result = main()
             assert result == 0
             mock_banner.assert_not_called()
@@ -449,7 +491,10 @@ class TestMain:
     def test_exception_returns_1(self, mock_banner, mock_run_once):
         mock_run_once.side_effect = RuntimeError("fail")
         args = _make_args(domain="example.com")
-        with patch("mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.dns.subdomainenum.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1
 
@@ -539,7 +584,12 @@ class TestParseCrtsh:
 
 class TestParseOtx:
     def test_extracts_subdomains(self):
-        data = {"passive_dns": [{"hostname": "www.example.com"}, {"hostname": "mail.example.com"}]}
+        data = {
+            "passive_dns": [
+                {"hostname": "www.example.com"},
+                {"hostname": "mail.example.com"},
+            ]
+        }
         body = json.dumps(data).encode()
         result = _parse_otx(body, "example.com")
         assert "www.example.com" in result
@@ -637,26 +687,23 @@ class TestPassiveEnumeration:
         result = passive_enumeration("example.com", [])
         assert result == []
 
-    @patch("mytools.dns.subdomainenum._passive_enumerate_async", new_callable=MagicMock)
-    @patch("mytools.dns.subdomainenum.safe_asyncio_run")
-    def test_calls_with_correct_sources(self, mock_run, mock_async):
-        mock_run.return_value = ["www.example.com"]
+    @patch("mytools.dns.subdomainenum._passive_enumerate_async", new_callable=AsyncMock)
+    def test_calls_with_correct_sources(self, mock_async):
+        mock_async.return_value = ["www.example.com"]
         results = passive_enumeration("example.com", ["crtsh"], timeout=5.0)
         assert len(results) == 1
         assert results[0].subdomain == "www.example.com"
         assert results[0].status == "passive"
 
-    @patch("mytools.dns.subdomainenum._passive_enumerate_async", new_callable=MagicMock)
-    @patch("mytools.dns.subdomainenum.safe_asyncio_run")
-    def test_deduplicates_results(self, mock_run, mock_async):
-        mock_run.return_value = ["www.example.com", "www.example.com"]
+    @patch("mytools.dns.subdomainenum._passive_enumerate_async", new_callable=AsyncMock)
+    def test_deduplicates_results(self, mock_async):
+        mock_async.return_value = ["www.example.com", "www.example.com"]
         results = passive_enumeration("example.com", ["crtsh"])
         assert len(results) == 1
 
-    @patch("mytools.dns.subdomainenum._passive_enumerate_async", new_callable=MagicMock)
-    @patch("mytools.dns.subdomainenum.safe_asyncio_run")
-    def test_returns_sorted(self, mock_run, mock_async):
-        mock_run.return_value = ["z.example.com", "a.example.com"]
+    @patch("mytools.dns.subdomainenum._passive_enumerate_async", new_callable=AsyncMock)
+    def test_returns_sorted(self, mock_async):
+        mock_async.return_value = ["z.example.com", "a.example.com"]
         results = passive_enumeration("example.com", ["crtsh"])
         assert results[0].subdomain == "a.example.com"
         assert results[1].subdomain == "z.example.com"

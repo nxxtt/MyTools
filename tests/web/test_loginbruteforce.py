@@ -145,7 +145,9 @@ class TestDetectForm:
 class TestCheckLockout:
     def test_lockout_detected(self) -> None:
         indicators = ["account locked", "too many attempts"]
-        detected, detail = _check_lockout("Account locked due to too many attempts", indicators)
+        detected, detail = _check_lockout(
+            "Account locked due to too many attempts", indicators
+        )
         assert detected is True
         assert "account locked" in detail.lower()
 
@@ -197,11 +199,15 @@ class TestCheckLoginSuccess:
         assert "Redirect" in detail
 
     def test_body_indicator(self) -> None:
-        detected, _detail = _check_login_success(200, "Welcome back, admin!", ["welcome back"], "")
+        detected, _detail = _check_login_success(
+            200, "Welcome back, admin!", ["welcome back"], ""
+        )
         assert detected is True
 
     def test_not_detected(self) -> None:
-        detected, _ = _check_login_success(200, "Invalid credentials", ["dashboard"], "")
+        detected, _ = _check_login_success(
+            200, "Invalid credentials", ["dashboard"], ""
+        )
         assert detected is False
 
     def test_non_success_status(self) -> None:

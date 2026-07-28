@@ -54,12 +54,48 @@ logger = logging.getLogger("mytools.cachepoisoning")
 
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "host": ["xfwd_host", "xorig_host", "xrewrite_host", "xhost_bypass", "host_mismatch"],
-    "path": ["xorig_url", "xrewrite_url", "url_path_poison", "path_confusion", "double_path"],
-    "header": ["vary_poison", "cache_control_bypass", "pragma_bypass", "x_cache_test", "if_modified"],
-    "encoding": ["clte_bypass", "te_chunked", "content_length_mismatch", "transfer_encoding", "identity_poison"],
-    "bypass": ["double_encode", "null_byte", "case_variation", "unicode_path", "backslash_path"],
-    "cdn": ["cf_connecting_ip", "true_client_ip", "generic_forwarded_port", "generic_forwarded_proto", "fastly_client_ip"],
+    "host": [
+        "xfwd_host",
+        "xorig_host",
+        "xrewrite_host",
+        "xhost_bypass",
+        "host_mismatch",
+    ],
+    "path": [
+        "xorig_url",
+        "xrewrite_url",
+        "url_path_poison",
+        "path_confusion",
+        "double_path",
+    ],
+    "header": [
+        "vary_poison",
+        "cache_control_bypass",
+        "pragma_bypass",
+        "x_cache_test",
+        "if_modified",
+    ],
+    "encoding": [
+        "clte_bypass",
+        "te_chunked",
+        "content_length_mismatch",
+        "transfer_encoding",
+        "identity_poison",
+    ],
+    "bypass": [
+        "double_encode",
+        "null_byte",
+        "case_variation",
+        "unicode_path",
+        "backslash_path",
+    ],
+    "cdn": [
+        "cf_connecting_ip",
+        "true_client_ip",
+        "generic_forwarded_port",
+        "generic_forwarded_proto",
+        "fastly_client_ip",
+    ],
 }
 
 
@@ -301,7 +337,16 @@ def _load_cachepoisoning_data() -> tuple[
     )
 
 
-_CATEGORY_MAP, _HOST_PAYLOADS, _PATH_PAYLOADS, _HEADER_PAYLOADS, _ENCODING_PAYLOADS, _BYPASS_PAYLOADS, _CDN_PAYLOADS, _SSI_PARAMS = _load_cachepoisoning_data()
+(
+    _CATEGORY_MAP,
+    _HOST_PAYLOADS,
+    _PATH_PAYLOADS,
+    _HEADER_PAYLOADS,
+    _ENCODING_PAYLOADS,
+    _BYPASS_PAYLOADS,
+    _CDN_PAYLOADS,
+    _SSI_PARAMS,
+) = _load_cachepoisoning_data()
 
 
 @dataclass(frozen=True, slots=True)
@@ -392,7 +437,10 @@ def _check_cache_response(
 
     has_cache_header = any(k.lower() in cache_headers for k in headers)
 
-    cache_hit = any("hit" in headers.get(k, "").lower() for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits"))
+    cache_hit = any(
+        "hit" in headers.get(k, "").lower()
+        for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits")
+    )
 
     if not has_cache_header and not cache_hit:
         return False
@@ -461,9 +509,13 @@ async def _test_host(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>" if vulnerable else "",
+                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                        if vulnerable
+                        else "",
                         tool="curl",
                     )
                 )
@@ -532,9 +584,13 @@ async def _test_path(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>" if vulnerable else "",
+                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                        if vulnerable
+                        else "",
                         tool="curl",
                     )
                 )
@@ -605,9 +661,13 @@ async def _test_header(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>" if vulnerable else "",
+                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                        if vulnerable
+                        else "",
                         tool="curl",
                     )
                 )
@@ -679,9 +739,13 @@ async def _test_encoding(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>" if vulnerable else "",
+                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                        if vulnerable
+                        else "",
                         tool="curl",
                     )
                 )
@@ -750,9 +814,13 @@ async def _test_bypass(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>" if vulnerable else "",
+                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                        if vulnerable
+                        else "",
                         tool="curl",
                     )
                 )
@@ -794,9 +862,13 @@ async def _test_cdn(
     for technique, extra_headers, indicators in _CDN_PAYLOADS:
         for param in _SSI_PARAMS[:3]:
             try:
-                resp = await client.get(url, headers=extra_headers, follow_redirects=True)
+                resp = await client.get(
+                    url, headers=extra_headers, follow_redirects=True
+                )
 
-                vulnerable = _check_cache_response(resp.content, resp.status_code, dict(resp.headers), indicators)
+                vulnerable = _check_cache_response(
+                    resp.content, resp.status_code, dict(resp.headers), indicators
+                )
 
                 results.append(
                     CacheAttempt(
@@ -812,9 +884,13 @@ async def _test_cdn(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"CDN header: {extra_headers}, indicators={indicators}" if vulnerable else "",
+                        details=f"CDN header: {extra_headers}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
-                        exploit=f"curl -H '{next(iter(extra_headers.keys()))}: {next(iter(extra_headers.values()))}' {url}" if vulnerable else "",
+                        exploit=f"curl -H '{next(iter(extra_headers.keys()))}: {next(iter(extra_headers.values()))}' {url}"
+                        if vulnerable
+                        else "",
                         tool="curl",
                     )
                 )
@@ -863,17 +939,26 @@ def print_results(result: CacheResult) -> None:
             print_exploit_info(v.exploit, v.tool)
 
     else:
-        print(color("\n  [+] Nenhuma Cache Poisoning detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color("\n  [+] Nenhuma Cache Poisoning detectada", Cyber.GREEN, Cyber.BOLD)
+        )
 
     if blocked:
-        print(color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW))
+        print(
+            color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW)
+        )
 
     errors = [a for a in result.attempts if a.error and "403" not in a.error]
 
     if errors:
         print(color(f"\n  [-] {len(errors)} erros de conexao", Cyber.GRAY))
 
-    print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+    print(
+        color(
+            f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+            Cyber.WHITE,
+        )
+    )
 
 
 async def run_scan(
@@ -993,7 +1078,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -1029,7 +1119,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="cache> ",
         description="Cache Poisoning interativo.",
         example="https://target.com -c host",

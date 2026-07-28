@@ -110,7 +110,9 @@ class TestTestPathTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_path_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_path_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) > 0
         assert all(isinstance(a, PathTraversalAttempt) for a in attempts)
 
@@ -122,7 +124,9 @@ class TestTestPathTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_path_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_path_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         categories = {a.category for a in attempts}
         assert "path" in categories
 
@@ -138,7 +142,9 @@ class TestTestParamTraversal:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_param_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_param_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) == 3
         assert all(a.category == "param" for a in attempts)
 
@@ -150,7 +156,9 @@ class TestTestParamTraversal:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_param_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_param_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         techniques = {a.technique for a in attempts}
         assert "param_traversal" in techniques
         assert "param_encoded" in techniques
@@ -168,7 +176,9 @@ class TestTestSemicolonTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_semicolon_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_semicolon_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) == 3
         assert all(a.category == "semicolon" for a in attempts)
 
@@ -184,7 +194,9 @@ class TestTestMixedTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_mixed_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_mixed_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) == 3
         assert all(a.category == "mixed" for a in attempts)
 
@@ -200,7 +212,9 @@ class TestTestPlatformTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_platform_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_platform_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) == 6
         assert all(a.category == "platform" for a in attempts)
 
@@ -363,6 +377,9 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-ptraversal"]), patch("builtins.input", side_effect=EOFError("exit")):
+        with (
+            patch("sys.argv", ["mytools-ptraversal"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+        ):
             result = main()
             assert result == 0

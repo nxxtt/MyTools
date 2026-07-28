@@ -130,7 +130,9 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 def _load_category_map():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "xssvectors", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
@@ -180,7 +182,9 @@ _MEDIA_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_media_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"media_payloads": _MEDIA_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xssvectors", default={"media_payloads": _MEDIA_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("media_payloads", _MEDIA_PAYLOADS_DEFAULT)]
 
 
@@ -242,7 +246,9 @@ _URI_JS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_uri_js_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"uri_js_payloads": _URI_JS_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xssvectors", default={"uri_js_payloads": _URI_JS_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("uri_js_payloads", _URI_JS_PAYLOADS_DEFAULT)]
 
 
@@ -292,7 +298,9 @@ _URI_DATA_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_uri_data_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"uri_data_payloads": _URI_DATA_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xssvectors", default={"uri_data_payloads": _URI_DATA_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("uri_data_payloads", _URI_DATA_PAYLOADS_DEFAULT)]
 
 
@@ -342,7 +350,9 @@ _IFRAME_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_iframe_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"iframe_payloads": _IFRAME_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xssvectors", default={"iframe_payloads": _IFRAME_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("iframe_payloads", _IFRAME_PAYLOADS_DEFAULT)]
 
 
@@ -380,7 +390,9 @@ _BASE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_base_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"base_payloads": _BASE_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xssvectors", default={"base_payloads": _BASE_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("base_payloads", _BASE_PAYLOADS_DEFAULT)]
 
 
@@ -424,8 +436,15 @@ _CUSTOM_ELEMENT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_custom_element_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"custom_element_payloads": _CUSTOM_ELEMENT_PAYLOADS_DEFAULT})
-    return [tuple(x) for x in data.get("custom_element_payloads", _CUSTOM_ELEMENT_PAYLOADS_DEFAULT)]
+    data = load_payloads(
+        "web",
+        "xssvectors",
+        default={"custom_element_payloads": _CUSTOM_ELEMENT_PAYLOADS_DEFAULT},
+    )
+    return [
+        tuple(x)
+        for x in data.get("custom_element_payloads", _CUSTOM_ELEMENT_PAYLOADS_DEFAULT)
+    ]
 
 
 _CUSTOM_ELEMENT_PAYLOADS = _load_custom_element_payloads()
@@ -468,8 +487,14 @@ _SHADOW_DOM_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_shadow_dom_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"shadow_dom_payloads": _SHADOW_DOM_PAYLOADS_DEFAULT})
-    return [tuple(x) for x in data.get("shadow_dom_payloads", _SHADOW_DOM_PAYLOADS_DEFAULT)]
+    data = load_payloads(
+        "web",
+        "xssvectors",
+        default={"shadow_dom_payloads": _SHADOW_DOM_PAYLOADS_DEFAULT},
+    )
+    return [
+        tuple(x) for x in data.get("shadow_dom_payloads", _SHADOW_DOM_PAYLOADS_DEFAULT)
+    ]
 
 
 _SHADOW_DOM_PAYLOADS = _load_shadow_dom_payloads()
@@ -512,7 +537,9 @@ _SLOT_USE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_slot_use_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xssvectors", default={"slot_use_payloads": _SLOT_USE_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xssvectors", default={"slot_use_payloads": _SLOT_USE_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("slot_use_payloads", _SLOT_USE_PAYLOADS_DEFAULT)]
 
 
@@ -630,7 +657,9 @@ async def _test_xss_category(
         test_url = _inject_payload(url, param, payload)
 
         try:
-            t_status, _t_headers, t_body, _t_raw = await fetch(client, test_url, timeout=timeout)
+            t_status, _t_headers, t_body, _t_raw = await fetch(
+                client, test_url, timeout=timeout
+            )
 
             t_size = len(t_body)
 
@@ -644,7 +673,11 @@ async def _test_xss_category(
 
             decoded = html.unescape(payload)
 
-            reflected_decoded = _check_xss_reflection(body_str, decoded) if decoded != payload else reflected
+            reflected_decoded = (
+                _check_xss_reflection(body_str, decoded)
+                if decoded != payload
+                else reflected
+            )
 
             vulnerable = reflected and (decoded == payload or reflected_decoded)
 
@@ -712,7 +745,12 @@ def print_results(result: XSSVectorResult) -> None:
 
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
 
@@ -744,10 +782,19 @@ def print_results(result: XSSVectorResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade de XSS Vector detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade de XSS Vector detectada", Cyber.GREEN
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -770,7 +817,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
 
             b_size = len(b_body)
 
@@ -788,12 +837,16 @@ async def run_scan(
 
             if payloads:
                 all_attempts.extend(
-                    await _test_xss_category(client, target, timeout, b_status, b_size, payloads, cat),
+                    await _test_xss_category(
+                        client, target, timeout, b_status, b_size, payloads, cat
+                    ),
                 )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -809,7 +862,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -847,7 +902,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   xssvectors: media, javascript:uri, data:uri, iframe, base, custom, shadow, slot/use")()
+    create_banner(
+        art,
+        "   xssvectors: media, javascript:uri, data:uri, iframe, base, custom, shadow, slot/use",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -873,7 +931,17 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "media_events", "uri_javascript", "uri_data", "iframe_vectors", "base_redirect", "custom_elements", "shadow_dom", "slot_use"],
+        choices=[
+            "all",
+            "media_events",
+            "uri_javascript",
+            "uri_data",
+            "iframe_vectors",
+            "base_redirect",
+            "custom_elements",
+            "shadow_dom",
+            "slot_use",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -909,7 +977,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="xssvectors> ",
         description="XSS Vectors interativo.",
         example="https://target.com -c uri_javascript",

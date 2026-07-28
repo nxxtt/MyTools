@@ -262,7 +262,9 @@ class TestTestBaseline:
         resp.content = b"hello"
         client.get = AsyncMock(return_value=resp)
 
-        status, size, body, elapsed = await _test_baseline(client, "https://example.com")
+        status, size, body, elapsed = await _test_baseline(
+            client, "https://example.com"
+        )
         assert status == 200
         assert size == 5
         assert body == b"hello"
@@ -275,7 +277,9 @@ class TestTestBaseline:
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
-        status, size, body, _elapsed = await _test_baseline(client, "https://example.com")
+        status, size, body, _elapsed = await _test_baseline(
+            client, "https://example.com"
+        )
         assert status == 0
         assert size == 0
         assert body == b""
@@ -458,7 +462,10 @@ class TestMain:
     """Testes para main."""
 
     def test_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-ssrfdetect"]), patch("mytools.web.ssrfdetect.run_main_loop", return_value=1) as mock_loop:
+        with (
+            patch("sys.argv", ["mytools-ssrfdetect"]),
+            patch("mytools.web.ssrfdetect.run_main_loop", return_value=1) as mock_loop,
+        ):
             result = main()
             assert result == 1
             mock_loop.assert_called_once()

@@ -117,23 +117,44 @@ class TestDedupEmployees:
 async def test_github_found():
     repos_resp = [{"full_name": "example/repo1"}, {"full_name": "example/repo2"}]
     contrib_resp = [{"login": "john"}, {"login": "jane"}]
-    user_resp = {"name": "John Doe", "email": "john@example.com", "bio": "", "company": "@Example", "html_url": "https://github.com/john"}
+    user_resp = {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "bio": "",
+        "company": "@Example",
+        "html_url": "https://github.com/john",
+    }
 
     with respx.mock:
         respx.route(method="GET", url__startswith="https://api.github.com/orgs/").mock(
             return_value=httpx.Response(200, json=repos_resp),
         )
-        respx.route(method="GET", url="https://api.github.com/repos/example/repo1/contributors?per_page=30").mock(
+        respx.route(
+            method="GET",
+            url="https://api.github.com/repos/example/repo1/contributors?per_page=30",
+        ).mock(
             return_value=httpx.Response(200, json=contrib_resp),
         )
-        respx.route(method="GET", url="https://api.github.com/repos/example/repo2/contributors?per_page=30").mock(
+        respx.route(
+            method="GET",
+            url="https://api.github.com/repos/example/repo2/contributors?per_page=30",
+        ).mock(
             return_value=httpx.Response(200, json=[]),
         )
         respx.route(method="GET", url="https://api.github.com/users/john").mock(
             return_value=httpx.Response(200, json=user_resp),
         )
         respx.route(method="GET", url="https://api.github.com/users/jane").mock(
-            return_value=httpx.Response(200, json={"name": "Jane Smith", "email": "", "bio": "", "company": "", "html_url": ""}),
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "Jane Smith",
+                    "email": "",
+                    "bio": "",
+                    "company": "",
+                    "html_url": "",
+                },
+            ),
         )
 
         client = httpx.AsyncClient()
@@ -330,7 +351,13 @@ class TestPrintResults:
 
     def test_with_results(self, capsys):
         employees = [
-            EmployeeInfo(domain="x.com", name="John Doe", email="john@x.com", position="Engineer", source="github"),
+            EmployeeInfo(
+                domain="x.com",
+                name="John Doe",
+                email="john@x.com",
+                position="Engineer",
+                source="github",
+            ),
         ]
         print_results(employees)
         out = capsys.readouterr().out
@@ -345,13 +372,22 @@ class TestPrintResults:
 async def test_scan_employees_github_only():
     repos_resp = [{"full_name": "example/repo1"}]
     contrib_resp = [{"login": "john"}]
-    user_resp = {"name": "John", "email": "john@example.com", "bio": "", "company": "", "html_url": ""}
+    user_resp = {
+        "name": "John",
+        "email": "john@example.com",
+        "bio": "",
+        "company": "",
+        "html_url": "",
+    }
 
     with respx.mock:
         respx.route(method="GET", url__startswith="https://api.github.com/orgs/").mock(
             return_value=httpx.Response(200, json=repos_resp),
         )
-        respx.route(method="GET", url="https://api.github.com/repos/example/repo1/contributors?per_page=30").mock(
+        respx.route(
+            method="GET",
+            url="https://api.github.com/repos/example/repo1/contributors?per_page=30",
+        ).mock(
             return_value=httpx.Response(200, json=contrib_resp),
         )
         respx.route(method="GET", url="https://api.github.com/users/john").mock(

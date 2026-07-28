@@ -47,7 +47,9 @@ logger = logging.getLogger("mytools.emailbreachcheck")
 
 
 XPOSEDORNOT_URL = "https://api.xposedornot.com/v1/check-email/{email}"
-XPOSEDORNOT_ANALYTICS_URL = "https://api.xposedornot.com/v1/breach-analytics?email={email}"
+XPOSEDORNOT_ANALYTICS_URL = (
+    "https://api.xposedornot.com/v1/breach-analytics?email={email}"
+)
 LEAKCHECK_URL = "https://leakcheck.io/api/public?check={email}"
 HIBP_URL = "https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
 
@@ -350,10 +352,14 @@ async def check_breaches(
     async def _check_one(email: str) -> list[EmailBreach]:
         nonlocal completed
         async with sem:
-            breaches = await _query_email(client, email, sources, api_keys, timeout, rate_limiter)
+            breaches = await _query_email(
+                client, email, sources, api_keys, timeout, rate_limiter
+            )
             async with completed_lock:
                 completed += 1
-                sys.stdout.write(f"\r  Progresso: {completed}/{len(emails)} emails verificados...")
+                sys.stdout.write(
+                    f"\r  Progresso: {completed}/{len(emails)} emails verificados..."
+                )
                 sys.stdout.flush()
             return breaches
 
@@ -372,7 +378,13 @@ async def check_breaches(
     elapsed = time.monotonic() - started
     n_found = len({b.email for b in all_breaches})
     n_breaches = len(all_breaches)
-    logger.info("Finalizado em %.2fs. Emails com vazamentos: %d/%d. Total de vazamentos: %d", elapsed, n_found, len(emails), n_breaches)
+    logger.info(
+        "Finalizado em %.2fs. Emails com vazamentos: %d/%d. Total de vazamentos: %d",
+        elapsed,
+        n_found,
+        len(emails),
+        n_breaches,
+    )
 
     return all_breaches
 
@@ -380,7 +392,11 @@ async def check_breaches(
 def print_results(breaches: list[EmailBreach]) -> None:
     """Imprime tabela resumo dos vazamentos encontrados."""
     if not breaches:
-        print(color("\nNenhum vazamento encontrado para os emails verificados.", Cyber.GREEN))
+        print(
+            color(
+                "\nNenhum vazamento encontrado para os emails verificados.", Cyber.GREEN
+            )
+        )
         return
 
     print(color("\n  Vazamentos Encontrados", Cyber.RED, Cyber.BOLD))
@@ -428,7 +444,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("emails", nargs="*", help="Email(s) para consultar.")
-    parser.add_argument("-f", "--file", dest="email_file", help="Arquivo com emails (um por linha).")
+    parser.add_argument(
+        "-f", "--file", dest="email_file", help="Arquivo com emails (um por linha)."
+    )
     parser.add_argument(
         "--source",
         action="append",
@@ -474,7 +492,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     emails = _load_emails(args)
 
     if not emails:
-        logger.error("Nenhum email informado. Use: mytools-breach email1@example.com email2@example.com")
+        logger.error(
+            "Nenhum email informado. Use: mytools-breach email1@example.com email2@example.com"
+        )
         return 1
 
     if getattr(args, "dry_run", False):
@@ -511,7 +531,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(b) for b in breaches],
-            ["email", "breach_name", "breach_date", "pwn_count", "data_classes", "source"],
+            [
+                "email",
+                "breach_name",
+                "breach_date",
+                "pwn_count",
+                "data_classes",
+                "source",
+            ],
             quiet=quiet,
         )
     return 0

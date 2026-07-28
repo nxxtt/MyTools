@@ -22,7 +22,9 @@ _SECRET_PATTERNS: dict[str, re.Pattern[bytes]] = {
     "Stripe Secret Key": re.compile(rb"sk_live_[0-9a-zA-Z]{24,}"),
     "SendGrid API Key": re.compile(rb"SG\.[A-Za-z0-9\-_]{22}\.[A-Za-z0-9\-_]{43}"),
     "Twilio Account SID": re.compile(rb"AC[a-f0-9]{32}"),
-    "Hardcoded Password": re.compile(rb"(?i)(?:password|passwd|pwd)\s*[=:]\s*['\"]([^'\"]{8,})['\"]"),
+    "Hardcoded Password": re.compile(
+        rb"(?i)(?:password|passwd|pwd)\s*[=:]\s*['\"]([^'\"]{8,})['\"]"
+    ),
     "Alphanumeric Secret": re.compile(
         rb"(?i)(?:secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|client[_-]?secret)"
         rb"\s*[=:]\s*['\"]([A-Za-z0-9\-._]{20,})['\"]"
@@ -86,7 +88,9 @@ def detect_ipa_secrets(file_path: str) -> dict[str, Any]:
                         # Also scan raw bytes for patterns
                         for pattern_name, pattern in _SECRET_PATTERNS.items():
                             for match in pattern.finditer(plist_data):
-                                value = match.group().decode("utf-8", errors="replace")[:100]
+                                value = match.group().decode("utf-8", errors="replace")[
+                                    :100
+                                ]
                                 if value not in seen_values:
                                     seen_values.add(value)
                                     findings.append(
@@ -101,14 +105,18 @@ def detect_ipa_secrets(file_path: str) -> dict[str, Any]:
 
             # Scan Mach-O binaries
             for name in ipa.namelist():
-                if name.endswith((".plist", ".nib", ".storyboardc", ".strings", ".lproj", ".bundle")):
+                if name.endswith(
+                    (".plist", ".nib", ".storyboardc", ".strings", ".lproj", ".bundle")
+                ):
                     continue
                 if ".app/" in name and "." not in name.split("/")[-1]:
                     try:
                         binary_data = ipa.read(name)
                         for pattern_name, pattern in _SECRET_PATTERNS.items():
                             for match in pattern.finditer(binary_data):
-                                value = match.group().decode("utf-8", errors="replace")[:100]
+                                value = match.group().decode("utf-8", errors="replace")[
+                                    :100
+                                ]
                                 if value not in seen_values:
                                     seen_values.add(value)
                                     findings.append(

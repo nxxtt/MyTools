@@ -75,7 +75,10 @@ class TestInputPayloads:
 
     def test_all_have_xss_tags(self) -> None:
         for _, payload, _ in _INPUT_PAYLOADS:
-            assert any(tag in payload.lower() for tag in ["<script", "<img", "<svg", "<iframe", "<details"])
+            assert any(
+                tag in payload.lower()
+                for tag in ["<script", "<img", "<svg", "<iframe", "<details"]
+            )
 
 
 # ─── Header Payloads ─────────────────────────────────────────────────────────
@@ -97,7 +100,10 @@ class TestAttrPayloads:
 
     def test_all_have_event_handler(self) -> None:
         for _, payload, _ in _ATTR_PAYLOADS:
-            assert any(evt in payload for evt in ["onerror", "onfocus", "onmouseover", "onclick", "onload"])
+            assert any(
+                evt in payload
+                for evt in ["onerror", "onfocus", "onmouseover", "onclick", "onload"]
+            )
 
 
 # ─── Event Payloads ──────────────────────────────────────────────────────────
@@ -108,7 +114,10 @@ class TestEventPayloads:
 
     def test_all_have_event_handler(self) -> None:
         for _, payload, _ in _EVENT_PAYLOADS:
-            assert any(evt in payload for evt in ["onerror", "onload", "onfocus", "onmouseover", "onstart"])
+            assert any(
+                evt in payload
+                for evt in ["onerror", "onload", "onfocus", "onmouseover", "onstart"]
+            )
 
 
 # ─── Bypass Payloads ─────────────────────────────────────────────────────────
@@ -448,12 +457,16 @@ class TestPrintResults:
 class TestBuildParser:
     def test_has_url(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://test.com", "--webhook", "https://hook.example.com"])
+        args = parser.parse_args(
+            ["https://test.com", "--webhook", "https://hook.example.com"]
+        )
         assert args.url == "https://test.com"
 
     def test_has_webhook(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://test.com", "--webhook", "https://hook.example.com"])
+        args = parser.parse_args(
+            ["https://test.com", "--webhook", "https://hook.example.com"]
+        )
         assert args.webhook == "https://hook.example.com"
 
     def test_webhook_required(self) -> None:
@@ -463,18 +476,24 @@ class TestBuildParser:
 
     def test_has_category(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://test.com", "--webhook", "https://hook.example.com", "-c", "input"])
+        args = parser.parse_args(
+            ["https://test.com", "--webhook", "https://hook.example.com", "-c", "input"]
+        )
         assert args.category == "input"
 
     def test_default_category_is_all(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://test.com", "--webhook", "https://hook.example.com"])
+        args = parser.parse_args(
+            ["https://test.com", "--webhook", "https://hook.example.com"]
+        )
         assert args.category == "all"
 
     def test_all_categories(self) -> None:
         parser = build_parser()
         for cat in ["all", "input", "header", "attr", "event", "bypass"]:
-            args = parser.parse_args(["https://test.com", "--webhook", "https://hook.example.com", "-c", cat])
+            args = parser.parse_args(
+                ["https://test.com", "--webhook", "https://hook.example.com", "-c", cat]
+            )
             assert args.category == cat
 
 
@@ -484,7 +503,9 @@ class TestRunOnce:
     def test_run_once(self, mock_run: MagicMock) -> None:
         mock_run.return_value = 0
         parser = build_parser()
-        args = parser.parse_args(["https://test.com", "--webhook", "https://hook.example.com"])
+        args = parser.parse_args(
+            ["https://test.com", "--webhook", "https://hook.example.com"]
+        )
         from mytools.web.blindxss import run_once
 
         result = run_once(args)

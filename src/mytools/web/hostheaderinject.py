@@ -55,9 +55,27 @@ logger = logging.getLogger("mytools.hostheaderinject")
 
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "reflected": ["host_reflected", "host_location", "host_body", "host_link", "host_meta"],
-    "password_reset": ["reset_host", "reset_link", "reset_token", "reset_domain", "reset_subdomain"],
-    "ssrf": ["ssrf_internal", "ssrf_localhost", "ssrf_metadata", "ssrf_dns", "ssrf_cloud"],
+    "reflected": [
+        "host_reflected",
+        "host_location",
+        "host_body",
+        "host_link",
+        "host_meta",
+    ],
+    "password_reset": [
+        "reset_host",
+        "reset_link",
+        "reset_token",
+        "reset_domain",
+        "reset_subdomain",
+    ],
+    "ssrf": [
+        "ssrf_internal",
+        "ssrf_localhost",
+        "ssrf_metadata",
+        "ssrf_dns",
+        "ssrf_cloud",
+    ],
     "cache": ["cache_host", "cache_vary", "cache_cdn", "cache_proxy", "cache_edge"],
     "bypass": ["double_host", "xforwarded", "xhost", "forwarded_for", "proxy_host"],
 }
@@ -66,7 +84,9 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 _INJECTED_HOST = "evil.attacker.com"
 
 
-async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, dict[str, str], bytes]:
+async def _test_baseline(
+    client: httpx.AsyncClient, url: str
+) -> tuple[int, int, dict[str, str], bytes]:
     """Envia request baseline para obter status, tamanho, headers e corpo."""
 
     try:
@@ -123,7 +143,9 @@ async def _test_reflected(
 
                 details = f"Host refletido em Location: {location}"
 
-            elif any(injected_host.lower() in str(v).lower() for v in resp_headers.values()):
+            elif any(
+                injected_host.lower() in str(v).lower() for v in resp_headers.values()
+            ):
                 vulnerable = True
 
                 details = "Host refletido em headers"
@@ -171,9 +193,21 @@ async def _test_password_reset(
 
     results: list[HostInjectAttempt] = []
 
-    reset_paths = ["/forgot-password", "/reset", "/password/reset", "/auth/forgot", "/recover"]
+    reset_paths = [
+        "/forgot-password",
+        "/reset",
+        "/password/reset",
+        "/auth/forgot",
+        "/recover",
+    ]
 
-    techniques = ["reset_host", "reset_link", "reset_token", "reset_domain", "reset_subdomain"]
+    techniques = [
+        "reset_host",
+        "reset_link",
+        "reset_token",
+        "reset_domain",
+        "reset_subdomain",
+    ]
 
     for technique, path in zip(techniques, reset_paths, strict=True):
         try:
@@ -182,7 +216,10 @@ async def _test_password_reset(
             resp = await client.post(
                 reset_url,
                 content="email=test@test.com",
-                headers={"Host": injected_host, "Content-Type": "application/x-www-form-urlencoded"},
+                headers={
+                    "Host": injected_host,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
                 follow_redirects=True,
             )
 
@@ -549,7 +586,9 @@ def print_results(result: HostInjectResult) -> None:
 
             print(color(f"    [{a.category}] {a.technique}", Cyber.GREEN))
 
-            print(color(f"      Header: {a.header_name}: {a.header_value}", Cyber.WHITE))
+            print(
+                color(f"      Header: {a.header_name}: {a.header_value}", Cyber.WHITE)
+            )
 
             print(color(f"      Status: {a.status}", Cyber.WHITE))
 
@@ -558,7 +597,12 @@ def print_results(result: HostInjectResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [-] Nenhum Host Header Injection detectado", Cyber.YELLOW))
@@ -579,7 +623,9 @@ async def run_scan(
 ) -> int:
     """Executa o scan de Host Header Injection."""
 
-    logger.info("Host Header Injection scan para %s (host injetado: %s)", target, injected_host)
+    logger.info(
+        "Host Header Injection scan para %s (host injetado: %s)", target, injected_host
+    )
 
     tls = target.startswith("https://")
 
@@ -594,10 +640,14 @@ async def run_scan(
 
         for cat in test_categories:
             if cat == "reflected":
-                all_attempts.extend(await _test_reflected(client, target, injected_host))
+                all_attempts.extend(
+                    await _test_reflected(client, target, injected_host)
+                )
 
             elif cat == "password_reset":
-                all_attempts.extend(await _test_password_reset(client, target, injected_host))
+                all_attempts.extend(
+                    await _test_password_reset(client, target, injected_host)
+                )
 
             elif cat == "ssrf":
                 all_attempts.extend(await _test_ssrf(client, target))
@@ -606,11 +656,15 @@ async def run_scan(
                 all_attempts.extend(await _test_cache(client, target, injected_host))
 
             elif cat == "bypass":
-                all_attempts.extend(await _test_bypass(client, target, target_domain, injected_host))
+                all_attempts.extend(
+                    await _test_bypass(client, target, target_domain, injected_host)
+                )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -625,7 +679,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -661,7 +717,9 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   host header injection: reflected, password reset, ssrf, cache, bypass")()
+    create_banner(
+        art, "   host header injection: reflected, password reset, ssrf, cache, bypass"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -729,7 +787,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="hostinject> ",
         description="Host Header Injection interativo.",
         example="https://target.com -c reflected",

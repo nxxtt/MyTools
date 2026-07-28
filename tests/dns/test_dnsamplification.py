@@ -19,7 +19,13 @@ class TestRecordAmplification:
     """Testes do dataclass RecordAmplification."""
 
     def test_frozen(self) -> None:
-        r = RecordAmplification(record_type="A", response_bytes=100, amplification_factor=2.0, success=True, error="")
+        r = RecordAmplification(
+            record_type="A",
+            response_bytes=100,
+            amplification_factor=2.0,
+            success=True,
+            error="",
+        )
         with pytest.raises(AttributeError):
             r.record_type = "B"  # type: ignore[misc]
 
@@ -186,7 +192,9 @@ class TestScanAmplification:
 
     @patch("mytools.dns.dnsamplification._check_recursion", return_value=False)
     @patch("mytools.dns.dnsamplification._query_record")
-    def test_custom_record_types(self, mock_query: MagicMock, mock_rec: MagicMock) -> None:
+    def test_custom_record_types(
+        self, mock_query: MagicMock, mock_rec: MagicMock
+    ) -> None:
         mock_query.return_value = RecordAmplification("A", 80, 1.6, True, "")
         result = scan_amplification("example.com", record_types=["A", "MX"])
         assert len(result.records) == 2

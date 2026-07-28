@@ -156,7 +156,15 @@ def _parse_dns_response(wire_data: bytes) -> list[DotRecord]:
 def _extract_tls_info(ssl_sock: ssl.SSLSocket) -> DotTlsInfo:
     cert = ssl_sock.getpeercert()
     if not cert:
-        return DotTlsInfo(issuer="", subject="", not_before="", not_after="", san=[], serial="", version="")
+        return DotTlsInfo(
+            issuer="",
+            subject="",
+            not_before="",
+            not_after="",
+            san=[],
+            serial="",
+            version="",
+        )
     issuer_parts = []
     for rdn in cert.get("issuer", ()):
         for attr, val in rdn:
@@ -179,7 +187,9 @@ def _extract_tls_info(ssl_sock: ssl.SSLSocket) -> DotTlsInfo:
     )
 
 
-def _traditional_resolve(domain: str, rdtype_str: str, timeout: float) -> tuple[list[DotRecord], float, str]:
+def _traditional_resolve(
+    domain: str, rdtype_str: str, timeout: float
+) -> tuple[list[DotRecord], float, str]:
     resolver = dns.resolver.Resolver()
     resolver.timeout = timeout
     resolver.lifetime = timeout
@@ -217,11 +227,22 @@ def _dot_query(
     wire_query: bytes,
     timeout: float,
 ) -> tuple[bytes, DotTlsInfo, str]:
-    tls_info = DotTlsInfo(issuer="", subject="", not_before="", not_after="", san=[], serial="", version="")
+    tls_info = DotTlsInfo(
+        issuer="",
+        subject="",
+        not_before="",
+        not_after="",
+        san=[],
+        serial="",
+        version="",
+    )
     try:
         ctx = ssl.create_default_context()
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-        with socket.create_connection((host, port), timeout=timeout) as sock, ctx.wrap_socket(sock, server_hostname=host) as ssock:
+        with (
+            socket.create_connection((host, port), timeout=timeout) as sock,
+            ctx.wrap_socket(sock, server_hostname=host) as ssock,
+        ):
             tls_info = _extract_tls_info(ssock)
             length_prefix = struct.pack("!H", len(wire_query))
             ssock.sendall(length_prefix + wire_query)
@@ -267,7 +288,9 @@ def _compare_records(
         missing_in_dot = set(trad_rdata) - set(dot_rdata)
         extra_in_dot = set(dot_rdata) - set(trad_rdata)
         if missing_in_dot:
-            inconsistencies.append(f"missing_in_dot: {', '.join(list(missing_in_dot)[:3])}")
+            inconsistencies.append(
+                f"missing_in_dot: {', '.join(list(missing_in_dot)[:3])}"
+            )
         if extra_in_dot:
             inconsistencies.append(f"extra_in_dot: {', '.join(list(extra_in_dot)[:3])}")
     return filtering, inconsistencies
@@ -281,14 +304,18 @@ async def scan_dot(
 ) -> DotScanResult:
     selected = resolvers or list(_DOT_RESOLVERS.keys())
     wire_query = _build_dns_query(domain, rdtype)
-    trad_records, trad_latency, trad_error = _traditional_resolve(domain, rdtype, timeout)
+    trad_records, trad_latency, trad_error = _traditional_resolve(
+        domain, rdtype, timeout
+    )
     resolver_results: list[DotResolverResult] = []
     for rk in selected:
         prov = _DOT_RESOLVERS.get(rk)
         if prov is None:
             continue
         start = time.monotonic()
-        data, tls_info, error = _dot_query(prov["host"], prov["port"], wire_query, timeout)
+        data, tls_info, error = _dot_query(
+            prov["host"], prov["port"], wire_query, timeout
+        )
         elapsed = (time.monotonic() - start) * 1000
         records = _parse_dns_response(data) if data else []
         resolver_results.append(
@@ -334,7 +361,9 @@ async def scan_dot(
         dot_supported=dot_supported,
         overall_status=overall,
         error=trad_error,
-        exploit=f"curl https://dns.google/dns-query?name={domain}" if all_filtering else "",
+        exploit=f"curl https://dns.google/dns-query?name={domain}"
+        if all_filtering
+        else "",
         tool="curl",
     )
 
@@ -358,7 +387,9 @@ def print_results(result: DotScanResult) -> None:
     for rr in result.resolvers:
         status_color = Cyber.GREEN if not rr.error else Cyber.RED
         status_text = f"{len(rr.records)} registros" if rr.records else rr.error
-        print(f"    {color(rr.resolver_name, Cyber.WHITE)}: {color(status_text, status_color)} ({rr.latency_ms:.1f}ms)")
+        print(
+            f"    {color(rr.resolver_name, Cyber.WHITE)}: {color(status_text, status_color)} ({rr.latency_ms:.1f}ms)"
+        )
         if rr.tls_info.issuer:
             print(f"      TLS: {rr.tls_info.version} | {rr.tls_info.issuer}")
     print()

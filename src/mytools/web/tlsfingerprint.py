@@ -201,15 +201,30 @@ _CIPHER_INFO: dict[int, tuple[str, int, bool, str]] = {
     TLS_AES_128_GCM_SHA256: ("TLS_AES_128_GCM_SHA256", 128, True, "AEAD"),
     TLS_AES_256_GCM_SHA384: ("TLS_AES_256_GCM_SHA384", 256, True, "AEAD"),
     TLS_CHACHA20_POLY1305_SHA256: ("TLS_CHACHA20_POLY1305_SHA256", 256, True, "AEAD"),
-    ECDHE_ECDSA_AES_128_GCM_SHA256: ("ECDHE_ECDSA_AES_128_GCM_SHA256", 128, True, "AEAD"),
+    ECDHE_ECDSA_AES_128_GCM_SHA256: (
+        "ECDHE_ECDSA_AES_128_GCM_SHA256",
+        128,
+        True,
+        "AEAD",
+    ),
     ECDHE_RSA_AES_128_GCM_SHA256: ("ECDHE_RSA_AES_128_GCM_SHA256", 128, True, "AEAD"),
-    ECDHE_ECDSA_AES_256_GCM_SHA384: ("ECDHE_ECDSA_AES_256_GCM_SHA384", 256, True, "AEAD"),
+    ECDHE_ECDSA_AES_256_GCM_SHA384: (
+        "ECDHE_ECDSA_AES_256_GCM_SHA384",
+        256,
+        True,
+        "AEAD",
+    ),
     ECDHE_RSA_AES_256_GCM_SHA384: ("ECDHE_RSA_AES_256_GCM_SHA384", 256, True, "AEAD"),
     ECDHE_RSA_CHACHA20_POLY1305: ("ECDHE_RSA_CHACHA20_POLY1305", 256, True, "AEAD"),
     ECDHE_ECDSA_CHACHA20_POLY1305: ("ECDHE_ECDSA_CHACHA20_POLY1305", 256, True, "AEAD"),
     ECDHE_RSA_AES_128_CBC_SHA256: ("ECDHE_RSA_AES_128_CBC_SHA256", 128, True, "SHA256"),
     ECDHE_RSA_AES_128_CBC_SHA: ("ECDHE_RSA_AES_128_CBC_SHA", 128, True, "SHA1"),
-    ECDHE_ECDSA_AES_128_CBC_SHA256: ("ECDHE_ECDSA_AES_128_CBC_SHA256", 128, True, "SHA256"),
+    ECDHE_ECDSA_AES_128_CBC_SHA256: (
+        "ECDHE_ECDSA_AES_128_CBC_SHA256",
+        128,
+        True,
+        "SHA256",
+    ),
     ECDHE_ECDSA_AES_128_CBC_SHA: ("ECDHE_ECDSA_AES_128_CBC_SHA", 128, True, "SHA1"),
     DHE_RSA_AES_128_GCM_SHA256: ("DHE_RSA_AES_128_GCM_SHA256", 128, True, "AEAD"),
     DHE_RSA_AES_256_GCM_SHA384: ("DHE_RSA_AES_256_GCM_SHA384", 256, True, "AEAD"),
@@ -365,7 +380,12 @@ CURL_PROFILE = BrowserProfile(
         DHE_RSA_AES_256_GCM_SHA384,
     ],
     extensions=[0, 23, 65281, 10, 11, 35, 16, 5, 13, 51, 45, 43],
-    groups=[NAMED_GROUP_X25519, NAMED_GROUP_SECP256R1, NAMED_GROUP_SECP384R1, NAMED_GROUP_FFDHE2048],
+    groups=[
+        NAMED_GROUP_X25519,
+        NAMED_GROUP_SECP256R1,
+        NAMED_GROUP_SECP384R1,
+        NAMED_GROUP_FFDHE2048,
+    ],
     point_formats=[0],
     sig_algorithms=[0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0501, 0x0806, 0x0601],
     alpn=["h2", "http/1.1"],
@@ -541,7 +561,11 @@ def _build_client_hello(
 
     cipher_list = ciphers or _DEFAULT_CIPHERS
 
-    group_list = groups or [NAMED_GROUP_X25519, NAMED_GROUP_SECP256R1, NAMED_GROUP_SECP384R1]
+    group_list = groups or [
+        NAMED_GROUP_X25519,
+        NAMED_GROUP_SECP256R1,
+        NAMED_GROUP_SECP384R1,
+    ]
 
     sig_alg_list = sig_algorithms or [
         0x0403,
@@ -604,7 +628,14 @@ def _build_client_hello(
 
     # Handshake body
 
-    handshake_body = client_version + client_random + session_id_field + cipher_field + compression + ext_field
+    handshake_body = (
+        client_version
+        + client_random
+        + session_id_field
+        + cipher_field
+        + compression
+        + ext_field
+    )
 
     # Handshake header (type=0x01, 3-byte length)
 
@@ -621,7 +652,8 @@ def _build_client_hello(
     metadata = {
         "legacy_version": 771,  # 0x0303
         "ciphers": cipher_list,
-        "extensions": extensions or [0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 27],
+        "extensions": extensions
+        or [0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 27],
         "groups": group_list,
         "point_formats": [0],
         "sig_algorithms": sig_alg_list,
@@ -709,7 +741,10 @@ def _parse_server_hello(data: bytes) -> dict[str, Any]:
 
         result["cipher_suite"] = struct.unpack(">H", data[offset : offset + 2])[0]
 
-        result["cipher_name"] = _CIPHER_INFO.get(result["cipher_suite"], (f"UNKNOWN_0x{result['cipher_suite']:04X}", 0, False, "?"))[0]
+        result["cipher_name"] = _CIPHER_INFO.get(
+            result["cipher_suite"],
+            (f"UNKNOWN_0x{result['cipher_suite']:04X}", 0, False, "?"),
+        )[0]
 
         offset += 2
 
@@ -751,7 +786,9 @@ def _parse_server_hello(data: bytes) -> dict[str, Any]:
                         proto_len = alpn_data[2]
 
                         if len(alpn_data) >= 3 + proto_len:
-                            result["alpn"] = alpn_data[3 : 3 + proto_len].decode("ascii", errors="replace")
+                            result["alpn"] = alpn_data[3 : 3 + proto_len].decode(
+                                "ascii", errors="replace"
+                            )
 
     except (struct.error, IndexError) as exc:
         result["error"] = str(exc)[:100]
@@ -795,9 +832,13 @@ def _compute_ja4(metadata: dict[str, Any]) -> str:
 
     sni = "d" if metadata.get("sni") else "i"
 
-    ciphers = sorted([c for c in metadata.get("ciphers", []) if c not in _GREASE_VALUES])
+    ciphers = sorted(
+        [c for c in metadata.get("ciphers", []) if c not in _GREASE_VALUES]
+    )
 
-    extensions = sorted([e for e in metadata.get("extensions", []) if e not in _GREASE_VALUES])
+    extensions = sorted(
+        [e for e in metadata.get("extensions", []) if e not in _GREASE_VALUES]
+    )
 
     num_ciphers = f"{len(ciphers):02d}"
 
@@ -1508,7 +1549,9 @@ async def _test_cipher_audit(
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[TLSFingerprintAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[TLSFingerprintAttempt]]]
+] = {
     "tls_fingerprint": _test_tls_fingerprint,
     "tls_replay": _test_tls_replay,
     "key_exchange": _test_key_exchange,
@@ -1528,9 +1571,15 @@ def print_results(result: TLSFingerprintResult) -> None:
 
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
 
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
 
-    print(color("[*]", Cyber.CYAN), f"Server: {result.server_cipher} ({result.server_version})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Server: {result.server_cipher} ({result.server_version})",
+    )
 
     print(color("[*]", Cyber.CYAN), f"JA3: {result.ja3_hash}")
 
@@ -1555,7 +1604,10 @@ def print_results(result: TLSFingerprintResult) -> None:
         vuln_in_cat = [a for a in attempts if a.vulnerable]
 
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
 
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
@@ -1568,10 +1620,15 @@ def print_results(result: TLSFingerprintResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — TLS weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — TLS weaknesses detected!"
+        )
 
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — TLS configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — TLS configuration looks good",
+        )
 
     print()
 

@@ -252,7 +252,9 @@ class TestDrainSettings:
         mock_sock = MagicMock()
         mock_conn = MagicMock()
         ev = h2.events.RemoteSettingsChanged()
-        ev.changed_settings = {h2.settings.SettingCodes.MAX_FRAME_SIZE: MagicMock(new_value=16384)}
+        ev.changed_settings = {
+            h2.settings.SettingCodes.MAX_FRAME_SIZE: MagicMock(new_value=16384)
+        }
         mock_conn.receive_data.return_value = [ev]
 
         with patch("mytools.web.http2abuse._recv_events", return_value=[ev]):
@@ -284,7 +286,9 @@ class TestCollectServerSettings:
         mock_sock = MagicMock()
         mock_conn = MagicMock()
         ev = h2.events.RemoteSettingsChanged()
-        ev.changed_settings = {h2.settings.SettingCodes.HEADER_TABLE_SIZE: MagicMock(new_value=4096)}
+        ev.changed_settings = {
+            h2.settings.SettingCodes.HEADER_TABLE_SIZE: MagicMock(new_value=4096)
+        }
         mock_conn.receive_data.return_value = [ev]
         result = _collect_server_settings(mock_sock, mock_conn, 5.0)
         assert "HEADER_TABLE_SIZE" in result
@@ -438,10 +442,17 @@ class TestDispatchers:
             assert all(isinstance(r, HTTP2Attempt) for r in results)
 
     @pytest.mark.asyncio
-    async def test_exception_returns_error(self, cat_name: str, dispatcher: object) -> None:
+    async def test_exception_returns_error(
+        self, cat_name: str, dispatcher: object
+    ) -> None:
         with (
-            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")),
-            patch("mytools.web.http2abuse._create_h2_connection", side_effect=OSError("fail")),
+            patch(
+                "mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")
+            ),
+            patch(
+                "mytools.web.http2abuse._create_h2_connection",
+                side_effect=OSError("fail"),
+            ),
         ):
             fn = dispatcher  # type: ignore[misc]
             results = await fn("example.com", 443, "/", 5.0, True, {})  # type: ignore[misc]
@@ -486,7 +497,10 @@ class TestRunScan:
     @pytest.mark.asyncio
     async def test_tls_connect_error(self) -> None:
         with (
-            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("conn refused")),
+            patch(
+                "mytools.web.http2abuse._create_tls_socket",
+                side_effect=OSError("conn refused"),
+            ),
             patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
         ):
             mock_dispatch.get.return_value = AsyncMock(return_value=[])
@@ -496,7 +510,9 @@ class TestRunScan:
     @pytest.mark.asyncio
     async def test_categories_defaults_to_all(self) -> None:
         with (
-            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")),
+            patch(
+                "mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")
+            ),
             patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
         ):
             mock_dispatch.get.return_value = AsyncMock(return_value=[])
@@ -506,7 +522,9 @@ class TestRunScan:
     @pytest.mark.asyncio
     async def test_output_file(self) -> None:
         with (
-            patch("mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")),
+            patch(
+                "mytools.web.http2abuse._create_tls_socket", side_effect=OSError("fail")
+            ),
             patch("mytools.web.http2abuse._CATEGORY_DISPATCH") as mock_dispatch,
             patch("mytools.web.http2abuse.write_output") as mock_write,
         ):

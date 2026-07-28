@@ -60,14 +60,22 @@ def detect_pinning(file_path: str) -> dict[str, Any]:
 
         with zipfile.ZipFile(file_path, "r") as apk:
             dex_files = [n for n in apk.namelist() if n.endswith(".dex")]
-            xml_files = [n for n in apk.namelist() if "network_security_config" in n.lower() or n.endswith("network_security_config.xml")]
+            xml_files = [
+                n
+                for n in apk.namelist()
+                if "network_security_config" in n.lower()
+                or n.endswith("network_security_config.xml")
+            ]
 
             # Scan DEX files for pinning patterns
             for dex_name in dex_files:
                 try:
                     data = apk.read(dex_name)
                     for technique_name, pattern in _PINNING_PATTERNS.items():
-                        if re.search(pattern.encode(), data, re.IGNORECASE) and technique_name not in techniques:
+                        if (
+                            re.search(pattern.encode(), data, re.IGNORECASE)
+                            and technique_name not in techniques
+                        ):
                             techniques.append(technique_name)
                 except Exception:
                     continue
@@ -76,7 +84,11 @@ def detect_pinning(file_path: str) -> dict[str, Any]:
             for xml_name in xml_files:
                 try:
                     nsc_data = apk.read(xml_name)
-                    nsc_indicators.extend(indicator for indicator in _NSC_PINNING_PATTERNS if indicator.encode() in nsc_data)
+                    nsc_indicators.extend(
+                        indicator
+                        for indicator in _NSC_PINNING_PATTERNS
+                        if indicator.encode() in nsc_data
+                    )
                 except Exception:
                     continue
 

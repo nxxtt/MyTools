@@ -152,7 +152,9 @@ def _load_lfi_params() -> list[str]:
 def _load_lfi_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "lfi_rfi", default={"lfi_payloads": _LFI_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "lfi_rfi", default={"lfi_payloads": _LFI_PAYLOADS_DEFAULT}
+    )
     raw = data.get("lfi_payloads", _LFI_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -160,7 +162,9 @@ def _load_lfi_payloads() -> list[tuple[str, str]]:
 def _load_rfi_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "lfi_rfi", default={"rfi_payloads": _RFI_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "lfi_rfi", default={"rfi_payloads": _RFI_PAYLOADS_DEFAULT}
+    )
     raw = data.get("rfi_payloads", _RFI_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -281,13 +285,21 @@ async def _test_lfi(
                 vulnerable = leak_detected or (status_changed and t_status == 200)
 
                 # Second-order verification for leak-based detection
-                details = f"Leak: {leak_type}" if leak_detected else f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca"
+                details = (
+                    f"Leak: {leak_type}"
+                    if leak_detected
+                    else f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca"
+                )
                 if leak_detected:
                     verify = get_verify_payload("lfidetect", "lfi")
                     if verify:
                         v_payload, v_indicators = verify
                         v_url = _make_lfi_url(url, param, v_payload)
-                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        confirmed, v_found = await verify_positive(
+                            client, v_url, v_indicators
+                        )
                         if not confirmed:
                             leak_detected = False
                             leak_type = "none"
@@ -376,13 +388,21 @@ async def _test_rfi(
                 vulnerable = leak_detected or (status_changed and t_status == 200)
 
                 # Second-order verification for leak-based detection
-                details = f"Leak: {leak_type}" if leak_detected else f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca"
+                details = (
+                    f"Leak: {leak_type}"
+                    if leak_detected
+                    else f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca"
+                )
                 if leak_detected:
                     verify = get_verify_payload("lfidetect", "rfi")
                     if verify:
                         v_payload, v_indicators = verify
                         v_url = _make_lfi_url(url, param, v_payload)
-                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        confirmed, v_found = await verify_positive(
+                            client, v_url, v_indicators
+                        )
                         if not confirmed:
                             leak_detected = False
                             leak_type = "none"
@@ -573,7 +593,10 @@ def print_results(result: LFIFindings) -> None:
         print(color("\n  [VULNERAVEL]", Cyber.RED))
         for tech in result.vulnerable_techniques:
             print(color(f"    - {tech}", Cyber.RED))
-            a = next((a for a in result.attempts if a.technique == tech and a.vulnerable), None)
+            a = next(
+                (a for a in result.attempts if a.technique == tech and a.vulnerable),
+                None,
+            )
             if a:
                 print(color(f"      Injection: {a.injection_point}", Cyber.GRAY))
                 print(color(f"      Leak: {a.body_leak_type}", Cyber.GRAY))

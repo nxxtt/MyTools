@@ -55,17 +55,43 @@ logger = logging.getLogger("mytools.cachedeception")
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "extension": ["css_ext", "js_ext", "png_ext", "gif_ext", "ico_ext"],
-    "path": ["trailing_slash", "double_slash", "semicolon_path", "fragment_bypass", "case_path"],
-    "parameter": ["cache_param", "utm_source", "cb_param", "nocache_bypass", "version_param"],
-    "framework": ["django_static", "flask_static", "express_static", "rails_asset", "spring_static"],
-    "bypass": ["double_encode", "null_byte", "unicode_path", "backslash_path", "case_extension"],
+    "path": [
+        "trailing_slash",
+        "double_slash",
+        "semicolon_path",
+        "fragment_bypass",
+        "case_path",
+    ],
+    "parameter": [
+        "cache_param",
+        "utm_source",
+        "cb_param",
+        "nocache_bypass",
+        "version_param",
+    ],
+    "framework": [
+        "django_static",
+        "flask_static",
+        "express_static",
+        "rails_asset",
+        "spring_static",
+    ],
+    "bypass": [
+        "double_encode",
+        "null_byte",
+        "unicode_path",
+        "backslash_path",
+        "case_extension",
+    ],
 }
 
 
 def _load_category_map() -> dict[str, list[str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cachedeception", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "cachedeception", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
@@ -84,7 +110,11 @@ _EXTENSION_PAYLOADS_DEFAULT: list[list] = [
 def _load_extension_payloads() -> list[list]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cachedeception", default={"extension_payloads": _EXTENSION_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "cachedeception",
+        default={"extension_payloads": _EXTENSION_PAYLOADS_DEFAULT},
+    )
     return data.get("extension_payloads", _EXTENSION_PAYLOADS_DEFAULT)
 
 
@@ -103,7 +133,9 @@ _PATH_PAYLOADS_DEFAULT: list[list] = [
 def _load_path_payloads() -> list[list]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cachedeception", default={"path_payloads": _PATH_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "cachedeception", default={"path_payloads": _PATH_PAYLOADS_DEFAULT}
+    )
     return data.get("path_payloads", _PATH_PAYLOADS_DEFAULT)
 
 
@@ -122,7 +154,11 @@ _PARAMETER_PAYLOADS_DEFAULT: list[list] = [
 def _load_parameter_payloads() -> list[list]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cachedeception", default={"parameter_payloads": _PARAMETER_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "cachedeception",
+        default={"parameter_payloads": _PARAMETER_PAYLOADS_DEFAULT},
+    )
     return data.get("parameter_payloads", _PARAMETER_PAYLOADS_DEFAULT)
 
 
@@ -141,7 +177,11 @@ _FRAMEWORK_PAYLOADS_DEFAULT: list[list] = [
 def _load_framework_payloads() -> list[list]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cachedeception", default={"framework_payloads": _FRAMEWORK_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "cachedeception",
+        default={"framework_payloads": _FRAMEWORK_PAYLOADS_DEFAULT},
+    )
     return data.get("framework_payloads", _FRAMEWORK_PAYLOADS_DEFAULT)
 
 
@@ -174,7 +214,9 @@ _SENSITIVE_PATHS_DEFAULT: list[str] = [
 def _load_bypass_payloads() -> list[list]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cachedeception", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "cachedeception", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT}
+    )
     return data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)
 
 
@@ -184,7 +226,9 @@ _BYPASS_PAYLOADS = _load_bypass_payloads()
 def _load_sensitive_paths() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cachedeception", default={"sensitive_paths": _SENSITIVE_PATHS_DEFAULT})
+    data = load_payloads(
+        "web", "cachedeception", default={"sensitive_paths": _SENSITIVE_PATHS_DEFAULT}
+    )
     return data.get("sensitive_paths", _SENSITIVE_PATHS_DEFAULT)
 
 
@@ -276,7 +320,10 @@ def _check_deception_response(
 
     has_cache_header = any(k.lower() in cache_headers for k in headers)
 
-    cache_hit = any("hit" in headers.get(k, "").lower() for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits"))
+    cache_hit = any(
+        "hit" in headers.get(k, "").lower()
+        for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits")
+    )
 
     if not has_cache_header and not cache_hit:
         return False
@@ -343,7 +390,9 @@ async def _test_extension(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, indicators={indicators}" if vulnerable else "",
+                        details=f"path={path}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="path_confusion_url" if vulnerable else "",
                         tool="curl",
@@ -414,7 +463,9 @@ async def _test_path(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, indicators={indicators}" if vulnerable else "",
+                        details=f"path={path}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="path_confusion_url" if vulnerable else "",
                         tool="curl",
@@ -485,7 +536,9 @@ async def _test_parameter(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, indicators={indicators}" if vulnerable else "",
+                        details=f"path={path}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="path_confusion_url" if vulnerable else "",
                         tool="curl",
@@ -555,7 +608,9 @@ async def _test_framework(
                     status_changed=resp.status_code != b_status,
                     size_changed=len(resp.content) != b_size,
                     vulnerable=vulnerable,
-                    details=f"payload={fw_payload}, indicators={indicators}" if vulnerable else "",
+                    details=f"payload={fw_payload}, indicators={indicators}"
+                    if vulnerable
+                    else "",
                     error="",
                     exploit="path_confusion_url" if vulnerable else "",
                     tool="curl",
@@ -626,7 +681,9 @@ async def _test_bypass(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, indicators={indicators}" if vulnerable else "",
+                        details=f"path={path}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="path_confusion_url" if vulnerable else "",
                         tool="curl",
@@ -677,17 +734,28 @@ def print_results(result: DeceptionResult) -> None:
             print_exploit_info(v.exploit, v.tool)
 
     else:
-        print(color("\n  [+] Nenhuma Web Cache Deception detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "\n  [+] Nenhuma Web Cache Deception detectada", Cyber.GREEN, Cyber.BOLD
+            )
+        )
 
     if blocked:
-        print(color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW))
+        print(
+            color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW)
+        )
 
     errors = [a for a in result.attempts if a.error and "403" not in a.error]
 
     if errors:
         print(color(f"\n  [-] {len(errors)} erros de conexao", Cyber.GRAY))
 
-    print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+    print(
+        color(
+            f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+            Cyber.WHITE,
+        )
+    )
 
 
 async def run_scan(
@@ -718,16 +786,22 @@ async def run_scan(
 
         for cat in test_categories:
             if cat == "extension":
-                attempts = await _test_extension(client, target, (b_status, b_size, b""))
+                attempts = await _test_extension(
+                    client, target, (b_status, b_size, b"")
+                )
 
             elif cat == "path":
                 attempts = await _test_path(client, target, (b_status, b_size, b""))
 
             elif cat == "parameter":
-                attempts = await _test_parameter(client, target, (b_status, b_size, b""))
+                attempts = await _test_parameter(
+                    client, target, (b_status, b_size, b"")
+                )
 
             elif cat == "framework":
-                attempts = await _test_framework(client, target, (b_status, b_size, b""))
+                attempts = await _test_framework(
+                    client, target, (b_status, b_size, b"")
+                )
 
             elif cat == "bypass":
                 attempts = await _test_bypass(client, target, (b_status, b_size, b""))
@@ -802,7 +876,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -838,7 +917,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="cachedec> ",
         description="Web Cache Deception interativo.",
         example="https://target.com -c extension",

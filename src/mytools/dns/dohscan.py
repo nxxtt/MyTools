@@ -146,7 +146,9 @@ def _parse_dns_response(wire_data: bytes) -> list[DohRecord]:
     return records
 
 
-def _traditional_resolve(domain: str, rdtype_str: str, timeout: float) -> tuple[list[DohRecord], float, str]:
+def _traditional_resolve(
+    domain: str, rdtype_str: str, timeout: float
+) -> tuple[list[DohRecord], float, str]:
     resolver = dns.resolver.Resolver()
     resolver.timeout = timeout
     resolver.lifetime = timeout
@@ -183,13 +185,24 @@ async def _doh_query_post(
     wire_query: bytes,
     timeout: float,
 ) -> tuple[bytes, int, str]:
-    headers = {"Content-Type": "application/dns-message", "Accept": "application/dns-message"}
+    headers = {
+        "Content-Type": "application/dns-message",
+        "Accept": "application/dns-message",
+    }
     try:
-        async with httpx.AsyncClient(http2=True, timeout=timeout, verify=True) as client:
+        async with httpx.AsyncClient(
+            http2=True, timeout=timeout, verify=True
+        ) as client:
             resp = await client.post(url, content=wire_query, headers=headers)
-            if resp.status_code == 200 and resp.headers.get("content-type", "").startswith("application/dns-message"):
+            if resp.status_code == 200 and resp.headers.get(
+                "content-type", ""
+            ).startswith("application/dns-message"):
                 return resp.content, resp.status_code, ""
-            return b"", resp.status_code, f"unexpected_content_type: {resp.headers.get('content-type', 'none')}"
+            return (
+                b"",
+                resp.status_code,
+                f"unexpected_content_type: {resp.headers.get('content-type', 'none')}",
+            )
     except httpx.TimeoutException:
         return b"", 0, "timeout"
     except httpx.ConnectError as e:
@@ -207,11 +220,19 @@ async def _doh_query_get(
     full_url = f"{url}?dns={b64}"
     headers = {"Accept": "application/dns-message"}
     try:
-        async with httpx.AsyncClient(http2=True, timeout=timeout, verify=True) as client:
+        async with httpx.AsyncClient(
+            http2=True, timeout=timeout, verify=True
+        ) as client:
             resp = await client.get(full_url, headers=headers)
-            if resp.status_code == 200 and resp.headers.get("content-type", "").startswith("application/dns-message"):
+            if resp.status_code == 200 and resp.headers.get(
+                "content-type", ""
+            ).startswith("application/dns-message"):
                 return resp.content, resp.status_code, ""
-            return b"", resp.status_code, f"unexpected_content_type: {resp.headers.get('content-type', 'none')}"
+            return (
+                b"",
+                resp.status_code,
+                f"unexpected_content_type: {resp.headers.get('content-type', 'none')}",
+            )
     except httpx.TimeoutException:
         return b"", 0, "timeout"
     except httpx.ConnectError as e:
@@ -233,7 +254,9 @@ def _compare_records(
         missing_in_doh = set(trad_rdata) - set(doh_rdata)
         extra_in_doh = set(doh_rdata) - set(trad_rdata)
         if missing_in_doh:
-            inconsistencies.append(f"missing_in_doh: {', '.join(list(missing_in_doh)[:3])}")
+            inconsistencies.append(
+                f"missing_in_doh: {', '.join(list(missing_in_doh)[:3])}"
+            )
         if extra_in_doh:
             inconsistencies.append(f"extra_in_doh: {', '.join(list(extra_in_doh)[:3])}")
     return filtering, inconsistencies
@@ -249,7 +272,9 @@ async def _test_provider(
 ) -> DohProviderResult:
     start = time.monotonic()
     if provider["method"] == "POST":
-        data, status, error = await _doh_query_post(provider["url"], wire_query, timeout)
+        data, status, error = await _doh_query_post(
+            provider["url"], wire_query, timeout
+        )
     else:
         data, status, error = await _doh_query_get(provider["url"], wire_query, timeout)
     elapsed = (time.monotonic() - start) * 1000
@@ -274,7 +299,9 @@ async def scan_doh(
 ) -> DohScanResult:
     selected = providers or list(_DOH_PROVIDERS.keys())
     wire_query = _build_dns_query(domain, rdtype)
-    trad_records, trad_latency, trad_error = _traditional_resolve(domain, rdtype, timeout)
+    trad_records, trad_latency, trad_error = _traditional_resolve(
+        domain, rdtype, timeout
+    )
     provider_results: list[DohProviderResult] = []
     for pk in selected:
         prov = _DOH_PROVIDERS.get(pk)
@@ -313,13 +340,17 @@ async def scan_doh(
         doh_supported=doh_supported,
         overall_status=overall,
         error=trad_error,
-        exploit=f"curl https://dns.google/dns-query?name={domain}" if all_filtering else "",
+        exploit=f"curl https://dns.google/dns-query?name={domain}"
+        if all_filtering
+        else "",
         tool="curl",
     )
 
 
 def print_results(result: DohScanResult) -> None:
-    print(color("\n[+] DNS-over-HTTPS (DoH) Scan — Relatorio:", Cyber.GREEN, Cyber.BOLD))
+    print(
+        color("\n[+] DNS-over-HTTPS (DoH) Scan — Relatorio:", Cyber.GREEN, Cyber.BOLD)
+    )
     print(f"  Dominio: {color(result.domain, Cyber.WHITE, Cyber.BOLD)}")
     print(f"  Query Type: {color(result.query_type, Cyber.CYAN)}")
     print()
@@ -337,7 +368,9 @@ def print_results(result: DohScanResult) -> None:
     for pr in result.providers:
         status_color = Cyber.GREEN if not pr.error else Cyber.RED
         status_text = f"{len(pr.records)} registros" if pr.records else pr.error
-        print(f"    {color(pr.provider_name, Cyber.WHITE)}: {color(status_text, status_color)} ({pr.latency_ms:.1f}ms)")
+        print(
+            f"    {color(pr.provider_name, Cyber.WHITE)}: {color(status_text, status_color)} ({pr.latency_ms:.1f}ms)"
+        )
 
     print()
     if result.filtering_detected:

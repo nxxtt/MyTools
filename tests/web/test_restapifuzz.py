@@ -261,9 +261,15 @@ class TestRunScan:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with (
-            patch("mytools.web.restapifuzz.create_async_client", return_value=mock_client),
+            patch(
+                "mytools.web.restapifuzz.create_async_client", return_value=mock_client
+            ),
             patch("mytools.web.restapifuzz._get_endpoints", return_value=["/users"]),
-            patch("mytools.web.restapifuzz._test_endpoint_baseline", return_value=(0, 0, "")),
+            patch(
+                "mytools.web.restapifuzz._test_endpoint_baseline",
+                new_callable=AsyncMock,
+                return_value=(0, 0, ""),
+            ),
         ):
             result = await run_scan("https://api.example.com")
             assert isinstance(result, RestFuzzResult)
@@ -282,9 +288,15 @@ class TestRunScan:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with (
-            patch("mytools.web.restapifuzz.create_async_client", return_value=mock_client),
+            patch(
+                "mytools.web.restapifuzz.create_async_client", return_value=mock_client
+            ),
             patch("mytools.web.restapifuzz._get_endpoints", return_value=["/users"]),
-            patch("mytools.web.restapifuzz._test_endpoint_baseline", return_value=(200, 15, "application/json")),
+            patch(
+                "mytools.web.restapifuzz._test_endpoint_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 15, "application/json"),
+            ),
         ):
             result = await run_scan(
                 "https://api.example.com",
@@ -306,9 +318,15 @@ class TestRunScan:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with (
-            patch("mytools.web.restapifuzz.create_async_client", return_value=mock_client),
+            patch(
+                "mytools.web.restapifuzz.create_async_client", return_value=mock_client
+            ),
             patch("mytools.web.restapifuzz._get_endpoints", return_value=["/admin"]),
-            patch("mytools.web.restapifuzz._test_endpoint_baseline", return_value=(401, 12, "application/json")),
+            patch(
+                "mytools.web.restapifuzz._test_endpoint_baseline",
+                new_callable=AsyncMock,
+                return_value=(401, 12, "application/json"),
+            ),
         ):
             result = await run_scan(
                 "https://api.example.com",

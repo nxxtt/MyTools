@@ -99,13 +99,22 @@ def setup_logging(verbose: bool = False, log_file: str | None = None) -> None:
 
     terminal = logging.StreamHandler(sys.stderr)
     terminal.setLevel(level)
-    terminal.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
+    terminal.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"
+        )
+    )
     log.addHandler(terminal)
 
     if log_file:
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
         file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+        file_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
         log.addHandler(file_handler)
 
 
@@ -161,7 +170,11 @@ def run_main_loop(
         from mytools.data import load_payloads
         from mytools.data.loader import _DATA_DIR, dump_registry
 
-        for sub in sorted(p.name for p in _DATA_DIR.iterdir() if p.is_dir() and not p.name.startswith("_")):
+        for sub in sorted(
+            p.name
+            for p in _DATA_DIR.iterdir()
+            if p.is_dir() and not p.name.startswith("_")
+        ):
             for ext in ("*.yaml", "*.yml", "*.json"):
                 for yaml_file in sorted((_DATA_DIR / sub).glob(ext)):
                     load_payloads(sub, yaml_file.stem)
@@ -210,7 +223,9 @@ class FetchError(Exception):
         self.url = url
         self.attempts = attempts
         self.last_error = last_error
-        super().__init__(f"falha ao acessar {url} apos {attempts} tentativa(s): {last_error}")
+        super().__init__(
+            f"falha ao acessar {url} apos {attempts} tentativa(s): {last_error}"
+        )
 
 
 class Cyber:
@@ -418,7 +433,9 @@ def create_async_client(
         try:
             from curl_cffi.requests import AsyncSession
 
-            session = AsyncSession(impersonate=impersonate, verify=verify, timeout=timeout, proxy=proxy)
+            session = AsyncSession(
+                impersonate=impersonate, verify=verify, timeout=timeout, proxy=proxy
+            )
             session.headers.update(headers)
             return session
         except ImportError:
@@ -443,7 +460,9 @@ def _extract_raw_headers(response: httpx.Response) -> dict[str, list[str]]:
     return raw
 
 
-_fetch_cache: dict[tuple, tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]]] = {}
+_fetch_cache: dict[
+    tuple, tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]]
+] = {}
 _FETCH_CACHE_TTL = 60.0
 
 
@@ -477,7 +496,13 @@ async def fetch(
         return cached[1]
     last_error: httpx.RequestError = httpx.RequestError("unknown error")
     for attempt in range(max_retries):
-        logger.debug("request %s %s (timeout=%.1f, attempt=%d)", method, url, timeout, attempt + 1)
+        logger.debug(
+            "request %s %s (timeout=%.1f, attempt=%d)",
+            method,
+            url,
+            timeout,
+            attempt + 1,
+        )
         try:
             response = await client.request(
                 method=method,
@@ -492,8 +517,18 @@ async def fetch(
                 rate_limiter.notify_429(retry_after)
                 await asyncio.sleep(min(retry_after, 30))
                 continue
-            logger.debug("response %d %s (%d bytes)", response.status_code, url, len(response.content))
-            result = (response.status_code, response.headers, response.content, _extract_raw_headers(response))
+            logger.debug(
+                "response %d %s (%d bytes)",
+                response.status_code,
+                url,
+                len(response.content),
+            )
+            result = (
+                response.status_code,
+                response.headers,
+                response.content,
+                _extract_raw_headers(response),
+            )
             _fetch_cache[cache_key] = (time.monotonic(), result)
             return result
         except httpx.RequestError as error:
@@ -570,11 +605,15 @@ def parse_int_range(
             else:
                 result.add(int(part))
         except ValueError:
-            raise argparse.ArgumentTypeError(f"{error_label} invalido: {part!r}") from None
+            raise argparse.ArgumentTypeError(
+                f"{error_label} invalido: {part!r}"
+            ) from None
 
     invalid = [v for v in result if v < min_val or v > max_val]
     if invalid:
-        raise argparse.ArgumentTypeError(f"{error_label}s invalidos: {', '.join(map(str, sorted(invalid)))}")
+        raise argparse.ArgumentTypeError(
+            f"{error_label}s invalidos: {', '.join(map(str, sorted(invalid)))}"
+        )
     if not result:
         raise argparse.ArgumentTypeError(f"informe pelo menos um {error_label}")
     return sorted(result)
@@ -596,7 +635,9 @@ def show_banner(art: str, subtitle: str) -> None:
     print(color(subtitle, Cyber.MAGENTA))
 
 
-def create_banner(art: str, subtitle: str, extra: Callable[[], None] | None = None) -> Callable[[], None]:
+def create_banner(
+    art: str, subtitle: str, extra: Callable[[], None] | None = None
+) -> Callable[[], None]:
     """Cria uma funcao de banner reutilizavel a partir de art e subtitle."""
 
     def _banner() -> None:
@@ -632,10 +673,19 @@ def print_table(
     if alignments is None:
         alignments = ["left"] * len(headers)
 
-    widths = [max(len(headers[i]), *(len(row[i]) for row in rows)) for i in range(len(headers))]
+    widths = [
+        max(len(headers[i]), *(len(row[i]) for row in rows))
+        for i in range(len(headers))
+    ]
 
     print()
-    print(color("  ".join(header.ljust(widths[i]) for i, header in enumerate(headers)), Cyber.CYAN, Cyber.BOLD))
+    print(
+        color(
+            "  ".join(header.ljust(widths[i]) for i, header in enumerate(headers)),
+            Cyber.CYAN,
+            Cyber.BOLD,
+        )
+    )
     print(color("  ".join("-" * width for width in widths), Cyber.BLUE))
     for row in rows:
         cells = []
@@ -643,7 +693,11 @@ def print_table(
         if styles is None:
             styles = [(Cyber.WHITE, Cyber.RESET)] * len(headers)
         for i, value in enumerate(row):
-            aligned = value.ljust(widths[i]) if alignments[i] == "left" else value.rjust(widths[i])
+            aligned = (
+                value.ljust(widths[i])
+                if alignments[i] == "left"
+                else value.rjust(widths[i])
+            )
             cells.append(color(aligned, *styles[i]))
         print("  ".join(cells))
 
@@ -672,7 +726,10 @@ def write_output(
             for item in rows:
                 writer.writerow(item)
     if not quiet:
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Resultado salvo em {color(path, Cyber.GREEN)}")
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"Resultado salvo em {color(path, Cyber.GREEN)}",
+        )
 
 
 def print_json(data: Any) -> None:
@@ -693,7 +750,9 @@ def resolve_cred(value: str) -> str:
     """
     if not value.startswith("@"):
         if _SECRET_PATTERNS.search(value):
-            logger.warning("Segredo em texto puro detectado. Use keyring: mytools-cred set <nome> e depois @<nome>")
+            logger.warning(
+                "Segredo em texto puro detectado. Use keyring: mytools-cred set <nome> e depois @<nome>"
+            )
         return value
     name = value[1:]
     if not name:
@@ -702,7 +761,9 @@ def resolve_cred(value: str) -> str:
 
     result = get_credential(name)
     if result is None:
-        raise ValueError(f"credencial '{name}' nao encontrada. Use: mytools-cred set {name}")
+        raise ValueError(
+            f"credencial '{name}' nao encontrada. Use: mytools-cred set {name}"
+        )
     return result
 
 
@@ -737,7 +798,9 @@ def parse_extra_headers(raw_headers: list[str]) -> dict[str, str]:
     return headers
 
 
-def normalize_url(url: str, default_scheme: str = "https", ensure_trailing_slash: bool = False) -> str:
+def normalize_url(
+    url: str, default_scheme: str = "https", ensure_trailing_slash: bool = False
+) -> str:
     """Normaliza e valida uma URL, adicionando scheme padrao se necessario."""
     url = url.strip()
     if not url:
@@ -754,39 +817,119 @@ def normalize_url(url: str, default_scheme: str = "https", ensure_trailing_slash
     return url
 
 
-def add_base_args(parser: argparse.ArgumentParser, timeout_default: float = 5.0) -> None:
+def add_base_args(
+    parser: argparse.ArgumentParser, timeout_default: float = 5.0
+) -> None:
     """Adiciona argumentos base compartilhados (timeout, output, verbose, etc)."""
-    parser.add_argument("-t", "--timeout", type=float, default=timeout_default, help="Timeout em segundos. Padrao: 5")
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        default=timeout_default,
+        help="Timeout em segundos. Padrao: 5",
+    )
     parser.add_argument("-o", "--output", help="Salva resultado em .json ou .csv.")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Mostra mensagens de debug no terminal.")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Mostra mensagens de debug no terminal.",
+    )
     parser.add_argument("--log-file", help="Salva logs em arquivo.")
-    parser.add_argument("-q", "--quiet", action="store_true", help="Modo silencioso: sem banner/progresso. Requer -o.")
-    parser.add_argument("--color", action="store_true", default=None, dest="color", help="Forca cores no terminal.")
-    parser.add_argument("--no-color", action="store_false", dest="color", help="Desabilita cores no terminal.")
-    parser.add_argument("--theme", choices=sorted(THEMES), default="cyber", help="Tema de cores. Padrao: cyber")
-    parser.add_argument("--severity-override", help="Sobrescreve cores de severidade. Ex: critical=RED,high=ORANGE")
-    parser.add_argument("--retries", type=int, default=3, help="Numero de tentativas em caso de falha HTTP. Padrao: 3")
-    parser.add_argument("--dry-run", action="store_true", help="Mostra o que faria sem executar nada.")
-    parser.add_argument("--verify", action="store_true", default=False, help="Verifica certificados SSL/TLS. Padrao: desabilitado.")
-    parser.add_argument("--no-verify", action="store_false", dest="verify", help="Desabilita verificacao de certificados SSL/TLS (padrao).")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument("--dump-payloads", action="store_true", dest="dump_payloads", help="Exporta todos os payloads YAML carregados em JSON e sai.")
-    parser.add_argument("--json", action="store_true", dest="json_output", help="Saida JSON para stdout (para piping com jq/grep). Recomenda-se usar com -q.")
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Modo silencioso: sem banner/progresso. Requer -o.",
+    )
+    parser.add_argument(
+        "--color",
+        action="store_true",
+        default=None,
+        dest="color",
+        help="Forca cores no terminal.",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_false",
+        dest="color",
+        help="Desabilita cores no terminal.",
+    )
+    parser.add_argument(
+        "--theme",
+        choices=sorted(THEMES),
+        default="cyber",
+        help="Tema de cores. Padrao: cyber",
+    )
+    parser.add_argument(
+        "--severity-override",
+        help="Sobrescreve cores de severidade. Ex: critical=RED,high=ORANGE",
+    )
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=3,
+        help="Numero de tentativas em caso de falha HTTP. Padrao: 3",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Mostra o que faria sem executar nada."
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        default=False,
+        help="Verifica certificados SSL/TLS. Padrao: desabilitado.",
+    )
+    parser.add_argument(
+        "--no-verify",
+        action="store_false",
+        dest="verify",
+        help="Desabilita verificacao de certificados SSL/TLS (padrao).",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+    parser.add_argument(
+        "--dump-payloads",
+        action="store_true",
+        dest="dump_payloads",
+        help="Exporta todos os payloads YAML carregados em JSON e sai.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Saida JSON para stdout (para piping com jq/grep). Recomenda-se usar com -q.",
+    )
 
 
 def add_http_args(parser: argparse.ArgumentParser) -> None:
     """Adiciona argumentos HTTP especificos (user-agent, proxy, auth, etc)."""
     parser.add_argument("-A", "--user-agent", help="User-Agent usado nas requests.")
     parser.add_argument("--proxy", help="Proxy para as requests. Ex: http://proxy:8080")
-    parser.add_argument("--delay", type=float, default=0.0, help="Delay em segundos entre requests. 0 = sem limite.")
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="Delay em segundos entre requests. 0 = sem limite.",
+    )
     parser.add_argument(
         "--auth",
         type=parse_auth,
         help="Autenticacao Basic (user:pass). Envia header Authorization.",
     )
-    parser.add_argument("--bearer-token", dest="bearer_token", help="Token Bearer para autenticacao.")
-    parser.add_argument("--cookie", help="Cookie para as requests. Ex: 'session=abc123; token=xyz'")
-    parser.add_argument("--header", action="append", default=[], help="Header customizado (pode usar mais de um). Ex: 'X-Token: abc'")
+    parser.add_argument(
+        "--bearer-token", dest="bearer_token", help="Token Bearer para autenticacao."
+    )
+    parser.add_argument(
+        "--cookie", help="Cookie para as requests. Ex: 'session=abc123; token=xyz'"
+    )
+    parser.add_argument(
+        "--header",
+        action="append",
+        default=[],
+        help="Header customizado (pode usar mais de um). Ex: 'X-Token: abc'",
+    )
 
 
 def _detect_module_type() -> str:
@@ -816,18 +959,59 @@ def _detect_module_type() -> str:
 
 # Compatibilidade de flags stealth por tipo de modulo
 _STEALTH_COMPAT: dict[str, set[str]] = {
-    "web": {"proxy", "delay", "random-delay", "jitter", "user-agent-rotate", "impersonate", "fragment", "tor", "waf-evasion", "pad-headers", "rate-limit"},
+    "web": {
+        "proxy",
+        "delay",
+        "random-delay",
+        "jitter",
+        "user-agent-rotate",
+        "impersonate",
+        "fragment",
+        "tor",
+        "waf-evasion",
+        "pad-headers",
+        "rate-limit",
+    },
     "dns": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
-    "email": {"proxy", "delay", "random-delay", "jitter", "fragment", "tor", "waf-evasion", "pad-headers", "rate-limit"},
-    "osint": {"proxy", "delay", "random-delay", "jitter", "user-agent-rotate", "tor", "rate-limit"},
-    "network": {"proxy", "delay", "random-delay", "jitter", "fragment-tcp", "tor", "src-port-random", "rate-limit"},
+    "email": {
+        "proxy",
+        "delay",
+        "random-delay",
+        "jitter",
+        "fragment",
+        "tor",
+        "waf-evasion",
+        "pad-headers",
+        "rate-limit",
+    },
+    "osint": {
+        "proxy",
+        "delay",
+        "random-delay",
+        "jitter",
+        "user-agent-rotate",
+        "tor",
+        "rate-limit",
+    },
+    "network": {
+        "proxy",
+        "delay",
+        "random-delay",
+        "jitter",
+        "fragment-tcp",
+        "tor",
+        "src-port-random",
+        "rate-limit",
+    },
     "vcs": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
     "config": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
     "core": {"proxy", "delay", "random-delay", "jitter", "tor", "rate-limit"},
 }
 
 
-def add_stealth_args(parser: argparse.ArgumentParser, module_type: str | None = None) -> None:
+def add_stealth_args(
+    parser: argparse.ArgumentParser, module_type: str | None = None
+) -> None:
     """Adiciona argumentos stealth anti-detection ao parser.
 
     Apenas flags compativel com o tipo de modulo sao adicionadas.
@@ -838,11 +1022,24 @@ def add_stealth_args(parser: argparse.ArgumentParser, module_type: str | None = 
     compat = _STEALTH_COMPAT.get(module_type, _STEALTH_COMPAT["core"])
 
     if "random-delay" in compat:
-        parser.add_argument("--random-delay", action="store_true", help="Delay aleatorio entre requests (0-2s).")
+        parser.add_argument(
+            "--random-delay",
+            action="store_true",
+            help="Delay aleatorio entre requests (0-2s).",
+        )
     if "jitter" in compat:
-        parser.add_argument("--jitter", type=float, default=0.0, help="Variacao aleatoria no delay (0.0-1.0). Ex: 0.2 = ±20%%.")
+        parser.add_argument(
+            "--jitter",
+            type=float,
+            default=0.0,
+            help="Variacao aleatoria no delay (0.0-1.0). Ex: 0.2 = ±20%%.",
+        )
     if "user-agent-rotate" in compat:
-        parser.add_argument("--user-agent-rotate", action="store_true", help="Rotaciona User-Agent a cada request.")
+        parser.add_argument(
+            "--user-agent-rotate",
+            action="store_true",
+            help="Rotaciona User-Agent a cada request.",
+        )
     if "impersonate" in compat:
         parser.add_argument(
             "--impersonate",
@@ -850,22 +1047,54 @@ def add_stealth_args(parser: argparse.ArgumentParser, module_type: str | None = 
             help="TLS fingerprint de browser real (requer curl-cffi).",
         )
     if "fragment" in compat:
-        parser.add_argument("--fragment", type=int, default=0, help="Fragmenta headers HTTP em chunks (evasao L7). Valor: tamanho do chunk.")
+        parser.add_argument(
+            "--fragment",
+            type=int,
+            default=0,
+            help="Fragmenta headers HTTP em chunks (evasao L7). Valor: tamanho do chunk.",
+        )
     if "fragment-tcp" in compat:
-        parser.add_argument("--fragment-tcp", type=int, default=0, help="Fragmenta payload TCP em chunks (evasao L4). Valor: tamanho do chunk.")
+        parser.add_argument(
+            "--fragment-tcp",
+            type=int,
+            default=0,
+            help="Fragmenta payload TCP em chunks (evasao L4). Valor: tamanho do chunk.",
+        )
     if "tor" in compat:
-        parser.add_argument("--tor", action="store_true", help="Redireciona requests via Tor (SOCKS5).")
+        parser.add_argument(
+            "--tor", action="store_true", help="Redireciona requests via Tor (SOCKS5)."
+        )
     if "waf-evasion" in compat:
-        parser.add_argument("--waf-evasion", action="store_true", help="Aplica encoding anti-WAF em URLs e headers.")
+        parser.add_argument(
+            "--waf-evasion",
+            action="store_true",
+            help="Aplica encoding anti-WAF em URLs e headers.",
+        )
     if "pad-headers" in compat:
-        parser.add_argument("--pad-headers", type=int, default=0, help="Adiciona headers padding (minimo total). Valor: count minimo.")
+        parser.add_argument(
+            "--pad-headers",
+            type=int,
+            default=0,
+            help="Adiciona headers padding (minimo total). Valor: count minimo.",
+        )
     if "src-port-random" in compat:
-        parser.add_argument("--src-port-random", action="store_true", help="Randomiza porta de origem TCP.")
+        parser.add_argument(
+            "--src-port-random",
+            action="store_true",
+            help="Randomiza porta de origem TCP.",
+        )
     if "rate-limit" in compat:
-        parser.add_argument("--rate-limit", type=float, default=0.0, help="Rate limit global (requests/segundo). 0 = sem limite.")
+        parser.add_argument(
+            "--rate-limit",
+            type=float,
+            default=0.0,
+            help="Rate limit global (requests/segundo). 0 = sem limite.",
+        )
 
 
-def validate_stealth_args(args: argparse.Namespace, module_type: str | None = None) -> None:
+def validate_stealth_args(
+    args: argparse.Namespace, module_type: str | None = None
+) -> None:
     """Valida flags stealth, abortando se incompativel com o tipo de modulo.
 
     Raises:
@@ -909,7 +1138,10 @@ def validate_stealth_args(args: argparse.Namespace, module_type: str | None = No
         compat_name = flag_to_compat.get(flag, flag)
         if compat_name not in compat:
             print(
-                color(f"Erro: --{compat_name.replace('_', '-')} nao e compativel com modulo {module_type}", Cyber.RED),
+                color(
+                    f"Erro: --{compat_name.replace('_', '-')} nao e compativel com modulo {module_type}",
+                    Cyber.RED,
+                ),
                 file=sys.stderr,
             )
             raise SystemExit(2)
@@ -958,7 +1190,9 @@ async def apply_session_auth_async(
     if auth:
         client.headers.update(auth)
     if bearer_token:
-        client.headers["Authorization"] = f"Bearer {await resolve_cred_async(bearer_token)}"
+        client.headers["Authorization"] = (
+            f"Bearer {await resolve_cred_async(bearer_token)}"
+        )
     if extra_headers:
         resolved = [await resolve_cred_async(h) for h in extra_headers]
         client.headers.update(parse_extra_headers(resolved))
@@ -973,7 +1207,9 @@ def extract_hostname(url: str) -> str:
     return host.replace("/", "_").replace(":", "_")
 
 
-def read_target_lines(filepath: str, *, lowercase: bool = False, sort_dedup: bool = False) -> list[str]:
+def read_target_lines(
+    filepath: str, *, lowercase: bool = False, sort_dedup: bool = False
+) -> list[str]:
     """Le linhas de um arquivo, removendo blanks e comentarios #.
 
     Args:
@@ -983,7 +1219,9 @@ def read_target_lines(filepath: str, *, lowercase: bool = False, sort_dedup: boo
     """
     try:
         with Path(filepath).open(encoding="utf-8", errors="replace") as fh:
-            lines = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+            lines = [
+                line.strip() for line in fh if line.strip() and not line.startswith("#")
+            ]
     except FileNotFoundError:
         raise ValueError(f"arquivo nao encontrado: {filepath}") from None
     if lowercase:
@@ -1074,15 +1312,21 @@ async def query_nvd(
 
     try:
         if client is not None:
-            response = await client.get(NVD_API_URL, params=params, headers=headers, timeout=15)
+            response = await client.get(
+                NVD_API_URL, params=params, headers=headers, timeout=15
+            )
         else:
             async with httpx.AsyncClient() as tmp:
-                response = await tmp.get(NVD_API_URL, params=params, headers=headers, timeout=15)
+                response = await tmp.get(
+                    NVD_API_URL, params=params, headers=headers, timeout=15
+                )
         if response.status_code == 403:
             logger.debug("NVD rate limited for keyword: %s", keyword)
             return []
         if response.status_code != 200:
-            logger.debug("NVD returned %d for keyword: %s", response.status_code, keyword)
+            logger.debug(
+                "NVD returned %d for keyword: %s", response.status_code, keyword
+            )
             return []
     except httpx.RequestError as error:
         logger.debug("NVD request failed: %s", error)
@@ -1112,7 +1356,14 @@ async def query_nvd(
                 severity = cvss_data.get("baseSeverity", "UNKNOWN")
                 break
 
-        results.append({"id": cve_id, "description": description, "score": score, "severity": severity})
+        results.append(
+            {
+                "id": cve_id,
+                "description": description,
+                "score": score,
+                "severity": severity,
+            }
+        )
 
     _nvd_cache[cache_key] = (time.monotonic(), results)
     return results
@@ -1140,7 +1391,9 @@ def safe_asyncio_run(coro: Any) -> Any:
         try:
             return future.result(timeout=300)
         except concurrent.futures.TimeoutError:
-            raise RuntimeError("Timeout ao executar coroutine em thread separada (300s). Se estiver usando Jupyter, considere nest_asyncio.") from None
+            raise RuntimeError(
+                "Timeout ao executar coroutine em thread separada (300s). Se estiver usando Jupyter, considere nest_asyncio."
+            ) from None
 
 
 _BUILTIN_COMMANDS = ("clear", "exit", "help", "quit")
@@ -1203,7 +1456,9 @@ def run_interactive_shell(
     _setup_readline(parser)
     if banner_fn:
         banner_fn()
-    print(color(description, Cyber.WHITE, Cyber.BOLD), "Digite 'help', 'clear' ou 'exit'.")
+    print(
+        color(description, Cyber.WHITE, Cyber.BOLD), "Digite 'help', 'clear' ou 'exit'."
+    )
     if example:
         print(color("Ex:", Cyber.CYAN), example)
 

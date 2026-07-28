@@ -96,7 +96,13 @@ class TestCategoryMap:
         assert set(_CATEGORY_MAP.keys()) == {"cloud_providers"}
 
     def test_cloud_providers_techniques(self) -> None:
-        expected = {"azure_settings_leak", "gcp_iam_bypass", "vercel_secret_leak", "kv_store_leak", "edge_code_injection"}
+        expected = {
+            "azure_settings_leak",
+            "gcp_iam_bypass",
+            "vercel_secret_leak",
+            "kv_store_leak",
+            "edge_code_injection",
+        }
         assert set(_CATEGORY_MAP["cloud_providers"]) == expected
 
     def test_total_techniques(self) -> None:
@@ -178,7 +184,17 @@ class TestParseUrl:
 
 class TestMakeAttempt:
     def test_creation(self) -> None:
-        a = _make_attempt("azure_settings_leak", "cloud_providers", "desc", True, "details", "", "url", "azure", 200)
+        a = _make_attempt(
+            "azure_settings_leak",
+            "cloud_providers",
+            "desc",
+            True,
+            "details",
+            "",
+            "url",
+            "azure",
+            200,
+        )
         assert a.vulnerable is True
         assert a.provider == "azure"
 

@@ -131,7 +131,10 @@ class TestCheckHPPResponse:
 # ─── Check Response Content ──────────────────────────────────────────────────
 class TestCheckResponseContent:
     def test_match_indicator(self) -> None:
-        assert _check_response_content(b"parameter duplicate detected", ["parameter"]) is True
+        assert (
+            _check_response_content(b"parameter duplicate detected", ["parameter"])
+            is True
+        )
 
     def test_no_match(self) -> None:
         assert _check_response_content(b"not found", ["duplicate"]) is False

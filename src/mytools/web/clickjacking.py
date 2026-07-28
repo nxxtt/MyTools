@@ -55,15 +55,47 @@ logger = logging.getLogger("mytools.clickjacking")
 
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "xframe": ["xframe_absent", "xframe_deny", "xframe_sameorigin", "xframe_allow_from", "xframe_invalid"],
-    "csp": ["csp_absent", "csp_frame_ancestors", "csp_wildcard", "csp_self", "csp_mixed"],
-    "bypass": ["null_origin", "content_type", "meta_refresh", "javascript_url", "data_uri"],
-    "meta": ["meta_referrer", "meta_robots", "meta_permissions", "meta_http_equiv", "meta_refresh"],
-    "legacy": ["ie_double", "ie_edge", "chrome_bypass", "firefox_bypass", "safari_bypass"],
+    "xframe": [
+        "xframe_absent",
+        "xframe_deny",
+        "xframe_sameorigin",
+        "xframe_allow_from",
+        "xframe_invalid",
+    ],
+    "csp": [
+        "csp_absent",
+        "csp_frame_ancestors",
+        "csp_wildcard",
+        "csp_self",
+        "csp_mixed",
+    ],
+    "bypass": [
+        "null_origin",
+        "content_type",
+        "meta_refresh",
+        "javascript_url",
+        "data_uri",
+    ],
+    "meta": [
+        "meta_referrer",
+        "meta_robots",
+        "meta_permissions",
+        "meta_http_equiv",
+        "meta_refresh",
+    ],
+    "legacy": [
+        "ie_double",
+        "ie_edge",
+        "chrome_bypass",
+        "firefox_bypass",
+        "safari_bypass",
+    ],
 }
 
 
-async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, dict[str, str], bytes]:
+async def _test_baseline(
+    client: httpx.AsyncClient, url: str
+) -> tuple[int, dict[str, str], bytes]:
     """Envia request baseline para obter headers e corpo de referencia."""
 
     try:
@@ -136,7 +168,9 @@ async def _test_xframe(
             vulnerable=xfo == "",
             details="X-Frame-Options nao configurado" if xfo == "" else "",
             error="",
-            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>' if xfo == "" else "",
+            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>'
+            if xfo == ""
+            else "",
             tool="curl",
         )
     )
@@ -148,7 +182,9 @@ async def _test_xframe(
             header_tested="X-Frame-Options",
             header_value=xfo,
             vulnerable=False,
-            details="X-Frame-Options: DENY — protecao ativa" if xfo_lower == "deny" else "",
+            details="X-Frame-Options: DENY — protecao ativa"
+            if xfo_lower == "deny"
+            else "",
             error="",
         )
     )
@@ -160,7 +196,9 @@ async def _test_xframe(
             header_tested="X-Frame-Options",
             header_value=xfo,
             vulnerable=False,
-            details="X-Frame-Options: SAMEORIGIN — protecao ativa" if xfo_lower == "sameorigin" else "",
+            details="X-Frame-Options: SAMEORIGIN — protecao ativa"
+            if xfo_lower == "sameorigin"
+            else "",
             error="",
         )
     )
@@ -172,9 +210,13 @@ async def _test_xframe(
             header_tested="X-Frame-Options",
             header_value=xfo,
             vulnerable="allow-from" in xfo_lower,
-            details=f"X-Frame-Options ALLOW-FROM (deprecated): {xfo}" if "allow-from" in xfo_lower else "",
+            details=f"X-Frame-Options ALLOW-FROM (deprecated): {xfo}"
+            if "allow-from" in xfo_lower
+            else "",
             error="",
-            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>' if "allow-from" in xfo_lower else "",
+            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>'
+            if "allow-from" in xfo_lower
+            else "",
             tool="curl",
         )
     )
@@ -190,7 +232,9 @@ async def _test_xframe(
             vulnerable=is_invalid,
             details=f"X-Frame-Options valor invalido: {xfo}" if is_invalid else "",
             error="",
-            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>' if is_invalid else "",
+            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>'
+            if is_invalid
+            else "",
             tool="curl",
         )
     )
@@ -224,7 +268,9 @@ async def _test_csp(
             vulnerable=not csp,
             details="CSP nao configurado" if not csp else "",
             error="",
-            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>' if not csp else "",
+            exploit='<iframe src="<TARGET>" style="opacity:0.0001"></iframe>'
+            if not csp
+            else "",
             tool="curl",
         )
     )
@@ -236,7 +282,9 @@ async def _test_csp(
             header_tested="Content-Security-Policy",
             header_value=csp[:100],
             vulnerable=has_frame_ancestors,
-            details=f"CSP frame-ancestors encontrado: {csp[:50]}" if has_frame_ancestors else "",
+            details=f"CSP frame-ancestors encontrado: {csp[:50]}"
+            if has_frame_ancestors
+            else "",
             error="",
         )
     )
@@ -250,7 +298,9 @@ async def _test_csp(
             header_tested="Content-Security-Policy",
             header_value=csp[:100],
             vulnerable=has_wildcard,
-            details=f"CSP frame-ancestors com wildcard: {csp[:50]}" if has_wildcard else "",
+            details=f"CSP frame-ancestors com wildcard: {csp[:50]}"
+            if has_wildcard
+            else "",
             error="",
         )
     )
@@ -269,7 +319,9 @@ async def _test_csp(
         )
     )
 
-    has_mixed = has_frame_ancestors and ("frame-src" in csp_lower or "child-src" in csp_lower)
+    has_mixed = has_frame_ancestors and (
+        "frame-src" in csp_lower or "child-src" in csp_lower
+    )
 
     results.append(
         ClickjackAttempt(
@@ -278,7 +330,9 @@ async def _test_csp(
             header_tested="Content-Security-Policy",
             header_value=csp[:100],
             vulnerable=has_mixed,
-            details=f"CSP com frame-ancestors e frame-src/child-src: {csp[:50]}" if has_mixed else "",
+            details=f"CSP com frame-ancestors e frame-src/child-src: {csp[:50]}"
+            if has_mixed
+            else "",
             error="",
         )
     )
@@ -315,7 +369,9 @@ async def _test_bypass(
 
         resp_csp = resp_headers.get("content-security-policy", "").lower()
 
-        vulnerable = resp_xfo not in ("deny", "sameorigin") and "frame-ancestors" not in resp_csp
+        vulnerable = (
+            resp_xfo not in ("deny", "sameorigin") and "frame-ancestors" not in resp_csp
+        )
 
         results.append(
             ClickjackAttempt(
@@ -326,7 +382,9 @@ async def _test_bypass(
                 vulnerable=vulnerable,
                 details="Null origin bypass possivel" if vulnerable else "",
                 error="",
-                exploit='<iframe src="<TARGET>" sandbox="allow-scripts" origin="null"></iframe>' if vulnerable else "",
+                exploit='<iframe src="<TARGET>" sandbox="allow-scripts" origin="null"></iframe>'
+                if vulnerable
+                else "",
                 tool="curl",
             )
         )
@@ -345,7 +403,9 @@ async def _test_bypass(
         )
 
     try:
-        resp = await client.get(url, headers={"Content-Type": "text/plain"}, follow_redirects=True)
+        resp = await client.get(
+            url, headers={"Content-Type": "text/plain"}, follow_redirects=True
+        )
 
         resp_headers = dict(resp.headers)
 
@@ -601,7 +661,12 @@ def print_results(result: ClickjackResult) -> None:
 
     print(color(f"  Vulneraveis:  {len(vuln)}", Cyber.RED if vuln else Cyber.GRAY))
 
-    print(color(f"  Protegidos:   {len(protected)}", Cyber.GREEN if protected else Cyber.GRAY))
+    print(
+        color(
+            f"  Protegidos:   {len(protected)}",
+            Cyber.GREEN if protected else Cyber.GRAY,
+        )
+    )
 
     print(color(f"  Erros:        {len(errors)}", Cyber.RED if errors else Cyber.GRAY))
 
@@ -629,7 +694,12 @@ def print_results(result: ClickjackResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [+] Nenhum Clickjacking detectado", Cyber.GREEN))
@@ -655,7 +725,9 @@ async def run_scan(
     tls = target.startswith("https://")
 
     async with create_async_client(timeout=timeout) as client:
-        _baseline_status, baseline_headers, baseline_body = await _test_baseline(client, target)
+        _baseline_status, baseline_headers, baseline_body = await _test_baseline(
+            client, target
+        )
 
         all_attempts: list[ClickjackAttempt] = []
 
@@ -663,13 +735,17 @@ async def run_scan(
 
         for cat in test_categories:
             if cat == "xframe":
-                all_attempts.extend(await _test_xframe(client, target, baseline_headers))
+                all_attempts.extend(
+                    await _test_xframe(client, target, baseline_headers)
+                )
 
             elif cat == "csp":
                 all_attempts.extend(await _test_csp(client, target, baseline_headers))
 
             elif cat == "bypass":
-                all_attempts.extend(await _test_bypass(client, target, baseline_headers, baseline_body))
+                all_attempts.extend(
+                    await _test_bypass(client, target, baseline_headers, baseline_body)
+                )
 
             elif cat == "meta":
                 all_attempts.extend(await _test_meta(client, target, baseline_body))
@@ -679,7 +755,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        protected_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        protected_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -693,13 +771,19 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             protected_techniques=protected_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if protected_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if protected_techs else "unknown"),
         )
 
         if json_output:
             print_json(asdict(result))
 
-            logger.info("Clickjacking scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+            logger.info(
+                "Clickjacking scan concluido: %d testes, %d vulneraveis",
+                len(all_attempts),
+                len(vuln_techs),
+            )
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -788,7 +872,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="clickjack> ",
         description="Clickjacking interativo.",
         example="https://target.com -c xframe",

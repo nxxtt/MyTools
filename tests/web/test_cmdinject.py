@@ -170,11 +170,15 @@ class TestBuildParser:
 class TestRunScan:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
-        with patch("mytools.web.cmdinject._test_baseline", return_value=(0, 0, b"", 0.0)):
+        with patch(
+            "mytools.web.cmdinject._test_baseline", return_value=(0, 0, b"", 0.0)
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.cmdinject.create_async_client", return_value=mock_client):
+            with patch(
+                "mytools.web.cmdinject.create_async_client", return_value=mock_client
+            ):
                 result = await run_scan("https://target.com/?cmd=ls")
                 assert result.overall_status == "error"
 
@@ -189,7 +193,9 @@ class TestRunScan:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("mytools.web.cmdinject.create_async_client", return_value=mock_client):
+        with patch(
+            "mytools.web.cmdinject.create_async_client", return_value=mock_client
+        ):
             result = await run_scan("https://target.com/?cmd=ls", category="os_command")
             assert isinstance(result, CmdInjectResult)
             assert result.baseline_status == 200
@@ -205,8 +211,12 @@ class TestRunScan:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("mytools.web.cmdinject.create_async_client", return_value=mock_client):
-            result = await run_scan("https://target.com/?cmd=ls", category="nonexistent")
+        with patch(
+            "mytools.web.cmdinject.create_async_client", return_value=mock_client
+        ):
+            result = await run_scan(
+                "https://target.com/?cmd=ls", category="nonexistent"
+            )
             assert result.overall_status == "error"
             assert "desconhecida" in result.issues[0]
 

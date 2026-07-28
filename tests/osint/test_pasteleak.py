@@ -21,7 +21,14 @@ class TestLeakRecord:
     """Testes do dataclass LeakRecord."""
 
     def test_frozen(self) -> None:
-        r = LeakRecord(source="a", url="b", filename="c", matched_pattern="d", matched_text="e", found_at="f")
+        r = LeakRecord(
+            source="a",
+            url="b",
+            filename="c",
+            matched_pattern="d",
+            matched_text="e",
+            found_at="f",
+        )
         with pytest.raises(AttributeError):
             r.source = "x"  # type: ignore[misc]
 
@@ -51,7 +58,12 @@ class TestScanContent:
         assert any(leak.matched_pattern == "aws_key" for leak in leaks)
 
     def test_github_token(self) -> None:
-        leaks = _scan_content("token=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef1234", "test", "http://x", "f.txt")
+        leaks = _scan_content(
+            "token=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef1234",
+            "test",
+            "http://x",
+            "f.txt",
+        )
         assert any(leak.matched_pattern == "github_token" for leak in leaks)
 
     def test_slack_token(self) -> None:
@@ -65,7 +77,9 @@ class TestScanContent:
         assert any(leak.matched_pattern == "stripe_key" for leak in leaks)
 
     def test_private_key(self) -> None:
-        leaks = _scan_content("-----BEGIN RSA PRIVATE KEY-----", "test", "http://x", "f.txt")
+        leaks = _scan_content(
+            "-----BEGIN RSA PRIVATE KEY-----", "test", "http://x", "f.txt"
+        )
         assert any(leak.matched_pattern == "private_key" for leak in leaks)
 
     def test_password_assign(self) -> None:
@@ -81,11 +95,15 @@ class TestScanContent:
         assert any(leak.matched_pattern == "secret_assign" for leak in leaks)
 
     def test_token_assign(self) -> None:
-        leaks = _scan_content("auth_token=abc123def456ghi789", "test", "http://x", "f.txt")
+        leaks = _scan_content(
+            "auth_token=abc123def456ghi789", "test", "http://x", "f.txt"
+        )
         assert any(leak.matched_pattern == "token_assign" for leak in leaks)
 
     def test_connection_string(self) -> None:
-        leaks = _scan_content("DATABASE_URL=postgres://user:pass@host/db", "test", "http://x", "f.txt")
+        leaks = _scan_content(
+            "DATABASE_URL=postgres://user:pass@host/db", "test", "http://x", "f.txt"
+        )
         assert any(leak.matched_pattern == "connection_string" for leak in leaks)
 
     def test_no_match(self) -> None:
@@ -104,14 +122,42 @@ class TestDedupLeaks:
     """Testes da funcao _dedup_leaks."""
 
     def test_dedup(self) -> None:
-        r1 = LeakRecord(source="a", url="b", filename="c", matched_pattern="d", matched_text="e", found_at="f")
-        r2 = LeakRecord(source="a", url="b", filename="c", matched_pattern="d", matched_text="e", found_at="f")
+        r1 = LeakRecord(
+            source="a",
+            url="b",
+            filename="c",
+            matched_pattern="d",
+            matched_text="e",
+            found_at="f",
+        )
+        r2 = LeakRecord(
+            source="a",
+            url="b",
+            filename="c",
+            matched_pattern="d",
+            matched_text="e",
+            found_at="f",
+        )
         result = _dedup_leaks([r1, r2])
         assert len(result) == 1
 
     def test_different_sources(self) -> None:
-        r1 = LeakRecord(source="a", url="b", filename="c", matched_pattern="d", matched_text="e", found_at="f")
-        r2 = LeakRecord(source="x", url="b", filename="c", matched_pattern="d", matched_text="e", found_at="f")
+        r1 = LeakRecord(
+            source="a",
+            url="b",
+            filename="c",
+            matched_pattern="d",
+            matched_text="e",
+            found_at="f",
+        )
+        r2 = LeakRecord(
+            source="x",
+            url="b",
+            filename="c",
+            matched_pattern="d",
+            matched_text="e",
+            found_at="f",
+        )
         result = _dedup_leaks([r1, r2])
         assert len(result) == 2
 
@@ -142,7 +188,9 @@ class TestParser:
 
     def test_source(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["example.com", "--source", "github_gists", "--source", "pastebin_rss"])
+        args = parser.parse_args(
+            ["example.com", "--source", "github_gists", "--source", "pastebin_rss"]
+        )
         assert args.sources == ["github_gists", "pastebin_rss"]
 
     def test_github_token(self) -> None:
@@ -197,7 +245,11 @@ class TestScanLeaks:
             {
                 "description": "config for example.com",
                 "html_url": "http://gist.github.com/123",
-                "files": {"config.py": {"raw_url": "http://gist.githubusercontent.com/123/raw"}},
+                "files": {
+                    "config.py": {
+                        "raw_url": "http://gist.githubusercontent.com/123/raw"
+                    }
+                },
             },
         ]
         respx.get("https://api.github.com/gists/public").mock(
@@ -222,7 +274,9 @@ class TestScanLeaks:
             {
                 "title": "test.py",
                 "web_url": "https://gitlab.com/snippets/123",
-                "files": {"test.py": {"raw_url": "https://gitlab.com/snippets/123/raw"}},
+                "files": {
+                    "test.py": {"raw_url": "https://gitlab.com/snippets/123/raw"}
+                },
             },
         ]
         respx.get("https://gitlab.com/api/v4/snippets/public").mock(
@@ -329,7 +383,11 @@ class TestScanLeaks:
             {
                 "description": "config for example.com",
                 "html_url": "http://gist.github.com/123",
-                "files": {"config.py": {"raw_url": "http://gist.githubusercontent.com/123/raw"}},
+                "files": {
+                    "config.py": {
+                        "raw_url": "http://gist.githubusercontent.com/123/raw"
+                    }
+                },
             },
         ]
         respx.get("https://api.github.com/gists/public").mock(
@@ -342,7 +400,9 @@ class TestScanLeaks:
             {
                 "title": "test.py",
                 "web_url": "https://gitlab.com/snippets/456",
-                "files": {"test.py": {"raw_url": "https://gitlab.com/snippets/456/raw"}},
+                "files": {
+                    "test.py": {"raw_url": "https://gitlab.com/snippets/456/raw"}
+                },
             },
         ]
         respx.get("https://gitlab.com/api/v4/snippets/public").mock(

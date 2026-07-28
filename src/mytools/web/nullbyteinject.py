@@ -187,7 +187,9 @@ async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int,
         return 0, 0, b""
 
 
-async def _test_null_in_url(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[NullByteAttempt]:
+async def _test_null_in_url(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[NullByteAttempt]:
     """Testa null bytes em URLs."""
 
     attempts: list[NullByteAttempt] = []
@@ -226,7 +228,9 @@ async def _test_null_in_url(client: httpx.AsyncClient, url: str, baseline: tuple
                         status_changed=status_changed,
                         size_changed=size_changed,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                         exploit="file.php%00.jpg" if vulnerable else "",
                         tool="wfuzz",
@@ -255,7 +259,9 @@ async def _test_null_in_url(client: httpx.AsyncClient, url: str, baseline: tuple
     return attempts
 
 
-async def _test_null_in_headers(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[NullByteAttempt]:
+async def _test_null_in_headers(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[NullByteAttempt]:
     """Testa null bytes em headers HTTP."""
 
     attempts: list[NullByteAttempt] = []
@@ -271,7 +277,9 @@ async def _test_null_in_headers(client: httpx.AsyncClient, url: str, baseline: t
 
     for technique, (header_name, header_value) in header_payloads.items():
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=False)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -296,7 +304,9 @@ async def _test_null_in_headers(client: httpx.AsyncClient, url: str, baseline: t
                     status_changed=status_changed,
                     size_changed=size_changed,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="file.php%00.jpg" if vulnerable else "",
                     tool="wfuzz",
@@ -325,7 +335,9 @@ async def _test_null_in_headers(client: httpx.AsyncClient, url: str, baseline: t
     return attempts
 
 
-async def _test_null_in_params(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[NullByteAttempt]:
+async def _test_null_in_params(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[NullByteAttempt]:
     """Testa null bytes em parametros GET/POST."""
 
     attempts: list[NullByteAttempt] = []
@@ -340,7 +352,9 @@ async def _test_null_in_params(client: httpx.AsyncClient, url: str, baseline: tu
         base_url = urlunparse(parsed._replace(query=""))
 
         try:
-            resp = await client.get(base_url, params={"q": f"test{null_byte}"}, follow_redirects=False)
+            resp = await client.get(
+                base_url, params={"q": f"test{null_byte}"}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -363,7 +377,9 @@ async def _test_null_in_params(client: httpx.AsyncClient, url: str, baseline: tu
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="file.php%00.jpg" if vulnerable else "",
                     tool="wfuzz",
@@ -392,7 +408,9 @@ async def _test_null_in_params(client: httpx.AsyncClient, url: str, baseline: tu
         # POST param
 
         try:
-            resp = await client.post(base_url, data={"field": f"value{null_byte}"}, follow_redirects=False)
+            resp = await client.post(
+                base_url, data={"field": f"value{null_byte}"}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -415,7 +433,9 @@ async def _test_null_in_params(client: httpx.AsyncClient, url: str, baseline: tu
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="file.php%00.jpg" if vulnerable else "",
                     tool="wfuzz",
@@ -472,7 +492,9 @@ async def _test_null_in_params(client: httpx.AsyncClient, url: str, baseline: tu
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="file.php%00.jpg" if vulnerable else "",
                     tool="wfuzz",
@@ -501,7 +523,9 @@ async def _test_null_in_params(client: httpx.AsyncClient, url: str, baseline: tu
     return attempts
 
 
-async def _test_path_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[NullByteAttempt]:
+async def _test_path_traversal(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[NullByteAttempt]:
     """Testa path traversal com null bytes."""
 
     attempts: list[NullByteAttempt] = []
@@ -550,7 +574,9 @@ async def _test_path_traversal(client: httpx.AsyncClient, url: str, baseline: tu
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="file.php%00.jpg" if vulnerable else "",
                     tool="wfuzz",
@@ -579,7 +605,9 @@ async def _test_path_traversal(client: httpx.AsyncClient, url: str, baseline: tu
     return attempts
 
 
-async def _test_auth_bypass(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[NullByteAttempt]:
+async def _test_auth_bypass(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[NullByteAttempt]:
     """Testa auth bypass via null bytes."""
 
     attempts: list[NullByteAttempt] = []
@@ -594,7 +622,9 @@ async def _test_auth_bypass(client: httpx.AsyncClient, url: str, baseline: tuple
 
     for technique, header_name, header_value in auth_payloads:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=False)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -617,7 +647,9 @@ async def _test_auth_bypass(client: httpx.AsyncClient, url: str, baseline: tuple
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="file.php%00.jpg" if vulnerable else "",
                     tool="wfuzz",
@@ -775,7 +807,12 @@ def print_results_fn(result: NullByteResult) -> None:
 
     print(color(f"  Target: {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 

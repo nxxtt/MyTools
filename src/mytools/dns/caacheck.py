@@ -164,11 +164,15 @@ def print_results(result: CaaResult) -> None:
     print(f"  Dominio: {color(result.domain, Cyber.WHITE, Cyber.BOLD)}")
     print()
 
-    print(f"  CAA Configurado: {color('SIM', Cyber.GREEN) if result.has_caa else color('NAO', Cyber.RED)}")
+    print(
+        f"  CAA Configurado: {color('SIM', Cyber.GREEN) if result.has_caa else color('NAO', Cyber.RED)}"
+    )
     print(
         f"  Politica: {color(result.policy_status.upper(), Cyber.GREEN if result.policy_status == 'restrictive' else (Cyber.YELLOW if result.policy_status == 'permissive' else Cyber.RED))}"
     )
-    print(f"  IODEF (report): {color('SIM', Cyber.GREEN) if result.has_iodef else color('NAO', Cyber.YELLOW)}")
+    print(
+        f"  IODEF (report): {color('SIM', Cyber.GREEN) if result.has_iodef else color('NAO', Cyber.YELLOW)}"
+    )
     print()
 
     if result.authorized_cas:
@@ -180,18 +184,40 @@ def print_results(result: CaaResult) -> None:
         print()
         print(color("  Registros CAA:", Cyber.YELLOW, Cyber.BOLD))
         for rec in result.records:
-            tag_color = Cyber.GREEN if rec.tag == "issue" else (Cyber.CYAN if rec.tag == "issuewild" else Cyber.YELLOW)
+            tag_color = (
+                Cyber.GREEN
+                if rec.tag == "issue"
+                else (Cyber.CYAN if rec.tag == "issuewild" else Cyber.YELLOW)
+            )
             print(f"    {color(rec.tag, tag_color)} = {rec.value} (flags: {rec.flags})")
 
     print()
     if not result.has_caa:
         print(color("  [-] Nenhum registro CAA encontrado", Cyber.RED))
-        print(color("  [-] Qualquer CA pode emitir certificados para este dominio", Cyber.RED))
-        print(color("  [-] Recomendacao: adicionar registros CAA para restringir CAs", Cyber.YELLOW))
+        print(
+            color(
+                "  [-] Qualquer CA pode emitir certificados para este dominio",
+                Cyber.RED,
+            )
+        )
+        print(
+            color(
+                "  [-] Recomendacao: adicionar registros CAA para restringir CAs",
+                Cyber.YELLOW,
+            )
+        )
     elif result.policy_status == "restrictive":
-        print(color("  [+] Politica restritiva — poucas CAs autorizadas", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Politica restritiva — poucas CAs autorizadas",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
     elif result.policy_status == "permissive":
-        print(color("  [!] Politica permissiva — multiplas CAs autorizadas", Cyber.YELLOW))
+        print(
+            color("  [!] Politica permissiva — multiplas CAs autorizadas", Cyber.YELLOW)
+        )
     else:
         print(color("  [!] Politica aberta — muitas CAs autorizadas", Cyber.YELLOW))
 
@@ -281,7 +307,9 @@ def main() -> int:
         prompt="caa> ",
         description="CAA Record Check interativo.",
         example="example.com --nameserver 8.8.8.8",
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 

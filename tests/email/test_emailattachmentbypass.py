@@ -343,7 +343,10 @@ class TestScanAttachmentBypass:
         mock_server.ehlo.return_value = (250, b"250 OK")
         mock_conn.return_value = (mock_server, False)
 
-        with patch("mytools.email.emailattachmentbypass._send_bypass_email", return_value=(False, "550")):
+        with patch(
+            "mytools.email.emailattachmentbypass._send_bypass_email",
+            return_value=(False, "550"),
+        ):
             result = scan_attachment_bypass("mail.test.com", 587, category="invalid")
             assert any("Categoria desconhecida" in i for i in result.issues)
 

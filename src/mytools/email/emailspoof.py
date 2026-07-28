@@ -154,7 +154,9 @@ def analyze_spoofing(
         elif base.spf.all_qualifier == "~":
             spf_status = "softfail"
 
-            issues.append("SPF ~all: emails de IPs nao listados sao marcados mas nao rejeitados")
+            issues.append(
+                "SPF ~all: emails de IPs nao listados sao marcados mas nao rejeitados"
+            )
 
         elif base.spf.all_qualifier == "-":
             spf_status = "strict"
@@ -203,7 +205,9 @@ def analyze_spoofing(
         elif base.dmarc.policy == "quarantine":
             dmarc_status = "quarantine"
 
-            issues.append("DMARC quarantine: emails falhos vao para spam, nao rejeitados")
+            issues.append(
+                "DMARC quarantine: emails falhos vao para spam, nao rejeitados"
+            )
 
         elif base.dmarc.policy == "reject":
             dmarc_status = "reject"
@@ -220,7 +224,9 @@ def analyze_spoofing(
 
         # Subdomain policy
 
-        if base.dmarc.sp == "none" or (not base.dmarc.sp and base.dmarc.policy == "reject"):
+        if base.dmarc.sp == "none" or (
+            not base.dmarc.sp and base.dmarc.policy == "reject"
+        ):
             sp_default = base.dmarc.sp or "(herda p=)"
 
             if sp_default == "(herda p=)":
@@ -363,7 +369,9 @@ def print_results(result: SpoofResult) -> None:
 
     print(f"  SPF:     {status_icon.get(result.spf_status, '?')} {result.spf_status}")
 
-    print(f"  DMARC:   {status_icon.get(result.dmarc_status, '?')} {result.dmarc_status}")
+    print(
+        f"  DMARC:   {status_icon.get(result.dmarc_status, '?')} {result.dmarc_status}"
+    )
 
     print(f"  DKIM:    {status_icon.get(result.dkim_status, '?')} {result.dkim_status}")
 
@@ -394,16 +402,37 @@ def print_results(result: SpoofResult) -> None:
         print()
 
     if result.risk_score == "none":
-        print(color("  [+] Dominio protegido contra spoofing de email", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Dominio protegido contra spoofing de email",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
     elif result.risk_score == "critical":
-        print(color("  [-] Dominio VULNERAVEL a spoofing — acao urgente necessaria", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                "  [-] Dominio VULNERAVEL a spoofing — acao urgente necessaria",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
     elif result.risk_score == "high":
-        print(color("  [!] Dominio parcialmente vulneravel — melhorias recomendadas", Cyber.YELLOW))
+        print(
+            color(
+                "  [!] Dominio parcialmente vulneravel — melhorias recomendadas",
+                Cyber.YELLOW,
+            )
+        )
 
     else:
-        print(color("  [i] Dominio com protecao basica — considerar melhorias", Cyber.CYAN))
+        print(
+            color(
+                "  [i] Dominio com protecao basica — considerar melhorias", Cyber.CYAN
+            )
+        )
 
 
 def banner() -> None:
@@ -476,9 +505,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma query DNS sera enviada.")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma query DNS sera enviada.",
+        )
 
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}",
+        )
 
         return 0
 
@@ -522,7 +557,9 @@ def main() -> int:
         prompt="spoof> ",
         description="Email Spoofing — analise de vulnerabilidade a spoofing.",
         example="example.com --selectors default,google",
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 

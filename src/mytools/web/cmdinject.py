@@ -137,14 +137,20 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
 def _load_cmd_params() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cmdinject", default={"cmd_params": _CMD_PARAMS_DEFAULT})
+    data = load_payloads(
+        "web", "cmdinject", default={"cmd_params": _CMD_PARAMS_DEFAULT}
+    )
     return data.get("cmd_params", _CMD_PARAMS_DEFAULT)
 
 
 def _load_os_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cmdinject", default={"os_command_payloads": _OS_COMMAND_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "cmdinject",
+        default={"os_command_payloads": _OS_COMMAND_PAYLOADS_DEFAULT},
+    )
     raw = data.get("os_command_payloads", _OS_COMMAND_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -152,7 +158,9 @@ def _load_os_payloads() -> list[tuple[str, str]]:
 def _load_blind_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cmdinject", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "cmdinject", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT}
+    )
     raw = data.get("blind_payloads", _BLIND_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -160,7 +168,9 @@ def _load_blind_payloads() -> list[tuple[str, str]]:
 def _load_bypass_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cmdinject", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "cmdinject", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT}
+    )
     raw = data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -335,7 +345,13 @@ async def _test_os_command(
                 status_changed = t_status != b_status
                 vulnerable = content_match
 
-                details = f"Content: {content_type}" if content_match else f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca"
+                details = (
+                    f"Content: {content_type}"
+                    if content_match
+                    else f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca"
+                )
 
                 # Second-order verification for content-based detection
                 if content_match:
@@ -343,7 +359,9 @@ async def _test_os_command(
                     if verify:
                         v_payload, v_indicators = verify
                         v_url = _make_inject_url(url, param, v_payload)
-                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        confirmed, v_found = await verify_positive(
+                            client, v_url, v_indicators
+                        )
                         if not confirmed:
                             content_match = False
                             content_type = "none"
@@ -429,7 +447,11 @@ async def _test_blind(
 
                 vulnerable = timing_match
 
-                details = f"Timing: {b_time:.1f}s->{t_time:.1f}s" if timing_match else "Sem delay"
+                details = (
+                    f"Timing: {b_time:.1f}s->{t_time:.1f}s"
+                    if timing_match
+                    else "Sem delay"
+                )
 
                 attempts.append(
                     _make_attempt(
@@ -516,7 +538,9 @@ async def _test_bypass(
                     if verify:
                         v_payload, v_indicators = verify
                         v_url = _make_inject_url(url, param, v_payload)
-                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        confirmed, v_found = await verify_positive(
+                            client, v_url, v_indicators
+                        )
                         if not confirmed:
                             content_match = False
                             content_type = "none"
@@ -707,13 +731,21 @@ def print_results(result: CmdInjectResult) -> None:
         print(color("\n  [VULNERAVEL]", Cyber.RED))
         for tech in result.vulnerable_techniques:
             print(color(f"    - {tech}", Cyber.RED))
-            a = next((a for a in result.attempts if a.technique == tech and a.vulnerable), None)
+            a = next(
+                (a for a in result.attempts if a.technique == tech and a.vulnerable),
+                None,
+            )
             if a:
                 print(color(f"      Injection: {a.injection_point}", Cyber.GRAY))
                 if a.content_match:
                     print(color(f"      Content: {a.content_type}", Cyber.GRAY))
                 if a.timing_match:
-                    print(color(f"      Timing: {a.time_baseline:.1f}s->{a.time_test:.1f}s", Cyber.GRAY))
+                    print(
+                        color(
+                            f"      Timing: {a.time_baseline:.1f}s->{a.time_test:.1f}s",
+                            Cyber.GRAY,
+                        )
+                    )
                 print_exploit_info(a.exploit, a.tool)
 
     if result.blocked_techniques:

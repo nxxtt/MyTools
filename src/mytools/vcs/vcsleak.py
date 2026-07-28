@@ -196,7 +196,11 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
 
         if path == ".git/description":
             text = content.decode("utf-8", errors="replace").strip()
-            if text and text != "Unnamed repository; edit this file 'description' to name the repository.":
+            if (
+                text
+                and text
+                != "Unnamed repository; edit this file 'description' to name the repository."
+            ):
                 return True, text[:80]
             return False, ""
 
@@ -315,7 +319,13 @@ async def scan_vcs(
     started = time.monotonic()
     rate_limiter = RateLimiter(requests_per_second)
     client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
-    apply_session_auth(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
+    apply_session_auth(
+        client,
+        auth=auth,
+        bearer_token=bearer_token,
+        cookie=cookie,
+        extra_headers=extra_headers,
+    )
 
     logger.info("scan vcs leak iniciado: %s", base_url)
     logger.info("Alvo: %s", base_url)
@@ -331,12 +341,16 @@ async def scan_vcs(
     async def _limited_probe(path: str) -> VCSLeak | None:
         nonlocal completed
         async with sem:
-            result = await _probe_path(client, rate_limiter, base_url, path, timeout, retries)
+            result = await _probe_path(
+                client, rate_limiter, base_url, path, timeout, retries
+            )
             async with completed_lock:
                 completed += 1
                 should_print = completed % 20 == 0 or completed == total
                 if should_print:
-                    sys.stdout.write(f"\r  Progresso: {completed}/{total} paths testados...")
+                    sys.stdout.write(
+                        f"\r  Progresso: {completed}/{total} paths testados..."
+                    )
                     sys.stdout.flush()
             return result
 
@@ -352,7 +366,9 @@ async def scan_vcs(
         for r in results:
             if isinstance(r, VCSLeak):
                 leaks.append(r)
-                logger.info("VCS leak encontrado: [%s] %s — %s", r.vcs_type, r.path, r.detail)
+                logger.info(
+                    "VCS leak encontrado: [%s] %s — %s", r.vcs_type, r.path, r.detail
+                )
     finally:
         await client.aclose()
 
@@ -383,7 +399,9 @@ def print_results(leaks: list[VCSLeak]) -> None:
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         vcs = row[0].lower()
-        vcs_color = {"git": Cyber.RED, "svn": Cyber.YELLOW, "hg": Cyber.GREEN}.get(vcs, Cyber.WHITE)
+        vcs_color = {"git": Cyber.RED, "svn": Cyber.YELLOW, "hg": Cyber.GREEN}.get(
+            vcs, Cyber.WHITE
+        )
         return [
             (vcs_color, Cyber.BOLD),
             (Cyber.WHITE,),
@@ -416,7 +434,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
     parser.add_argument(
         "--concurrency",
         type=int,
@@ -467,7 +490,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if getattr(args, "dry_run", False):
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
-            base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
             logger.info("Alvo: %s", base_url)
         return 0
 
@@ -477,7 +502,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     all_leaks: list[VCSLeak] = []
     for url in urls:
-        base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+        base_url = normalize_url(
+            url, default_scheme="https", ensure_trailing_slash=True
+        )
         custom_paths = _load_paths_from_args(args)
 
         leaks = await scan_vcs(

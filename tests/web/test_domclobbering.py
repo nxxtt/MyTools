@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de DOM Clobbering."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.domclobbering import (
@@ -187,7 +188,7 @@ class TestNamedAccess:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         client = AsyncMock()
-        client.get = AsyncMock(side_effect=Exception("Connection refused"))
+        client.request = AsyncMock(side_effect=httpx.RequestError("Connection refused"))
         from mytools.web.domclobbering import _test_named_access
 
         result = await _test_named_access(client, "https://target.com", 10.0)
@@ -195,9 +196,14 @@ class TestNamedAccess:
         assert any(a.error for a in result)
 
     @pytest.mark.asyncio
-    @patch("mytools.web.domclobbering.fetch")
-    async def test_reflected_payload(self, mock_fetch: MagicMock) -> None:
-        mock_fetch.return_value = (200, {}, b'<a id="config" href="javascript:void(0)">', {})
+    @patch("mytools.web.domclobbering.fetch", new_callable=AsyncMock)
+    async def test_reflected_payload(self, mock_fetch: AsyncMock) -> None:
+        mock_fetch.return_value = (
+            200,
+            {},
+            b'<a id="config" href="javascript:void(0)">',
+            {},
+        )
         client = AsyncMock()
         from mytools.web.domclobbering import _test_named_access
 
@@ -210,7 +216,7 @@ class TestFormChild:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         client = AsyncMock()
-        client.get = AsyncMock(side_effect=Exception("Connection refused"))
+        client.request = AsyncMock(side_effect=httpx.RequestError("Connection refused"))
         from mytools.web.domclobbering import _test_form_child
 
         result = await _test_form_child(client, "https://target.com", 10.0)
@@ -223,7 +229,7 @@ class TestImpact:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         client = AsyncMock()
-        client.get = AsyncMock(side_effect=Exception("Connection refused"))
+        client.request = AsyncMock(side_effect=httpx.RequestError("Connection refused"))
         from mytools.web.domclobbering import _test_impact_chains
 
         result = await _test_impact_chains(client, "https://target.com", 10.0)

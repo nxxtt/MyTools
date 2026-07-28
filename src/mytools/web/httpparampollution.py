@@ -39,10 +39,28 @@ logger = logging.getLogger("mytools.httpparampollution")
 
 _CATEGORY_MAP: dict[str, list[str]] = {
     "query": ["dup_id", "dup_name", "dup_token", "dup_session", "dup_admin"],
-    "body": ["form_dup_id", "form_dup_name", "form_dup_token", "form_dup_session", "form_dup_admin"],
+    "body": [
+        "form_dup_id",
+        "form_dup_name",
+        "form_dup_token",
+        "form_dup_session",
+        "form_dup_admin",
+    ],
     "header": ["dup_cookie", "dup_auth", "dup_accept", "dup_referer", "dup_host"],
-    "json": ["json_dup_id", "json_dup_array", "json_dup_name", "json_dup_token", "json_dup_admin"],
-    "bypass": ["null_byte", "double_encode", "unicode_dup", "whitespace_dup", "case_dup"],
+    "json": [
+        "json_dup_id",
+        "json_dup_array",
+        "json_dup_name",
+        "json_dup_token",
+        "json_dup_admin",
+    ],
+    "bypass": [
+        "null_byte",
+        "double_encode",
+        "unicode_dup",
+        "whitespace_dup",
+        "case_dup",
+    ],
 }
 
 _QUERY_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
@@ -310,7 +328,9 @@ async def _test_query(
             try:
                 test_url = url.rstrip("/") + path + "?" + query_payload
                 resp = await client.get(test_url, follow_redirects=True)
-                vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_hpp_response(
+                    resp.content, resp.status_code, b_status
+                )
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(
@@ -329,7 +349,9 @@ async def _test_query(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, query={query_payload}" if vulnerable else "",
+                        details=f"path={path}, query={query_payload}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -374,7 +396,9 @@ async def _test_body(
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                     follow_redirects=True,
                 )
-                vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_hpp_response(
+                    resp.content, resp.status_code, b_status
+                )
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(
@@ -393,7 +417,9 @@ async def _test_body(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, body={body_payload}" if vulnerable else "",
+                        details=f"path={path}, body={body_payload}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -437,7 +463,9 @@ async def _test_header(
                     headers={header_name: header_value},
                     follow_redirects=True,
                 )
-                vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_hpp_response(
+                    resp.content, resp.status_code, b_status
+                )
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(
@@ -456,7 +484,9 @@ async def _test_header(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, header={header_name}: {header_value}" if vulnerable else "",
+                        details=f"path={path}, header={header_name}: {header_value}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -502,7 +532,9 @@ async def _test_json(
                     headers={"Content-Type": "application/json"},
                     follow_redirects=True,
                 )
-                vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_hpp_response(
+                    resp.content, resp.status_code, b_status
+                )
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(
@@ -521,7 +553,9 @@ async def _test_json(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, json={field_name}={json.dumps(field_value)}" if vulnerable else "",
+                        details=f"path={path}, json={field_name}={json.dumps(field_value)}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -561,7 +595,9 @@ async def _test_bypass(
             try:
                 test_url = url.rstrip("/") + path + "?" + payload
                 resp = await client.get(test_url, follow_redirects=True)
-                vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_hpp_response(
+                    resp.content, resp.status_code, b_status
+                )
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
                 results.append(
@@ -615,7 +651,12 @@ def print_results(result: HPPResult) -> None:
     print(color("\n--- HTTP Parameter Pollution ---", Cyber.CYAN, Cyber.BOLD))
     print(color(f"  Alvo:         {result.target}", Cyber.WHITE))
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
     print(color(f"  Vulneraveis:  {len(vuln)}", Cyber.GREEN if vuln else Cyber.GRAY))
     print(color(f"  Bloqueados:   {len(blocked)}", Cyber.GRAY))
@@ -632,11 +673,20 @@ def print_results(result: HPPResult) -> None:
             print(color(f"    [{a.category}] {a.technique}", Cyber.GREEN))
             print(color(f"      Param: {a.param_name}", Cyber.WHITE))
             print(color(f"      Payload: {a.payload}", Cyber.WHITE))
-            print(color(f"      Status: {a.status_baseline} -> {a.status_test}", Cyber.WHITE))
+            print(
+                color(
+                    f"      Status: {a.status_baseline} -> {a.status_test}", Cyber.WHITE
+                )
+            )
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
             print_exploit_info(a.exploit, a.tool)
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
     else:
         print(color("\n  [-] Nenhuma HTTP Parameter Pollution detectada", Cyber.YELLOW))
 
@@ -676,7 +726,9 @@ async def run_scan(
                 all_attempts.extend(await _test_bypass(client, target, baseline))
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
         issues: list[str] = []
 
         if not vuln_techs and not blocked_techs:
@@ -691,7 +743,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -717,7 +771,9 @@ def banner_art() -> None:
    |  _  | |_| |  __/| |_) | |_| / ___ \|  _  |  _| |  _ <
    |_| |_|\___/|_|   |____/|____/_/   \_\_| |_|_|   |_| \_\
 """
-    create_banner(art, "   http parameter pollution: query, body, header, json, bypass")()
+    create_banner(
+        art, "   http parameter pollution: query, body, header, json, bypass"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -768,7 +824,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="hpp> ",
         description="HTTP Parameter Pollution interativo.",
         example="https://target.com -c query",

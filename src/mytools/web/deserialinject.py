@@ -55,13 +55,49 @@ logger = logging.getLogger("mytools.deserialinject")
 
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "php": ["php_basic", "php_pop_chain", "php_ref_inject", "php_array_cast", "php_object_inject"],
-    "java": ["java_magic_bytes", "java_obj_stream", "java_gadget_cc", "java_gadget_spring", "java_jndi"],
-    "python": ["python_pickle", "python_reduce", "python_yaml", "python_marshal", "python_shelve"],
-    "detect": ["error_leak", "timing_anomaly", "reflected_data", "type_confusion", "cookie_inject"],
-    "bypass": ["url_encode", "base64_wrap", "double_encode", "gzip_compress", "nested_serial"],
+    "php": [
+        "php_basic",
+        "php_pop_chain",
+        "php_ref_inject",
+        "php_array_cast",
+        "php_object_inject",
+    ],
+    "java": [
+        "java_magic_bytes",
+        "java_obj_stream",
+        "java_gadget_cc",
+        "java_gadget_spring",
+        "java_jndi",
+    ],
+    "python": [
+        "python_pickle",
+        "python_reduce",
+        "python_yaml",
+        "python_marshal",
+        "python_shelve",
+    ],
+    "detect": [
+        "error_leak",
+        "timing_anomaly",
+        "reflected_data",
+        "type_confusion",
+        "cookie_inject",
+    ],
+    "bypass": [
+        "url_encode",
+        "base64_wrap",
+        "double_encode",
+        "gzip_compress",
+        "nested_serial",
+    ],
     "ruby": ["ruby_marshal", "ruby_yaml", "ruby_erb", "ruby_pysch", "ruby_symbol"],
-    "dotnet": ["dotnet_binary", "dotnet_viewstate", "dotnet_jsonnet", "dotnet_soap", "dotnet_objstate"],
+    "dotnet": [
+        "dotnet_binary",
+        "dotnet_viewstate",
+        "dotnet_jsonnet",
+        "dotnet_soap",
+        "dotnet_objstate",
+    ],
     "nodejs": ["node_serialize", "node_child", "node_fs", "node_eval", "node_process"],
 }
 
@@ -321,7 +357,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "deserialinject", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -333,9 +371,16 @@ def _load_php_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"php_payloads": [list(t) for t in _PHP_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"php_payloads": [list(t) for t in _PHP_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("php_payloads", [list(t) for t in _PHP_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("php_payloads", [list(t) for t in _PHP_PAYLOADS_DEFAULT])
+    ]
 
 
 _PHP_PAYLOADS = _load_php_payloads()
@@ -345,9 +390,16 @@ def _load_java_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"java_payloads": [list(t) for t in _JAVA_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"java_payloads": [list(t) for t in _JAVA_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("java_payloads", [list(t) for t in _JAVA_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("java_payloads", [list(t) for t in _JAVA_PAYLOADS_DEFAULT])
+    ]
 
 
 _JAVA_PAYLOADS = _load_java_payloads()
@@ -357,9 +409,18 @@ def _load_python_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"python_payloads": [list(t) for t in _PYTHON_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"python_payloads": [list(t) for t in _PYTHON_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("python_payloads", [list(t) for t in _PYTHON_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "python_payloads", [list(t) for t in _PYTHON_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _PYTHON_PAYLOADS = _load_python_payloads()
@@ -369,9 +430,18 @@ def _load_detect_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"detect_payloads": [list(t) for t in _DETECT_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"detect_payloads": [list(t) for t in _DETECT_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("detect_payloads", [list(t) for t in _DETECT_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "detect_payloads", [list(t) for t in _DETECT_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _DETECT_PAYLOADS = _load_detect_payloads()
@@ -381,9 +451,18 @@ def _load_bypass_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _BYPASS_PAYLOADS = _load_bypass_payloads()
@@ -393,9 +472,16 @@ def _load_ruby_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"ruby_payloads": [list(t) for t in _RUBY_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"ruby_payloads": [list(t) for t in _RUBY_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("ruby_payloads", [list(t) for t in _RUBY_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("ruby_payloads", [list(t) for t in _RUBY_PAYLOADS_DEFAULT])
+    ]
 
 
 _RUBY_PAYLOADS = _load_ruby_payloads()
@@ -405,9 +491,18 @@ def _load_dotnet_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"dotnet_payloads": [list(t) for t in _DOTNET_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"dotnet_payloads": [list(t) for t in _DOTNET_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("dotnet_payloads", [list(t) for t in _DOTNET_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "dotnet_payloads", [list(t) for t in _DOTNET_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _DOTNET_PAYLOADS = _load_dotnet_payloads()
@@ -417,9 +512,18 @@ def _load_nodejs_payloads() -> list[tuple[str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"nodejs_payloads": [list(t) for t in _NODEJS_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "deserialinject",
+        default={"nodejs_payloads": [list(t) for t in _NODEJS_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("nodejs_payloads", [list(t) for t in _NODEJS_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "nodejs_payloads", [list(t) for t in _NODEJS_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _NODEJS_PAYLOADS = _load_nodejs_payloads()
@@ -429,7 +533,9 @@ def _load_ssi_params() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "deserialinject", default={"ssi_params": _SSI_PARAMS_DEFAULT})
+    data = load_payloads(
+        "web", "deserialinject", default={"ssi_params": _SSI_PARAMS_DEFAULT}
+    )
 
     return data.get("ssi_params", _SSI_PARAMS_DEFAULT)
 
@@ -538,7 +644,9 @@ async def _test_php(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_deserial_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     DeserialAttempt(
@@ -554,7 +662,9 @@ async def _test_php(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="ysoserial_payload" if vulnerable else "",
                         tool="ysoserial",
@@ -598,9 +708,15 @@ async def _test_java(
     for technique, payload, indicators in _JAVA_PAYLOADS:
         for param in _SSI_PARAMS[:3]:
             try:
-                resp = await client.post(url, content=payload.encode() if isinstance(payload, str) else payload, follow_redirects=True)
+                resp = await client.post(
+                    url,
+                    content=payload.encode() if isinstance(payload, str) else payload,
+                    follow_redirects=True,
+                )
 
-                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_deserial_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     DeserialAttempt(
@@ -616,7 +732,9 @@ async def _test_java(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="ysoserial_payload" if vulnerable else "",
                         tool="ysoserial",
@@ -660,9 +778,15 @@ async def _test_python(
     for technique, payload, indicators in _PYTHON_PAYLOADS:
         for param in _SSI_PARAMS[:3]:
             try:
-                resp = await client.post(url, content=payload.encode() if isinstance(payload, str) else payload, follow_redirects=True)
+                resp = await client.post(
+                    url,
+                    content=payload.encode() if isinstance(payload, str) else payload,
+                    follow_redirects=True,
+                )
 
-                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_deserial_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     DeserialAttempt(
@@ -678,7 +802,9 @@ async def _test_python(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="ysoserial_payload" if vulnerable else "",
                         tool="ysoserial",
@@ -725,16 +851,22 @@ async def _test_detect(
                 if technique == "timing_anomaly":
                     t0 = time.monotonic()
 
-                    resp = await client.post(url, json={param: payload}, follow_redirects=True)
+                    resp = await client.post(
+                        url, json={param: payload}, follow_redirects=True
+                    )
 
                     elapsed = time.monotonic() - t0
 
                     vulnerable = elapsed > 2.0
 
                 else:
-                    resp = await client.post(url, json={param: payload}, follow_redirects=True)
+                    resp = await client.post(
+                        url, json={param: payload}, follow_redirects=True
+                    )
 
-                    vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                    vulnerable = _check_deserial_response(
+                        resp.content, resp.status_code, indicators
+                    )
 
                 results.append(
                     DeserialAttempt(
@@ -750,7 +882,9 @@ async def _test_detect(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="ysoserial_payload" if vulnerable else "",
                         tool="ysoserial",
@@ -798,7 +932,9 @@ async def _test_bypass(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_deserial_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     DeserialAttempt(
@@ -814,7 +950,9 @@ async def _test_bypass(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="ysoserial_payload" if vulnerable else "",
                         tool="ysoserial",
@@ -862,7 +1000,9 @@ async def _test_ruby(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_deserial_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     DeserialAttempt(
@@ -878,7 +1018,9 @@ async def _test_ruby(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="marshal_payload" if vulnerable else "",
                         tool="marshal",
@@ -922,9 +1064,15 @@ async def _test_dotnet(
     for technique, payload, indicators in _DOTNET_PAYLOADS:
         for param in _SSI_PARAMS[:3]:
             try:
-                resp = await client.post(url, content=payload.encode() if isinstance(payload, str) else payload, follow_redirects=True)
+                resp = await client.post(
+                    url,
+                    content=payload.encode() if isinstance(payload, str) else payload,
+                    follow_redirects=True,
+                )
 
-                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_deserial_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     DeserialAttempt(
@@ -940,7 +1088,9 @@ async def _test_dotnet(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="binary_formatter_payload" if vulnerable else "",
                         tool="ysoserial.net",
@@ -988,7 +1138,9 @@ async def _test_nodejs(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_deserial_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_deserial_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     DeserialAttempt(
@@ -1004,7 +1156,9 @@ async def _test_nodejs(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="node_serialize_rce" if vulnerable else "",
                         tool="node-serialize",
@@ -1055,17 +1209,30 @@ def print_results(result: DeserialResult) -> None:
             print_exploit_info(v.exploit, v.tool)
 
     else:
-        print(color("\n  [+] Nenhuma Deserialization Injection detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "\n  [+] Nenhuma Deserialization Injection detectada",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
     if blocked:
-        print(color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW))
+        print(
+            color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW)
+        )
 
     errors = [a for a in result.attempts if a.error and "403" not in a.error]
 
     if errors:
         print(color(f"\n  [-] {len(errors)} erros de conexao", Cyber.GRAY))
 
-    print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+    print(
+        color(
+            f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+            Cyber.WHITE,
+        )
+    )
 
 
 async def run_scan(
@@ -1189,7 +1356,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -1225,7 +1397,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="deserial> ",
         description="Deserialization Injection interativo.",
         example="https://target.com -c php",

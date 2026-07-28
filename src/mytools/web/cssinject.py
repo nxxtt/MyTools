@@ -371,7 +371,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cssinject", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "cssinject", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -383,9 +385,18 @@ def _load_injection_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cssinject", default={"injection_payloads": [list(t) for t in _INJECTION_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "cssinject",
+        default={"injection_payloads": [list(t) for t in _INJECTION_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("injection_payloads", [list(t) for t in _INJECTION_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "injection_payloads", [list(t) for t in _INJECTION_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _INJECTION_PAYLOADS = _load_injection_payloads()
@@ -395,9 +406,23 @@ def _load_data_extraction_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cssinject", default={"data_extraction_payloads": [list(t) for t in _DATA_EXTRACTION_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "cssinject",
+        default={
+            "data_extraction_payloads": [
+                list(t) for t in _DATA_EXTRACTION_PAYLOADS_DEFAULT
+            ]
+        },
+    )
 
-    return [tuple(x) for x in data.get("data_extraction_payloads", [list(t) for t in _DATA_EXTRACTION_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "data_extraction_payloads",
+            [list(t) for t in _DATA_EXTRACTION_PAYLOADS_DEFAULT],
+        )
+    ]
 
 
 _DATA_EXTRACTION_PAYLOADS = _load_data_extraction_payloads()
@@ -407,9 +432,23 @@ def _load_attribute_leak_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cssinject", default={"attribute_leak_payloads": [list(t) for t in _ATTRIBUTE_LEAK_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "cssinject",
+        default={
+            "attribute_leak_payloads": [
+                list(t) for t in _ATTRIBUTE_LEAK_PAYLOADS_DEFAULT
+            ]
+        },
+    )
 
-    return [tuple(x) for x in data.get("attribute_leak_payloads", [list(t) for t in _ATTRIBUTE_LEAK_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "attribute_leak_payloads",
+            [list(t) for t in _ATTRIBUTE_LEAK_PAYLOADS_DEFAULT],
+        )
+    ]
 
 
 _ATTRIBUTE_LEAK_PAYLOADS = _load_attribute_leak_payloads()
@@ -419,9 +458,23 @@ def _load_selector_abuse_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cssinject", default={"selector_abuse_payloads": [list(t) for t in _SELECTOR_ABUSE_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "cssinject",
+        default={
+            "selector_abuse_payloads": [
+                list(t) for t in _SELECTOR_ABUSE_PAYLOADS_DEFAULT
+            ]
+        },
+    )
 
-    return [tuple(x) for x in data.get("selector_abuse_payloads", [list(t) for t in _SELECTOR_ABUSE_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "selector_abuse_payloads",
+            [list(t) for t in _SELECTOR_ABUSE_PAYLOADS_DEFAULT],
+        )
+    ]
 
 
 _SELECTOR_ABUSE_PAYLOADS = _load_selector_abuse_payloads()
@@ -431,9 +484,20 @@ def _load_token_exfil_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cssinject", default={"token_exfil_payloads": [list(t) for t in _TOKEN_EXFIL_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "cssinject",
+        default={
+            "token_exfil_payloads": [list(t) for t in _TOKEN_EXFIL_PAYLOADS_DEFAULT]
+        },
+    )
 
-    return [tuple(x) for x in data.get("token_exfil_payloads", [list(t) for t in _TOKEN_EXFIL_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "token_exfil_payloads", [list(t) for t in _TOKEN_EXFIL_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _TOKEN_EXFIL_PAYLOADS = _load_token_exfil_payloads()
@@ -443,9 +507,20 @@ def _load_csp_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cssinject", default={"csp_bypass_payloads": [list(t) for t in _CSP_BYPASS_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "cssinject",
+        default={
+            "csp_bypass_payloads": [list(t) for t in _CSP_BYPASS_PAYLOADS_DEFAULT]
+        },
+    )
 
-    return [tuple(x) for x in data.get("csp_bypass_payloads", [list(t) for t in _CSP_BYPASS_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "csp_bypass_payloads", [list(t) for t in _CSP_BYPASS_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _CSP_BYPASS_PAYLOADS = _load_csp_bypass_payloads()
@@ -616,7 +691,9 @@ async def _test_css_category(
         test_url = _inject_payload(url, param, payload)
 
         try:
-            t_status, t_headers, t_body, _t_raw = await fetch(client, test_url, timeout=timeout)
+            t_status, t_headers, t_body, _t_raw = await fetch(
+                client, test_url, timeout=timeout
+            )
 
             t_size = len(t_body)
 
@@ -706,7 +783,12 @@ def print_results(result: CSSInjectResult) -> None:
 
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
 
@@ -738,10 +820,20 @@ def print_results(result: CSSInjectResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade de CSS Injection detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade de CSS Injection detectada",
+                Cyber.GREEN,
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -764,7 +856,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
 
             b_size = len(b_body)
 
@@ -782,12 +876,16 @@ async def run_scan(
 
             if payloads:
                 all_attempts.extend(
-                    await _test_css_category(client, target, timeout, b_status, b_size, payloads, cat),
+                    await _test_css_category(
+                        client, target, timeout, b_status, b_size, payloads, cat
+                    ),
                 )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -808,7 +906,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -844,7 +944,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   cssinject: injection_points, data_extraction, attribute_leak, selector_abuse, token_exfil, csp_bypass")()
+    create_banner(
+        art,
+        "   cssinject: injection_points, data_extraction, attribute_leak, selector_abuse, token_exfil, csp_bypass",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -870,7 +973,15 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "injection_points", "data_extraction", "attribute_leak", "selector_abuse", "token_exfil", "csp_bypass"],
+        choices=[
+            "all",
+            "injection_points",
+            "data_extraction",
+            "attribute_leak",
+            "selector_abuse",
+            "token_exfil",
+            "csp_bypass",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -906,7 +1017,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="cssinject> ",
         description="CSS Injection interativo.",
         example="https://target.com -c data_extraction",

@@ -96,7 +96,11 @@ class TestCategoryMap:
         assert set(_CATEGORY_MAP.keys()) == {"lambda"}
 
     def test_lambda_techniques(self) -> None:
-        assert set(_CATEGORY_MAP["lambda"]) == {"env_var_leak", "layer_enumeration", "temp_file_persistence"}
+        assert set(_CATEGORY_MAP["lambda"]) == {
+            "env_var_leak",
+            "layer_enumeration",
+            "temp_file_persistence",
+        }
 
     def test_total_techniques(self) -> None:
         total = sum(len(v) for v in _CATEGORY_MAP.values())
@@ -186,13 +190,25 @@ class TestParseUrl:
 
 class TestMakeAttempt:
     def test_creation(self) -> None:
-        a = _make_attempt("env_var_leak", "lambda", "desc", True, "details", "", "url", 200, ["AWS_KEY"])
+        a = _make_attempt(
+            "env_var_leak",
+            "lambda",
+            "desc",
+            True,
+            "details",
+            "",
+            "url",
+            200,
+            ["AWS_KEY"],
+        )
         assert a.vulnerable is True
         assert a.leak_count == 1
         assert a.leaked_vars == ["AWS_KEY"]
 
     def test_no_leak(self) -> None:
-        a = _make_attempt("env_var_leak", "lambda", "desc", False, "details", "", "url", 200)
+        a = _make_attempt(
+            "env_var_leak", "lambda", "desc", False, "details", "", "url", 200
+        )
         assert a.leak_count == 0
 
 

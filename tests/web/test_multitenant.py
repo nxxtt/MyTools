@@ -266,7 +266,9 @@ class TestJWTPayload:
 
         payload = {"sub": "123", "tenant": "ACME"}
         payload_json = json.dumps(payload, separators=(",", ":"))
-        payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).rstrip(b"=").decode()
+        payload_b64 = (
+            base64.urlsafe_b64encode(payload_json.encode()).rstrip(b"=").decode()
+        )
         token = f"header.{payload_b64}.sig"
         result = _parse_jwt_payload(token)
         assert result is not None
@@ -334,7 +336,9 @@ class TestBuildParser:
 
     def test_has_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "-c", "tenant_id", "shared_resource"])
+        args = parser.parse_args(
+            ["https://example.com", "-c", "tenant_id", "shared_resource"]
+        )
         assert args.categories == ["tenant_id", "shared_resource"]
 
 
@@ -346,7 +350,9 @@ class TestRunScan:
     async def test_secure_baseline(self) -> None:
         baseline = _mock_response(200, b'{"tenant_id": "TENANT_A"}')
 
-        with patch("mytools.web.multitenant.fetch", new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "mytools.web.multitenant.fetch", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = baseline
 
             result = await run_scan(
@@ -361,7 +367,9 @@ class TestRunScan:
 
     @pytest.mark.asyncio
     async def test_empty_categories(self) -> None:
-        async def _mock_fetch(*_args: object, **_kwargs: object) -> tuple[int, httpx.Headers, bytes, dict[str, list[str]]]:
+        async def _mock_fetch(
+            *_args: object, **_kwargs: object
+        ) -> tuple[int, httpx.Headers, bytes, dict[str, list[str]]]:
             return _mock_response(404, b"not found")
 
         with patch("mytools.web.multitenant.fetch", side_effect=_mock_fetch):

@@ -189,9 +189,13 @@ class TestQuerySource:
             mock_client.aclose = AsyncMock()
             mock_client_fn.return_value = mock_client
 
-            with patch("mytools.whois.whoishistory.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.whois.whoishistory.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, mock_resp.content, {})
-                result = await _query_source("securitytrails", "example.com", "test_key", 10.0)
+                result = await _query_source(
+                    "securitytrails", "example.com", "test_key", 10.0
+                )
                 assert len(result) == 1
                 assert result[0].domain == "example.com"
 
@@ -205,9 +209,13 @@ class TestQuerySource:
             mock_client.aclose = AsyncMock()
             mock_client_fn.return_value = mock_client
 
-            with patch("mytools.whois.whoishistory.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.whois.whoishistory.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.side_effect = FetchError("url", 1, Exception("fail"))
-                result = await _query_source("securitytrails", "example.com", "key", 10.0)
+                result = await _query_source(
+                    "securitytrails", "example.com", "key", 10.0
+                )
                 assert result == []
 
 
@@ -217,11 +225,23 @@ class TestRunHistory:
         assert result == []
 
     def test_calls_with_sources(self):
-        with patch("mytools.core.utils.safe_asyncio_run") as mock_run:
-            mock_run.return_value = [WhoisHistoryRecord(domain="example.com", date="2024-01-01", source="securitytrails")]
-            result = run_history("example.com", sources=["securitytrails"], api_keys={"securitytrails": "key"})
+        mock_records = [
+            WhoisHistoryRecord(
+                domain="example.com", date="2024-01-01", source="securitytrails"
+            )
+        ]
+        with patch(
+            "mytools.whois.whoishistory._query_all_sources",
+            new_callable=AsyncMock,
+            return_value=mock_records,
+        ) as mock_query:
+            result = run_history(
+                "example.com",
+                sources=["securitytrails"],
+                api_keys={"securitytrails": "key"},
+            )
             assert len(result) == 1
-            assert mock_run.called
+            mock_query.assert_called_once()
 
 
 @pytest.mark.smoke
@@ -248,7 +268,9 @@ class TestBuildParser:
 
     def test_source_multiple(self):
         parser = build_parser()
-        args = parser.parse_args(["example.com", "--source", "securitytrails", "--source", "whoisxml"])
+        args = parser.parse_args(
+            ["example.com", "--source", "securitytrails", "--source", "whoisxml"]
+        )
         assert args.source == ["securitytrails", "whoisxml"]
 
     def test_domain_optional(self):
@@ -278,7 +300,9 @@ class TestRunOnce:
 
     def test_calls_run_history(self):
         args = self._make_args()
-        with patch("mytools.whois.whoishistory.run_history", return_value=[]) as mock_hist:
+        with patch(
+            "mytools.whois.whoishistory.run_history", return_value=[]
+        ) as mock_hist:
             with patch("mytools.whois.whoishistory.init_scanner"):
                 run_once(args)
             mock_hist.assert_called_once()

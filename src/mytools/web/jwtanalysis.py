@@ -185,7 +185,9 @@ _COMMON_SECRETS_DEFAULT = [
 def _load_jwt_secrets() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "jwt_common_secrets", default={"secrets": _COMMON_SECRETS_DEFAULT})
+    data = load_payloads(
+        "web", "jwt_common_secrets", default={"secrets": _COMMON_SECRETS_DEFAULT}
+    )
     return data.get("secrets", _COMMON_SECRETS_DEFAULT)
 
 
@@ -220,8 +222,16 @@ def _split_token(token: str) -> tuple[str, str, str]:
 def _forge_token_none(payload: dict[str, object]) -> str:
     """Forja token com alg:none (sem assinatura)."""
     header = {"alg": "none", "typ": "JWT"}
-    h = base64.urlsafe_b64encode(json.dumps(header, separators=(",", ":")).encode()).rstrip(b"=").decode()
-    p = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).rstrip(b"=").decode()
+    h = (
+        base64.urlsafe_b64encode(json.dumps(header, separators=(",", ":")).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    p = (
+        base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode())
+        .rstrip(b"=")
+        .decode()
+    )
     return f"{h}.{p}."
 
 
@@ -230,23 +240,33 @@ def _forge_token_hs256(payload: dict[str, object], secret: str | bytes) -> str:
     return jwt.encode(payload, secret, algorithm="HS256")
 
 
-def _forge_token_with_header(payload: dict[str, object], secret: str, extra_headers: dict[str, str]) -> str:
+def _forge_token_with_header(
+    payload: dict[str, object], secret: str, extra_headers: dict[str, str]
+) -> str:
     """Forja token HS256 com headers extras."""
     return jwt.encode(payload, secret, algorithm="HS256", headers=extra_headers)
 
 
-async def _test_weak_algorithm_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
+async def _test_weak_algorithm_category(
+    token: str, payload: dict[str, object], header: dict[str, str]
+) -> list[dict[str, object]]:
     """Testa fraquezas de algoritmo."""
     results: list[dict[str, object]] = []
     alg = header.get("alg", "")
-    has_rsa = alg.startswith("RS") or alg.startswith("PS") or alg.startswith("ES") or alg == "EdDSA"
+    has_rsa = (
+        alg.startswith("RS")
+        or alg.startswith("PS")
+        or alg.startswith("ES")
+        or alg == "EdDSA"
+    )
 
     results.append(
         {
             "technique": "alg_none",
             "category": "weak_algorithm",
             "vulnerable": alg == "none",
-            "details": f"algoritmo declarado: {alg}" + (" — vulneravel a bypass de assinatura" if alg == "none" else ""),
+            "details": f"algoritmo declarado: {alg}"
+            + (" — vulneravel a bypass de assinatura" if alg == "none" else ""),
             "error": "",
         }
     )
@@ -297,7 +317,12 @@ async def _test_weak_algorithm_category(token: str, payload: dict[str, object], 
             "technique": "algorithm_downgrade",
             "category": "weak_algorithm",
             "vulnerable": alg in ("none", "HS256", "HS384", "HS512") and not has_rsa,
-            "details": f"algoritmo {alg} — " + ("possivel downgrade para simetrico" if not has_rsa else "algoritmo assimetrico forte"),
+            "details": f"algoritmo {alg} — "
+            + (
+                "possivel downgrade para simetrico"
+                if not has_rsa
+                else "algoritmo assimetrico forte"
+            ),
             "error": "",
         }
     )
@@ -305,7 +330,9 @@ async def _test_weak_algorithm_category(token: str, payload: dict[str, object], 
     return results
 
 
-async def _test_signature_bypass_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
+async def _test_signature_bypass_category(
+    token: str, payload: dict[str, object], header: dict[str, str]
+) -> list[dict[str, object]]:
     """Testa bypass de assinatura."""
     results: list[dict[str, object]] = []
     _h, _p, sig = _split_token(token)
@@ -315,7 +342,8 @@ async def _test_signature_bypass_category(token: str, payload: dict[str, object]
             "technique": "empty_signature",
             "category": "signature_bypass",
             "vulnerable": not sig,
-            "details": "assinatura vazia no token" + (" — vulneravel" if not sig else " — assinatura presente"),
+            "details": "assinatura vazia no token"
+            + (" — vulneravel" if not sig else " — assinatura presente"),
             "error": "",
         }
     )
@@ -355,7 +383,9 @@ async def _test_signature_bypass_category(token: str, payload: dict[str, object]
     return results
 
 
-async def _test_expiration_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
+async def _test_expiration_category(
+    token: str, payload: dict[str, object], header: dict[str, str]
+) -> list[dict[str, object]]:
     """Testa problemas de expiracao."""
     import time
 
@@ -374,7 +404,12 @@ async def _test_expiration_category(token: str, payload: dict[str, object], head
                     "technique": "expired_token",
                     "category": "expiration",
                     "vulnerable": expired,
-                    "details": f"exp={int(exp_ts)} — " + ("token EXPIRADO" if expired else f"valido por {int((exp_ts - now) / 3600)}h"),
+                    "details": f"exp={int(exp_ts)} — "
+                    + (
+                        "token EXPIRADO"
+                        if expired
+                        else f"valido por {int((exp_ts - now) / 3600)}h"
+                    ),
                     "error": "",
                 }
             )
@@ -420,7 +455,8 @@ async def _test_expiration_category(token: str, payload: dict[str, object], head
                     "technique": "long_expiry",
                     "category": "expiration",
                     "vulnerable": long_expiry,
-                    "details": f"duracao: {int(duration_days)} dias — " + ("excessivamente longo" if long_expiry else "aceitavel"),
+                    "details": f"duracao: {int(duration_days)} dias — "
+                    + ("excessivamente longo" if long_expiry else "aceitavel"),
                     "error": "",
                 }
             )
@@ -454,7 +490,8 @@ async def _test_expiration_category(token: str, payload: dict[str, object], head
                     "technique": "future_nbf",
                     "category": "expiration",
                     "vulnerable": future_nbf,
-                    "details": f"nbf={int(nbf_ts)} — " + ("no futuro (suspeito)" if future_nbf else "ok"),
+                    "details": f"nbf={int(nbf_ts)} — "
+                    + ("no futuro (suspeito)" if future_nbf else "ok"),
                     "error": "",
                 }
             )
@@ -482,7 +519,9 @@ async def _test_expiration_category(token: str, payload: dict[str, object], head
     return results
 
 
-async def _test_claims_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
+async def _test_claims_category(
+    token: str, payload: dict[str, object], header: dict[str, str]
+) -> list[dict[str, object]]:
     """Testa problemas de claims."""
     results: list[dict[str, object]] = []
     role = str(payload.get("role", "")).lower()
@@ -493,18 +532,26 @@ async def _test_claims_category(token: str, payload: dict[str, object], header: 
             "technique": "role_escalation",
             "category": "claims",
             "vulnerable": is_admin,
-            "details": f"role={payload.get('role', 'N/A')} — " + ("privilegio elevado detectado" if is_admin else "privilegio normal"),
+            "details": f"role={payload.get('role', 'N/A')} — "
+            + ("privilegio elevado detectado" if is_admin else "privilegio normal"),
             "error": "",
         }
     )
 
-    tenant = payload.get("tenant") or payload.get("tenant_id") or payload.get("org") or payload.get("org_id")
+    tenant = (
+        payload.get("tenant")
+        or payload.get("tenant_id")
+        or payload.get("org")
+        or payload.get("org_id")
+    )
     results.append(
         {
             "technique": "tenant_claim",
             "category": "claims",
             "vulnerable": tenant is not None,
-            "details": f"tenant claim: {tenant or 'ausente'} — manipulacao possivel" if tenant else "nenhum tenant claim encontrado",
+            "details": f"tenant claim: {tenant or 'ausente'} — manipulacao possivel"
+            if tenant
+            else "nenhum tenant claim encontrado",
             "error": "",
         }
     )
@@ -515,7 +562,8 @@ async def _test_claims_category(token: str, payload: dict[str, object], header: 
             "technique": "missing_sub",
             "category": "claims",
             "vulnerable": sub is None,
-            "details": f"sub: {sub or 'ausente'} — " + ("claim 'sub' obrigatorio ausente" if sub is None else "presente"),
+            "details": f"sub: {sub or 'ausente'} — "
+            + ("claim 'sub' obrigatorio ausente" if sub is None else "presente"),
             "error": "",
         }
     )
@@ -526,7 +574,8 @@ async def _test_claims_category(token: str, payload: dict[str, object], header: 
             "technique": "missing_iss",
             "category": "claims",
             "vulnerable": iss is None,
-            "details": f"iss: {iss or 'ausente'} — " + ("claim 'iss' ausente" if iss is None else f"presente: {iss}"),
+            "details": f"iss: {iss or 'ausente'} — "
+            + ("claim 'iss' ausente" if iss is None else f"presente: {iss}"),
             "error": "",
         }
     )
@@ -537,7 +586,8 @@ async def _test_claims_category(token: str, payload: dict[str, object], header: 
             "technique": "audience_bypass",
             "category": "claims",
             "vulnerable": aud is None,
-            "details": f"aud: {aud or 'ausente'} — " + ("sem validacao de audience" if aud is None else "presente"),
+            "details": f"aud: {aud or 'ausente'} — "
+            + ("sem validacao de audience" if aud is None else "presente"),
             "error": "",
         }
     )
@@ -615,7 +665,9 @@ async def _test_header_injection_category(
     return results
 
 
-async def _test_replay_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
+async def _test_replay_category(
+    token: str, payload: dict[str, object], header: dict[str, str]
+) -> list[dict[str, object]]:
     """Testa vulnerabilidades de replay."""
     results: list[dict[str, object]] = []
 
@@ -625,7 +677,12 @@ async def _test_replay_category(token: str, payload: dict[str, object], header: 
             "technique": "no_jti",
             "category": "replay",
             "vulnerable": jti is None,
-            "details": f"jti: {jti or 'ausente'} — " + ("token sem identificador unico, reutilizavel" if jti is None else "identificador presente"),
+            "details": f"jti: {jti or 'ausente'} — "
+            + (
+                "token sem identificador unico, reutilizavel"
+                if jti is None
+                else "identificador presente"
+            ),
             "error": "",
         }
     )
@@ -636,7 +693,12 @@ async def _test_replay_category(token: str, payload: dict[str, object], header: 
             "technique": "missing_aud",
             "category": "replay",
             "vulnerable": aud is None,
-            "details": f"aud: {aud or 'ausente'} — " + ("sem audience, token reutilizavel em qualquer servico" if aud is None else "presente"),
+            "details": f"aud: {aud or 'ausente'} — "
+            + (
+                "sem audience, token reutilizavel em qualquer servico"
+                if aud is None
+                else "presente"
+            ),
             "error": "",
         }
     )
@@ -647,7 +709,8 @@ async def _test_replay_category(token: str, payload: dict[str, object], header: 
             "technique": "no_issuer_claim",
             "category": "replay",
             "vulnerable": iss is None,
-            "details": f"iss: {iss or 'ausente'} — " + ("sem issuer, token reutilizavel" if iss is None else f"presente: {iss}"),
+            "details": f"iss: {iss or 'ausente'} — "
+            + ("sem issuer, token reutilizavel" if iss is None else f"presente: {iss}"),
             "error": "",
         }
     )
@@ -658,7 +721,12 @@ async def _test_replay_category(token: str, payload: dict[str, object], header: 
             "technique": "missing_iat",
             "category": "replay",
             "vulnerable": iat is None,
-            "details": f"iat: {iat or 'ausente'} — " + ("sem issued-at, impossivel calcular idade do token" if iat is None else "presente"),
+            "details": f"iat: {iat or 'ausente'} — "
+            + (
+                "sem issued-at, impossivel calcular idade do token"
+                if iat is None
+                else "presente"
+            ),
             "error": "",
         }
     )
@@ -709,10 +777,20 @@ def print_results(result: JWTAnalysisResult) -> None:
     print(color("\n--- JWT Analysis ---", Cyber.CYAN, Cyber.BOLD))
     if result.target:
         print(color(f"  Alvo:      {result.target}", Cyber.WHITE))
-    print(color(f"  Token:     {'valido' if result.token_valid else 'INVALIDO'}", Cyber.WHITE))
+    print(
+        color(
+            f"  Token:     {'valido' if result.token_valid else 'INVALIDO'}",
+            Cyber.WHITE,
+        )
+    )
     print(color(f"  Algoritmo: {result.algorithm or 'N/A'}", Cyber.WHITE))
     print(color(f"  Header:    {json.dumps(result.header, indent=0)}", Cyber.GRAY))
-    print(color(f"  Payload:   {json.dumps(result.payload, indent=0, default=str)}", Cyber.GRAY))
+    print(
+        color(
+            f"  Payload:   {json.dumps(result.payload, indent=0, default=str)}",
+            Cyber.GRAY,
+        )
+    )
     print(color(f"  Testes:    {len(result.attempts)}", Cyber.WHITE))
     print(color(f"  Vulneraveis: {len(vuln)}", Cyber.RED if vuln else Cyber.GREEN))
     print(color(f"  Seguros:   {len(safe)}", Cyber.GREEN))
@@ -729,7 +807,12 @@ def print_results(result: JWTAnalysisResult) -> None:
             if a.details:
                 print(color(f"      {a.details}", Cyber.GRAY))
             print_exploit_info(a.exploit, a.tool)
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
     else:
         print(color("\n  [+] Nenhuma vulnerabilidade de JWT detectada", Cyber.GREEN))
 
@@ -797,9 +880,13 @@ async def run_scan(
     vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
     issues_list: list[str] = []
     if alg == "none":
-        issues_list.append("ALERTA: algoritmo 'none' detectado — token sem assinatura criptografica")
+        issues_list.append(
+            "ALERTA: algoritmo 'none' detectado — token sem assinatura criptografica"
+        )
     if not vuln_techs:
-        issues_list.append("Nenhuma vulnerabilidade confirmada — teste ativo requer --url")
+        issues_list.append(
+            "Nenhuma vulnerabilidade confirmada — teste ativo requer --url"
+        )
 
     result = JWTAnalysisResult(
         target=target,
@@ -814,7 +901,11 @@ async def run_scan(
     )
 
     print_results(result)
-    logger.info("JWT Analysis concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+    logger.info(
+        "JWT Analysis concluido: %d testes, %d vulneraveis",
+        len(all_attempts),
+        len(vuln_techs),
+    )
 
     if output_file:
         write_output(output_file, asdict(result))
@@ -835,7 +926,10 @@ def banner_art() -> None:
            __/ |
           |___/
 """
-    create_banner(art, "   jwt: weak_algorithm, signature_bypass, expiration, claims, header_injection, replay")()
+    create_banner(
+        art,
+        "   jwt: weak_algorithm, signature_bypass, expiration, claims, header_injection, replay",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -859,11 +953,21 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "weak_algorithm", "signature_bypass", "expiration", "claims", "header_injection", "replay"],
+        choices=[
+            "all",
+            "weak_algorithm",
+            "signature_bypass",
+            "expiration",
+            "claims",
+            "header_injection",
+            "replay",
+        ],
         help="Categoria de testes (default: todas)",
     )
     parser.add_argument("--file", help="Arquivo com token JWT (um por linha)")
-    parser.add_argument("--url", help="URL alvo para testes ativos (envia tokens forjados)")
+    parser.add_argument(
+        "--url", help="URL alvo para testes ativos (envia tokens forjados)"
+    )
     parser.add_argument("--wordlist", help="Arquivo com secrets para brute-force HMAC")
     add_common_args(parser)
     return parser
@@ -908,7 +1012,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "token", None) or getattr(a, "file", None)),
+        has_target=lambda a: bool(
+            getattr(a, "token", None) or getattr(a, "file", None)
+        ),
         prompt="jwt> ",
         description="JWT Analysis interativo.",
         example="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx -c weak_algorithm",

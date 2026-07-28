@@ -252,7 +252,9 @@ def generate_dorks(domain: str, categories: list[str] | None = None) -> list[Dor
     return queries
 
 
-def add_custom_dorks(domain: str, custom_dorks: list[str], queries: list[DorkQuery]) -> list[DorkQuery]:
+def add_custom_dorks(
+    domain: str, custom_dorks: list[str], queries: list[DorkQuery]
+) -> list[DorkQuery]:
     """Adiciona dorks customizadas a lista existente."""
     for dork in custom_dorks:
         full = _build_full_query(dork, domain)
@@ -355,7 +357,9 @@ async def scan_dorks(
         async def _search_one(q: DorkQuery) -> DorkQuery:
             nonlocal completed
             async with sem:
-                results = await search_ddg(client, q.full_query, timeout, rate_limiter, max_results)
+                results = await search_ddg(
+                    client, q.full_query, timeout, rate_limiter, max_results
+                )
                 new_q = DorkQuery(
                     category=q.category,
                     dork=q.dork,
@@ -369,7 +373,9 @@ async def scan_dorks(
                 async with completed_lock:
                     completed += 1
                     if completed % 10 == 0 or completed == total:
-                        sys.stdout.write(f"\r  Progresso: {completed}/{total} dorks buscadas...")
+                        sys.stdout.write(
+                            f"\r  Progresso: {completed}/{total} dorks buscadas..."
+                        )
                         sys.stdout.flush()
                 return new_q
 
@@ -443,7 +449,9 @@ def print_results(queries: list[DorkQuery], quiet: bool = False) -> None:
                     for r in q.results[:3]:
                         title = r.get("title", "")[:60]
                         url = r.get("url", "")[:70]
-                        print(f"      {color('→', Cyber.GRAY)} {color(title, Cyber.WHITE)}")
+                        print(
+                            f"      {color('→', Cyber.GRAY)} {color(title, Cyber.WHITE)}"
+                        )
                         print(f"        {color(url, Cyber.CYAN)}")
 
     for q in queries:
@@ -458,7 +466,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha).")
+    parser.add_argument(
+        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
+    )
     parser.add_argument(
         "-c",
         "--category",

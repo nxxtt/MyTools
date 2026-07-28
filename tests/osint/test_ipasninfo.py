@@ -1,6 +1,6 @@
 import argparse
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -185,11 +185,15 @@ class TestLookupIpAsn:
         assert result == []
 
     def test_single_ip_calls_async(self):
-        with patch("mytools.core.utils.safe_asyncio_run") as mock_run:
-            mock_run.return_value = [IpAsnInfo(ip="8.8.8.8", asn="AS15169", source="ipwhois")]
+        mock_result = IpAsnInfo(ip="8.8.8.8", asn="AS15169", source="ipwhois")
+        with patch(
+            "mytools.osint.ipasninfo._query_single",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
             result = lookup_ip_asn(["8.8.8.8"])
             assert len(result) == 1
-            mock_run.assert_called_once()
+            assert result[0].ip == "8.8.8.8"
 
 
 @pytest.mark.smoke
@@ -249,7 +253,9 @@ class TestRunOnce:
 
     def test_calls_lookup(self):
         args = self._make_args()
-        with patch("mytools.osint.ipasninfo.lookup_ip_asn", return_value=[]) as mock_lookup:
+        with patch(
+            "mytools.osint.ipasninfo.lookup_ip_asn", return_value=[]
+        ) as mock_lookup:
             with patch("mytools.osint.ipasninfo.init_scanner"):
                 run_once(args)
             mock_lookup.assert_called_once()

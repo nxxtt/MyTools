@@ -75,12 +75,18 @@ _GCP_IAM_BYPASS_PAYLOADS_DEFAULT: list[dict[str, Any]] = [
     {"headers": {}, "desc": "No auth"},
     {"headers": {"Authorization": "Bearer invalid_token"}, "desc": "Invalid token"},
     {"headers": {"Authorization": ""}, "desc": "Empty auth"},
-    {"headers": {"X-Forwarded-For": "169.254.169.254"}, "desc": "Metadata IP forwarded"},
+    {
+        "headers": {"X-Forwarded-For": "169.254.169.254"},
+        "desc": "Metadata IP forwarded",
+    },
     {"headers": {"X-Forwarded-For": "127.0.0.1"}, "desc": "Loopback forwarded"},
     {"headers": {"Host": "metadata.google.internal"}, "desc": "Metadata host spoof"},
     {"headers": {"X-Goog-Api-Key": "AIzaSyDummy"}, "desc": "Fake GCP API key"},
     {"headers": {"Metadata-Flavor": "Google"}, "desc": "GCP metadata header"},
-    {"headers": {"X-Forwarded-Host": "metadata.google.internal"}, "desc": "Metadata forwarded host"},
+    {
+        "headers": {"X-Forwarded-Host": "metadata.google.internal"},
+        "desc": "Metadata forwarded host",
+    },
 ]
 
 
@@ -253,16 +259,25 @@ def _detect_provider(headers: dict[str, str], body: str) -> str:
 
     lower = combined.lower()
 
-    if any(sig.lower() in lower for sig in ("x-azure-", "azurewebsites", "functions.azure")):
+    if any(
+        sig.lower() in lower for sig in ("x-azure-", "azurewebsites", "functions.azure")
+    ):
         return "azure"
 
-    if any(sig.lower() in lower for sig in ("x-goog-", "google cloud", "cloudfunctions")):
+    if any(
+        sig.lower() in lower for sig in ("x-goog-", "google cloud", "cloudfunctions")
+    ):
         return "gcp"
 
-    if any(sig.lower() in lower for sig in ("x-vercel", "vercel", "now.sh", "vercel.app")):
+    if any(
+        sig.lower() in lower for sig in ("x-vercel", "vercel", "now.sh", "vercel.app")
+    ):
         return "vercel"
 
-    if any(sig.lower() in lower for sig in ("cloudflare", "cf-ray", "cf-connecting-ip", "workers")):
+    if any(
+        sig.lower() in lower
+        for sig in ("cloudflare", "cf-ray", "cf-connecting-ip", "workers")
+    ):
         return "cloudflare"
 
     if any(sig.lower() in lower for sig in ("amzn-", "lambda", "x-amz-")):
@@ -325,16 +340,30 @@ async def _test_azure_settings_leak(
         {"body": b'{"body":"test"}', "headers": {}, "desc": "Basic invoke"},
         {"body": b'{"debug":true}', "headers": {}, "desc": "Debug mode"},
         {"body": b'{"function":"admin"}', "headers": {}, "desc": "Admin function"},
-        {"body": b'{"status":"health"}', "headers": {"Accept": "application/json"}, "desc": "Health check"},
-        {"body": b"{}", "headers": {"X-MS-EXECUTION-CONTEXT": "test"}, "desc": "Azure context header"},
-        {"body": b'{"test":true}', "headers": {"X-Functions-Key": "admin"}, "desc": "Functions key probe"},
+        {
+            "body": b'{"status":"health"}',
+            "headers": {"Accept": "application/json"},
+            "desc": "Health check",
+        },
+        {
+            "body": b"{}",
+            "headers": {"X-MS-EXECUTION-CONTEXT": "test"},
+            "desc": "Azure context header",
+        },
+        {
+            "body": b'{"test":true}',
+            "headers": {"X-Functions-Key": "admin"},
+            "desc": "Functions key probe",
+        },
     ]
 
     last_code = 0
 
     for payload in payloads:
         try:
-            resp = await client.post(url, content=payload["body"], headers=payload["headers"])
+            resp = await client.post(
+                url, content=payload["body"], headers=payload["headers"]
+            )
 
             last_code = resp.status_code
 
@@ -357,9 +386,21 @@ async def _test_azure_settings_leak(
 
     vuln = len(unique) > 0
 
-    details = f"Leaked: {', '.join(unique[:5])}" if vuln else "No Azure settings detected"
+    details = (
+        f"Leaked: {', '.join(unique[:5])}" if vuln else "No Azure settings detected"
+    )
 
-    return _make_attempt("azure_settings_leak", "cloud_providers", "Azure Function settings leak", vuln, details, "", url, "azure", last_code)
+    return _make_attempt(
+        "azure_settings_leak",
+        "cloud_providers",
+        "Azure Function settings leak",
+        vuln,
+        details,
+        "",
+        url,
+        "azure",
+        last_code,
+    )
 
 
 async def _test_gcp_iam_bypass(
@@ -379,7 +420,11 @@ async def _test_gcp_iam_bypass(
 
             resp_text = resp.text.lower()
 
-            if "permission denied" not in resp_text and "unauthorized" not in resp_text and resp.status_code != 403:
+            if (
+                "permission denied" not in resp_text
+                and "unauthorized" not in resp_text
+                and resp.status_code != 403
+            ):
                 bypass_results.append(f"{payload['desc']}-no_403")
 
         except Exception:
@@ -391,7 +436,17 @@ async def _test_gcp_iam_bypass(
 
     details = f"Bypasses: {', '.join(unique[:5])}" if vuln else "All auth checks passed"
 
-    return _make_attempt("gcp_iam_bypass", "cloud_providers", "GCP Cloud Functions IAM bypass", vuln, details, "", url, "gcp", 200)
+    return _make_attempt(
+        "gcp_iam_bypass",
+        "cloud_providers",
+        "GCP Cloud Functions IAM bypass",
+        vuln,
+        details,
+        "",
+        url,
+        "gcp",
+        200,
+    )
 
 
 async def _test_vercel_secret_leak(
@@ -406,7 +461,11 @@ async def _test_vercel_secret_leak(
         {"body": b'{"_debug":true}', "headers": {}, "desc": "Debug flag"},
         {"body": b'{"env":"all"}', "headers": {}, "desc": "Env request"},
         {"body": b'{"showConfig":true}', "headers": {}, "desc": "Config request"},
-        {"body": b"{}", "headers": {"X-Vercel-Debug": "1"}, "desc": "Vercel debug header"},
+        {
+            "body": b"{}",
+            "headers": {"X-Vercel-Debug": "1"},
+            "desc": "Vercel debug header",
+        },
         {"body": b'{"middleware":"auth"}', "headers": {}, "desc": "Middleware probe"},
         {"body": b'{"action":"getConfig"}', "headers": {}, "desc": "getConfig action"},
     ]
@@ -415,7 +474,9 @@ async def _test_vercel_secret_leak(
 
     for payload in payloads:
         try:
-            resp = await client.post(url, content=payload["body"], headers=payload["headers"])
+            resp = await client.post(
+                url, content=payload["body"], headers=payload["headers"]
+            )
 
             last_code = resp.status_code
 
@@ -430,9 +491,21 @@ async def _test_vercel_secret_leak(
 
     vuln = len(unique) > 0
 
-    details = f"Leaked: {', '.join(unique[:5])}" if vuln else "No Vercel secrets detected"
+    details = (
+        f"Leaked: {', '.join(unique[:5])}" if vuln else "No Vercel secrets detected"
+    )
 
-    return _make_attempt("vercel_secret_leak", "cloud_providers", "Vercel edge function secret leak", vuln, details, "", url, "vercel", last_code)
+    return _make_attempt(
+        "vercel_secret_leak",
+        "cloud_providers",
+        "Vercel edge function secret leak",
+        vuln,
+        details,
+        "",
+        url,
+        "vercel",
+        last_code,
+    )
 
 
 async def _test_kv_store_leak(
@@ -471,9 +544,21 @@ async def _test_kv_store_leak(
 
     vuln = len(unique) > 0
 
-    details = f"KV signals: {', '.join(unique[:5])}" if vuln else "No KV store data leaked"
+    details = (
+        f"KV signals: {', '.join(unique[:5])}" if vuln else "No KV store data leaked"
+    )
 
-    return _make_attempt("kv_store_leak", "cloud_providers", "Cloudflare Workers KV data leak", vuln, details, "", url, "cloudflare", 200)
+    return _make_attempt(
+        "kv_store_leak",
+        "cloud_providers",
+        "Cloudflare Workers KV data leak",
+        vuln,
+        details,
+        "",
+        url,
+        "cloudflare",
+        200,
+    )
 
 
 async def _test_edge_code_injection(
@@ -486,7 +571,9 @@ async def _test_edge_code_injection(
 
     for payload in _EDGE_INJECTION_PAYLOADS:
         try:
-            resp = await client.post(url, content=b"{}", headers={payload["header"]: payload["value"]})
+            resp = await client.post(
+                url, content=b"{}", headers={payload["header"]: payload["value"]}
+            )
 
             lower = resp.text.lower()
 
@@ -524,9 +611,23 @@ async def _test_edge_code_injection(
 
     vuln = len(unique) > 0
 
-    details = f"Injection signals: {', '.join(unique[:5])}" if vuln else "No code injection detected"
+    details = (
+        f"Injection signals: {', '.join(unique[:5])}"
+        if vuln
+        else "No code injection detected"
+    )
 
-    return _make_attempt("edge_code_injection", "cloud_providers", "Edge function code injection", vuln, details, "", url, "unknown", 200)
+    return _make_attempt(
+        "edge_code_injection",
+        "cloud_providers",
+        "Edge function code injection",
+        vuln,
+        details,
+        "",
+        url,
+        "unknown",
+        200,
+    )
 
 
 async def _test_cloud_providers(
@@ -540,7 +641,9 @@ async def _test_cloud_providers(
 
     results: list[EdgeFunctionAttempt] = []
 
-    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=False, follow_redirects=True
+    ) as client:
         for tech, fn in [
             ("azure_settings_leak", _test_azure_settings_leak),
             ("gcp_iam_bypass", _test_gcp_iam_bypass),
@@ -554,7 +657,19 @@ async def _test_cloud_providers(
                 results.append(result)
 
             except Exception as exc:
-                results.append(_make_attempt(tech, "cloud_providers", "", False, "", str(exc)[:100], endpoint, "unknown", 0))
+                results.append(
+                    _make_attempt(
+                        tech,
+                        "cloud_providers",
+                        "",
+                        False,
+                        "",
+                        str(exc)[:100],
+                        endpoint,
+                        "unknown",
+                        0,
+                    )
+                )
 
     return results
 
@@ -563,7 +678,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "edgefunctions", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "edgefunctions", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -575,7 +692,11 @@ def _load_azure_settings_patterns() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "edgefunctions", default={"azure_settings_patterns": _AZURE_SETTINGS_PATTERNS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "edgefunctions",
+        default={"azure_settings_patterns": _AZURE_SETTINGS_PATTERNS_DEFAULT},
+    )
 
     return data.get("azure_settings_patterns", _AZURE_SETTINGS_PATTERNS_DEFAULT)
 
@@ -587,7 +708,11 @@ def _load_gcp_iam_bypass_payloads() -> list[dict[str, Any]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "edgefunctions", default={"gcp_iam_bypass_payloads": _GCP_IAM_BYPASS_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "edgefunctions",
+        default={"gcp_iam_bypass_payloads": _GCP_IAM_BYPASS_PAYLOADS_DEFAULT},
+    )
 
     return data.get("gcp_iam_bypass_payloads", _GCP_IAM_BYPASS_PAYLOADS_DEFAULT)
 
@@ -599,7 +724,11 @@ def _load_vercel_secret_patterns() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "edgefunctions", default={"vercel_secret_patterns": _VERCEL_SECRET_PATTERNS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "edgefunctions",
+        default={"vercel_secret_patterns": _VERCEL_SECRET_PATTERNS_DEFAULT},
+    )
 
     return data.get("vercel_secret_patterns", _VERCEL_SECRET_PATTERNS_DEFAULT)
 
@@ -611,7 +740,9 @@ def _load_kv_leak_payloads() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "edgefunctions", default={"kv_leak_payloads": _KV_LEAK_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "edgefunctions", default={"kv_leak_payloads": _KV_LEAK_PAYLOADS_DEFAULT}
+    )
 
     return data.get("kv_leak_payloads", _KV_LEAK_PAYLOADS_DEFAULT)
 
@@ -623,7 +754,11 @@ def _load_edge_injection_payloads() -> list[dict[str, str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "edgefunctions", default={"edge_injection_payloads": _EDGE_INJECTION_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "edgefunctions",
+        default={"edge_injection_payloads": _EDGE_INJECTION_PAYLOADS_DEFAULT},
+    )
 
     return data.get("edge_injection_payloads", _EDGE_INJECTION_PAYLOADS_DEFAULT)
 
@@ -635,7 +770,11 @@ def _load_edge_error_signatures() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "edgefunctions", default={"edge_error_signatures": _EDGE_ERROR_SIGNATURES_DEFAULT})
+    data = load_payloads(
+        "web",
+        "edgefunctions",
+        default={"edge_error_signatures": _EDGE_ERROR_SIGNATURES_DEFAULT},
+    )
 
     return data.get("edge_error_signatures", _EDGE_ERROR_SIGNATURES_DEFAULT)
 
@@ -643,7 +782,9 @@ def _load_edge_error_signatures() -> list[str]:
 _EDGE_ERROR_SIGNATURES = _load_edge_error_signatures()
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[EdgeFunctionAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[EdgeFunctionAttempt]]]
+] = {
     "cloud_providers": _test_cloud_providers,
 }
 
@@ -656,7 +797,10 @@ def print_results(result: EdgeFunctionResult) -> None:
 
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
 
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
 
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
 
@@ -683,7 +827,10 @@ def print_results(result: EdgeFunctionResult) -> None:
         vuln_in_cat = [a for a in attempts if a.vulnerable]
 
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
 
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
@@ -696,10 +843,16 @@ def print_results(result: EdgeFunctionResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Edge function weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Edge function weaknesses detected!",
+        )
 
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Edge function configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Edge function configuration looks good",
+        )
 
     print()
 
@@ -715,7 +868,9 @@ async def run_scan(
 
     scheme = "https" if tls else "http"
 
-    endpoint = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    endpoint = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
 
     if path:
         endpoint = endpoint.rstrip("/") + path
@@ -743,7 +898,19 @@ async def run_scan(
                 provider_detected = max(set(providers), key=providers.count)
 
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, "unknown", 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error",
+                    cat,
+                    "",
+                    False,
+                    "",
+                    str(e)[:100],
+                    endpoint,
+                    "unknown",
+                    0,
+                )
+            )
 
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
 
@@ -784,7 +951,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("url", help="URL alvo (https://target.com/api/endpoint)")
 
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
 
     add_common_args(parser)
 

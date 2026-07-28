@@ -75,7 +75,15 @@ def test_encoding_payloads_count() -> None:
 
 
 def test_all_payloads_have_four_elements() -> None:
-    all_lists = _ENTITY_PAYLOADS + _NAMESPACE_PAYLOADS + _MATHML_PAYLOADS + _RAWTEXT_PAYLOADS + _COMMENT_PAYLOADS + _TEMPLATE_PAYLOADS + _ENCODING_PAYLOADS
+    all_lists = (
+        _ENTITY_PAYLOADS
+        + _NAMESPACE_PAYLOADS
+        + _MATHML_PAYLOADS
+        + _RAWTEXT_PAYLOADS
+        + _COMMENT_PAYLOADS
+        + _TEMPLATE_PAYLOADS
+        + _ENCODING_PAYLOADS
+    )
     for p in all_lists:
         assert len(p) == 4, f"Payload {p[0]} should have 4 elements"
 
@@ -141,13 +149,17 @@ def test_detect_entity_decoding_no_decoding() -> None:
 
 
 def test_detect_namespace_contexts_svg() -> None:
-    ctxs = _detect_namespace_contexts("<svg><foreignObject><div></div></foreignObject></svg>")
+    ctxs = _detect_namespace_contexts(
+        "<svg><foreignObject><div></div></foreignObject></svg>"
+    )
     assert "svg" in ctxs
     assert "svg_foreignobject" in ctxs
 
 
 def test_detect_namespace_contexts_mathml() -> None:
-    ctxs = _detect_namespace_contexts('<math><annotation-xml encoding="text/html"></annotation-xml></math>')
+    ctxs = _detect_namespace_contexts(
+        '<math><annotation-xml encoding="text/html"></annotation-xml></math>'
+    )
     assert "mathml" in ctxs
     assert "mathml_annotation_xml" in ctxs
 
@@ -268,6 +280,14 @@ def test_no_duplicate_payload_names_across_lists() -> None:
 
 
 def test_all_payloads_have_indicators() -> None:
-    all_lists = _ENTITY_PAYLOADS + _NAMESPACE_PAYLOADS + _MATHML_PAYLOADS + _RAWTEXT_PAYLOADS + _COMMENT_PAYLOADS + _TEMPLATE_PAYLOADS + _ENCODING_PAYLOADS
+    all_lists = (
+        _ENTITY_PAYLOADS
+        + _NAMESPACE_PAYLOADS
+        + _MATHML_PAYLOADS
+        + _RAWTEXT_PAYLOADS
+        + _COMMENT_PAYLOADS
+        + _TEMPLATE_PAYLOADS
+        + _ENCODING_PAYLOADS
+    )
     for p in all_lists:
         assert len(p[3]) >= 1, f"Payload {p[0]} must have at least 1 indicator"

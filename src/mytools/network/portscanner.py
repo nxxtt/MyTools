@@ -256,7 +256,9 @@ def resolve_targets(values: Iterable[str]) -> list[tuple[str, str]]:
             network = ipaddress.ip_network(value, strict=False)
         except ValueError:
             try:
-                infos = socket.getaddrinfo(value, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+                infos = socket.getaddrinfo(
+                    value, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+                )
             except socket.gaierror as error:
                 raise ValueError(f"nao consegui resolver {value!r}: {error}") from error
             for _family, _, _, _, sockaddr in infos:
@@ -307,7 +309,12 @@ def grab_banner(sock: socket.socket, port: int, timeout: float) -> str:
         data = sock.recv(120)
     except OSError:
         return ""
-    return data.decode("utf-8", errors="replace").strip().replace("\r", " ").replace("\n", " ")
+    return (
+        data.decode("utf-8", errors="replace")
+        .strip()
+        .replace("\r", " ")
+        .replace("\n", " ")
+    )
 
 
 def _create_connection(address: str, port: int, timeout: float) -> socket.socket:
@@ -358,16 +365,25 @@ def scan_targets(
     total = len(targets) * len(ports)
     started = time.monotonic()
 
-    logger.info("scan iniciado: %d alvos, %d portas (%d tentativas)", len(targets), len(ports), total)
+    logger.info(
+        "scan iniciado: %d alvos, %d portas (%d tentativas)",
+        len(targets),
+        len(ports),
+        total,
+    )
     logger.debug("timeout=%.2f, workers=%d, banner=%s", timeout, workers, with_banner)
 
-    logger.info("Alvos: %d | Portas: %d | Tentativas: %d", len(targets), len(ports), total)
+    logger.info(
+        "Alvos: %d | Portas: %d | Tentativas: %d", len(targets), len(ports), total
+    )
     logger.info("Timeout: %.2fs | Threads: %d", timeout, workers)
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         batch_size = workers * 2
         pending = []
-        targets_ports = ((host, address, port) for host, address in targets for port in ports)
+        targets_ports = (
+            (host, address, port) for host, address in targets for port in ports
+        )
 
         def _process_completed(futures_list: list[Future[Finding | None]]) -> None:
             for future in as_completed(futures_list):
@@ -380,10 +396,18 @@ def scan_targets(
                     findings.append(finding)
                     banner_text = f" | {finding.banner}" if finding.banner else ""
                     port_text = str(finding.port).ljust(5)
-                    logger.info("[+] %s:%s open %s%s", finding.address, port_text, finding.service, banner_text)
+                    logger.info(
+                        "[+] %s:%s open %s%s",
+                        finding.address,
+                        port_text,
+                        finding.service,
+                        banner_text,
+                    )
 
         for host, address, port in targets_ports:
-            pending.append(executor.submit(scan_port, host, address, port, timeout, with_banner))
+            pending.append(
+                executor.submit(scan_port, host, address, port, timeout, with_banner)
+            )
             if len(pending) >= batch_size:
                 _process_completed(pending)
                 pending.clear()
@@ -408,7 +432,10 @@ def ip_sort_key(address: str) -> tuple[int, int, str]:
 def print_port_table(findings: list[Finding]) -> None:
     """Exibe os findings em formato de tabela colorida no terminal."""
     headers = ("HOST", "IP", "PORT", "SERVICE", "BANNER")
-    rows = [(item.host, item.address, str(item.port), item.service, item.banner) for item in findings]
+    rows = [
+        (item.host, item.address, str(item.port), item.service, item.banner)
+        for item in findings
+    ]
     print_table(
         headers=headers,
         rows=rows,
@@ -425,13 +452,17 @@ def print_port_table(findings: list[Finding]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     """Constrói e retorna o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(description="Port scanner TCP rapido para laboratorios e hosts autorizados.")
+    parser = argparse.ArgumentParser(
+        description="Port scanner TCP rapido para laboratorios e hosts autorizados."
+    )
     parser.add_argument(
         "targets",
         nargs="*",
         help="IP, hostname ou CIDR. Ex: 192.168.0.10 scanme.nmap.org 10.0.0.0/30",
     )
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com alvos (um por linha).")
+    parser.add_argument(
+        "-l", "--list", dest="target_list", help="Arquivo com alvos (um por linha)."
+    )
     parser.add_argument(
         "-p",
         "--ports",
@@ -493,10 +524,20 @@ def run_once(args: argparse.Namespace) -> int:
     if getattr(args, "dry_run", False):
         total = len(targets) * len(args.ports)
         logger.warning("Nenhuma conexao sera realizada.")
-        logger.info("Alvos: %d | Portas: %d | Tentativas: %d", len(targets), len(args.ports), total)
+        logger.info(
+            "Alvos: %d | Portas: %d | Tentativas: %d",
+            len(targets),
+            len(args.ports),
+            total,
+        )
         for host, address in targets:
             logger.info("Alvo: %s (%s)", host, address)
-        logger.info("Portas: %d em %d alvo(s) = %d tentativas", len(args.ports), len(targets), total)
+        logger.info(
+            "Portas: %d em %d alvo(s) = %d tentativas",
+            len(args.ports),
+            len(targets),
+            total,
+        )
         return 0
 
     findings = scan_targets(

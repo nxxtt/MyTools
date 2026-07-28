@@ -89,17 +89,23 @@ class TestDecompileJava:
 # ---------------------------------------------------------------------------
 
 
-def _mock_dex_class(name: str = "Lcom/test/Foo;", source: str = "package com.test;\npublic class Foo {}") -> MagicMock:
+def _mock_dex_class(
+    name: str = "Lcom/test/Foo;", source: str = "package com.test;\npublic class Foo {}"
+) -> MagicMock:
     mock = MagicMock()
     mock.get_name.return_value = name
     mock.get_source.return_value = source
     return mock
 
 
-def _mock_dex(classes: list[str] | None = None, methods: list[str] | None = None) -> MagicMock:
+def _mock_dex(
+    classes: list[str] | None = None, methods: list[str] | None = None
+) -> MagicMock:
     mock = MagicMock()
     mock.get_classes_names.return_value = classes or ["Lcom/test/Foo;"]
-    mock.get_classes.return_value = [_mock_dex_class(n) for n in (classes or ["Lcom/test/Foo;"])]
+    mock.get_classes.return_value = [
+        _mock_dex_class(n) for n in (classes or ["Lcom/test/Foo;"])
+    ]
 
     encoded_methods = []
     for m_name in methods or ["<init>"]:
@@ -158,7 +164,9 @@ class TestAnalyzeDexLayerMock:
 
     @patch("androguard.misc.AnalyzeAPK", return_value=(MagicMock(), [], MagicMock()))
     @patch("mytools.mobile.apk_dex.Path.is_file", return_value=True)
-    def test_empty_dex_raises(self, mock_isfile: MagicMock, mock_analyze: MagicMock) -> None:
+    def test_empty_dex_raises(
+        self, mock_isfile: MagicMock, mock_analyze: MagicMock
+    ) -> None:
         from mytools.mobile.apk_dex import _load_apk
 
         with pytest.raises(ValueError, match="No DEX files"):

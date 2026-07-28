@@ -94,7 +94,9 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
             from datetime import datetime
 
             try:
-                date_str = datetime.fromtimestamp(ended / 1000, tz=UTC).strftime("%Y-%m-%d")
+                date_str = datetime.fromtimestamp(ended / 1000, tz=UTC).strftime(
+                    "%Y-%m-%d"
+                )
             except ValueError, OSError:
                 date_str = str(ended)
 
@@ -119,14 +121,18 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
             from datetime import datetime
 
             with contextlib.suppress(ValueError, OSError):
-                created = datetime.fromtimestamp(item["createdDate"] / 1000, tz=UTC).strftime("%Y-%m-%d")
+                created = datetime.fromtimestamp(
+                    item["createdDate"] / 1000, tz=UTC
+                ).strftime("%Y-%m-%d")
 
         expires = ""
         if item.get("expiresDate"):
             from datetime import datetime
 
             with contextlib.suppress(ValueError, OSError):
-                expires = datetime.fromtimestamp(item["expiresDate"] / 1000, tz=UTC).strftime("%Y-%m-%d")
+                expires = datetime.fromtimestamp(
+                    item["expiresDate"] / 1000, tz=UTC
+                ).strftime("%Y-%m-%d")
 
         records.append(
             WhoisHistoryRecord(
@@ -177,10 +183,20 @@ def _parse_whoisxml(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
         name_servers = ", ".join(ns_list[:5])
 
         statuses = item.get("status", [])
-        status_str = ", ".join(statuses[:3]) if isinstance(statuses, list) else str(statuses)
+        status_str = (
+            ", ".join(statuses[:3]) if isinstance(statuses, list) else str(statuses)
+        )
 
-        expires = item.get("expiresDateISO8601", "")[:10] if item.get("expiresDateISO8601") else ""
-        updated = item.get("updatedDateISO8601", "")[:10] if item.get("updatedDateISO8601") else ""
+        expires = (
+            item.get("expiresDateISO8601", "")[:10]
+            if item.get("expiresDateISO8601")
+            else ""
+        )
+        updated = (
+            item.get("updatedDateISO8601", "")[:10]
+            if item.get("updatedDateISO8601")
+            else ""
+        )
 
         records.append(
             WhoisHistoryRecord(
@@ -319,8 +335,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["securitytrails", "whoisxml"],
         help="Fonte para consulta (pode usar mais de um). Default: securitytrails.",
     )
-    parser.add_argument("--st-api-key", dest="st_api_key", help="API key do SecurityTrails.")
-    parser.add_argument("--whoisxml-api-key", dest="whoisxml_key", help="API key do WhoisXML.")
+    parser.add_argument(
+        "--st-api-key", dest="st_api_key", help="API key do SecurityTrails."
+    )
+    parser.add_argument(
+        "--whoisxml-api-key", dest="whoisxml_key", help="API key do WhoisXML."
+    )
     add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
     return parser
 
@@ -332,7 +352,15 @@ def _print_history(records: list[WhoisHistoryRecord]) -> None:
         return
 
     print_table(
-        headers=("Date", "Registrar", "Registrant", "Org", "Country", "NS (5)", "Source"),
+        headers=(
+            "Date",
+            "Registrar",
+            "Registrant",
+            "Org",
+            "Country",
+            "NS (5)",
+            "Source",
+        ),
         rows=[
             (
                 r.date or "-",
@@ -393,7 +421,12 @@ def run_once(args: argparse.Namespace) -> int:
             flag = "--st-api-key" if s == "securitytrails" else "--whoisxml-api-key"
             logger.warning("%s requer API key (use %s)", s, flag)
 
-    logger.info("Records: %d | Elapsed: %.1fs | Sources: %s", len(records), elapsed, ", ".join(sources))
+    logger.info(
+        "Records: %d | Elapsed: %.1fs | Sources: %s",
+        len(records),
+        elapsed,
+        ", ".join(sources),
+    )
 
     if getattr(args, "output", None):
         write_output(args.output, [asdict(r) for r in records])

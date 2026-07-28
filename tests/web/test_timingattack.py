@@ -253,7 +253,9 @@ class TestCLI:
 
     def test_build_parser_with_dns_domains(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://target.com", "--dns-domains", "example.com", "google.com"])
+        args = parser.parse_args(
+            ["https://target.com", "--dns-domains", "example.com", "google.com"]
+        )
         assert args.dns_domains == ["example.com", "google.com"]
 
     def test_build_parser_with_output(self) -> None:

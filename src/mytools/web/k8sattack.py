@@ -64,7 +64,10 @@ _K8S_API_PATHS_DEFAULT: list[dict[str, Any]] = [
     {"path": "/apis/batch/v1/cronjobs", "desc": "CronJobs"},
     {"path": "/apis/networking.k8s.io/v1/networkpolicies", "desc": "NetworkPolicies"},
     {"path": "/apis/rbac.authorization.k8s.io/v1/clusterroles", "desc": "ClusterRoles"},
-    {"path": "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", "desc": "ClusterRoleBindings"},
+    {
+        "path": "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings",
+        "desc": "ClusterRoleBindings",
+    },
     {"path": "/apis/storage.k8s.io/v1/storageclasses", "desc": "StorageClasses"},
 ]
 
@@ -72,7 +75,9 @@ _K8S_API_PATHS_DEFAULT: list[dict[str, Any]] = [
 def _load_k8s_paths() -> list[dict[str, Any]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "k8s_attack", default={"api_paths": _K8S_API_PATHS_DEFAULT})
+    data = load_payloads(
+        "web", "k8s_attack", default={"api_paths": _K8S_API_PATHS_DEFAULT}
+    )
     paths = data.get("api_paths", _K8S_API_PATHS_DEFAULT)
     return [{"path": p[0], "desc": p[1]} if isinstance(p, list) else p for p in paths]
 
@@ -80,13 +85,28 @@ def _load_k8s_paths() -> list[dict[str, Any]]:
 _K8S_API_PATHS = _load_k8s_paths()
 
 _DASHBOARD_PATHS: list[dict[str, str]] = [
-    {"path": "/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/", "desc": "Dashboard via API proxy"},
-    {"path": "/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/", "desc": "Dashboard via API proxy (HTTP)"},
-    {"path": "/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/", "desc": "Dashboard in kube-system"},
+    {
+        "path": "/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/",
+        "desc": "Dashboard via API proxy",
+    },
+    {
+        "path": "/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/",
+        "desc": "Dashboard via API proxy (HTTP)",
+    },
+    {
+        "path": "/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/",
+        "desc": "Dashboard in kube-system",
+    },
     {"path": "/dashboard/", "desc": "Dashboard root"},
     {"path": "/dashboard/#/login", "desc": "Dashboard login"},
-    {"path": "/api/v1/ namespaces/kubernetes-dashboard/endpoints", "desc": "Dashboard endpoints"},
-    {"path": "/apis/dashboard.k8s.io/v1alpha1/namespaces/kubernetes-dashboard/dashboards", "desc": "Dashboard CRD"},
+    {
+        "path": "/api/v1/ namespaces/kubernetes-dashboard/endpoints",
+        "desc": "Dashboard endpoints",
+    },
+    {
+        "path": "/apis/dashboard.k8s.io/v1alpha1/namespaces/kubernetes-dashboard/dashboards",
+        "desc": "Dashboard CRD",
+    },
 ]
 
 _K8S_AUTH_HEADERS: list[dict[str, str]] = [
@@ -165,7 +185,9 @@ def _detect_k8s(body: str, headers: dict[str, str]) -> bool:
 
 
 def _extract_api_version(body: str) -> str:
-    match = re.search(r'"serverAddressByClientCIDRs"|"major"|"minor"|"gitVersion"', body)
+    match = re.search(
+        r'"serverAddressByClientCIDRs"|"major"|"minor"|"gitVersion"', body
+    )
     if match:
         ver_match = re.search(r'"gitVersion"\s*:\s*"([^"]+)"', body)
         if ver_match:
@@ -232,7 +254,11 @@ async def _test_api_enumeration(
 
     unique_paths = list(set(accessible_paths))
     vuln = len([p for p in unique_paths if "auth_required" not in p]) > 0
-    details = f"Accessible: {len(unique_paths)} paths" if unique_paths else "No accessible paths"
+    details = (
+        f"Accessible: {len(unique_paths)} paths"
+        if unique_paths
+        else "No accessible paths"
+    )
     if api_versions:
         unique_versions = list(set(api_versions))
         details += f" (versions: {', '.join(unique_versions[:3])})"
@@ -265,7 +291,10 @@ async def _test_dashboard_exposed(
                 last_code = resp.status_code
                 if resp.status_code == 200:
                     lower = resp.text.lower()
-                    if any(kw in lower for kw in ("dashboard", "kubernetes", "login", "token")):
+                    if any(
+                        kw in lower
+                        for kw in ("dashboard", "kubernetes", "login", "token")
+                    ):
                         dashboard_found.append(f"{path_info['desc']} (no auth)")
                 elif resp.status_code in (401, 403):
                     dashboard_found.append(f"{path_info['desc']} (auth_required)")
@@ -275,8 +304,22 @@ async def _test_dashboard_exposed(
     unique = list(set(dashboard_found))
     no_auth = [d for d in unique if "no auth" in d]
     vuln = len(no_auth) > 0
-    details = f"Dashboard: {len(no_auth)} accessible without auth" if vuln else f"Dashboard: {len(unique)} endpoints found"
-    return _make_attempt("dashboard_exposed", "kubernetes", "Kubernetes Dashboard exposed", vuln, details, "", url, "", last_code)
+    details = (
+        f"Dashboard: {len(no_auth)} accessible without auth"
+        if vuln
+        else f"Dashboard: {len(unique)} endpoints found"
+    )
+    return _make_attempt(
+        "dashboard_exposed",
+        "kubernetes",
+        "Kubernetes Dashboard exposed",
+        vuln,
+        details,
+        "",
+        url,
+        "",
+        last_code,
+    )
 
 
 async def _test_kubernetes(
@@ -288,7 +331,9 @@ async def _test_kubernetes(
     endpoint: str,
 ) -> list[K8sAttackAttempt]:
     results: list[K8sAttackAttempt] = []
-    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=False, follow_redirects=True
+    ) as client:
         for tech, fn in [
             ("api_enumeration", _test_api_enumeration),
             ("dashboard_exposed", _test_dashboard_exposed),
@@ -297,11 +342,25 @@ async def _test_kubernetes(
                 result = await fn(endpoint, timeout, client)
                 results.append(result)
             except Exception as exc:
-                results.append(_make_attempt(tech, "kubernetes", "", False, "", str(exc)[:100], endpoint, "", 0))
+                results.append(
+                    _make_attempt(
+                        tech,
+                        "kubernetes",
+                        "",
+                        False,
+                        "",
+                        str(exc)[:100],
+                        endpoint,
+                        "",
+                        0,
+                    )
+                )
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[K8sAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[K8sAttackAttempt]]]
+] = {
     "kubernetes": _test_kubernetes,
 }
 
@@ -310,11 +369,20 @@ def print_results(result: K8sAttackResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Kubernetes Attack Testing")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
-    print(color("[*]", Cyber.CYAN), f"Kubernetes detected: {'yes' if result.k8s_detected else 'no'}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Kubernetes detected: {'yes' if result.k8s_detected else 'no'}",
+    )
     if result.api_versions:
-        print(color("[*]", Cyber.CYAN), f"API versions: {', '.join(result.api_versions[:3])}")
+        print(
+            color("[*]", Cyber.CYAN),
+            f"API versions: {', '.join(result.api_versions[:3])}",
+        )
     print()
     if result.issues:
         print(color("[!]", Cyber.YELLOW, Cyber.BOLD), "Issues:")
@@ -327,7 +395,10 @@ def print_results(result: K8sAttackResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -335,9 +406,15 @@ def print_results(result: K8sAttackResult) -> None:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Kubernetes weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Kubernetes weaknesses detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Kubernetes configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Kubernetes configuration looks good",
+        )
     print()
 
 
@@ -349,7 +426,9 @@ async def run_scan(
 ) -> K8sAttackResult:
     host, path, port, tls = _parse_url(target)
     scheme = "https" if tls else "http"
-    endpoint = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    endpoint = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
     if path:
         endpoint = endpoint.rstrip("/") + path
     k8s_detected = False
@@ -369,7 +448,11 @@ async def run_scan(
                 if a.api_version:
                     all_api_versions.append(a.api_version)
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, "", 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, "", 0
+                )
+            )
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
     issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
@@ -399,7 +482,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Kubernetes Attack Testing — API enumeration and Dashboard detection",
     )
     parser.add_argument("url", help="URL alvo (https://target.com:6443)")
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
     add_common_args(parser)
     return parser
 

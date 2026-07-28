@@ -130,12 +130,34 @@ class TestParseUrl:
 
 class TestMakeAttempt:
     def test_creation(self) -> None:
-        a = _make_attempt("registry_exposed", "docker", "desc", True, "details", "", "url", "registry", ["repo1"], 200)
+        a = _make_attempt(
+            "registry_exposed",
+            "docker",
+            "desc",
+            True,
+            "details",
+            "",
+            "url",
+            "registry",
+            ["repo1"],
+            200,
+        )
         assert a.vulnerable is True
         assert a.repositories == ["repo1"]
 
     def test_no_repos(self) -> None:
-        a = _make_attempt("registry_exposed", "docker", "desc", False, "details", "", "url", "registry", None, 200)
+        a = _make_attempt(
+            "registry_exposed",
+            "docker",
+            "desc",
+            False,
+            "details",
+            "",
+            "url",
+            "registry",
+            None,
+            200,
+        )
         assert a.repositories == []
 
 
@@ -208,7 +230,11 @@ class TestCLI:
 @respx.mock
 async def test_category_dispatch_all_return_lists() -> None:
     """All category dispatchers should return a list."""
-    respx.route().mock(return_value=httpx.Response(404, text='{"errors":[{"code":"NOT_FOUND","message":"not found"}]}'))
+    respx.route().mock(
+        return_value=httpx.Response(
+            404, text='{"errors":[{"code":"NOT_FOUND","message":"not found"}]}'
+        )
+    )
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("target.com", 443, "", 0.1, True, "https://target.com")
         assert isinstance(result, list), f"{cat} did not return a list"

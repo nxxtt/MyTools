@@ -39,10 +39,22 @@ logger = logging.getLogger("mytools.ldapiinject")
 
 _CATEGORY_MAP: dict[str, list[str]] = {
     "detect": ["wildcard", "close_filter", "always_true", "objectclass", "presence"],
-    "auth_bypass": ["admin_or", "close_paren", "star_close", "admin_true", "null_bypass"],
+    "auth_bypass": [
+        "admin_or",
+        "close_paren",
+        "star_close",
+        "admin_true",
+        "null_bypass",
+    ],
     "search": ["enum_users", "enum_groups", "enum_attrs", "enum_dn", "wildcard_all"],
     "blind": ["blind_user", "blind_pass", "blind_dn", "blind_email", "blind_member"],
-    "bypass": ["unicode_bypass", "null_terminator", "double_encode", "space_bypass", "special_chars"],
+    "bypass": [
+        "unicode_bypass",
+        "null_terminator",
+        "double_encode",
+        "space_bypass",
+        "special_chars",
+    ],
 }
 
 _DETECT_PAYLOADS: list[tuple[str, str, list[str]]] = [
@@ -288,7 +300,9 @@ async def _test_detect(
                     t_status = resp.status_code
                     t_size = len(resp.content)
                     status_changed = t_status != b_status
-                    vulnerable = _check_ldap_response(resp.content, t_status, indicators)
+                    vulnerable = _check_ldap_response(
+                        resp.content, t_status, indicators
+                    )
 
                     attempts.append(
                         LDAPiAttempt(
@@ -306,7 +320,9 @@ async def _test_detect(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                         )
                     )
@@ -362,7 +378,9 @@ async def _test_auth_bypass(
                     t_status = resp.status_code
                     t_size = len(resp.content)
                     status_changed = t_status != b_status
-                    vulnerable = _check_ldap_response(resp.content, t_status, indicators)
+                    vulnerable = _check_ldap_response(
+                        resp.content, t_status, indicators
+                    )
 
                     attempts.append(
                         LDAPiAttempt(
@@ -380,7 +398,9 @@ async def _test_auth_bypass(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                         )
                     )
@@ -436,7 +456,9 @@ async def _test_search(
                     t_status = resp.status_code
                     t_size = len(resp.content)
                     status_changed = t_status != b_status
-                    vulnerable = _check_ldap_response(resp.content, t_status, indicators)
+                    vulnerable = _check_ldap_response(
+                        resp.content, t_status, indicators
+                    )
 
                     attempts.append(
                         LDAPiAttempt(
@@ -454,7 +476,9 @@ async def _test_search(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                         )
                     )
@@ -520,7 +544,9 @@ async def _test_blind(
                         status_changed=status_changed,
                         size_changed=abs(t_size - b_size) > 50,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                     )
                 )
@@ -586,7 +612,9 @@ async def _test_bypass(
                         status_changed=status_changed,
                         size_changed=abs(t_size - b_size) > 50,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                     )
                 )
@@ -620,12 +648,21 @@ def print_results(result: LDAPiResult) -> None:
     print(color("=" * 60, Cyber.GRAY))
 
     print(color(f"  Target:     {result.target}", Cyber.WHITE))
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_techs = result.vulnerable_techniques
     if vuln_techs:
-        print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD
+            )
+        )
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
             a = next((a for a in result.attempts if a.technique == tech), None)
@@ -633,7 +670,9 @@ def print_results(result: LDAPiResult) -> None:
                 print_exploit_info(a.exploit, a.tool)
         print(color("\n  Severidade: ALTA", Cyber.RED, Cyber.BOLD))
     else:
-        print(color("\n  [+] Nenhuma LDAP Injection detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color("\n  [+] Nenhuma LDAP Injection detectada", Cyber.GREEN, Cyber.BOLD)
+        )
         print(color("  Severidade: NENHUMA", Cyber.GREEN, Cyber.BOLD))
 
     issues = result.issues
@@ -694,8 +733,14 @@ async def run_scan(
                     all_attempts.extend(r)
 
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
+        blocked = [
+            a.technique for a in all_attempts if not a.vulnerable and not a.error
+        ]
+        issues: list[str] = [
+            f"VULN: {att.technique} - {att.details}"
+            for att in all_attempts
+            if att.vulnerable
+        ]
 
         overall = "vulnerable" if vuln_techs else "secure"
 
@@ -716,7 +761,11 @@ async def run_scan(
         if output_file:
             write_output(output_file, asdict(result))
 
-        logger.info("LDAPi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "LDAPi scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
         return 1 if vuln_techs else 0
 
     finally:
@@ -751,7 +800,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=list(_CATEGORY_MAP.keys()),
         help="Categoria de testes (default: todas)",
     )
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
     add_common_args(parser)
     return parser
 
@@ -780,7 +834,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="ldap> ",
         description="LDAP Injection interativo.",
         example="https://target.com -c detect",

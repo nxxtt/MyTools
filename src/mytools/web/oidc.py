@@ -166,7 +166,9 @@ async def _test_discovery_category(
 
         data = _parse_json_response(body)
 
-        vulnerable = False  # well-known acessivel e comportamento normal, nao vulneravel
+        vulnerable = (
+            False  # well-known acessivel e comportamento normal, nao vulneravel
+        )
 
         results.append(
             OIDCAttempt(
@@ -179,7 +181,9 @@ async def _test_discovery_category(
                 status_changed=resp.status_code != b_status,
                 size_changed=abs(len(body) - b_size) > 50,
                 vulnerable=vulnerable,
-                details=f"well-known acessivel — {len(data)} metadados expostos" if vulnerable and data else "",
+                details=f"well-known acessivel — {len(data)} metadados expostos"
+                if vulnerable and data
+                else "",
                 error="",
                 exploit="nonce_replay_payload" if vulnerable else "",
                 tool="curl",
@@ -213,7 +217,9 @@ async def _test_discovery_category(
 
             data = _parse_json_response(body)
 
-            vulnerable = resp.status_code == 200 and data is not None and "keys" in (data or {})
+            vulnerable = (
+                resp.status_code == 200 and data is not None and "keys" in (data or {})
+            )
 
             results.append(
                 OIDCAttempt(
@@ -226,7 +232,9 @@ async def _test_discovery_category(
                     status_changed=resp.status_code != b_status,
                     size_changed=abs(len(body) - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"jwks_uri acessivel — {len(str(data.get('keys', ''))) if data else 0} chaves expostas" if vulnerable else "",
+                    details=f"jwks_uri acessivel — {len(str(data.get('keys', ''))) if data else 0} chaves expostas"
+                    if vulnerable
+                    else "",
                     error="",
                     exploit="nonce_replay_payload" if vulnerable else "",
                     tool="curl",
@@ -283,7 +291,8 @@ async def _test_discovery_category(
                 status_changed=False,
                 size_changed=False,
                 vulnerable=not issuer_matches,
-                details=f"issuer={issuer} — " + ("mismatch com URL base" if not issuer_matches else "ok"),
+                details=f"issuer={issuer} — "
+                + ("mismatch com URL base" if not issuer_matches else "ok"),
                 error="",
                 exploit="nonce_replay_payload" if not issuer_matches else "",
                 tool="curl",
@@ -328,7 +337,8 @@ async def _test_discovery_category(
                     status_changed=resp.status_code != b_status,
                     size_changed=abs(len(body) - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"registration_endpoint={reg_url} — " + ("acessivel" if vulnerable else "rejeitado"),
+                    details=f"registration_endpoint={reg_url} — "
+                    + ("acessivel" if vulnerable else "rejeitado"),
                     error="",
                     exploit="nonce_replay_payload" if vulnerable else "",
                     tool="curl",
@@ -373,7 +383,11 @@ async def _test_discovery_category(
         scopes = well_known_data["scopes_supported"]
 
         if isinstance(scopes, list):
-            dangerous = [s for s in scopes if s in ("admin", "openid admin", "superuser", "write", "delete")]
+            dangerous = [
+                s
+                for s in scopes
+                if s in ("admin", "openid admin", "superuser", "write", "delete")
+            ]
 
             results.append(
                 OIDCAttempt(
@@ -386,7 +400,9 @@ async def _test_discovery_category(
                     status_changed=False,
                     size_changed=False,
                     vulnerable=len(dangerous) > 0,
-                    details=f"scopes perigosos: {', '.join(dangerous)}" if dangerous else f"{len(scopes)} scopes suportados",
+                    details=f"scopes perigosos: {', '.join(dangerous)}"
+                    if dangerous
+                    else f"{len(scopes)} scopes suportados",
                     error="",
                     exploit="nonce_replay_payload" if len(dangerous) > 0 else "",
                     tool="curl",
@@ -468,11 +484,31 @@ async def _test_token_substitution_category(
         token_url = urljoin(base_url, "/token")
 
     tests = [
-        ("cross_account_token", "grant_type=authorization_code&code=test&redirect_uri=https://example.com", "troca de token entre contas"),
-        ("id_token_swap", "grant_type=authorization_code&code=test&redirect_uri=https://example.com", "substituicao de id_token"),
-        ("access_token_reuse", "grant_type=authorization_code&code=test&redirect_uri=https://example.com", "reutilizacao de access_token"),
-        ("refresh_token_swap", "grant_type=refresh_token&refresh_token=test", "troca de refresh_token"),
-        ("nonce_reuse", "grant_type=authorization_code&code=test&redirect_uri=https://example.com", "reutilizacao de nonce"),
+        (
+            "cross_account_token",
+            "grant_type=authorization_code&code=test&redirect_uri=https://example.com",
+            "troca de token entre contas",
+        ),
+        (
+            "id_token_swap",
+            "grant_type=authorization_code&code=test&redirect_uri=https://example.com",
+            "substituicao de id_token",
+        ),
+        (
+            "access_token_reuse",
+            "grant_type=authorization_code&code=test&redirect_uri=https://example.com",
+            "reutilizacao de access_token",
+        ),
+        (
+            "refresh_token_swap",
+            "grant_type=refresh_token&refresh_token=test",
+            "troca de refresh_token",
+        ),
+        (
+            "nonce_reuse",
+            "grant_type=authorization_code&code=test&redirect_uri=https://example.com",
+            "reutilizacao de nonce",
+        ),
     ]
 
     for technique, data, details in tests:
@@ -549,7 +585,12 @@ def print_results(result: OIDCResult) -> None:
 
     print(color(f"  Well-known: {result.well_known_url or 'N/A'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:     {len(result.attempts)}", Cyber.WHITE))
 
@@ -577,7 +618,12 @@ def print_results(result: OIDCResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [+] Nenhuma vulnerabilidade OIDC detectada", Cyber.GREEN))
@@ -607,7 +653,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
 
             b_size = len(b_body)
 
@@ -619,7 +667,9 @@ async def run_scan(
         well_known_data: dict[str, object] | None = None
 
         try:
-            resp = await client.get(well_known_url, timeout=timeout, follow_redirects=True)
+            resp = await client.get(
+                well_known_url, timeout=timeout, follow_redirects=True
+            )
 
             well_known_data = _parse_json_response(resp.text)
 
@@ -638,7 +688,15 @@ async def run_scan(
 
             try:
                 if cat == "discovery":
-                    raw = await tester(client, base_url, well_known_url, well_known_data, timeout, b_status, b_size)
+                    raw = await tester(
+                        client,
+                        base_url,
+                        well_known_url,
+                        well_known_data,
+                        timeout,
+                        b_status,
+                        b_size,
+                    )
 
                 else:
                     raw = await tester(client, base_url, timeout, b_status, b_size)
@@ -664,7 +722,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -685,12 +745,18 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
 
-        logger.info("OIDC scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "OIDC scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -776,7 +842,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="oidc> ",
         description="OIDC Attack Detection interativo.",
         example="https://target.com -c discovery",

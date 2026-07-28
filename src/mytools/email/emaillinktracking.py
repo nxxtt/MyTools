@@ -53,7 +53,15 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "css": ["hidden_element", "css_tracking", "font_fingerprint"],
 }
 
-_SHORTENERS_DEFAULT: list[str] = ["bit.ly", "tinyurl.com", "goo.gl", "t.co", "is.gd", "buff.ly", "ow.ly"]
+_SHORTENERS_DEFAULT: list[str] = [
+    "bit.ly",
+    "tinyurl.com",
+    "goo.gl",
+    "t.co",
+    "is.gd",
+    "buff.ly",
+    "ow.ly",
+]
 
 
 def _load_link_tracking() -> tuple[dict[str, list[str]], list[str]]:
@@ -78,15 +86,15 @@ _CATEGORY_MAP, _SHORTENERS_LOADED = _load_link_tracking()
 
 _TRACKING_PIXEL_1X1 = '<img src="https://tracking.example.com/pixel.gif?uid=test123&ts=1234567890" width="1" height="1" style="display:none" alt="">'
 
-_TRACKING_PIXEL_CSS = (
-    "<div style=\"background-image:url('https://track.example.com/bg.gif?rid=abc');width:1px;height:1px;position:absolute;top:-9999px\"></div>"
-)
+_TRACKING_PIXEL_CSS = "<div style=\"background-image:url('https://track.example.com/bg.gif?rid=abc');width:1px;height:1px;position:absolute;top:-9999px\"></div>"
 
 _LINK_REWRITE = '<a href="https://legitimate.com/page">Click here</a>'
 
 _UTM_PARAMS = '<a href="https://example.com/product?utm_source=email&utm_medium=campaign&utm_content=test&utm_term=keyword">Product link</a>'
 
-_REDIRECT_CHAIN = '<a href="https://redirect.example.com/r?url=https://final.com">Redirect link</a>'
+_REDIRECT_CHAIN = (
+    '<a href="https://redirect.example.com/r?url=https://final.com">Redirect link</a>'
+)
 
 _URL_SHORTENER = '<a href="https://bit.ly/abc123">Short link</a>'
 
@@ -200,7 +208,11 @@ def _get_banner(server: smtplib.SMTP) -> str:
     """Retorna o banner EHLO do servidor."""
     try:
         _code, banner = server.ehlo()
-        return banner.decode("utf-8", errors="replace") if isinstance(banner, bytes) else str(banner)
+        return (
+            banner.decode("utf-8", errors="replace")
+            if isinstance(banner, bytes)
+            else str(banner)
+        )
     except smtplib.SMTPException:
         return ""
 
@@ -220,7 +232,9 @@ def _detect_pixel_1x1(server_response: str, email_body: str) -> tuple[str, str]:
 def _detect_pixel_css(server_response: str, email_body: str) -> tuple[str, str]:
     """Detecta tracking via CSS background-image."""
     combined = server_response + email_body
-    if ("background-image:url" in combined or "background:url" in combined) and ("track" in combined or "pixel" in combined or "beacon" in combined):
+    if ("background-image:url" in combined or "background:url" in combined) and (
+        "track" in combined or "pixel" in combined or "beacon" in combined
+    ):
         return "detected", "CSS background-image tracking detectado"
     return "not_detected", "Nenhum CSS tracking injetado"
 
@@ -235,11 +249,20 @@ def _detect_web_beacon(server_response: str, email_body: str) -> tuple[str, str]
     return "not_detected", "Nenhum web beacon injetado"
 
 
-def _detect_link_rewrite(original: str, server_response: str, email_body: str) -> tuple[str, str]:
+def _detect_link_rewrite(
+    original: str, server_response: str, email_body: str
+) -> tuple[str, str]:
     """Detecta se links foram reescritos pelo servidor (best-effort via SMTP)."""
-    if "redirect" in server_response or "tracking" in server_response or "click" in server_response:
+    if (
+        "redirect" in server_response
+        or "tracking" in server_response
+        or "click" in server_response
+    ):
         return "detected", "Possivel reescrita de link detectada na resposta SMTP"
-    return "not_detected", "Nao foi possivel detectar reescrita via SMTP (limitacao do protocolo)"
+    return (
+        "not_detected",
+        "Nao foi possivel detectar reescrita via SMTP (limitacao do protocolo)",
+    )
 
 
 def _detect_utm_params(email_body: str) -> tuple[str, str]:
@@ -282,7 +305,9 @@ def _detect_message_id_tracking(server_response: str) -> tuple[str, str]:
 
 def _detect_hidden_element(email_body: str) -> tuple[str, str]:
     """Detecta elementos hidden para tracking."""
-    if ("display:none" in email_body or "display: none" in email_body) and "track" in email_body.lower():
+    if (
+        "display:none" in email_body or "display: none" in email_body
+    ) and "track" in email_body.lower():
         return "detected", "Elemento hidden com tracking detectado"
     if "font-size:0" in email_body or "line-height:0" in email_body:
         return "detected", "Elemento hidden via font-size/line-height zero"
@@ -291,14 +316,18 @@ def _detect_hidden_element(email_body: str) -> tuple[str, str]:
 
 def _detect_css_tracking(email_body: str) -> tuple[str, str]:
     """Detecta CSS tracking."""
-    if ("background:url" in email_body or "background-image:url" in email_body) and ("track" in email_body or "pixel" in email_body):
+    if ("background:url" in email_body or "background-image:url" in email_body) and (
+        "track" in email_body or "pixel" in email_body
+    ):
         return "detected", "CSS tracking via background-url detectado"
     return "not_detected", "Nenhum CSS tracking detectado"
 
 
 def _detect_font_fingerprint(email_body: str) -> tuple[str, str]:
     """Detecta font fingerprinting."""
-    if "@font-face" in email_body and ("track" in email_body or "fingerprint" in email_body):
+    if "@font-face" in email_body and (
+        "track" in email_body or "fingerprint" in email_body
+    ):
         return "detected", "Font fingerprinting detectado"
     return "not_detected", "Nenhum font fingerprinting detectado"
 
@@ -309,13 +338,37 @@ _DETECTOR_MAP: dict[str, tuple[str, str, Callable[..., tuple[str, str]]]] = {
     "web_beacon": ("web_beacon", "Web beacon tracking", _detect_web_beacon),
     "link_rewrite": ("link_rewrite", "Link rewrite tracking", _detect_link_rewrite),
     "utm_params": ("utm_params", "UTM parameter injection", _detect_utm_params),
-    "redirect_chain": ("redirect_chain", "Redirect chain tracking", _detect_redirect_chain),
-    "url_shortener": ("url_shortener", "URL shortener detection", _detect_url_shortener),
-    "read_receipt": ("read_receipt", "Read receipt header injection", _detect_read_receipt),
-    "message_id_tracking": ("message_id_tracking", "Message-ID tracking", _detect_message_id_tracking),
-    "hidden_element": ("hidden_element", "Hidden element tracking", _detect_hidden_element),
+    "redirect_chain": (
+        "redirect_chain",
+        "Redirect chain tracking",
+        _detect_redirect_chain,
+    ),
+    "url_shortener": (
+        "url_shortener",
+        "URL shortener detection",
+        _detect_url_shortener,
+    ),
+    "read_receipt": (
+        "read_receipt",
+        "Read receipt header injection",
+        _detect_read_receipt,
+    ),
+    "message_id_tracking": (
+        "message_id_tracking",
+        "Message-ID tracking",
+        _detect_message_id_tracking,
+    ),
+    "hidden_element": (
+        "hidden_element",
+        "Hidden element tracking",
+        _detect_hidden_element,
+    ),
     "css_tracking": ("css_tracking", "CSS tracking", _detect_css_tracking),
-    "font_fingerprint": ("font_fingerprint", "Font fingerprinting", _detect_font_fingerprint),
+    "font_fingerprint": (
+        "font_fingerprint",
+        "Font fingerprinting",
+        _detect_font_fingerprint,
+    ),
 }
 
 
@@ -360,7 +413,11 @@ def scan_link_tracking(
             server.mail(from_addr)
             server.rcpt(to_addr)
             _code, response = server.data(email_body)
-            server_response = response.decode("utf-8", errors="replace") if isinstance(response, bytes) else str(response)
+            server_response = (
+                response.decode("utf-8", errors="replace")
+                if isinstance(response, bytes)
+                else str(response)
+            )
             server.rset()
         except smtplib.SMTPResponseException as exc:
             server_response = f"{exc.smtp_code} {exc.smtp_error}"
@@ -385,8 +442,17 @@ def scan_link_tracking(
                 if name in ("pixel_1x1", "pixel_css", "web_beacon"):
                     status, details = detector(server_response, email_body)
                 elif name == "link_rewrite":
-                    status, details = detector(_LINK_REWRITE, server_response, email_body)
-                elif name in ("utm_params", "redirect_chain", "url_shortener", "hidden_element", "css_tracking", "font_fingerprint"):
+                    status, details = detector(
+                        _LINK_REWRITE, server_response, email_body
+                    )
+                elif name in (
+                    "utm_params",
+                    "redirect_chain",
+                    "url_shortener",
+                    "hidden_element",
+                    "css_tracking",
+                    "font_fingerprint",
+                ):
                     status, details = detector(email_body)
                 elif name in ("read_receipt", "message_id_tracking"):
                     status, details = detector(server_response)
@@ -429,7 +495,9 @@ def scan_link_tracking(
         overall = "warning"
 
     if overall == "tracking_detected":
-        issues.append(f"{len(detected)}/{len(attempts)} tecnicas de tracking detectadas")
+        issues.append(
+            f"{len(detected)}/{len(attempts)} tecnicas de tracking detectadas"
+        )
     elif overall == "clean":
         issues.append("Nenhum mecanismo de tracking injetado pelo servidor")
     else:
@@ -445,7 +513,9 @@ def scan_link_tracking(
         clean_techniques=clean,
         issues=issues,
         overall_status=overall,
-        exploit="email_link_tracking_detected" if overall == "tracking_detected" else "",
+        exploit="email_link_tracking_detected"
+        if overall == "tracking_detected"
+        else "",
         tool="curl",
     )
 
@@ -493,11 +563,33 @@ def print_results(result: TrackingResult) -> None:
         print()
 
     if result.overall_status == "tracking_detected":
-        print(color(f"  [-] Servidor INJETA TRACKING — {len(result.detected_techniques)}/{len(result.attempts)} tecnicas detectadas", Cyber.RED, Cyber.BOLD))
-        print(color("  [-] Risco: privacidade comprometida, leituras rastreadas, links reescritos", Cyber.CYAN))
-        print(color("  [-] Remedio: desabilitar injection de tracking, usar proxys de privacidade", Cyber.CYAN))
+        print(
+            color(
+                f"  [-] Servidor INJETA TRACKING — {len(result.detected_techniques)}/{len(result.attempts)} tecnicas detectadas",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
+        print(
+            color(
+                "  [-] Risco: privacidade comprometida, leituras rastreadas, links reescritos",
+                Cyber.CYAN,
+            )
+        )
+        print(
+            color(
+                "  [-] Remedio: desabilitar injection de tracking, usar proxys de privacidade",
+                Cyber.CYAN,
+            )
+        )
     elif result.overall_status == "clean":
-        print(color("  [+] Servidor limpo — nenhum mecanismo de tracking injetado", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Servidor limpo — nenhum mecanismo de tracking injetado",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
     else:
         print(color("  [!] Resultado inconclusivo — revisar manualmente", Cyber.YELLOW))
 
@@ -511,7 +603,10 @@ def banner_art() -> None:
    | |  | |/ ___ \| |____|__) || |   \__ \ | | | | |>  <| |___
    |_|  |_/_/   \_\_|   |____/ |_|   |___/_|_| |_|_/_/\_\_____|
 """
-    create_banner(art, "   link tracking: detecta tracking pixels, link rewrites, UTM params, redirects em emails")()
+    create_banner(
+        art,
+        "   link tracking: detecta tracking pixels, link rewrites, UTM params, redirects em emails",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -521,7 +616,9 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Analisa se o servidor injeta mecanismos de tracking em emails de saida.",
     )
     add_base_args(parser)
-    parser.add_argument("target", nargs="?", help="Host SMTP alvo (ex: mail.example.com).")
+    parser.add_argument(
+        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+    )
     parser.add_argument(
         "--port",
         "-p",

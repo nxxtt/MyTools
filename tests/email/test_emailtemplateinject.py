@@ -22,7 +22,14 @@ from mytools.email.emailtemplateinject import (
 
 class TestTemplateProbe:
     def test_frozen(self) -> None:
-        p = TemplateProbe(engine="jinja2", payload_name="test", payload="x", response_snippet="y", detected=True, status="detected")
+        p = TemplateProbe(
+            engine="jinja2",
+            payload_name="test",
+            payload="x",
+            response_snippet="y",
+            detected=True,
+            status="detected",
+        )
         with pytest.raises(AttributeError):
             p.engine = "z"  # type: ignore[misc]
 
@@ -86,7 +93,9 @@ class TestConnectSmtp:
 
     @patch("mytools.email.emailtemplateinject.smtplib.SMTP")
     def test_connect_error(self, mock_smtp: MagicMock) -> None:
-        mock_smtp.side_effect = emailtemplateinject.smtplib.SMTPConnectError(421, b"unavail")
+        mock_smtp.side_effect = emailtemplateinject.smtplib.SMTPConnectError(
+            421, b"unavail"
+        )
         with pytest.raises(ConnectionError):
             _connect_smtp("mail.test.com", 587, 10.0)
 
@@ -135,7 +144,9 @@ class TestSendTemplateEmail:
         server.mail.return_value = (250, b"OK")
         server.rcpt.return_value = (250, b"OK")
         server.data.return_value = (250, b"OK")
-        accepted, details = _send_template_email(server, "a@b.com", "c@d.com", "test", "{{7*7}}")
+        accepted, details = _send_template_email(
+            server, "a@b.com", "c@d.com", "test", "{{7*7}}"
+        )
         assert accepted is True
         assert "accepted" in details
 
@@ -143,26 +154,36 @@ class TestSendTemplateEmail:
         server = MagicMock()
         server.ehlo.return_value = (250, b"OK")
         server.mail.return_value = (250, b"OK")
-        server.rcpt.side_effect = emailtemplateinject.smtplib.SMTPResponseException(550, b"Rejected")
-        accepted, details = _send_template_email(server, "a@b.com", "c@d.com", "test", "{{7*7}}")
+        server.rcpt.side_effect = emailtemplateinject.smtplib.SMTPResponseException(
+            550, b"Rejected"
+        )
+        accepted, details = _send_template_email(
+            server, "a@b.com", "c@d.com", "test", "{{7*7}}"
+        )
         assert accepted is False
         assert "550" in details
 
     def test_smtp_exception(self) -> None:
         server = MagicMock()
         server.ehlo.side_effect = emailtemplateinject.smtplib.SMTPException("fail")
-        accepted, _details = _send_template_email(server, "a@b.com", "c@d.com", "test", "{{7*7}}")
+        accepted, _details = _send_template_email(
+            server, "a@b.com", "c@d.com", "test", "{{7*7}}"
+        )
         assert accepted is False
 
 
 class TestDetectEngineFromResponse:
     def test_jinja2_detected(self) -> None:
-        detected, info = _detect_engine_from_response("TemplateError: undefined", "jinja2_expr")
+        detected, info = _detect_engine_from_response(
+            "TemplateError: undefined", "jinja2_expr"
+        )
         assert detected is True
         assert "jinja2" in info
 
     def test_handlebars_detected(self) -> None:
-        detected, info = _detect_engine_from_response("Handlebars: helper not found", "handlebars_expr")
+        detected, info = _detect_engine_from_response(
+            "Handlebars: helper not found", "handlebars_expr"
+        )
         assert detected is True
         assert "handlebars" in info
 
@@ -172,7 +193,9 @@ class TestDetectEngineFromResponse:
         assert "mako" in info
 
     def test_tornado_detected(self) -> None:
-        detected, info = _detect_engine_from_response("Tornado template error", "tornado_expr")
+        detected, info = _detect_engine_from_response(
+            "Tornado template error", "tornado_expr"
+        )
         assert detected is True
         assert "tornado" in info
 
@@ -194,7 +217,10 @@ class TestDetectEngineFromResponse:
 
 class TestScanEmailTemplateInjection:
     def test_connection_failure(self) -> None:
-        with patch("mytools.email.emailtemplateinject._connect_smtp", side_effect=ConnectionError("refused")):
+        with patch(
+            "mytools.email.emailtemplateinject._connect_smtp",
+            side_effect=ConnectionError("refused"),
+        ):
             result = scan_email_template_injection("mail.test.com", 587)
             assert result.overall_status == "unknown"
             assert result.issues
@@ -203,11 +229,18 @@ class TestScanEmailTemplateInjection:
         mock_server = MagicMock()
         mock_server.ehlo.return_value = (250, b"220 mail")
         mock_server.mail.return_value = (250, b"OK")
-        mock_server.rcpt.side_effect = emailtemplateinject.smtplib.SMTPResponseException(550, b"Rejected")
+        mock_server.rcpt.side_effect = (
+            emailtemplateinject.smtplib.SMTPResponseException(550, b"Rejected")
+        )
 
         with (
-            patch("mytools.email.emailtemplateinject._connect_smtp", return_value=mock_server),
-            patch("mytools.email.emailtemplateinject._get_banner", return_value="220 mail"),
+            patch(
+                "mytools.email.emailtemplateinject._connect_smtp",
+                return_value=mock_server,
+            ),
+            patch(
+                "mytools.email.emailtemplateinject._get_banner", return_value="220 mail"
+            ),
         ):
             result = scan_email_template_injection("mail.test.com", 587)
             assert result.overall_status == "safe"
@@ -221,8 +254,13 @@ class TestScanEmailTemplateInjection:
         mock_server.data.return_value = (250, b"OK")
 
         with (
-            patch("mytools.email.emailtemplateinject._connect_smtp", return_value=mock_server),
-            patch("mytools.email.emailtemplateinject._get_banner", return_value="220 mail"),
+            patch(
+                "mytools.email.emailtemplateinject._connect_smtp",
+                return_value=mock_server,
+            ),
+            patch(
+                "mytools.email.emailtemplateinject._get_banner", return_value="220 mail"
+            ),
         ):
             result = scan_email_template_injection("mail.test.com", 587)
             assert result.overall_status == "unknown"
@@ -236,9 +274,17 @@ class TestScanEmailTemplateInjection:
         mock_server.data.return_value = (250, b"OK")
 
         with (
-            patch("mytools.email.emailtemplateinject._connect_smtp", return_value=mock_server),
-            patch("mytools.email.emailtemplateinject._get_banner", return_value="220 mail"),
-            patch("mytools.email.emailtemplateinject._detect_engine_from_response", return_value=(True, "jinja2")),
+            patch(
+                "mytools.email.emailtemplateinject._connect_smtp",
+                return_value=mock_server,
+            ),
+            patch(
+                "mytools.email.emailtemplateinject._get_banner", return_value="220 mail"
+            ),
+            patch(
+                "mytools.email.emailtemplateinject._detect_engine_from_response",
+                return_value=(True, "jinja2"),
+            ),
         ):
             result = scan_email_template_injection("mail.test.com", 587)
             assert result.overall_status == "vulnerable"
@@ -248,13 +294,22 @@ class TestScanEmailTemplateInjection:
         mock_server = MagicMock()
         mock_server.ehlo.return_value = (250, b"220 mail")
         mock_server.mail.return_value = (250, b"OK")
-        mock_server.rcpt.side_effect = emailtemplateinject.smtplib.SMTPResponseException(550, b"Rejected")
+        mock_server.rcpt.side_effect = (
+            emailtemplateinject.smtplib.SMTPResponseException(550, b"Rejected")
+        )
 
         with (
-            patch("mytools.email.emailtemplateinject._connect_smtp", return_value=mock_server),
-            patch("mytools.email.emailtemplateinject._get_banner", return_value="220 mail"),
+            patch(
+                "mytools.email.emailtemplateinject._connect_smtp",
+                return_value=mock_server,
+            ),
+            patch(
+                "mytools.email.emailtemplateinject._get_banner", return_value="220 mail"
+            ),
         ):
-            result = scan_email_template_injection("mail.test.com", 25, from_addr="a@b.com")
+            result = scan_email_template_injection(
+                "mail.test.com", 25, from_addr="a@b.com"
+            )
             assert result.port == 25
 
 
@@ -265,7 +320,11 @@ class TestPrintResults:
             port=587,
             banner="220",
             engines_detected=["jinja2"],
-            probes=[TemplateProbe("jinja2", "jinja2_expr", "{{7*7}}", "49", True, "detected")],
+            probes=[
+                TemplateProbe(
+                    "jinja2", "jinja2_expr", "{{7*7}}", "49", True, "detected"
+                )
+            ],
             issues=["Vulneravel"],
             overall_status="vulnerable",
         )
@@ -279,7 +338,16 @@ class TestPrintResults:
             port=587,
             banner="220",
             engines_detected=[],
-            probes=[TemplateProbe("unknown", "jinja2_expr", "{{7*7}}", "550 Rejected", False, "blocked")],
+            probes=[
+                TemplateProbe(
+                    "unknown",
+                    "jinja2_expr",
+                    "{{7*7}}",
+                    "550 Rejected",
+                    False,
+                    "blocked",
+                )
+            ],
             issues=["Seguro"],
             overall_status="safe",
         )
@@ -293,7 +361,11 @@ class TestPrintResults:
             port=587,
             banner="220",
             engines_detected=[],
-            probes=[TemplateProbe("unknown", "jinja2_expr", "{{7*7}}", "250 OK", False, "not_detected")],
+            probes=[
+                TemplateProbe(
+                    "unknown", "jinja2_expr", "{{7*7}}", "250 OK", False, "not_detected"
+                )
+            ],
             issues=["Inconclusivo"],
             overall_status="unknown",
         )
@@ -308,9 +380,15 @@ class TestPrintResults:
             banner="220",
             engines_detected=["jinja2", "handlebars"],
             probes=[
-                TemplateProbe("jinja2", "jinja2_expr", "{{7*7}}", "49", True, "detected"),
-                TemplateProbe("unknown", "mako_expr", "${7*7}", "550", False, "blocked"),
-                TemplateProbe("unknown", "tornado_expr", "{{7*7}}", "error", False, "error"),
+                TemplateProbe(
+                    "jinja2", "jinja2_expr", "{{7*7}}", "49", True, "detected"
+                ),
+                TemplateProbe(
+                    "unknown", "mako_expr", "${7*7}", "550", False, "blocked"
+                ),
+                TemplateProbe(
+                    "unknown", "tornado_expr", "{{7*7}}", "error", False, "error"
+                ),
             ],
             issues=[],
             overall_status="vulnerable",

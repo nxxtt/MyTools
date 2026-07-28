@@ -229,7 +229,9 @@ class TestPayloadBuilders:
         assert b"X-Smuggled: CL0" in payload
 
     def test_cl0_custom_path(self) -> None:
-        payload = _build_cl0_payload("GET", "/test", "example.com", smuggled_path="/secret")
+        payload = _build_cl0_payload(
+            "GET", "/test", "example.com", smuggled_path="/secret"
+        )
         assert b"GET /test HTTP/1.1" in payload
         assert b"GET /secret HTTP/1.1" in payload
 
@@ -240,7 +242,9 @@ class TestPayloadBuilders:
         assert b"X-Smuggled: H2C" in payload
 
     def test_h2c_custom_path(self) -> None:
-        payload = _build_h2c_payload("GET", "/test", "example.com", smuggled_path="/secret")
+        payload = _build_h2c_payload(
+            "GET", "/test", "example.com", smuggled_path="/secret"
+        )
         assert b"GET /test HTTP/1.1" in payload
         assert b"GET /secret HTTP/1.1" in payload
 

@@ -440,7 +440,9 @@ def print_results(result: TunnelResult) -> None:
 
     tunnel_color = Cyber.RED if result.is_tunneling else Cyber.GREEN
 
-    print(f"  Tunneling: {color('SIM', tunnel_color, Cyber.BOLD) if result.is_tunneling else color('NAO', Cyber.GREEN, Cyber.BOLD)}")
+    print(
+        f"  Tunneling: {color('SIM', tunnel_color, Cyber.BOLD) if result.is_tunneling else color('NAO', Cyber.GREEN, Cyber.BOLD)}"
+    )
 
     print(f"  Confianca: {color(f'{result.confidence * 100:.0f}%', Cyber.WHITE)}")
 
@@ -450,29 +452,45 @@ def print_results(result: TunnelResult) -> None:
 
     print(f"    Quantidade: {color(str(result.labels_analyzed), Cyber.WHITE)}")
 
-    print(f"    Comprimento medio: {color(f'{result.avg_label_length:.1f}', Cyber.WHITE)}")
+    print(
+        f"    Comprimento medio: {color(f'{result.avg_label_length:.1f}', Cyber.WHITE)}"
+    )
 
-    print(f"    Comprimento max: {color(str(int(result.max_label_length)), Cyber.RED if result.max_label_length > 30 else Cyber.WHITE)}")
+    print(
+        f"    Comprimento max: {color(str(int(result.max_label_length)), Cyber.RED if result.max_label_length > 30 else Cyber.WHITE)}"
+    )
 
-    print(f"    Entropia media: {color(f'{result.avg_entropy:.3f}', Cyber.YELLOW if result.avg_entropy > 3.0 else Cyber.WHITE)}")
+    print(
+        f"    Entropia media: {color(f'{result.avg_entropy:.3f}', Cyber.YELLOW if result.avg_entropy > 3.0 else Cyber.WHITE)}"
+    )
 
-    print(f"    Entropia max: {color(f'{result.max_entropy:.3f}', Cyber.RED if result.max_entropy > 3.5 else Cyber.WHITE)}")
+    print(
+        f"    Entropia max: {color(f'{result.max_entropy:.3f}', Cyber.RED if result.max_entropy > 3.5 else Cyber.WHITE)}"
+    )
 
     print()
 
     print(color("  Record Types:", Cyber.YELLOW, Cyber.BOLD))
 
-    print(f"    TXT ratio: {color(f'{result.txt_ratio:.1%}', Cyber.YELLOW if result.txt_ratio > 0.5 else Cyber.WHITE)}")
+    print(
+        f"    TXT ratio: {color(f'{result.txt_ratio:.1%}', Cyber.YELLOW if result.txt_ratio > 0.5 else Cyber.WHITE)}"
+    )
 
-    print(f"    NXDOMAIN ratio: {color(f'{result.nxdomain_ratio:.1%}', Cyber.YELLOW if result.nxdomain_ratio > 0.7 else Cyber.WHITE)}")
+    print(
+        f"    NXDOMAIN ratio: {color(f'{result.nxdomain_ratio:.1%}', Cyber.YELLOW if result.nxdomain_ratio > 0.7 else Cyber.WHITE)}"
+    )
 
     print()
 
     print(color("  Padroes de Encoding:", Cyber.YELLOW, Cyber.BOLD))
 
-    print(f"    Labels base64: {color(str(result.base64_count), Cyber.RED if result.base64_count > 0 else Cyber.WHITE)}")
+    print(
+        f"    Labels base64: {color(str(result.base64_count), Cyber.RED if result.base64_count > 0 else Cyber.WHITE)}"
+    )
 
-    print(f"    Labels hex: {color(str(result.hex_count), Cyber.YELLOW if result.hex_count > 0 else Cyber.WHITE)}")
+    print(
+        f"    Labels hex: {color(str(result.hex_count), Cyber.YELLOW if result.hex_count > 0 else Cyber.WHITE)}"
+    )
 
     print()
 
@@ -482,12 +500,16 @@ def print_results(result: TunnelResult) -> None:
         for ind in result.indicators:
             sev_c = sev_colors.get(ind.severity, (Cyber.WHITE, ""))
 
-            print(f"    [{color(ind.severity.upper(), *sev_c)}] {ind.indicator}: {color(str(ind.value), Cyber.WHITE)} (threshold: {ind.threshold})")
+            print(
+                f"    [{color(ind.severity.upper(), *sev_c)}] {ind.indicator}: {color(str(ind.value), Cyber.WHITE)} (threshold: {ind.threshold})"
+            )
 
     if result.is_tunneling:
         print(color("\n  [!] DNS TUNNELING DETECTADO", Cyber.RED, Cyber.BOLD))
 
-        print(color("  [!] Possivel exfiltracao de dados ou canal C2 via DNS", Cyber.RED))
+        print(
+            color("  [!] Possivel exfiltracao de dados ou canal C2 via DNS", Cyber.RED)
+        )
 
     elif result.confidence >= 0.2:
         print(color("\n  [!] Padroes parciais de tunneling detectados", Cyber.YELLOW))
@@ -495,7 +517,11 @@ def print_results(result: TunnelResult) -> None:
         print(color("  [!] Recomendado: analise adicional de trafego", Cyber.YELLOW))
 
     else:
-        print(color("\n  [+] Nenhuma atividade suspeita de tunneling detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma atividade suspeita de tunneling detectada", Cyber.GREEN
+            )
+        )
 
     print_exploit_info(result.exploit, result.tool)
 
@@ -517,7 +543,9 @@ def banner() -> None:
 
 """
 
-    create_banner(art, "   tunnel detection: detecta DNS tunneling via analise de padroes")()
+    create_banner(
+        art, "   tunnel detection: detecta DNS tunneling via analise de padroes"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:

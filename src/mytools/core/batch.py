@@ -68,7 +68,11 @@ def _discover_modules() -> dict[str, str]:
             m = re.match(r'^([\w-]+)\s*=\s*"([^"]+)"', line.strip())
             if m:
                 key, val = m.group(1), m.group(2)
-                if key.startswith("mytools-") and key not in ("mytools", "mytools-cred", "mytools-reconall"):
+                if key.startswith("mytools-") and key not in (
+                    "mytools",
+                    "mytools-cred",
+                    "mytools-reconall",
+                ):
                     mod_name = key[len("mytools-") :]
                     modules[mod_name] = val.split(":")[0]
     return modules
@@ -248,7 +252,13 @@ def _suppress_stdout() -> Iterator[None]:
 
 def process_target(
     target: str,
-    module_list: list[tuple[str, Callable[[argparse.Namespace], int], Callable[[], argparse.ArgumentParser]]],
+    module_list: list[
+        tuple[
+            str,
+            Callable[[argparse.Namespace], int],
+            Callable[[], argparse.ArgumentParser],
+        ]
+    ],
     base_ns: argparse.Namespace,
     output_dir: str | None,
     timeout: float,
@@ -311,9 +321,19 @@ def run_batch(args: argparse.Namespace) -> int:
         logger.error("'all' nao pode ser combinado com outros modulos")
         return 1
 
-    mod_names = [n for n in _get_all_module_names() if n not in args.skip] if args.modules == ["all"] else [n for n in args.modules if n not in args.skip]
+    mod_names = (
+        [n for n in _get_all_module_names() if n not in args.skip]
+        if args.modules == ["all"]
+        else [n for n in args.modules if n not in args.skip]
+    )
 
-    module_list: list[tuple[str, Callable[[argparse.Namespace], int], Callable[[], argparse.ArgumentParser]]] = []
+    module_list: list[
+        tuple[
+            str,
+            Callable[[argparse.Namespace], int],
+            Callable[[], argparse.ArgumentParser],
+        ]
+    ] = []
     for name in mod_names:
         mod = _resolve_module(name)
         module_list.append((name, mod.run_once, mod.build_parser))
@@ -410,7 +430,9 @@ def _print_report(
                     "modules": {
                         mod: {
                             "exit_code": code,
-                            "status": ("ok" if code == 0 else "vuln" if code > 0 else "error"),
+                            "status": (
+                                "ok" if code == 0 else "vuln" if code > 0 else "error"
+                            ),
                         }
                         for mod, code in r.details.items()
                     },

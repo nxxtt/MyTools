@@ -72,27 +72,37 @@ class TestCheckCSPFrameAncestors:
         assert "ausente" in details
 
     def test_no_frame_ancestors(self) -> None:
-        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "default-src 'self'"})
+        vuln, details = _check_csp_frame_ancestors(
+            {"content-security-policy": "default-src 'self'"}
+        )
         assert vuln is False
         assert "sem frame-ancestors" in details
 
     def test_frame_ancestors_none(self) -> None:
-        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors 'none'"})
+        vuln, details = _check_csp_frame_ancestors(
+            {"content-security-policy": "frame-ancestors 'none'"}
+        )
         assert vuln is True
         assert "'none'" in details
 
     def test_frame_ancestors_self(self) -> None:
-        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors 'self'"})
+        vuln, details = _check_csp_frame_ancestors(
+            {"content-security-policy": "frame-ancestors 'self'"}
+        )
         assert vuln is True
         assert "'self'" in details
 
     def test_frame_ancestors_wildcard(self) -> None:
-        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors *"})
+        vuln, details = _check_csp_frame_ancestors(
+            {"content-security-policy": "frame-ancestors *"}
+        )
         assert vuln is True
         assert "wildcard" in details.lower()
 
     def test_frame_ancestors_configured(self) -> None:
-        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors https://example.com"})
+        vuln, details = _check_csp_frame_ancestors(
+            {"content-security-policy": "frame-ancestors https://example.com"}
+        )
         assert vuln is True
         assert "configurado" in details
 
@@ -238,7 +248,11 @@ class TestCSP:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_csp(mock_client, "https://test.com", {"content-security-policy": "frame-ancestors 'none'"})
+        results = await _test_csp(
+            mock_client,
+            "https://test.com",
+            {"content-security-policy": "frame-ancestors 'none'"},
+        )
         assert len(results) == 5
         fa = [r for r in results if r.technique == "csp_frame_ancestors"]
         assert len(fa) == 1
@@ -282,14 +296,20 @@ class TestMeta:
     async def test_meta_tags(self) -> None:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.content = b'<html><head><meta name="referrer" content="no-referrer"></head></html>'
+        mock_resp.content = (
+            b'<html><head><meta name="referrer" content="no-referrer"></head></html>'
+        )
         mock_resp.headers = {}
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_meta(mock_client, "https://test.com", b'<html><head><meta name="referrer" content="no-referrer"></head></html>')
+        results = await _test_meta(
+            mock_client,
+            "https://test.com",
+            b'<html><head><meta name="referrer" content="no-referrer"></head></html>',
+        )
         assert len(results) == 5
         referrer = [r for r in results if r.technique == "meta_referrer"]
         assert len(referrer) == 1

@@ -61,8 +61,25 @@ INTELX_RESULT_LIMIT = 20
 DEFAULT_SOURCES: list[str] = ["ahmia", "darksearch"]
 
 _SEVERITY_KEYWORDS_DEFAULT: dict[str, list[str]] = {
-    "critical": ["password", "credential", "leak", "dump", "database", "breach", "exposed", "compromised"],
-    "high": ["hack", "attack", "vulnerability", "exploit", "ransomware", "malware", "stealer"],
+    "critical": [
+        "password",
+        "credential",
+        "leak",
+        "dump",
+        "database",
+        "breach",
+        "exposed",
+        "compromised",
+    ],
+    "high": [
+        "hack",
+        "attack",
+        "vulnerability",
+        "exploit",
+        "ransomware",
+        "malware",
+        "stealer",
+    ],
     "medium": ["discussion", "forum", "review", "tutorial", "guide", "method"],
     "low": ["mention", "reference", "link", "paste"],
 }
@@ -72,7 +89,9 @@ def _load_severity_keywords() -> dict[str, list[str]]:
     """Carrega keywords de severidade de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("osint", "darkweb_severity_keywords", default=_SEVERITY_KEYWORDS_DEFAULT)
+    data = load_payloads(
+        "osint", "darkweb_severity_keywords", default=_SEVERITY_KEYWORDS_DEFAULT
+    )
     return data if isinstance(data, dict) else _SEVERITY_KEYWORDS_DEFAULT
 
 
@@ -343,16 +362,22 @@ async def scan_darkweb(
     try:
         for source in sources:
             if source == "ahmia":
-                found = await _query_ahmia(client, domain, timeout, rate_limiter, max_results)
+                found = await _query_ahmia(
+                    client, domain, timeout, rate_limiter, max_results
+                )
                 all_mentions.extend(found)
                 logger.info("[%s] %d mencoes encontradas", source, len(found))
             elif source == "darksearch":
-                found = await _query_darksearch(client, domain, timeout, rate_limiter, max_results)
+                found = await _query_darksearch(
+                    client, domain, timeout, rate_limiter, max_results
+                )
                 all_mentions.extend(found)
                 logger.info("[%s] %d mencoes encontradas", source, len(found))
             elif source == "intelx":
                 key = api_keys.get("intelx_key") or ""
-                found = await _query_intelx(client, domain, timeout, rate_limiter, key, max_results)
+                found = await _query_intelx(
+                    client, domain, timeout, rate_limiter, key, max_results
+                )
                 all_mentions.extend(found)
                 logger.info("[%s] %d mencoes encontradas", source, len(found))
     finally:
@@ -381,13 +406,21 @@ def print_results(mentions: list[DarkWebMention]) -> None:
 
     total = len(mentions)
     sources_count = len(by_source)
-    print(color(f"\n[+] {total} mencao(es) encontrada(s) em {sources_count} fonte(s):", Cyber.GREEN, Cyber.BOLD))
+    print(
+        color(
+            f"\n[+] {total} mencao(es) encontrada(s) em {sources_count} fonte(s):",
+            Cyber.GREEN,
+            Cyber.BOLD,
+        )
+    )
 
     for source, source_mentions in by_source.items():
         print(color(f"\n  Fonte: {source}", Cyber.CYAN, Cyber.BOLD))
         for mention in source_mentions:
             sev_color = severity_colors.get(mention.severity, Cyber.GRAY)
-            print(f"    {color(mention.severity.upper(), sev_color, Cyber.BOLD)} | {color(mention.title[:60], Cyber.WHITE)}")
+            print(
+                f"    {color(mention.severity.upper(), sev_color, Cyber.BOLD)} | {color(mention.title[:60], Cyber.WHITE)}"
+            )
             print(f"      {color(mention.url, Cyber.GRAY)}")
             print_exploit_info(mention.exploit, mention.tool)
 
@@ -410,8 +443,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_base_args(parser)
     add_http_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para monitorar (ex: example.com).")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha).")
+    parser.add_argument(
+        "domain", nargs="?", help="Dominio alvo para monitorar (ex: example.com)."
+    )
+    parser.add_argument(
+        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
+    )
     parser.add_argument(
         "--source",
         action="append",

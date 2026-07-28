@@ -98,7 +98,9 @@ class TestSanitizeTarget:
         assert _sanitize_target("example.com") == "example.com"
 
     def test_with_slashes(self) -> None:
-        assert _sanitize_target("https://example.com/path") == "https___example.com_path"
+        assert (
+            _sanitize_target("https://example.com/path") == "https___example.com_path"
+        )
 
     def test_long(self) -> None:
         long_target = "a" * 200

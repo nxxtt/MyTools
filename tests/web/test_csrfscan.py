@@ -331,7 +331,9 @@ class TestCookieAnalysis:
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
-                return await _test_cookie_analysis(client, "http://test.com", {"session": "abc"})
+                return await _test_cookie_analysis(
+                    client, "http://test.com", {"session": "abc"}
+                )
 
         attempts = asyncio.run(run())
         assert len(attempts) == 0
@@ -355,7 +357,9 @@ class TestCookieAnalysis:
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
-                return await _test_cookie_analysis(client, "http://test.com", {"csrftoken": "xyz"})
+                return await _test_cookie_analysis(
+                    client, "http://test.com", {"csrftoken": "xyz"}
+                )
 
         attempts = asyncio.run(run())
         assert len(attempts) == 1

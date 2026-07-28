@@ -125,13 +125,17 @@ class TestBannerProbes:
 
 class TestFindingDataclass:
     def test_creation(self):
-        f = Finding(host="localhost", address="127.0.0.1", port=80, state="open", service="http")
+        f = Finding(
+            host="localhost", address="127.0.0.1", port=80, state="open", service="http"
+        )
         assert f.host == "localhost"
         assert f.port == 80
         assert f.banner == ""
 
     def test_frozen(self):
-        f = Finding(host="localhost", address="127.0.0.1", port=80, state="open", service="http")
+        f = Finding(
+            host="localhost", address="127.0.0.1", port=80, state="open", service="http"
+        )
         with pytest.raises(AttributeError):
             f.port = 443  # type: ignore[reportAttributeAccessIssue]
 
@@ -334,7 +338,10 @@ class TestMain:
             dry_run=False,
             retries=3,
         )
-        with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.portscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 0
             mock_shell.assert_called_once()
@@ -358,7 +365,10 @@ class TestMain:
             dry_run=False,
             retries=3,
         )
-        with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.portscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1
 
@@ -383,7 +393,10 @@ class TestMain:
             dry_run=False,
             retries=3,
         )
-        with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.portscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 0
             mock_run_once.assert_called_once()
@@ -409,6 +422,9 @@ class TestMain:
             dry_run=False,
             retries=3,
         )
-        with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.portscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1

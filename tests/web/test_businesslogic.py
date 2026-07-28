@@ -469,7 +469,9 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.businesslogic.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.side_effect = httpx.RequestError("fail")
                 result = await run_scan(_TARGET, [], 10, None)
                 assert result == 1
@@ -480,9 +482,13 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.businesslogic.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>checkout</html>", b"")
-                with patch("mytools.web.businesslogic._CATEGORY_TESTERS") as mock_testers:
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
                     mock_attempt = BizLogicAttempt(
                         technique="price_overflow",
                         category="integer_overflow",
@@ -496,7 +502,9 @@ class TestRunScan:
                         details="overflow",
                         error="",
                     )
-                    mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
+                    mock_testers.get.return_value = AsyncMock(
+                        return_value=[mock_attempt]
+                    )
                     result = await run_scan(_TARGET, ["integer_overflow"], 10, None)
                     assert result == 1
 
@@ -506,9 +514,13 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.businesslogic.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
-                with patch("mytools.web.businesslogic._CATEGORY_TESTERS") as mock_testers:
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
                     mock_attempt = BizLogicAttempt(
                         technique="price_overflow",
                         category="integer_overflow",
@@ -522,7 +534,9 @@ class TestRunScan:
                         details="",
                         error="",
                     )
-                    mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
+                    mock_testers.get.return_value = AsyncMock(
+                        return_value=[mock_attempt]
+                    )
                     result = await run_scan(_TARGET, ["integer_overflow"], 10, None)
                     assert result == 0
 
@@ -532,9 +546,13 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.businesslogic.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
-                with patch("mytools.web.businesslogic._CATEGORY_TESTERS") as mock_testers:
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
                     mock_testers.get.return_value = AsyncMock(return_value=[])
                     result = await run_scan(_TARGET, [], 10, None)
                     assert result == 0
@@ -546,12 +564,19 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.businesslogic.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
-                with patch("mytools.web.businesslogic._CATEGORY_TESTERS") as mock_testers:
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
                     mock_testers.get.return_value = AsyncMock(return_value=[])
                     with (
-                        patch("mytools.web.businesslogic._find_checkout_url", return_value=None),
+                        patch(
+                            "mytools.web.businesslogic._find_checkout_url",
+                            return_value=None,
+                        ),
                         patch("mytools.web.businesslogic.write_output") as mock_write,
                     ):
                         await run_scan(_TARGET, [], 10, "output.json")
@@ -563,9 +588,13 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.businesslogic.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
-                with patch("mytools.web.businesslogic._CATEGORY_TESTERS") as mock_testers:
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
                     mock_testers.get.return_value = AsyncMock(return_value=[])
                     with patch("mytools.web.businesslogic.write_output") as mock_write:
                         await run_scan(_TARGET, [], 10, "output.json")
@@ -583,7 +612,9 @@ class TestRunOnce:
             timeout=10,
             output=None,
         )
-        with patch("mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
+        with patch(
+            "mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0
+        ) as mock_scan:
             run_once(args)
             assert mock_scan.call_args.kwargs["categories"] == ["integer_overflow"]
 
@@ -594,6 +625,8 @@ class TestRunOnce:
             timeout=10,
             output=None,
         )
-        with patch("mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
+        with patch(
+            "mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0
+        ) as mock_scan:
             run_once(args)
             assert mock_scan.call_args.kwargs["categories"] == []

@@ -69,7 +69,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "crlfinjection", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "crlfinjection", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -93,7 +95,9 @@ def _load_crlf_payloads() -> list[tuple[str, str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "crlfinjection", default={"crlf_payloads": _CRLF_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "crlfinjection", default={"crlf_payloads": _CRLF_PAYLOADS_DEFAULT}
+    )
 
     return [tuple(item) for item in data.get("crlf_payloads", _CRLF_PAYLOADS_DEFAULT)]
 
@@ -102,7 +106,10 @@ _CRLF_PAYLOADS = _load_crlf_payloads()
 
 
 _SPLIT_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
-    ("split_simple", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>SPLIT</h1>"),
+    (
+        "split_simple",
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>SPLIT</h1>",
+    ),
     ("split_admin", "GET /admin HTTP/1.1\r\nHost: target\r\n\r\n"),
     ("split_cookie", "POST /login HTTP/1.1\r\nHost: target\r\nCookie: admin=1\r\n\r\n"),
     ("split_double", "GET /ok HTTP/1.1\r\n\r\nGET /admin HTTP/1.1\r\n\r\n"),
@@ -113,7 +120,9 @@ def _load_split_payloads() -> list[tuple[str, str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "crlfinjection", default={"split_payloads": _SPLIT_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "crlfinjection", default={"split_payloads": _SPLIT_PAYLOADS_DEFAULT}
+    )
 
     return [tuple(item) for item in data.get("split_payloads", _SPLIT_PAYLOADS_DEFAULT)]
 
@@ -135,9 +144,13 @@ def _load_encoded_payloads() -> list[tuple[str, str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "crlfinjection", default={"encoded_payloads": _ENCODED_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "crlfinjection", default={"encoded_payloads": _ENCODED_PAYLOADS_DEFAULT}
+    )
 
-    return [tuple(item) for item in data.get("encoded_payloads", _ENCODED_PAYLOADS_DEFAULT)]
+    return [
+        tuple(item) for item in data.get("encoded_payloads", _ENCODED_PAYLOADS_DEFAULT)
+    ]
 
 
 _ENCODED_PAYLOADS = _load_encoded_payloads()
@@ -155,7 +168,9 @@ def _load_split_points() -> list[tuple[str, str, str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "crlfinjection", default={"split_points": _SPLIT_POINTS_DEFAULT})
+    data = load_payloads(
+        "web", "crlfinjection", default={"split_points": _SPLIT_POINTS_DEFAULT}
+    )
 
     return [tuple(item) for item in data.get("split_points", _SPLIT_POINTS_DEFAULT)]
 
@@ -177,7 +192,9 @@ def _load_header_names() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "crlfinjection", default={"header_names": _HEADER_NAMES_DEFAULT})
+    data = load_payloads(
+        "web", "crlfinjection", default={"header_names": _HEADER_NAMES_DEFAULT}
+    )
 
     return data.get("header_names", _HEADER_NAMES_DEFAULT)
 
@@ -316,7 +333,10 @@ async def _test_param_crlf(
 
     for param in test_params:
         for name, payload in _CRLF_PAYLOADS:
-            new_params = {k: v[0] if isinstance(v, list) else v for k, v in original_params.items()}
+            new_params = {
+                k: v[0] if isinstance(v, list) else v
+                for k, v in original_params.items()
+            }
 
             new_params[param] = f"test{payload}"
 
@@ -333,7 +353,9 @@ async def _test_param_crlf(
 
                 injected = _detect_injected_headers(resp.content, dict(resp.headers))
 
-                vuln = _check_vulnerability(status_base, status_test, size_base, size_test, injected)
+                vuln = _check_vulnerability(
+                    status_base, status_test, size_base, size_test, injected
+                )
 
                 attempts.append(
                     CRLFAttempt(
@@ -349,9 +371,12 @@ async def _test_param_crlf(
                         size_changed=abs(size_test - size_base) > 50,
                         injected_headers=injected,
                         vulnerable=vuln,
-                        details=f"Param {param}: {name}" + (f" -> {injected}" if injected else ""),
+                        details=f"Param {param}: {name}"
+                        + (f" -> {injected}" if injected else ""),
                         error="",
-                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious" if vuln else "",
+                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -405,7 +430,9 @@ async def _test_header_crlf(
 
                 injected = _detect_injected_headers(resp.content, dict(resp.headers))
 
-                vuln = _check_vulnerability(status_base, status_test, size_base, size_test, injected)
+                vuln = _check_vulnerability(
+                    status_base, status_test, size_base, size_test, injected
+                )
 
                 attempts.append(
                     CRLFAttempt(
@@ -421,9 +448,12 @@ async def _test_header_crlf(
                         size_changed=abs(size_test - size_base) > 50,
                         injected_headers=injected,
                         vulnerable=vuln,
-                        details=f"Header {header}: {name}" + (f" -> {injected}" if injected else ""),
+                        details=f"Header {header}: {name}"
+                        + (f" -> {injected}" if injected else ""),
                         error="",
-                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious" if vuln else "",
+                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -479,7 +509,9 @@ async def _test_path_crlf(
 
                 injected = _detect_injected_headers(resp.content, dict(resp.headers))
 
-                vuln = _check_vulnerability(status_base, status_test, size_base, size_test, injected)
+                vuln = _check_vulnerability(
+                    status_base, status_test, size_base, size_test, injected
+                )
 
                 attempts.append(
                     CRLFAttempt(
@@ -495,9 +527,12 @@ async def _test_path_crlf(
                         size_changed=abs(size_test - size_base) > 50,
                         injected_headers=injected,
                         vulnerable=vuln,
-                        details=f"Path {point_name}: {name}" + (f" -> {injected}" if injected else ""),
+                        details=f"Path {point_name}: {name}"
+                        + (f" -> {injected}" if injected else ""),
                         error="",
-                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious" if vuln else "",
+                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -624,7 +659,9 @@ async def _test_bypass(
 
                 injected = _detect_injected_headers(resp.content, dict(resp.headers))
 
-                vuln = _check_vulnerability(status_base, status_test, size_base, size_test, injected)
+                vuln = _check_vulnerability(
+                    status_base, status_test, size_base, size_test, injected
+                )
 
                 attempts.append(
                     CRLFAttempt(
@@ -640,9 +677,12 @@ async def _test_bypass(
                         size_changed=abs(size_test - size_base) > 50,
                         injected_headers=injected,
                         vulnerable=vuln,
-                        details=f"Bypass {header}: {name}" + (f" -> {injected}" if injected else ""),
+                        details=f"Bypass {header}: {name}"
+                        + (f" -> {injected}" if injected else ""),
                         error="",
-                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious" if vuln else "",
+                        exploit="<TARGET>/%0D%0AX-Injected:%20malicious"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -673,7 +713,11 @@ async def _test_bypass(
 def print_results(result: CRLFResult) -> None:
     """Exibe resultados formatados."""
 
-    tls_tag = color("[HTTPS]", Cyber.GREEN, Cyber.BOLD) if result.tls else color("[HTTP]", Cyber.YELLOW)
+    tls_tag = (
+        color("[HTTPS]", Cyber.GREEN, Cyber.BOLD)
+        if result.tls
+        else color("[HTTP]", Cyber.YELLOW)
+    )
 
     print(color("\n" + "=" * 60, Cyber.GRAY))
 
@@ -685,14 +729,23 @@ def print_results(result: CRLFResult) -> None:
 
     print(color(f"  TLS:        {tls_tag}", Cyber.WHITE))
 
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_techs = result.vulnerable_techniques
 
     if vuln_techs:
-        print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD
+            )
+        )
 
         for tech in vuln_techs:
             print(color(f"      [!] {tech}", Cyber.RED))
@@ -705,7 +758,13 @@ def print_results(result: CRLFResult) -> None:
         print(color("\n  Severidade: ALTA", Cyber.RED, Cyber.BOLD))
 
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade CRLF detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade CRLF detectada",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
         print(color("  Severidade: NENHUMA", Cyber.GREEN, Cyber.BOLD))
 
@@ -814,7 +873,9 @@ async def run_scan(
     if output_file:
         write_output(output_file, asdict(result))
 
-    logger.info("CRLF scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln))
+    logger.info(
+        "CRLF scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln)
+    )
 
     return 1 if vuln else 0
 
@@ -836,7 +897,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -904,7 +970,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="crlf> ",
         description="CRLF Injection interativo.",
         example="https://target.com -c param",

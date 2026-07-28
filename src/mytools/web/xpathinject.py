@@ -54,11 +54,41 @@ logger = logging.getLogger("mytools.xpathinject")
 
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "detect": ["always_true_string", "always_true_paren", "select_all", "string_all", "count_elements"],
-    "auth_bypass": ["admin_tautology", "admin_wildcard", "admin_or_empty", "admin_xpath_or", "admin_double_quote"],
-    "extract": ["extract_user", "extract_password", "extract_concat", "extract_all_nodes", "extract_node_name"],
-    "blind": ["blind_first_char", "blind_length", "blind_substring", "blind_boolean", "blind_name"],
-    "bypass": ["unicode_bypass", "comment_bypass", "whitespace_bypass", "double_encode", "null_terminator"],
+    "detect": [
+        "always_true_string",
+        "always_true_paren",
+        "select_all",
+        "string_all",
+        "count_elements",
+    ],
+    "auth_bypass": [
+        "admin_tautology",
+        "admin_wildcard",
+        "admin_or_empty",
+        "admin_xpath_or",
+        "admin_double_quote",
+    ],
+    "extract": [
+        "extract_user",
+        "extract_password",
+        "extract_concat",
+        "extract_all_nodes",
+        "extract_node_name",
+    ],
+    "blind": [
+        "blind_first_char",
+        "blind_length",
+        "blind_substring",
+        "blind_boolean",
+        "blind_name",
+    ],
+    "bypass": [
+        "unicode_bypass",
+        "comment_bypass",
+        "whitespace_bypass",
+        "double_encode",
+        "null_terminator",
+    ],
 }
 
 
@@ -345,7 +375,9 @@ async def _test_detect(
 
                     status_changed = t_status != b_status
 
-                    vulnerable = _check_xpath_response(resp.content, t_status, indicators)
+                    vulnerable = _check_xpath_response(
+                        resp.content, t_status, indicators
+                    )
 
                     attempts.append(
                         XPathiAttempt(
@@ -361,7 +393,9 @@ async def _test_detect(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                             exploit="' or '1'='1" if vulnerable else "",
                             tool="hydra",
@@ -426,7 +460,9 @@ async def _test_auth_bypass(
 
                     status_changed = t_status != b_status
 
-                    vulnerable = _check_xpath_response(resp.content, t_status, indicators)
+                    vulnerable = _check_xpath_response(
+                        resp.content, t_status, indicators
+                    )
 
                     attempts.append(
                         XPathiAttempt(
@@ -442,7 +478,9 @@ async def _test_auth_bypass(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                             exploit="' or '1'='1" if vulnerable else "",
                             tool="hydra",
@@ -507,7 +545,9 @@ async def _test_extract(
 
                     status_changed = t_status != b_status
 
-                    vulnerable = _check_xpath_response(resp.content, t_status, indicators)
+                    vulnerable = _check_xpath_response(
+                        resp.content, t_status, indicators
+                    )
 
                     attempts.append(
                         XPathiAttempt(
@@ -523,7 +563,9 @@ async def _test_extract(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                             exploit="' or '1'='1" if vulnerable else "",
                             tool="hydra",
@@ -595,7 +637,9 @@ async def _test_blind(
                         status_changed=status_changed,
                         size_changed=abs(t_size - b_size) > 50,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                         exploit="' or '1'='1" if vulnerable else "",
                         tool="hydra",
@@ -667,7 +711,9 @@ async def _test_bypass(
                         status_changed=status_changed,
                         size_changed=abs(t_size - b_size) > 50,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                         exploit="' or '1'='1" if vulnerable else "",
                         tool="hydra",
@@ -708,14 +754,23 @@ def print_results(result: XPathiResult) -> None:
 
     print(color(f"  Target:     {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_techs = result.vulnerable_techniques
 
     if vuln_techs:
-        print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD
+            )
+        )
 
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
@@ -728,7 +783,9 @@ def print_results(result: XPathiResult) -> None:
         print(color("\n  Severidade: ALTA", Cyber.RED, Cyber.BOLD))
 
     else:
-        print(color("\n  [+] Nenhuma XPath Injection detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color("\n  [+] Nenhuma XPath Injection detectada", Cyber.GREEN, Cyber.BOLD)
+        )
 
         print(color("  Severidade: NENHUMA", Cyber.GREEN, Cyber.BOLD))
 
@@ -808,9 +865,15 @@ async def run_scan(
 
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
 
-        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        blocked = [
+            a.technique for a in all_attempts if not a.vulnerable and not a.error
+        ]
 
-        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
+        issues: list[str] = [
+            f"VULN: {att.technique} - {att.details}"
+            for att in all_attempts
+            if att.vulnerable
+        ]
 
         overall = "vulnerable" if vuln_techs else "secure"
 
@@ -831,7 +894,11 @@ async def run_scan(
         if output_file:
             write_output(output_file, asdict(result))
 
-        logger.info("XPathi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "XPathi scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
 
         return 1 if vuln_techs else 0
 
@@ -880,7 +947,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -916,7 +988,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="xpath> ",
         description="XPath Injection interativo.",
         example="https://target.com -c detect",

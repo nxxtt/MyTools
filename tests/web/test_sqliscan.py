@@ -287,7 +287,9 @@ class TestErrorBased:
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
                 baseline = (200, 1000, b"<html>ok</html>", 0.1)
-                return await _test_error(client, "http://test.com/?id=1", ["id"], baseline, ["'"])
+                return await _test_error(
+                    client, "http://test.com/?id=1", ["id"], baseline, ["'"]
+                )
 
         attempts = asyncio.run(run())
         assert len(attempts) == 1
@@ -305,7 +307,9 @@ class TestErrorBased:
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
                 baseline = (200, 1000, b"<html>ok</html>", 0.1)
-                return await _test_error(client, "http://test.com/?id=1", ["id"], baseline, ["'"])
+                return await _test_error(
+                    client, "http://test.com/?id=1", ["id"], baseline, ["'"]
+                )
 
         attempts = asyncio.run(run())
         assert len(attempts) == 1
@@ -403,7 +407,10 @@ class TestTimeBlind:
 
             with patch("mytools.web.sqliscan.time") as mock_time:
                 call_n = [0]
-                mock_time.monotonic.side_effect = lambda: (call_n.__setitem__(0, call_n[0] + 1) or 0.0) or (4.0 if call_n[0] % 2 == 0 else 0.1)
+                mock_time.monotonic.side_effect = lambda: (
+                    (call_n.__setitem__(0, call_n[0] + 1) or 0.0)
+                    or (4.0 if call_n[0] % 2 == 0 else 0.1)
+                )
 
                 async with client:
                     baseline = (200, 1000, b"<html>ok</html>", 0.1)
@@ -480,7 +487,10 @@ class TestUnion:
         attempts = asyncio.run(run())
         assert len(attempts) == 1
         assert attempts[0].vulnerable is False
-        assert "wrong" in attempts[0].details.lower() or "precisa" in attempts[0].details.lower()
+        assert (
+            "wrong" in attempts[0].details.lower()
+            or "precisa" in attempts[0].details.lower()
+        )
 
 
 # ---------------------------------------------------------------------------

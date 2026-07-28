@@ -170,7 +170,11 @@ def _get_s3_indicators() -> dict[str, list[str]]:
     raw = data.get("s3_indicators", {})
     if isinstance(raw, dict):
         return {k: list(v) if isinstance(v, list) else [] for k, v in raw.items()}
-    return {"open": _S3_OPEN_DEFAULT, "exists": _S3_EXISTS_DEFAULT, "access_denied": _S3_DENIED_DEFAULT}
+    return {
+        "open": _S3_OPEN_DEFAULT,
+        "exists": _S3_EXISTS_DEFAULT,
+        "access_denied": _S3_DENIED_DEFAULT,
+    }
 
 
 def _get_gcp_indicators() -> dict[str, list[str]]:
@@ -356,7 +360,9 @@ async def _test_s3(
             elapsed = time.monotonic() - start
             body = resp.text[:5000]
 
-            open_b, exists, detail = _check_s3_response(resp.status_code, body, indicators)
+            open_b, exists, detail = _check_s3_response(
+                resp.status_code, body, indicators
+            )
 
             attempts.append(
                 BucketAttempt(
@@ -464,7 +470,9 @@ async def _test_azure(
         elapsed = time.monotonic() - start
         body = resp.text[:5000]
 
-        open_b, exists, detail = _check_azure_response(resp.status_code, body, indicators)
+        open_b, exists, detail = _check_azure_response(
+            resp.status_code, body, indicators
+        )
 
         attempts.append(
             BucketAttempt(

@@ -58,10 +58,23 @@ logger = logging.getLogger("mytools.xxedetect")
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "detect": ["basic_xxe", "param_entity", "svg_xxe", "soap_xxe", "rss_xxe"],
-    "file_read": ["passwd_read", "hosts_read", "winini_read", "environ_read", "shadow_read"],
+    "file_read": [
+        "passwd_read",
+        "hosts_read",
+        "winini_read",
+        "environ_read",
+        "shadow_read",
+    ],
     "ssrf": ["ssrf_localhost", "ssrf_private", "ssrf_metadata", "expect_header"],
     "blind": ["blind_dtd", "blind_length", "blind_oob"],
-    "bypass": ["utf16_bypass", "utf7_bypass", "param_entity_bypass", "dtd_external", "cdata_bypass", "comment_bypass"],
+    "bypass": [
+        "utf16_bypass",
+        "utf7_bypass",
+        "param_entity_bypass",
+        "dtd_external",
+        "cdata_bypass",
+        "comment_bypass",
+    ],
 }
 
 
@@ -69,7 +82,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xxedetect", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "xxedetect", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -115,7 +130,9 @@ def _load_detect_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xxedetect", default={"detect_payloads": _DETECT_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xxedetect", default={"detect_payloads": _DETECT_PAYLOADS_DEFAULT}
+    )
 
     return data.get("detect_payloads", _DETECT_PAYLOADS_DEFAULT)
 
@@ -179,7 +196,9 @@ def _load_file_read_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xxedetect", default={"file_read_payloads": _FILE_READ_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xxedetect", default={"file_read_payloads": _FILE_READ_PAYLOADS_DEFAULT}
+    )
 
     return data.get("file_read_payloads", _FILE_READ_PAYLOADS_DEFAULT)
 
@@ -231,7 +250,9 @@ def _load_ssrf_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xxedetect", default={"ssrf_payloads": _SSRF_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xxedetect", default={"ssrf_payloads": _SSRF_PAYLOADS_DEFAULT}
+    )
 
     return data.get("ssrf_payloads", _SSRF_PAYLOADS_DEFAULT)
 
@@ -277,7 +298,9 @@ def _load_blind_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xxedetect", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xxedetect", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT}
+    )
 
     return data.get("blind_payloads", _BLIND_PAYLOADS_DEFAULT)
 
@@ -341,7 +364,9 @@ def _load_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xxedetect", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "xxedetect", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT}
+    )
 
     return data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)
 
@@ -373,7 +398,9 @@ def _load_xml_params() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "xxedetect", default={"xml_params": _XML_PARAMS_DEFAULT})
+    data = load_payloads(
+        "web", "xxedetect", default={"xml_params": _XML_PARAMS_DEFAULT}
+    )
 
     return data.get("xml_params", _XML_PARAMS_DEFAULT)
 
@@ -521,9 +548,13 @@ async def _test_detect(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
-                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>' if vulnerable else "",
+                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+                    if vulnerable
+                    else "",
                     tool="XXEinjector",
                 )
             )
@@ -593,9 +624,13 @@ async def _test_file_read(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
-                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>' if vulnerable else "",
+                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+                    if vulnerable
+                    else "",
                     tool="XXEinjector",
                 )
             )
@@ -665,9 +700,13 @@ async def _test_ssrf(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
-                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>' if vulnerable else "",
+                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+                    if vulnerable
+                    else "",
                     tool="XXEinjector",
                 )
             )
@@ -737,9 +776,13 @@ async def _test_blind(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
-                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>' if vulnerable else "",
+                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+                    if vulnerable
+                    else "",
                     tool="XXEinjector",
                 )
             )
@@ -809,9 +852,13 @@ async def _test_bypass(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
-                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>' if vulnerable else "",
+                    exploit='<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+                    if vulnerable
+                    else "",
                     tool="XXEinjector",
                 )
             )
@@ -849,14 +896,23 @@ def print_results(result: XXEResult) -> None:
 
     print(color(f"  Target:     {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_techs = result.vulnerable_techniques
 
     if vuln_techs:
-        print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD
+            )
+        )
 
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
@@ -949,9 +1005,15 @@ async def run_scan(
 
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
 
-        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        blocked = [
+            a.technique for a in all_attempts if not a.vulnerable and not a.error
+        ]
 
-        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
+        issues: list[str] = [
+            f"VULN: {att.technique} - {att.details}"
+            for att in all_attempts
+            if att.vulnerable
+        ]
 
         overall = "vulnerable" if vuln_techs else "secure"
 
@@ -972,7 +1034,11 @@ async def run_scan(
         if output_file:
             write_output(output_file, asdict(result))
 
-        logger.info("XXE scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "XXE scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
 
         return 1 if vuln_techs else 0
 
@@ -1013,7 +1079,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -1049,7 +1120,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="xxe> ",
         description="XXE interativo.",
         example="https://target.com -c detect",

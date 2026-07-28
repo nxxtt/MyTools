@@ -45,7 +45,19 @@ pytestmark = pytest.mark.integration
 
 class TestCyberConstants:
     def test_all_colors_are_ansi_strings(self):
-        for attr in ("RESET", "BOLD", "DIM", "RED", "GREEN", "CYAN", "BLUE", "MAGENTA", "YELLOW", "WHITE", "GRAY"):
+        for attr in (
+            "RESET",
+            "BOLD",
+            "DIM",
+            "RED",
+            "GREEN",
+            "CYAN",
+            "BLUE",
+            "MAGENTA",
+            "YELLOW",
+            "WHITE",
+            "GRAY",
+        ):
             value = getattr(Cyber, attr)
             assert isinstance(value, str)
             assert value.startswith("\033[")
@@ -226,7 +238,9 @@ class TestFetch429:
             return httpx.Response(200, text="ok")
 
         respx.get(url).mock(side_effect=side_effect)
-        status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
+        status, _, _body, _ = await fetch(
+            client, url, rate_limiter=limiter, max_retries=3
+        )
         assert status == 200
         assert call_count == 2
         await client.aclose()
@@ -263,7 +277,9 @@ class TestSetupReadline:
         limiter = RateLimiter(100.0)
         url = "https://example.com/rate"
 
-        respx.get(url).mock(return_value=httpx.Response(429, headers={"Retry-After": "0"}))
+        respx.get(url).mock(
+            return_value=httpx.Response(429, headers={"Retry-After": "0"})
+        )
         with pytest.raises(FetchError, match="falha ao acessar"):
             await fetch(client, url, rate_limiter=limiter, max_retries=2)
         await client.aclose()
@@ -446,7 +462,9 @@ class TestAddCommonArgs:
 
         parser = argparse.ArgumentParser()
         add_common_args(parser)
-        args = parser.parse_args(["--header", "X-Token: abc", "--header", "X-Custom: xyz"])
+        args = parser.parse_args(
+            ["--header", "X-Token: abc", "--header", "X-Custom: xyz"]
+        )
         assert args.header == ["X-Token: abc", "X-Custom: xyz"]
 
     def test_adds_proxy(self):
@@ -551,12 +569,23 @@ class TestQueryNvd:
                     "cve": {
                         "id": "CVE-2021-44228",
                         "descriptions": [{"lang": "en", "value": "Apache Log4j2 RCE"}],
-                        "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}]},
+                        "metrics": {
+                            "cvssMetricV31": [
+                                {
+                                    "cvssData": {
+                                        "baseScore": 10.0,
+                                        "baseSeverity": "CRITICAL",
+                                    }
+                                }
+                            ]
+                        },
                     }
                 }
             ],
         }
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(200, json=mock_response))
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(200, json=mock_response)
+        )
         results = await query_nvd("Log4j 2.14")
         assert len(results) == 1
         assert results[0]["id"] == "CVE-2021-44228"
@@ -566,14 +595,18 @@ class TestQueryNvd:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_empty_on_rate_limit(self):
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(403))
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(403)
+        )
         results = await query_nvd("test")
         assert results == []
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_empty_on_error(self):
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(500))
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
+            return_value=httpx.Response(500)
+        )
         results = await query_nvd("test")
         assert results == []
 
@@ -836,7 +869,9 @@ class TestResolveTargetUrls:
 
     def test_skips_blank_and_comments(self, tmp_path):
         lst = tmp_path / "targets.txt"
-        lst.write_text("http://a.com\n\n# comment\n  \nhttp://b.com\n", encoding="utf-8")
+        lst.write_text(
+            "http://a.com\n\n# comment\n  \nhttp://b.com\n", encoding="utf-8"
+        )
         args = argparse.Namespace(target_list=str(lst), url=None)
         assert resolve_target_urls(args) == ["http://a.com", "http://b.com"]
 
@@ -1130,11 +1165,15 @@ class TestRetryAfterEdgeCases:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return httpx.Response(429, headers={"Retry-After": "Fri, 31 Dec 2099 23:59:59 GMT"})
+                return httpx.Response(
+                    429, headers={"Retry-After": "Fri, 31 Dec 2099 23:59:59 GMT"}
+                )
             return httpx.Response(200, text="ok")
 
         respx.get(url).mock(side_effect=side_effect)
-        status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
+        status, _, _body, _ = await fetch(
+            client, url, rate_limiter=limiter, max_retries=3
+        )
         assert status == 200
         assert call_count == 2
         assert limiter._backoff_multiplier > 1.0
@@ -1160,7 +1199,9 @@ class TestRetryAfterEdgeCases:
             return httpx.Response(200, text="ok")
 
         respx.get(url).mock(side_effect=side_effect)
-        status, _, _body, _ = await fetch(client, url, rate_limiter=limiter, max_retries=3)
+        status, _, _body, _ = await fetch(
+            client, url, rate_limiter=limiter, max_retries=3
+        )
         assert status == 200
         assert call_count == 2
         await client.aclose()

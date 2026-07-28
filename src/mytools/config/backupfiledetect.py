@@ -293,10 +293,14 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
 
     # bak, tilde, orig_tmp, save — qualquer conteudo nao vazio
     if backup_type == "tilde" and len(content) > 10:
-        snippet = content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
+        snippet = (
+            content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
+        )
         return True, snippet
     if content:
-        snippet = content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
+        snippet = (
+            content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
+        )
         return True, snippet
 
     return False, ""
@@ -415,11 +419,15 @@ async def scan_backups(
     async def _limited_probe(path: str) -> BackupFile | None:
         nonlocal completed
         async with sem:
-            result = await _probe_path(client, rate_limiter, base_url, path, timeout, retries)
+            result = await _probe_path(
+                client, rate_limiter, base_url, path, timeout, retries
+            )
             async with completed_lock:
                 completed += 1
                 if completed % 20 == 0 or completed == total:
-                    sys.stdout.write(f"\r  Progresso: {completed}/{total} paths testados...")
+                    sys.stdout.write(
+                        f"\r  Progresso: {completed}/{total} paths testados..."
+                    )
                     sys.stdout.flush()
             return result
 
@@ -506,7 +514,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
     parser.add_argument(
         "--concurrency",
         type=int,
@@ -539,13 +552,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if getattr(args, "dry_run", False):
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
-            base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
             logger.info("Alvo: %s", base_url)
         return 0
 
     all_backups: list[BackupFile] = []
     for url in urls:
-        base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+        base_url = normalize_url(
+            url, default_scheme="https", ensure_trailing_slash=True
+        )
         custom_paths = _load_paths_from_args(args)
 
         backups = await scan_backups(

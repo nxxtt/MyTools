@@ -39,15 +39,35 @@ logger = logging.getLogger("mytools.loginjection")
 _CATEGORY_MAP: dict[str, list[str]] = {
     "user_agent": ["ua_crlf", "ua_xss", "ua_sqli", "ua_pathtraversal", "ua_logforging"],
     "referer": ["ref_crlf", "ref_fakeurl", "ref_xss", "ref_sqli", "ref_logforging"],
-    "custom_header": ["xff_inject", "xrealip_inject", "xcustom_inject", "xorigin_inject", "xforwarded_inject"],
-    "url_path": ["path_newline", "path_tab", "path_nullbyte", "path_crlf", "path_logforge"],
-    "bypass": ["bypass_encoding", "bypass_unicode", "bypass_doubleencode", "bypass_chunked", "bypass_case"],
+    "custom_header": [
+        "xff_inject",
+        "xrealip_inject",
+        "xcustom_inject",
+        "xorigin_inject",
+        "xforwarded_inject",
+    ],
+    "url_path": [
+        "path_newline",
+        "path_tab",
+        "path_nullbyte",
+        "path_crlf",
+        "path_logforge",
+    ],
+    "bypass": [
+        "bypass_encoding",
+        "bypass_unicode",
+        "bypass_doubleencode",
+        "bypass_chunked",
+        "bypass_case",
+    ],
 }
 
 _MARKER = "LOGINJECT_TEST"
 
 
-async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, dict[str, str], bytes]:
+async def _test_baseline(
+    client: httpx.AsyncClient, url: str
+) -> tuple[int, int, dict[str, str], bytes]:
     """Envia request baseline para obter status, tamanho, headers e corpo."""
     try:
         resp = await client.get(url, follow_redirects=True)
@@ -74,7 +94,9 @@ async def _test_user_agent(
 
     for technique, header_name, header_value in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -133,7 +155,9 @@ async def _test_referer(
 
     for technique, header_name, header_value in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -192,7 +216,9 @@ async def _test_custom_header(
 
     for technique, header_name, header_value in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -200,7 +226,9 @@ async def _test_custom_header(
 
             if _MARKER.lower() in resp_body.lower():
                 vulnerable = True
-                details = f"Custom header refletido no body: {header_name}: {header_value}"
+                details = (
+                    f"Custom header refletido no body: {header_name}: {header_value}"
+                )
 
             results.append(
                 LogInjectAttempt(
@@ -304,14 +332,20 @@ async def _test_bypass(
     test_cases: list[tuple[str, str, str]] = [
         ("bypass_encoding", "User-Agent", f"{_MARKER}%250d%250a"),
         ("bypass_unicode", "User-Agent", f"{_MARKER}%e2%80%a8%e2%80%a9"),
-        ("bypass_doubleencode", "User-Agent", f"%253Cscript%253E{_MARKER}%253C/script%253E"),
+        (
+            "bypass_doubleencode",
+            "User-Agent",
+            f"%253Cscript%253E{_MARKER}%253C/script%253E",
+        ),
         ("bypass_chunked", "User-Agent", f"{_MARKER}"),
         ("bypass_case", "User-Agent", f"<ScRiPt>{_MARKER}</ScRiPt>"),
     ]
 
     for technique, header_name, header_value in test_cases:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=True
+            )
             resp_body = resp.content.decode("utf-8", errors="ignore")
 
             vulnerable = False
@@ -411,7 +445,12 @@ def print_results(result: LogInjectResult) -> None:
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
             print_exploit_info(a.exploit, a.tool)
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
     else:
         print(color("\n  [-] Nenhum Log Injection detectado", Cyber.YELLOW))
 
@@ -449,7 +488,9 @@ async def run_scan(
                 all_attempts.extend(await _test_bypass(client, target))
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
         issues: list[str] = []
 
         if not vuln_techs and not blocked_techs:
@@ -462,7 +503,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -488,7 +531,9 @@ def banner_art() -> None:
    |  _|  _| |_| | \  /  \| |___| |___
    |_| |_|  \___/  \/    \_\_____|_____|
 """
-    create_banner(art, "   log injection: user_agent, referer, custom_header, url_path, bypass")()
+    create_banner(
+        art, "   log injection: user_agent, referer, custom_header, url_path, bypass"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -539,7 +584,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="loginjection> ",
         description="Log Injection interativo.",
         example="https://target.com -c user_agent",

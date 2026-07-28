@@ -39,7 +39,13 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.nosqliinject")
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "detect": ["gt_bypass", "ne_bypass", "regex_bypass", "exists_bypass", "type_bypass"],
+    "detect": [
+        "gt_bypass",
+        "ne_bypass",
+        "regex_bypass",
+        "exists_bypass",
+        "type_bypass",
+    ],
     "mongodb": [
         "mongo_gt",
         "mongo_ne",
@@ -53,16 +59,37 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
         "mongo_exists",
         "mongo_type",
     ],
-    "redis": ["redis_info", "redis_config", "redis_keys", "redis_eval", "redis_flushall"],
-    "couchdb": ["couchdb_alldocs", "couchdb_changes", "couchdb_show", "couchdb_utils", "couchdb_config"],
-    "bypass": ["unicode_bypass", "double_json", "nested_bypass", "mixed_type", "array_bypass", "null_terminator"],
+    "redis": [
+        "redis_info",
+        "redis_config",
+        "redis_keys",
+        "redis_eval",
+        "redis_flushall",
+    ],
+    "couchdb": [
+        "couchdb_alldocs",
+        "couchdb_changes",
+        "couchdb_show",
+        "couchdb_utils",
+        "couchdb_config",
+    ],
+    "bypass": [
+        "unicode_bypass",
+        "double_json",
+        "nested_bypass",
+        "mixed_type",
+        "array_bypass",
+        "null_terminator",
+    ],
 }
 
 
 def _load_category_map() -> dict[str, list[str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "nosqliinject", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "nosqliinject", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
@@ -105,8 +132,17 @@ _DETECT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_detect_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "nosqliinject", default={"detect_payloads": [list(t) for t in _DETECT_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("detect_payloads", [list(t) for t in _DETECT_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "nosqliinject",
+        default={"detect_payloads": [list(t) for t in _DETECT_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "detect_payloads", [list(t) for t in _DETECT_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _DETECT_PAYLOADS = _load_detect_payloads()
@@ -184,8 +220,17 @@ _MONGODB_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_mongodb_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "nosqliinject", default={"mongodb_payloads": [list(t) for t in _MONGODB_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("mongodb_payloads", [list(t) for t in _MONGODB_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "nosqliinject",
+        default={"mongodb_payloads": [list(t) for t in _MONGODB_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "mongodb_payloads", [list(t) for t in _MONGODB_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _MONGODB_PAYLOADS = _load_mongodb_payloads()
@@ -227,8 +272,15 @@ _REDIS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_redis_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "nosqliinject", default={"redis_payloads": [list(t) for t in _REDIS_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("redis_payloads", [list(t) for t in _REDIS_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "nosqliinject",
+        default={"redis_payloads": [list(t) for t in _REDIS_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get("redis_payloads", [list(t) for t in _REDIS_PAYLOADS_DEFAULT])
+    ]
 
 
 _REDIS_PAYLOADS = _load_redis_payloads()
@@ -270,8 +322,17 @@ _COUCHDB_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_couchdb_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "nosqliinject", default={"couchdb_payloads": [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("couchdb_payloads", [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "nosqliinject",
+        default={"couchdb_payloads": [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "couchdb_payloads", [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _COUCHDB_PAYLOADS = _load_couchdb_payloads()
@@ -319,8 +380,17 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "nosqliinject", default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "nosqliinject",
+        default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _BYPASS_PAYLOADS = _load_bypass_payloads()
@@ -343,7 +413,9 @@ _LOGIN_PARAMS_DEFAULT: list[str] = [
 def _load_login_params() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "nosqliinject", default={"login_params": _LOGIN_PARAMS_DEFAULT})
+    data = load_payloads(
+        "web", "nosqliinject", default={"login_params": _LOGIN_PARAMS_DEFAULT}
+    )
     return data.get("login_params", _LOGIN_PARAMS_DEFAULT)
 
 
@@ -452,7 +524,9 @@ async def _test_detect(
                         status_changed=status_changed,
                         size_changed=abs(t_size - b_size) > 50,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                     )
                 )
@@ -514,7 +588,9 @@ async def _test_mongodb(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                 )
             )
@@ -576,7 +652,9 @@ async def _test_redis(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                 )
             )
@@ -638,7 +716,9 @@ async def _test_couchdb(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                 )
             )
@@ -700,7 +780,9 @@ async def _test_bypass(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                 )
             )
@@ -733,12 +815,21 @@ def print_results(result: NoSQLiResult) -> None:
     print(color("=" * 60, Cyber.GRAY))
 
     print(color(f"  Target:     {result.target}", Cyber.WHITE))
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_techs = result.vulnerable_techniques
     if vuln_techs:
-        print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD
+            )
+        )
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
             a = next((a for a in result.attempts if a.technique == tech), None)
@@ -746,7 +837,9 @@ def print_results(result: NoSQLiResult) -> None:
                 print_exploit_info(a.exploit, a.tool)
         print(color("\n  Severidade: ALTA", Cyber.RED, Cyber.BOLD))
     else:
-        print(color("\n  [+] Nenhuma NoSQL Injection detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color("\n  [+] Nenhuma NoSQL Injection detectada", Cyber.GREEN, Cyber.BOLD)
+        )
         print(color("  Severidade: NENHUMA", Cyber.GREEN, Cyber.BOLD))
 
     issues = result.issues
@@ -811,8 +904,14 @@ async def run_scan(
                     all_attempts.extend(r)
 
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
+        blocked = [
+            a.technique for a in all_attempts if not a.vulnerable and not a.error
+        ]
+        issues: list[str] = [
+            f"VULN: {att.technique} - {att.details}"
+            for att in all_attempts
+            if att.vulnerable
+        ]
 
         overall = "vulnerable" if vuln_techs else "secure"
 
@@ -836,7 +935,11 @@ async def run_scan(
         if output_file:
             write_output(output_file, asdict(result))
 
-        logger.info("NoSQLi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "NoSQLi scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
         return 1 if vuln_techs else 0
 
     finally:
@@ -871,7 +974,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=list(_CATEGORY_MAP.keys()),
         help="Categoria de testes (default: todas)",
     )
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
     add_common_args(parser)
     return parser
 
@@ -901,7 +1009,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="nosql> ",
         description="NoSQL Injection interativo.",
         example="https://target.com -c detect",

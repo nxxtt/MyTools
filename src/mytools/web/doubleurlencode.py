@@ -190,7 +190,9 @@ async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int,
         return 0, 0, b""
 
 
-async def _test_double_url(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[DoubleURLEncodeAttempt]:
+async def _test_double_url(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[DoubleURLEncodeAttempt]:
     """Testa double encoding em URLs."""
 
     attempts: list[DoubleURLEncodeAttempt] = []
@@ -229,7 +231,9 @@ async def _test_double_url(client: httpx.AsyncClient, url: str, baseline: tuple[
                         status_changed=status_changed,
                         size_changed=size_changed,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                         exploit="double_encoded_payload" if vulnerable else "",
                         tool="wfuzz",
@@ -258,7 +262,9 @@ async def _test_double_url(client: httpx.AsyncClient, url: str, baseline: tuple[
     return attempts
 
 
-async def _test_double_params(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[DoubleURLEncodeAttempt]:
+async def _test_double_params(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[DoubleURLEncodeAttempt]:
     """Testa double encoding em parametros GET/POST."""
 
     attempts: list[DoubleURLEncodeAttempt] = []
@@ -272,7 +278,11 @@ async def _test_double_params(client: httpx.AsyncClient, url: str, baseline: tup
     test_payloads = [
         ("double_get", "GET", {"q": f"test{_DOUBLE_PAYLOADS['/']}admin"}),
         ("double_post", "POST", {"field": f"value{_DOUBLE_PAYLOADS['<']}script"}),
-        ("double_json", "JSON", {"data": f"payload{_DOUBLE_PAYLOADS['\\']}..%252fetc%252fpasswd"}),
+        (
+            "double_json",
+            "JSON",
+            {"data": f"payload{_DOUBLE_PAYLOADS['\\']}..%252fetc%252fpasswd"},
+        ),
     ]
 
     for technique, method, data in test_payloads:
@@ -312,7 +322,9 @@ async def _test_double_params(client: httpx.AsyncClient, url: str, baseline: tup
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="double_encoded_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -341,7 +353,9 @@ async def _test_double_params(client: httpx.AsyncClient, url: str, baseline: tup
     return attempts
 
 
-async def _test_double_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[DoubleURLEncodeAttempt]:
+async def _test_double_traversal(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[DoubleURLEncodeAttempt]:
     """Testa path traversal via double encoding."""
 
     attempts: list[DoubleURLEncodeAttempt] = []
@@ -388,7 +402,9 @@ async def _test_double_traversal(client: httpx.AsyncClient, url: str, baseline: 
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="double_encoded_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -417,7 +433,9 @@ async def _test_double_traversal(client: httpx.AsyncClient, url: str, baseline: 
     return attempts
 
 
-async def _test_double_headers(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[DoubleURLEncodeAttempt]:
+async def _test_double_headers(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[DoubleURLEncodeAttempt]:
     """Testa double encoding em headers."""
 
     attempts: list[DoubleURLEncodeAttempt] = []
@@ -425,14 +443,24 @@ async def _test_double_headers(client: httpx.AsyncClient, url: str, baseline: tu
     b_status, b_size, _ = baseline
 
     header_payloads = [
-        ("double_referer", "Referer", f"https://example.com{_DOUBLE_PAYLOADS['/']}admin"),
+        (
+            "double_referer",
+            "Referer",
+            f"https://example.com{_DOUBLE_PAYLOADS['/']}admin",
+        ),
         ("double_cookie", "Cookie", f"session=abc{_DOUBLE_PAYLOADS[';']}admin=true"),
-        ("double_ua", "User-Agent", f"Mozilla/5.0{_DOUBLE_PAYLOADS['<']}script{_DOUBLE_PAYLOADS['>']}"),
+        (
+            "double_ua",
+            "User-Agent",
+            f"Mozilla/5.0{_DOUBLE_PAYLOADS['<']}script{_DOUBLE_PAYLOADS['>']}",
+        ),
     ]
 
     for technique, header_name, header_value in header_payloads:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=False)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -455,7 +483,9 @@ async def _test_double_headers(client: httpx.AsyncClient, url: str, baseline: tu
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="double_encoded_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -484,7 +514,9 @@ async def _test_double_headers(client: httpx.AsyncClient, url: str, baseline: tu
     return attempts
 
 
-async def _test_double_waf(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[DoubleURLEncodeAttempt]:
+async def _test_double_waf(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[DoubleURLEncodeAttempt]:
     """Testa WAF bypass via double encoding."""
 
     attempts: list[DoubleURLEncodeAttempt] = []
@@ -496,8 +528,14 @@ async def _test_double_waf(client: httpx.AsyncClient, url: str, baseline: tuple[
             "double_xss",
             f"{_DOUBLE_PAYLOADS['<']}script{_DOUBLE_PAYLOADS['>']}alert(1){_DOUBLE_PAYLOADS['<']}{_DOUBLE_PAYLOADS['/']}script{_DOUBLE_PAYLOADS['>']}",
         ),
-        ("double_sqli", f"{_DOUBLE_PAYLOADS['\\']}{_DOUBLE_PAYLOADS['\\']} OR 1{_DOUBLE_PAYLOADS['=']}1{_DOUBLE_PAYLOADS['\\']}{_DOUBLE_PAYLOADS['\\']}"),
-        ("double_redirect", f"http:{_DOUBLE_PAYLOADS['/']}{_DOUBLE_PAYLOADS['/']}evil.com"),
+        (
+            "double_sqli",
+            f"{_DOUBLE_PAYLOADS['\\']}{_DOUBLE_PAYLOADS['\\']} OR 1{_DOUBLE_PAYLOADS['=']}1{_DOUBLE_PAYLOADS['\\']}{_DOUBLE_PAYLOADS['\\']}",
+        ),
+        (
+            "double_redirect",
+            f"http:{_DOUBLE_PAYLOADS['/']}{_DOUBLE_PAYLOADS['/']}evil.com",
+        ),
     ]
 
     parsed = urlparse(url)
@@ -506,7 +544,9 @@ async def _test_double_waf(client: httpx.AsyncClient, url: str, baseline: tuple[
 
     for technique, payload in waf_payloads:
         try:
-            resp = await client.get(base_url, params={"input": payload}, follow_redirects=False)
+            resp = await client.get(
+                base_url, params={"input": payload}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -529,7 +569,9 @@ async def _test_double_waf(client: httpx.AsyncClient, url: str, baseline: tuple[
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="double_encoded_payload" if vulnerable else "",
                     tool="wfuzz",
@@ -687,7 +729,12 @@ def print_results_fn(result: DoubleURLEncodeResult) -> None:
 
     print(color(f"  Target: {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 
@@ -725,7 +772,9 @@ class DoubleurlencodeScanner(BaseScanner):
     """Scanner de Double URL Encoding Bypass â€” testa bypass de filtros via encoding duplo.."""
 
     prog = "mytools-dblurl"
-    description = "Double URL Encoding Bypass â€” testa bypass de filtros via encoding duplo."
+    description = (
+        "Double URL Encoding Bypass â€” testa bypass de filtros via encoding duplo."
+    )
     prompt = "dblurl> "
     module_name = "mytools.doubleurlencode"
     banner_text = r"""

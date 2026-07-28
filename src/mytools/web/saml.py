@@ -211,7 +211,8 @@ async def _test_assertion_replay_category(
             "technique": "inresponseto_bypass",
             "category": "assertion_replay",
             "vulnerable": not in_response_to,
-            "details": f"InResponseTo={in_response_to or 'ausente'} â€” " + ("possivel replay cross-session" if not in_response_to else "presente"),
+            "details": f"InResponseTo={in_response_to or 'ausente'} â€” "
+            + ("possivel replay cross-session" if not in_response_to else "presente"),
             "error": "",
         }
     )
@@ -221,7 +222,8 @@ async def _test_assertion_replay_category(
             "technique": "expired_assertion",
             "category": "assertion_replay",
             "vulnerable": not bool(conditions),
-            "details": "condicoes de tempo " + ("ausentes" if not conditions else "presentes"),
+            "details": "condicoes de tempo "
+            + ("ausentes" if not conditions else "presentes"),
             "error": "",
         }
     )
@@ -256,7 +258,8 @@ async def _test_xml_signature_wrapping_category(
             "technique": "signature_clone",
             "category": "xml_signature_wrapping",
             "vulnerable": has_signature,
-            "details": "signature element " + ("detectado â€” possivel clone" if has_signature else "ausente"),
+            "details": "signature element "
+            + ("detectado â€” possivel clone" if has_signature else "ausente"),
             "error": "",
         }
     )
@@ -362,7 +365,9 @@ def print_results(result: SAMLResult) -> None:
 
     print(color(f"  Condicoes:   {result.conditions or 'nenhuma'}", Cyber.GRAY))
 
-    print(color(f"  Signature:   {'sim' if result.has_signature else 'nao'}", Cyber.WHITE))
+    print(
+        color(f"  Signature:   {'sim' if result.has_signature else 'nao'}", Cyber.WHITE)
+    )
 
     print(color(f"  Testes:      {len(result.attempts)}", Cyber.WHITE))
 
@@ -390,7 +395,12 @@ def print_results(result: SAMLResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [+] Nenhuma vulnerabilidade SAML detectada", Cyber.GREEN))
@@ -457,7 +467,9 @@ async def run_scan(
                     vulnerable=bool(item["vulnerable"]),
                     details=str(item["details"]),
                     error=str(item["error"]),
-                    exploit="signature_wrapping_payload" if bool(item["vulnerable"]) else "",
+                    exploit="signature_wrapping_payload"
+                    if bool(item["vulnerable"])
+                    else "",
                     tool="SAMLRaider",
                 )
                 for item in raw
@@ -497,7 +509,11 @@ async def run_scan(
 
     print_results(result)
 
-    logger.info("SAML scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+    logger.info(
+        "SAML scan concluido: %d testes, %d vulneraveis",
+        len(all_attempts),
+        len(vuln_techs),
+    )
 
     if output_file:
         write_output(output_file, asdict(result))
@@ -546,7 +562,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--file", help="Arquivo com SAML Response XML ou base64")
 
-    parser.add_argument("--url", help="URL do ACS (Assertion Consumer Service) para envio ativo")
+    parser.add_argument(
+        "--url", help="URL do ACS (Assertion Consumer Service) para envio ativo"
+    )
 
     parser.add_argument(
         "-c",
@@ -580,7 +598,12 @@ def run_once(args: argparse.Namespace) -> int:
             return 1
 
     if not saml_response:
-        print(color("Erro: forneÃ§a um SAML Response via --saml-response ou --file", Cyber.RED))
+        print(
+            color(
+                "Erro: forneÃ§a um SAML Response via --saml-response ou --file",
+                Cyber.RED,
+            )
+        )
 
         return 1
 
@@ -607,7 +630,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "saml_response", None) or getattr(a, "file", None)),
+        has_target=lambda a: bool(
+            getattr(a, "saml_response", None) or getattr(a, "file", None)
+        ),
         prompt="saml> ",
         description="SAML Attack Detection interativo.",
         example="--file response.xml -c assertion_replay",

@@ -252,12 +252,19 @@ async def _test_form_detection(
 
     for form in forms:
         if form.method in ("POST", "PUT", "DELETE", "PATCH"):
-            form_url = urlunparse(urlparse(url)._replace(path=form.action)) if form.action else url
+            form_url = (
+                urlunparse(urlparse(url)._replace(path=form.action))
+                if form.action
+                else url
+            )
             vulnerable = not form.has_csrf
 
             exploit = ""
             if vulnerable:
-                exploit = f"curl -X {form.method} {form_url}" + " -d '&'.join(f'{k}={v}' for k,v in form.fields.items())"
+                exploit = (
+                    f"curl -X {form.method} {form_url}"
+                    + " -d '&'.join(f'{k}={v}' for k,v in form.fields.items())"
+                )
 
             attempts.append(
                 CSRFAttempt(
@@ -271,7 +278,9 @@ async def _test_form_detection(
                     token_entropy="",
                     vulnerable=vulnerable,
                     details=(
-                        f"Form {form.method} {form_url} sem campo CSRF" if vulnerable else f"Form {form.method} {form_url} com CSRF: {form.csrf_field_name}"
+                        f"Form {form.method} {form_url} sem campo CSRF"
+                        if vulnerable
+                        else f"Form {form.method} {form_url} com CSRF: {form.csrf_field_name}"
                     ),
                     error="",
                     exploit=exploit,
@@ -313,7 +322,11 @@ async def _test_cookie_analysis(
                     if has_samesite:
                         vulnerable = False
 
-            details = f"Cookie '{cookie_name}': {', '.join(details_parts)}" if details_parts else f"Cookie '{cookie_name}' protegido"
+            details = (
+                f"Cookie '{cookie_name}': {', '.join(details_parts)}"
+                if details_parts
+                else f"Cookie '{cookie_name}' protegido"
+            )
 
             attempts.append(
                 CSRFAttempt(
@@ -345,7 +358,11 @@ async def _test_origin_referer(
 
     for form in forms:
         if form.method in ("POST", "PUT", "DELETE", "PATCH"):
-            form_url = urlunparse(urlparse(url)._replace(path=form.action)) if form.action else url
+            form_url = (
+                urlunparse(urlparse(url)._replace(path=form.action))
+                if form.action
+                else url
+            )
 
             try:
                 post_data = "&".join(f"{k}={v}" for k, v in form.fields.items())
@@ -424,7 +441,11 @@ async def _test_token_analysis(
 
             vulnerable = entropy in ("low_entropy", "sequential", "low_entropy")
 
-            details = f"Token '{form.csrf_field_name}' = '{token_value[:20]}...' ({entropy})" if token_value else f"Campo '{form.csrf_field_name}' vazio"
+            details = (
+                f"Token '{form.csrf_field_name}' = '{token_value[:20]}...' ({entropy})"
+                if token_value
+                else f"Campo '{form.csrf_field_name}' vazio"
+            )
 
             attempts.append(
                 CSRFAttempt(
@@ -487,7 +508,9 @@ async def run_scan(
         logger.info("Baseline: %d (%d bytes)", b_status, len(b_body))
 
         forms = _parse_forms(b_body)
-        state_forms = [f for f in forms if f.method in ("POST", "PUT", "DELETE", "PATCH")]
+        state_forms = [
+            f for f in forms if f.method in ("POST", "PUT", "DELETE", "PATCH")
+        ]
         logger.info("Forms state-changing: %d", len(state_forms))
 
         sem = asyncio.Semaphore(concurrency)
@@ -507,7 +530,13 @@ async def run_scan(
         if category in ("all", "token_analysis"):
             tasks.append(_limited(_test_token_analysis(client, url, b_body)))
 
-        if category not in ("all", "form_detection", "cookie_analysis", "origin_referer", "token_analysis"):
+        if category not in (
+            "all",
+            "form_detection",
+            "cookie_analysis",
+            "origin_referer",
+            "token_analysis",
+        ):
             return CSRFResult(
                 target=url,
                 baseline_status=b_status,
@@ -580,7 +609,12 @@ def print_results(result: CSRFResult) -> None:
     print(color(f"\n  Status: {result.overall_status.upper()}", status_color))
 
     print(color(f"\n  Forms encontrados: {result.forms_found}", Cyber.WHITE))
-    print(color(f"  Forms sem CSRF: {result.forms_missing_csrf}", Cyber.YELLOW if result.forms_missing_csrf else Cyber.GREEN))
+    print(
+        color(
+            f"  Forms sem CSRF: {result.forms_missing_csrf}",
+            Cyber.YELLOW if result.forms_missing_csrf else Cyber.GREEN,
+        )
+    )
     print(color(f"  Cookies analisados: {result.cookies_analyzed}", Cyber.WHITE))
 
     vuln_attempts = [a for a in result.attempts if a.vulnerable]
@@ -629,7 +663,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-c",
         "--category",
-        choices=["form_detection", "cookie_analysis", "origin_referer", "token_analysis", "all"],
+        choices=[
+            "form_detection",
+            "cookie_analysis",
+            "origin_referer",
+            "token_analysis",
+            "all",
+        ],
         default="all",
         help="Categoria de testes (default: all)",
     )

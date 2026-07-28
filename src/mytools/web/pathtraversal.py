@@ -103,14 +103,20 @@ _PLATFORM_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
 def _load_category_map():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "pathtraversal", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "pathtraversal", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
 def _load_traversal_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "pathtraversal", default={"traversal_payloads": _TRAVERSAL_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "pathtraversal",
+        default={"traversal_payloads": _TRAVERSAL_PAYLOADS_DEFAULT},
+    )
     raw = data.get("traversal_payloads", _TRAVERSAL_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -118,7 +124,11 @@ def _load_traversal_payloads():
 def _load_semicolon_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "pathtraversal", default={"semicolon_payloads": _SEMICOLON_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "pathtraversal",
+        default={"semicolon_payloads": _SEMICOLON_PAYLOADS_DEFAULT},
+    )
     raw = data.get("semicolon_payloads", _SEMICOLON_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -126,7 +136,9 @@ def _load_semicolon_payloads():
 def _load_mixed_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "pathtraversal", default={"mixed_payloads": _MIXED_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "pathtraversal", default={"mixed_payloads": _MIXED_PAYLOADS_DEFAULT}
+    )
     raw = data.get("mixed_payloads", _MIXED_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -134,7 +146,11 @@ def _load_mixed_payloads():
 def _load_platform_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "pathtraversal", default={"platform_payloads": _PLATFORM_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "pathtraversal",
+        default={"platform_payloads": _PLATFORM_PAYLOADS_DEFAULT},
+    )
     raw = data.get("platform_payloads", _PLATFORM_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -216,7 +232,9 @@ async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int,
         return 0, 0, b""
 
 
-async def _test_path_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
+async def _test_path_traversal(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[PathTraversalAttempt]:
     """Testa path traversal via encoding em URLs."""
 
     attempts: list[PathTraversalAttempt] = []
@@ -256,7 +274,9 @@ async def _test_path_traversal(client: httpx.AsyncClient, url: str, baseline: tu
                     status_changed=status_changed,
                     size_changed=size_changed,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
                     tool="curl",
@@ -285,7 +305,9 @@ async def _test_path_traversal(client: httpx.AsyncClient, url: str, baseline: tu
     return attempts
 
 
-async def _test_param_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
+async def _test_param_traversal(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[PathTraversalAttempt]:
     """Testa path traversal via parametros GET/POST."""
 
     attempts: list[PathTraversalAttempt] = []
@@ -327,7 +349,9 @@ async def _test_param_traversal(client: httpx.AsyncClient, url: str, baseline: t
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
                     tool="curl",
@@ -356,7 +380,9 @@ async def _test_param_traversal(client: httpx.AsyncClient, url: str, baseline: t
     return attempts
 
 
-async def _test_semicolon_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
+async def _test_semicolon_traversal(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[PathTraversalAttempt]:
     """Testa path traversal via semicolon bypass."""
 
     attempts: list[PathTraversalAttempt] = []
@@ -394,7 +420,9 @@ async def _test_semicolon_traversal(client: httpx.AsyncClient, url: str, baselin
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
                     tool="curl",
@@ -423,7 +451,9 @@ async def _test_semicolon_traversal(client: httpx.AsyncClient, url: str, baselin
     return attempts
 
 
-async def _test_mixed_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
+async def _test_mixed_traversal(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[PathTraversalAttempt]:
     """Testa path traversal via mixed encoding."""
 
     attempts: list[PathTraversalAttempt] = []
@@ -461,7 +491,9 @@ async def _test_mixed_traversal(client: httpx.AsyncClient, url: str, baseline: t
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
                     tool="curl",
@@ -490,7 +522,9 @@ async def _test_mixed_traversal(client: httpx.AsyncClient, url: str, baseline: t
     return attempts
 
 
-async def _test_platform_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
+async def _test_platform_traversal(
+    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
+) -> list[PathTraversalAttempt]:
     """Testa path traversal via platform-specific paths."""
 
     attempts: list[PathTraversalAttempt] = []
@@ -528,7 +562,9 @@ async def _test_platform_traversal(client: httpx.AsyncClient, url: str, baseline
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
                     tool="curl",
@@ -686,7 +722,12 @@ def print_results_fn(result: PathTraversalResult) -> None:
 
     print(color(f"  Target: {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 
@@ -724,7 +765,9 @@ class PathtraversalScanner(BaseScanner):
     """Scanner de Path Traversal via Encoding — detecta bypass de traversal via encoding.."""
 
     prog = "mytools-ptraversal"
-    description = "Path Traversal via Encoding — detecta bypass de traversal via encoding."
+    description = (
+        "Path Traversal via Encoding — detecta bypass de traversal via encoding."
+    )
     prompt = "ptraversal> "
     module_name = "mytools.pathtraversal"
     banner_text = r"""

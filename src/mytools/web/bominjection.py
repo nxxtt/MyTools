@@ -71,7 +71,9 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 def _load_category_map() -> dict[str, list[str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "bominjection", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "bominjection", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
@@ -91,7 +93,9 @@ _BOM_VARIANTS_DEFAULT: dict[str, str] = {
 def _load_bom_variants() -> dict[str, str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "bominjection", default={"bom_variants": _BOM_VARIANTS_DEFAULT})
+    data = load_payloads(
+        "web", "bominjection", default={"bom_variants": _BOM_VARIANTS_DEFAULT}
+    )
     return data.get("bom_variants", _BOM_VARIANTS_DEFAULT)
 
 
@@ -121,7 +125,9 @@ _SENSITIVE_STRINGS_DEFAULT: list[str] = [
 def _load_sensitive_strings() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "bominjection", default={"sensitive_strings": _SENSITIVE_STRINGS_DEFAULT})
+    data = load_payloads(
+        "web", "bominjection", default={"sensitive_strings": _SENSITIVE_STRINGS_DEFAULT}
+    )
     return data.get("sensitive_strings", _SENSITIVE_STRINGS_DEFAULT)
 
 
@@ -266,7 +272,9 @@ async def _test_bom_url(
                         status_changed=status_changed,
                         size_changed=size_changed,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                         exploit="\\xef\\xbb\\xbf" if vulnerable else "",
                         tool="curl",
@@ -307,14 +315,20 @@ async def _test_bom_headers(
     b_status, b_size, _ = baseline
 
     header_payloads = [
-        ("bom_referer", "Referer", f"https://example.com{_BOM_VARIANTS['utf8_bom']}admin"),
+        (
+            "bom_referer",
+            "Referer",
+            f"https://example.com{_BOM_VARIANTS['utf8_bom']}admin",
+        ),
         ("bom_cookie", "Cookie", f"session={_BOM_VARIANTS['utf8_bom']}abc123"),
         ("bom_ua", "User-Agent", f"Mozilla/5.0{_BOM_VARIANTS['utf8_bom']}compatible"),
     ]
 
     for technique, header_name, header_value in header_payloads:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=False)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -337,7 +351,9 @@ async def _test_bom_headers(
                     status_changed=status_changed,
                     size_changed=(t_size != b_size),
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="\\xef\\xbb\\xbf" if vulnerable else "",
                     tool="curl",
@@ -429,7 +445,9 @@ async def _test_bom_body(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="\\xef\\xbb\\xbf" if vulnerable else "",
                     tool="curl",
@@ -507,7 +525,9 @@ async def _test_bom_upload(
                     status_changed=status_changed,
                     size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    details=f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem mudanca",
                     error="",
                     exploit="\\xef\\xbb\\bf" if vulnerable else "",
                     tool="curl",
@@ -662,7 +682,12 @@ def print_results_fn(result: BomResult) -> None:
 
     print(color(f"  Target: {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 

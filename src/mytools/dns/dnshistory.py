@@ -247,10 +247,14 @@ async def _query_source(
                 if status == 200:
                     all_records.extend(_parse_securitytrails(body, domain))
                 elif status == 429:
-                    logger.debug("SecurityTrails rate limited para %s/%s", domain, rtype)
+                    logger.debug(
+                        "SecurityTrails rate limited para %s/%s", domain, rtype
+                    )
                     break
                 else:
-                    logger.debug("SecurityTrails retornou %d para %s/%s", status, domain, rtype)
+                    logger.debug(
+                        "SecurityTrails retornou %d para %s/%s", status, domain, rtype
+                    )
             return all_records
 
         if source == "viewdns":
@@ -286,7 +290,9 @@ async def _query_all_sources(
 
     async def _limited(source: str) -> list[DnsHistoryRecord]:
         async with sem:
-            return await _query_source(source, domain, api_keys.get(source), record_types, timeout)
+            return await _query_source(
+                source, domain, api_keys.get(source), record_types, timeout
+            )
 
     tasks = [_limited(s) for s in sources]
     async with asyncio.TaskGroup() as tg:
@@ -344,9 +350,15 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["dnslytics", "securitytrails", "viewdns"],
         help="Fonte para consulta (pode usar mais de um). Default: dnslytics.",
     )
-    parser.add_argument("--dnslytics-key", dest="dnslytics_key", help="API key do DNSlytics (opcional).")
-    parser.add_argument("--st-api-key", dest="st_api_key", help="API key do SecurityTrails.")
-    parser.add_argument("--viewdns-api-key", dest="viewdns_key", help="API key do ViewDNS.")
+    parser.add_argument(
+        "--dnslytics-key", dest="dnslytics_key", help="API key do DNSlytics (opcional)."
+    )
+    parser.add_argument(
+        "--st-api-key", dest="st_api_key", help="API key do SecurityTrails."
+    )
+    parser.add_argument(
+        "--viewdns-api-key", dest="viewdns_key", help="API key do ViewDNS."
+    )
     parser.add_argument(
         "--record-types",
         dest="record_types",
@@ -364,7 +376,17 @@ def _print_history(records: list[DnsHistoryRecord]) -> None:
 
     print_table(
         headers=("Type", "Value", "First Seen", "Last Seen", "Owner", "Source"),
-        rows=[(r.record_type.upper(), r.value[:50], r.first_seen or "-", r.last_seen or "-", (r.owner or "-")[:20], r.source) for r in records],
+        rows=[
+            (
+                r.record_type.upper(),
+                r.value[:50],
+                r.first_seen or "-",
+                r.last_seen or "-",
+                (r.owner or "-")[:20],
+                r.source,
+            )
+            for r in records
+        ],
         column_styles=[
             (Cyber.YELLOW + Cyber.BOLD,),
             (Cyber.WHITE,),
@@ -383,7 +405,11 @@ def run_once(args: argparse.Namespace) -> int:
     domain = args.domain.strip().lower()
     sources = getattr(args, "source", None) or ["dnslytics"]
     record_types_raw = getattr(args, "record_types", None)
-    record_types = record_types_raw.split(",") if record_types_raw else ["a", "aaaa", "mx", "ns", "txt"]
+    record_types = (
+        record_types_raw.split(",")
+        if record_types_raw
+        else ["a", "aaaa", "mx", "ns", "txt"]
+    )
 
     api_keys: dict[str, str | None] = {
         "dnslytics": getattr(args, "dnslytics_key", None),

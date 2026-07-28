@@ -92,7 +92,9 @@ _SSTI_PROBES_DEFAULT: dict[str, str] = {
 }
 
 
-def _load_template_data() -> tuple[dict[str, str], dict[str, str], dict[str, list[str]]]:
+def _load_template_data() -> tuple[
+    dict[str, str], dict[str, str], dict[str, list[str]]
+]:
     """Carrega template injection data de YAML com fallback."""
     from mytools.data import load_payloads
 
@@ -176,7 +178,11 @@ def _get_banner(server: smtplib.SMTP) -> str:
     try:
         _code, banner = server.ehlo()
 
-        return banner.decode("utf-8", errors="replace") if isinstance(banner, bytes) else str(banner)
+        return (
+            banner.decode("utf-8", errors="replace")
+            if isinstance(banner, bytes)
+            else str(banner)
+        )
 
     except smtplib.SMTPException:
         return ""
@@ -256,7 +262,11 @@ def _detect_engine_from_response(
         "freemarker": ["freemarker", "templateexception"],
     }
 
-    detected_engines: list[str] = [engine for engine, keywords in patterns.items() if any(kw in response_lower for kw in keywords)]
+    detected_engines: list[str] = [
+        engine
+        for engine, keywords in patterns.items()
+        if any(kw in response_lower for kw in keywords)
+    ]
 
     if detected_engines:
         return True, ",".join(detected_engines)
@@ -375,7 +385,9 @@ def scan_email_template_injection(
     if detected_probes:
         overall = "vulnerable"
 
-        issues.append(f"Templates processados detectados: {', '.join(engines_detected)}")
+        issues.append(
+            f"Templates processados detectados: {', '.join(engines_detected)}"
+        )
 
     elif accepted_probes:
         overall = "unknown"
@@ -422,7 +434,9 @@ def print_results(result: TemplateInjectionResult) -> None:
     print()
 
     if result.engines_detected:
-        print(f"  Engines detectados: {color(', '.join(result.engines_detected), Cyber.CYAN, Cyber.BOLD)}")
+        print(
+            f"  Engines detectados: {color(', '.join(result.engines_detected), Cyber.CYAN, Cyber.BOLD)}"
+        )
 
     else:
         print(f"  Engines detectados: {color('Nenhum', Cyber.YELLOW)}")
@@ -464,12 +478,29 @@ def print_results(result: TemplateInjectionResult) -> None:
         print()
 
     if result.overall_status == "vulnerable":
-        print(color("  [-] Servidor VULNERAVEL a Email Template Injection", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                "  [-] Servidor VULNERAVEL a Email Template Injection",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
-        print(color("  [-] Remedio: sanitizar todos os inputs antes de templates", Cyber.CYAN))
+        print(
+            color(
+                "  [-] Remedio: sanitizar todos os inputs antes de templates",
+                Cyber.CYAN,
+            )
+        )
 
     elif result.overall_status == "safe":
-        print(color("  [+] Servidor seguro — templates sanitizados ou payloads bloqueados", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Servidor seguro — templates sanitizados ou payloads bloqueados",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
     else:
         print(color("  [!] Resultado inconclusivo — revisar manualmente", Cyber.YELLOW))
@@ -492,7 +523,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   template injection: testa injecao de codigo em templates de email (Handlebars, Jinja2, Mako)")()
+    create_banner(
+        art,
+        "   template injection: testa injecao de codigo em templates de email (Handlebars, Jinja2, Mako)",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -505,7 +539,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_base_args(parser)
 
-    parser.add_argument("target", nargs="?", help="Host SMTP alvo (ex: mail.example.com).")
+    parser.add_argument(
+        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+    )
 
     parser.add_argument(
         "--port",
@@ -588,7 +624,9 @@ def main() -> int:
         prompt="templeti> ",
         description="Email Template Injection — testa injecao de codigo em templates de email.",
         example="mail.example.com --port 587",
-        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"),
+        contextual_help=(
+            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"
+        ),
     )
 
 

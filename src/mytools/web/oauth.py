@@ -112,9 +112,17 @@ _WEAK_SECRETS = [
 
 _REDIRECT_BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
     ("subdomain_wildcard", "https://evil.example.com/callback", ["evil", "redirect"]),
-    ("path_traversal", "https://target.com/../../evil.com/callback", ["evil", "redirect"]),
+    (
+        "path_traversal",
+        "https://target.com/../../evil.com/callback",
+        ["evil", "redirect"],
+    ),
     ("encoding_bypass", "https://evil%2ecom/callback", ["evil", "redirect"]),
-    ("open_redirect", "https://target.com/redirect?url=https://evil.com/callback", ["evil"]),
+    (
+        "open_redirect",
+        "https://target.com/redirect?url=https://evil.com/callback",
+        ["evil"],
+    ),
     ("null_byte", "https://target.com%00.evil.com/callback", ["evil", "redirect"]),
     ("http_downgrade", "http://target.com/callback", ["http://", "redirect"]),
     ("fragment_inject", "https://target.com/callback#https://evil.com", ["evil"]),
@@ -219,18 +227,36 @@ async def _test_misconfig_category(
 
     results: list[OAuthAttempt] = []
 
-    base_params = "response_type=code&client_id=test&redirect_uri=https://example.com/callback"
+    base_params = (
+        "response_type=code&client_id=test&redirect_uri=https://example.com/callback"
+    )
 
     tests = [
-        ("missing_state", f"{authorize_url}?{base_params}", "state ausente na requisicao authorize"),
-        ("empty_state", f"{authorize_url}?{base_params}&state=", "state vazio na requisicao"),
+        (
+            "missing_state",
+            f"{authorize_url}?{base_params}",
+            "state ausente na requisicao authorize",
+        ),
+        (
+            "empty_state",
+            f"{authorize_url}?{base_params}&state=",
+            "state vazio na requisicao",
+        ),
         (
             "implicit_flow",
             f"{authorize_url}?response_type=token&client_id=test&redirect_uri=https://example.com/callback",
             "response_type=token (implicit flow)",
         ),
-        ("token_in_url", f"{authorize_url}?{base_params}", "token na URL via fragment/query"),
-        ("missing_nonce", f"{authorize_url}?{base_params}", "nonce ausente em flow OIDC"),
+        (
+            "token_in_url",
+            f"{authorize_url}?{base_params}",
+            "token na URL via fragment/query",
+        ),
+        (
+            "missing_nonce",
+            f"{authorize_url}?{base_params}",
+            "nonce ausente em flow OIDC",
+        ),
         ("weak_secret", url, "testando secrets OAuth comuns no token endpoint"),
     ]
 
@@ -242,7 +268,10 @@ async def _test_misconfig_category(
 
             body_lower = body.lower()
 
-            is_error = any(kw in body_lower for kw in ["error", "invalid", "denied", "unauthorized"])
+            is_error = any(
+                kw in body_lower
+                for kw in ["error", "invalid", "denied", "unauthorized"]
+            )
 
             has_auth_code = "code=" in body or "authorization_code" in body
 
@@ -302,9 +331,17 @@ async def _test_scope_escalation_category(
     scope_tests = [
         ("extra_scopes", f"{base}&scope=read+write+admin", "scopes extras solicitados"),
         ("admin_scope", f"{base}&scope=admin", "scope admin solicitado"),
-        ("token_scope", f"{base}&scope=openid+profile+email+address+phone", "scopes OIDC multiplicados"),
+        (
+            "token_scope",
+            f"{base}&scope=openid+profile+email+address+phone",
+            "scopes OIDC multiplicados",
+        ),
         ("incremental_consent", f"{base}&scope=read", "incremental consent bypass"),
-        ("cross_api_scope", f"{base}&scope=https://graph.microsoft.com/.default", "scope cross-API Azure AD"),
+        (
+            "cross_api_scope",
+            f"{base}&scope=https://graph.microsoft.com/.default",
+            "scope cross-API Azure AD",
+        ),
     ]
 
     for technique, params, details in scope_tests:
@@ -315,7 +352,11 @@ async def _test_scope_escalation_category(
 
             body = resp.text
 
-            vulnerable = resp.status_code == 200 and ("consent" in body.lower() or "authorize" in body.lower() or "scope" in body.lower())
+            vulnerable = resp.status_code == 200 and (
+                "consent" in body.lower()
+                or "authorize" in body.lower()
+                or "scope" in body.lower()
+            )
 
             results.append(
                 OAuthAttempt(
@@ -379,7 +420,8 @@ async def _test_redirect_uri_category(
             location = resp.headers.get("location", "")
 
             vulnerable = (
-                resp.status_code in (301, 302, 303, 307, 308) and any(ind.lower() in location.lower() for ind in indicators)
+                resp.status_code in (301, 302, 303, 307, 308)
+                and any(ind.lower() in location.lower() for ind in indicators)
             ) or _check_response_indicators(body, indicators)
 
             results.append(
@@ -434,10 +476,26 @@ async def _test_pkce_bypass_category(
     base = "response_type=code&client_id=test&redirect_uri=https://example.com/callback&state=test"
 
     tests = [
-        ("no_code_challenge", f"{authorize_url}?{base}", "code_challenge ausente — PKCE nao obrigatorio"),
-        ("plain_method", f"{authorize_url}?{base}&code_challenge=test&code_challenge_method=plain", "code_challenge_method=plain aceito"),
-        ("short_verifier", f"{authorize_url}?{base}&code_challenge=a&code_challenge_method=S256", "code_verifier curto aceito"),
-        ("cross_client_code", f"{authorize_url}?{base}", "cross-client code reuse testado"),
+        (
+            "no_code_challenge",
+            f"{authorize_url}?{base}",
+            "code_challenge ausente — PKCE nao obrigatorio",
+        ),
+        (
+            "plain_method",
+            f"{authorize_url}?{base}&code_challenge=test&code_challenge_method=plain",
+            "code_challenge_method=plain aceito",
+        ),
+        (
+            "short_verifier",
+            f"{authorize_url}?{base}&code_challenge=a&code_challenge_method=S256",
+            "code_verifier curto aceito",
+        ),
+        (
+            "cross_client_code",
+            f"{authorize_url}?{base}",
+            "cross-client code reuse testado",
+        ),
     ]
 
     for technique, test_url, details in tests:
@@ -448,7 +506,9 @@ async def _test_pkce_bypass_category(
 
             body_lower = body.lower()
 
-            is_error = any(kw in body_lower for kw in ["error", "invalid", "denied", "unsupported"])
+            is_error = any(
+                kw in body_lower for kw in ["error", "invalid", "denied", "unsupported"]
+            )
 
             has_auth_code = "code=" in body or "authorization_code" in body
 
@@ -506,11 +566,31 @@ async def _test_refresh_token_category(
     token_url = urljoin(url, "/token")
 
     tests = [
-        ("reuse_old_token", "grant_type=refresh_token&refresh_token=old_token", "reuse de refresh token antigo"),
-        ("old_token_valid", "grant_type=refresh_token&refresh_token=old_token", "token antigo ainda valido apos rotacao"),
-        ("concurrent_refresh", "grant_type=refresh_token&refresh_token=old_token", "refresh concorrente detectado"),
-        ("no_absolute_expiry", "grant_type=refresh_token&refresh_token=old_token", "sem expiracao absoluta no refresh token"),
-        ("no_family_tracking", "grant_type=refresh_token&refresh_token=old_token", "sem token family tracking"),
+        (
+            "reuse_old_token",
+            "grant_type=refresh_token&refresh_token=old_token",
+            "reuse de refresh token antigo",
+        ),
+        (
+            "old_token_valid",
+            "grant_type=refresh_token&refresh_token=old_token",
+            "token antigo ainda valido apos rotacao",
+        ),
+        (
+            "concurrent_refresh",
+            "grant_type=refresh_token&refresh_token=old_token",
+            "refresh concorrente detectado",
+        ),
+        (
+            "no_absolute_expiry",
+            "grant_type=refresh_token&refresh_token=old_token",
+            "sem expiracao absoluta no refresh token",
+        ),
+        (
+            "no_family_tracking",
+            "grant_type=refresh_token&refresh_token=old_token",
+            "sem token family tracking",
+        ),
     ]
 
     for technique, data, details in tests:
@@ -582,7 +662,9 @@ def print_results(result: OAuthResult) -> None:
 
     errors = [a for a in result.attempts if a.error]
 
-    print(color("\n--- OAuth 2.0 Misconfiguration Detection ---", Cyber.CYAN, Cyber.BOLD))
+    print(
+        color("\n--- OAuth 2.0 Misconfiguration Detection ---", Cyber.CYAN, Cyber.BOLD)
+    )
 
     print(color(f"  Alvo:      {result.target}", Cyber.WHITE))
 
@@ -590,7 +672,12 @@ def print_results(result: OAuthResult) -> None:
 
     print(color(f"  Authorize: {result.authorize_url or 'auto-detect'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:  {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:  {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:    {len(result.attempts)}", Cyber.WHITE))
 
@@ -618,7 +705,12 @@ def print_results(result: OAuthResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [+] Nenhuma vulnerabilidade OAuth detectada", Cyber.GREEN))
@@ -644,7 +736,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
 
             b_size = len(b_body)
 
@@ -669,13 +763,22 @@ async def run_scan(
 
             try:
                 if cat == "misconfig":
-                    raw = await tester(client, authorize_url or target, target, timeout, b_status, b_size)
+                    raw = await tester(
+                        client,
+                        authorize_url or target,
+                        target,
+                        timeout,
+                        b_status,
+                        b_size,
+                    )
 
                 elif cat == "refresh_token":
                     raw = await tester(client, target, timeout, b_status, b_size)
 
                 else:
-                    raw = await tester(client, authorize_url or target, timeout, b_status, b_size)
+                    raw = await tester(
+                        client, authorize_url or target, timeout, b_status, b_size
+                    )
 
                 all_attempts.extend(raw)
 
@@ -698,7 +801,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -718,12 +823,18 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
 
-        logger.info("OAuth scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "OAuth scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -750,7 +861,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   oauth: misconfig, scope_escalation, redirect_uri, pkce_bypass, refresh_token")()
+    create_banner(
+        art,
+        "   oauth: misconfig, scope_escalation, redirect_uri, pkce_bypass, refresh_token",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -776,7 +890,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "misconfig", "scope_escalation", "redirect_uri", "pkce_bypass", "refresh_token"],
+        choices=[
+            "all",
+            "misconfig",
+            "scope_escalation",
+            "redirect_uri",
+            "pkce_bypass",
+            "refresh_token",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -812,7 +933,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="oauth> ",
         description="OAuth 2.0 Misconfiguration interativo.",
         example="https://target.com/authorize -c misconfig",

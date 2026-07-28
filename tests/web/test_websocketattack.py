@@ -266,7 +266,10 @@ class TestCreateConnection:
             mock_sock = MagicMock()
             mock_conn.return_value = mock_sock
             mock_ctx = MagicMock()
-            with patch("mytools.web.websocketattack.ssl.create_default_context", return_value=mock_ctx):
+            with patch(
+                "mytools.web.websocketattack.ssl.create_default_context",
+                return_value=mock_ctx,
+            ):
                 mock_ctx.wrap_socket.return_value = MagicMock()
                 _create_connection("example.com", 443, 5.0, tls=True)
                 mock_ctx.wrap_socket.assert_called_once()
@@ -440,45 +443,81 @@ class TestPayloadFuzzDetection:
         reflected = b"<script>alert(1)</script>"
 
         with (
-            patch("mytools.web.websocketattack._ws_handshake", return_value=(mock_sock, ws_key)),
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(mock_sock, ws_key),
+            ),
             patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
-            patch("mytools.web.websocketattack._recv_ws_frame", return_value=(0x1, reflected)),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame",
+                return_value=(0x1, reflected),
+            ),
         ):
-            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
-            vuln = [r for r in results if r.vulnerable and r.technique == "xss_reflected"]
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 1000
+            )
+            vuln = [
+                r for r in results if r.vulnerable and r.technique == "xss_reflected"
+            ]
             assert len(vuln) >= 1
 
     @pytest.mark.asyncio
     async def test_no_reflection_not_vulnerable(self) -> None:
         with (
-            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
             patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
-            patch("mytools.web.websocketattack._recv_ws_frame", return_value=(0x1, b"different response")),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame",
+                return_value=(0x1, b"different response"),
+            ),
         ):
-            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
-            xss_vuln = [r for r in results if r.vulnerable and r.technique == "xss_reflected"]
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 1000
+            )
+            xss_vuln = [
+                r for r in results if r.vulnerable and r.technique == "xss_reflected"
+            ]
             assert len(xss_vuln) == 0
 
     @pytest.mark.asyncio
     async def test_log_injection_close_frame(self) -> None:
         with (
-            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
             patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
-            patch("mytools.web.websocketattack._recv_ws_frame", return_value=(0x8, b"")),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame", return_value=(0x8, b"")
+            ),
         ):
-            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
-            log_vuln = [r for r in results if r.vulnerable and r.technique == "log_injection"]
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 1000
+            )
+            log_vuln = [
+                r for r in results if r.vulnerable and r.technique == "log_injection"
+            ]
             assert len(log_vuln) >= 1
 
     @pytest.mark.asyncio
     async def test_log_injection_none_response(self) -> None:
         with (
-            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
             patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
             patch("mytools.web.websocketattack._recv_ws_frame", return_value=None),
         ):
-            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
-            log_vuln = [r for r in results if r.vulnerable and r.technique == "log_injection"]
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 1000
+            )
+            log_vuln = [
+                r for r in results if r.vulnerable and r.technique == "log_injection"
+            ]
             assert len(log_vuln) >= 1
 
     @pytest.mark.asyncio
@@ -487,7 +526,9 @@ class TestPayloadFuzzDetection:
             patch("mytools.web.websocketattack._ws_handshake", return_value=None),
             patch("mytools.web.websocketattack._send_ws_frame") as mock_send,
         ):
-            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 1000
+            )
             assert results == []
             mock_send.assert_not_called()
 
@@ -507,12 +548,19 @@ class TestPayloadFuzzDetection:
             return (0x1, b"ok")
 
         with (
-            patch("mytools.web.websocketattack._ws_handshake", return_value=(MagicMock(), "key")),
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
             patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
             patch("mytools.web.websocketattack._recv_ws_frame", side_effect=slow_recv),
         ):
-            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
-            timing_vuln = [r for r in results if r.vulnerable and "_timing" in r.technique]
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 1000
+            )
+            timing_vuln = [
+                r for r in results if r.vulnerable and "_timing" in r.technique
+            ]
             assert len(timing_vuln) == 0
 
     @pytest.mark.asyncio
@@ -520,7 +568,9 @@ class TestPayloadFuzzDetection:
         with (
             patch("mytools.web.websocketattack._ws_handshake", return_value=None),
         ):
-            results = await _test_ws_payload_fuzz("example.com", 80, "/ws", 5.0, False, 200, 1000)
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 1000
+            )
             for r in results:
                 assert isinstance(r, WSAttackAttempt)
 

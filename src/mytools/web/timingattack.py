@@ -296,7 +296,11 @@ async def _measure_token_timing(
 
     pos_means: list[float] = []
 
-    pos_means = [statistics.mean(char_times[pos]) for pos in sorted(char_times.keys()) if char_times[pos]]
+    pos_means = [
+        statistics.mean(char_times[pos])
+        for pos in sorted(char_times.keys())
+        if char_times[pos]
+    ]
 
     if len(pos_means) < 2:
         return _make_attempt(
@@ -431,7 +435,9 @@ async def _measure_cache_timing(
 
     vuln = speedup > 20 and has_cache_headers
 
-    details = f"First: {first_mean:.1f}ms, Cached: {cached_mean:.1f}ms, Diff: {speedup:.1f}ms"
+    details = (
+        f"First: {first_mean:.1f}ms, Cached: {cached_mean:.1f}ms, Diff: {speedup:.1f}ms"
+    )
 
     if vuln:
         details += f", Cache-Control: {cache_control}"
@@ -473,7 +479,11 @@ async def _measure_dns_timing(
             start = time.monotonic()
 
             with contextlib.suppress(
-                dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers, dns.exception.Timeout, dns.exception.DNSException
+                dns.resolver.NoAnswer,
+                dns.resolver.NXDOMAIN,
+                dns.resolver.NoNameservers,
+                dns.exception.Timeout,
+                dns.exception.DNSException,
             ):
                 resolver.resolve(domain, "A")
 
@@ -667,7 +677,9 @@ async def _test_timing(
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[TimingAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[TimingAttempt]]]
+] = {
     "timing": _test_timing,
 }
 
@@ -702,7 +714,10 @@ def print_results(result: TimingResult) -> None:
         vuln_in_cat = [a for a in attempts if a.vulnerable]
 
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
 
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
@@ -715,10 +730,16 @@ def print_results(result: TimingResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Timing side-channels detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Timing side-channels detected!",
+        )
 
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No timing vulnerabilities found")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — No timing vulnerabilities found",
+        )
 
     print()
 
@@ -732,13 +753,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("url", help="URL alvo (ex: https://target.com/login)")
 
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
 
-    parser.add_argument("--usernames", nargs="+", help="Usernames para login timing (default: admin root user test)")
+    parser.add_argument(
+        "--usernames",
+        nargs="+",
+        help="Usernames para login timing (default: admin root user test)",
+    )
 
     parser.add_argument("--token", help="Token para testar token timing")
 
-    parser.add_argument("--cache-rounds", type=int, default=5, help="Rounds para cache timing (default: 5)")
+    parser.add_argument(
+        "--cache-rounds",
+        type=int,
+        default=5,
+        help="Rounds para cache timing (default: 5)",
+    )
 
     parser.add_argument("--dns-domains", nargs="+", help="Domínios para DNS timing")
 
@@ -782,7 +818,9 @@ async def _run_scan(args: argparse.Namespace) -> TimingResult:
     cats = categories if categories else list(_CATEGORY_MAP.keys())
 
     if "timing" in cats:
-        raw = await _test_timing(url, timeout, delay, usernames, token, cache_rounds, dns_domains)
+        raw = await _test_timing(
+            url, timeout, delay, usernames, token, cache_rounds, dns_domains
+        )
 
         attempts.extend(raw)
 

@@ -272,7 +272,14 @@ class TestPrintResults:
 
     def test_with_results(self, capsys):
         results = [
-            BackupFile(backup_type="sql", url="http://x.com/dump.sql", path="dump.sql", status=200, detail="SQL dump", raw_size=1024),
+            BackupFile(
+                backup_type="sql",
+                url="http://x.com/dump.sql",
+                path="dump.sql",
+                status=200,
+                detail="SQL dump",
+                raw_size=1024,
+            ),
         ]
         print_results(results)
         out = capsys.readouterr().out
@@ -330,7 +337,10 @@ async def test_scan_backups_finds_sql():
             return_value=httpx.Response(200, headers={"content-length": "200"}),
         )
         respx.route(method="GET", url="http://x.com/dump.sql").mock(
-            return_value=httpx.Response(200, content=b"CREATE TABLE users (id INT);\nINSERT INTO users VALUES (1);"),
+            return_value=httpx.Response(
+                200,
+                content=b"CREATE TABLE users (id INT);\nINSERT INTO users VALUES (1);",
+            ),
         )
         respx.route(method="HEAD").mock(return_value=httpx.Response(404))
         respx.route(method="GET").mock(return_value=httpx.Response(404))

@@ -60,13 +60,17 @@ _ENV_VAR_PATTERNS_DEFAULT: list[str] = [
 def _load_lambda_patterns() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "lambda_attack", default={"env_var_patterns": _ENV_VAR_PATTERNS_DEFAULT})
+    data = load_payloads(
+        "web", "lambda_attack", default={"env_var_patterns": _ENV_VAR_PATTERNS_DEFAULT}
+    )
     return data.get("env_var_patterns", _ENV_VAR_PATTERNS_DEFAULT)
 
 
 _ENV_VAR_PATTERNS = _load_lambda_patterns()
 
-_LAYER_ARN_PATTERN: re.Pattern[str] = re.compile(r"arn:aws:lambda:[a-z0-9-]+:\d{12}:layer:[a-zA-Z0-9_-]+:\d+")
+_LAYER_ARN_PATTERN: re.Pattern[str] = re.compile(
+    r"arn:aws:lambda:[a-z0-9-]+:\d{12}:layer:[a-zA-Z0-9_-]+:\d+"
+)
 
 _LAMBDA_ERROR_SIGNATURES: list[str] = [
     "Traceback (most recent call last)",
@@ -189,12 +193,18 @@ def _is_lambda_response(headers: dict[str, str], body: str) -> bool:
 
 
 def _extract_error_details(body: str) -> dict[str, Any]:
-    result: dict[str, Any] = {"raw": body[:2000], "has_traceback": False, "signatures_found": []}
+    result: dict[str, Any] = {
+        "raw": body[:2000],
+        "has_traceback": False,
+        "signatures_found": [],
+    }
     for sig in _LAMBDA_ERROR_SIGNATURES:
         if sig.lower() in body.lower():
             result["signatures_found"].append(sig)
     result["has_traceback"] = "Traceback (most recent call last)" in body
-    arn_matches = re.findall(r"arn:aws:[a-zA-Z0-9_-]+:[a-zA-Z0-9-]+:\d{12}:[a-zA-Z0-9_/-]+", body)
+    arn_matches = re.findall(
+        r"arn:aws:[a-zA-Z0-9_-]+:[a-zA-Z0-9-]+:\d{12}:[a-zA-Z0-9_/-]+", body
+    )
     if arn_matches:
         result["arns_found"] = arn_matches
     return result
@@ -211,19 +221,39 @@ async def _test_env_var_leak(
         {"body": b'{"__proto__":{"admin":true}}', "desc": "Prototype pollution"},
         {"body": b"\x00\x01\x02", "desc": "Binary payload"},
         {"body": b'{"key":"' + b"A" * 10000 + b'"}', "desc": "Large payload"},
-        {"body": b'{"event":{"body":"<script>alert(1)</script>"}}', "desc": "XSS in event"},
+        {
+            "body": b'{"event":{"body":"<script>alert(1)</script>"}}',
+            "desc": "XSS in event",
+        },
         {"body": b'{"body":"admin\' OR 1=1--"}', "desc": "SQL injection in event"},
-        {"headers": {"Content-Type": "application/x-yaml"}, "body": "test: value", "desc": "YAML content type"},
-        {"headers": {"X-Amz-Invocation-Type": "RequestResponse"}, "body": b"{}", "desc": "Lambda invocation header"},
-        {"headers": {"X-Amz-Lambda-Function-Name": "test"}, "body": b"{}", "desc": "Lambda function name header"},
-        {"body": b'{"queryStringParameters":{"debug":"true","admin":"1"}}', "desc": "API Gateway debug params"},
+        {
+            "headers": {"Content-Type": "application/x-yaml"},
+            "body": "test: value",
+            "desc": "YAML content type",
+        },
+        {
+            "headers": {"X-Amz-Invocation-Type": "RequestResponse"},
+            "body": b"{}",
+            "desc": "Lambda invocation header",
+        },
+        {
+            "headers": {"X-Amz-Lambda-Function-Name": "test"},
+            "body": b"{}",
+            "desc": "Lambda function name header",
+        },
+        {
+            "body": b'{"queryStringParameters":{"debug":"true","admin":"1"}}',
+            "desc": "API Gateway debug params",
+        },
     ]
 
     last_code = 0
     for payload in payloads:
         try:
             headers = cast(dict[str, str], payload.get("headers", {}))
-            resp = await client.post(url, content=cast(bytes, payload["body"]), headers=headers)
+            resp = await client.post(
+                url, content=cast(bytes, payload["body"]), headers=headers
+            )
             last_code = resp.status_code
             resp_headers = {k.lower(): v for k, v in resp.headers.items()}
             leaked = _extract_env_vars(resp.text, resp_headers)
@@ -235,8 +265,20 @@ async def _test_env_var_leak(
 
     unique_leaked = list(set(all_leaked))
     vuln = len(unique_leaked) > 0
-    details = f"Leaked: {', '.join(unique_leaked[:5])}" if vuln else "No env vars detected"
-    return _make_attempt("env_var_leak", "lambda", "Lambda env var leak via errors", vuln, details, "", url, last_code, unique_leaked)
+    details = (
+        f"Leaked: {', '.join(unique_leaked[:5])}" if vuln else "No env vars detected"
+    )
+    return _make_attempt(
+        "env_var_leak",
+        "lambda",
+        "Lambda env var leak via errors",
+        vuln,
+        details,
+        "",
+        url,
+        last_code,
+        unique_leaked,
+    )
 
 
 async def _test_layer_enumeration(
@@ -247,7 +289,10 @@ async def _test_layer_enumeration(
     layers_found: list[str] = []
     payloads = [
         {"body": b'{"body":"test"}', "desc": "Basic invoke"},
-        {"body": b'{"httpMethod":"POST","path":"/","body":"{}"}', "desc": "API Gateway event"},
+        {
+            "body": b'{"httpMethod":"POST","path":"/","body":"{}"}',
+            "desc": "API Gateway event",
+        },
         {"body": b'{"Records":[]}', "desc": "S3 event"},
         {"body": b'{"detail-type":"Scheduled Event"}', "desc": "EventBridge event"},
     ]
@@ -260,14 +305,32 @@ async def _test_layer_enumeration(
             layer_matches = _LAYER_ARN_PATTERN.findall(resp.text)
             layers_found.extend(layer_matches)
             body_lower = resp.text.lower()
-            layers_found.extend(keyword for keyword in ("/opt/", "layer", "layers", "/opt/lib/", "/opt/python/") if keyword in body_lower)
+            layers_found.extend(
+                keyword
+                for keyword in ("/opt/", "layer", "layers", "/opt/lib/", "/opt/python/")
+                if keyword in body_lower
+            )
         except Exception:
             pass
 
     unique_layers = list(set(layers_found))
     vuln = len(unique_layers) > 0
-    details = f"Layers found: {len(unique_layers)} ({', '.join(unique_layers[:3])})" if vuln else "No layer info leaked"
-    return _make_attempt("layer_enumeration", "lambda", "Lambda layer enumeration", vuln, details, "", url, last_code, unique_layers)
+    details = (
+        f"Layers found: {len(unique_layers)} ({', '.join(unique_layers[:3])})"
+        if vuln
+        else "No layer info leaked"
+    )
+    return _make_attempt(
+        "layer_enumeration",
+        "lambda",
+        "Lambda layer enumeration",
+        vuln,
+        details,
+        "",
+        url,
+        last_code,
+        unique_layers,
+    )
 
 
 async def _test_temp_file_persistence(
@@ -283,7 +346,9 @@ async def _test_temp_file_persistence(
     persist_signals: list[str] = []
     for _ in range(5):
         try:
-            resp = await client.post(url, content=f'{{"body":"read {marker}"}}'.encode())
+            resp = await client.post(
+                url, content=f'{{"body":"read {marker}"}}'.encode()
+            )
             last_code = resp.status_code
             if marker in resp.text:
                 persist_signals.append("marker_in_response")
@@ -307,8 +372,21 @@ async def _test_temp_file_persistence(
 
     unique_signals = list(set(persist_signals))
     vuln = len(unique_signals) > 0
-    details = f"Signals: {', '.join(unique_signals[:5])}" if vuln else "No persistence signals detected"
-    return _make_attempt("temp_file_persistence", "lambda", "Lambda temp file persistence", vuln, details, "", url, last_code)
+    details = (
+        f"Signals: {', '.join(unique_signals[:5])}"
+        if vuln
+        else "No persistence signals detected"
+    )
+    return _make_attempt(
+        "temp_file_persistence",
+        "lambda",
+        "Lambda temp file persistence",
+        vuln,
+        details,
+        "",
+        url,
+        last_code,
+    )
 
 
 TestCategoryMap = dict  # placeholder for test imports
@@ -323,7 +401,9 @@ async def _test_lambda(
     endpoint: str,
 ) -> list[LambdaAttackAttempt]:
     results: list[LambdaAttackAttempt] = []
-    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=False, follow_redirects=True
+    ) as client:
         for tech, fn in [
             ("env_var_leak", _test_env_var_leak),
             ("layer_enumeration", _test_layer_enumeration),
@@ -333,11 +413,17 @@ async def _test_lambda(
                 result = await fn(endpoint, timeout, client)
                 results.append(result)
             except Exception as exc:
-                results.append(_make_attempt(tech, "lambda", "", False, "", str(exc)[:100], endpoint, 0))
+                results.append(
+                    _make_attempt(
+                        tech, "lambda", "", False, "", str(exc)[:100], endpoint, 0
+                    )
+                )
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[LambdaAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[LambdaAttackAttempt]]]
+] = {
     "lambda": _test_lambda,
 }
 
@@ -346,9 +432,15 @@ def print_results(result: LambdaAttackResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Lambda Attack Testing")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
-    print(color("[*]", Cyber.CYAN), f"Lambda detected: {'yes' if result.lambda_detected else 'no'}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Lambda detected: {'yes' if result.lambda_detected else 'no'}",
+    )
     print()
     if result.issues:
         print(color("[!]", Cyber.YELLOW, Cyber.BOLD), "Issues:")
@@ -361,7 +453,10 @@ def print_results(result: LambdaAttackResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -369,9 +464,15 @@ def print_results(result: LambdaAttackResult) -> None:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Lambda weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Lambda weaknesses detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Lambda configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Lambda configuration looks good",
+        )
     print()
 
 
@@ -383,7 +484,9 @@ async def run_scan(
 ) -> LambdaAttackResult:
     host, path, port, tls = _parse_url(target)
     scheme = "https" if tls else "http"
-    endpoint = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    endpoint = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
     if path:
         endpoint = endpoint.rstrip("/") + path
     lambda_detected = False
@@ -399,7 +502,11 @@ async def run_scan(
             if any(a.leak_count > 0 or a.vulnerable for a in raw):
                 lambda_detected = True
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, 0
+                )
+            )
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
     issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
@@ -428,7 +535,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Lambda Attack Testing — AWS Lambda security probing via HTTP",
     )
     parser.add_argument("url", help="URL alvo (https://target.com/api/endpoint)")
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
     add_common_args(parser)
     return parser
 

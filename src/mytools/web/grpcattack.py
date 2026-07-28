@@ -26,7 +26,9 @@ import grpc
 import grpc.aio
 import httpx
 from google.protobuf.descriptor_pool import DescriptorPool
-from grpc_reflection.v1alpha.proto_reflection_descriptor_database import ProtoReflectionDescriptorDatabase
+from grpc_reflection.v1alpha.proto_reflection_descriptor_database import (
+    ProtoReflectionDescriptorDatabase,
+)
 
 from mytools.core.utils import (
     Cyber,
@@ -85,12 +87,29 @@ class GrpcAttackResult:
 
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "reflection": ["reflection_discovery", "service_enumeration", "method_enumeration", "file_descriptor_leak", "proto_file_dump"],
-    "server_streaming": ["stream_flood", "stream_memory_dos", "slow_loris_stream", "stream_hijack"],
+    "reflection": [
+        "reflection_discovery",
+        "service_enumeration",
+        "method_enumeration",
+        "file_descriptor_leak",
+        "proto_file_dump",
+    ],
+    "server_streaming": [
+        "stream_flood",
+        "stream_memory_dos",
+        "slow_loris_stream",
+        "stream_hijack",
+    ],
     "client_streaming": ["upload_flood", "large_payload", "stream_consume"],
     "bidirectional": ["bidi_flood", "bidi_resource_exhaustion", "bidi_hang"],
     "grpc_web": ["web_bypass", "web_cors_abuse", "web_origin_spoof", "web_proxy_abuse"],
-    "protobuf": ["field_manipulation", "varint_overflow", "nested_message_abuse", "oneof_confusion", "enum_overflow"],
+    "protobuf": [
+        "field_manipulation",
+        "varint_overflow",
+        "nested_message_abuse",
+        "oneof_confusion",
+        "enum_overflow",
+    ],
 }
 
 
@@ -121,9 +140,16 @@ def _create_channel(target: str, tls: bool) -> grpc.aio.Channel:
     return grpc.aio.insecure_channel(target)
 
 
-async def _discover_reflection(host: str, port: int, tls: bool, timeout: float) -> dict[str, Any]:
+async def _discover_reflection(
+    host: str, port: int, tls: bool, timeout: float
+) -> dict[str, Any]:
     target = f"{host}:{port}"
-    result: dict[str, Any] = {"available": False, "services": [], "files": [], "methods": {}}
+    result: dict[str, Any] = {
+        "available": False,
+        "services": [],
+        "files": [],
+        "methods": {},
+    }
     try:
         channel = _create_channel(target, tls)
         await asyncio.wait_for(channel.channel_ready(), timeout=timeout)
@@ -186,7 +212,9 @@ def _make_attempt(
     )
 
 
-async def _try_call(target: str, tls: bool, method: str, payload: bytes, timeout: float) -> tuple[bool, str]:
+async def _try_call(
+    target: str, tls: bool, method: str, payload: bytes, timeout: float
+) -> tuple[bool, str]:
     try:
         channel = _create_channel(target, tls)
         await asyncio.wait_for(channel.channel_ready(), timeout=timeout)
@@ -200,12 +228,26 @@ async def _try_call(target: str, tls: bool, method: str, payload: bytes, timeout
         return False, "connection_failed"
 
 
-async def _test_reflection(host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str, refl: dict[str, Any]) -> list[GrpcAttackAttempt]:
+async def _test_reflection(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
+    refl: dict[str, Any],
+) -> list[GrpcAttackAttempt]:
     results: list[GrpcAttackAttempt] = []
     services = refl.get("services", [])
     files = refl.get("files", [])
     svc_c = _svc_count(refl)
-    for tech in ("reflection_discovery", "service_enumeration", "method_enumeration", "file_descriptor_leak", "proto_file_dump"):
+    for tech in (
+        "reflection_discovery",
+        "service_enumeration",
+        "method_enumeration",
+        "file_descriptor_leak",
+        "proto_file_dump",
+    ):
         try:
             if tech == "reflection_discovery":
                 vuln = refl.get("available", False)
@@ -215,48 +257,116 @@ async def _test_reflection(host: str, port: int, path: str, timeout: float, tls:
                 names = [s["name"] for s in services]
                 det = f"Services: {', '.join(names[:5])}" if names else "No services"
             elif tech == "method_enumeration":
-                all_m = [f"{s['name']}/{m}" for s in services for m in s.get("methods", [])]
+                all_m = [
+                    f"{s['name']}/{m}" for s in services for m in s.get("methods", [])
+                ]
                 vuln = len(all_m) > 0
-                det = f"Methods: {len(all_m)} ({', '.join(all_m[:5])})" if all_m else "No methods"
+                det = (
+                    f"Methods: {len(all_m)} ({', '.join(all_m[:5])})"
+                    if all_m
+                    else "No methods"
+                )
             elif tech == "file_descriptor_leak":
                 vuln = len(files) > 0
-                det = f"File descriptors: {len(files)} ({', '.join(files[:3])})" if files else "No files"
+                det = (
+                    f"File descriptors: {len(files)} ({', '.join(files[:3])})"
+                    if files
+                    else "No files"
+                )
             elif tech == "proto_file_dump":
                 vuln = len(files) > 3
                 det = f"Dumpable files: {len(files)}"
             else:
                 vuln, det = False, ""
-            results.append(_make_attempt(tech, "reflection", tech, vuln, det, "", endpoint, refl))
+            results.append(
+                _make_attempt(tech, "reflection", tech, vuln, det, "", endpoint, refl)
+            )
         except Exception as exc:
-            results.append(_make_attempt(tech, "reflection", tech, False, "", str(exc)[:100], endpoint, refl, 0))
+            results.append(
+                _make_attempt(
+                    tech,
+                    "reflection",
+                    tech,
+                    False,
+                    "",
+                    str(exc)[:100],
+                    endpoint,
+                    refl,
+                    0,
+                )
+            )
     return results
 
 
-async def _test_server_streaming(host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str, refl: dict[str, Any]) -> list[GrpcAttackAttempt]:
+async def _test_server_streaming(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
+    refl: dict[str, Any],
+) -> list[GrpcAttackAttempt]:
     results: list[GrpcAttackAttempt] = []
     target = f"{host}:{port}"
     for tech, desc, payload in [
         ("stream_flood", "Streaming flood", b"\x00\x00\x00\x00\x00"),
-        ("stream_memory_dos", "Memory DoS", b"\x00" + struct.pack(">I", 1024 * 1024) + b"\x00" * (1024 * 1024)),
+        (
+            "stream_memory_dos",
+            "Memory DoS",
+            b"\x00" + struct.pack(">I", 1024 * 1024) + b"\x00" * (1024 * 1024),
+        ),
         ("slow_loris_stream", "Slow loris", b"\x00"),
         ("stream_hijack", "Stream hijack", b"\x08\x01"),
     ]:
         try:
-            vuln, det = await _try_call(target, tls, "/grpc.health.v1.Health/Check", payload, timeout)
+            vuln, det = await _try_call(
+                target, tls, "/grpc.health.v1.Health/Check", payload, timeout
+            )
             if tech == "stream_flood":
                 sent = 0
                 for _i in range(10):
-                    ok, _ = await _try_call(target, tls, "/grpc.health.v1.Health/Check", b"\x00\x00\x00\x00\x00", timeout)
+                    ok, _ = await _try_call(
+                        target,
+                        tls,
+                        "/grpc.health.v1.Health/Check",
+                        b"\x00\x00\x00\x00\x00",
+                        timeout,
+                    )
                     if ok:
                         sent += 1
                 vuln, det = sent > 5, f"Stream flood: {sent}/10 succeeded"
-            results.append(_make_attempt(tech, "server_streaming", desc, vuln, det, "", endpoint, refl))
+            results.append(
+                _make_attempt(
+                    tech, "server_streaming", desc, vuln, det, "", endpoint, refl
+                )
+            )
         except Exception as exc:
-            results.append(_make_attempt(tech, "server_streaming", desc, False, "", str(exc)[:100], endpoint, refl, 0))
+            results.append(
+                _make_attempt(
+                    tech,
+                    "server_streaming",
+                    desc,
+                    False,
+                    "",
+                    str(exc)[:100],
+                    endpoint,
+                    refl,
+                    0,
+                )
+            )
     return results
 
 
-async def _test_client_streaming(host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str, refl: dict[str, Any]) -> list[GrpcAttackAttempt]:
+async def _test_client_streaming(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
+    refl: dict[str, Any],
+) -> list[GrpcAttackAttempt]:
     results: list[GrpcAttackAttempt] = []
     target = f"{host}:{port}"
     for tech, desc, payload in [
@@ -268,59 +378,137 @@ async def _test_client_streaming(host: str, port: int, path: str, timeout: float
             if tech == "upload_flood":
                 sent = 0
                 for _i in range(20):
-                    ok, _ = await _try_call(target, tls, "/grpc.health.v1.Health/Check", payload, timeout)
+                    ok, _ = await _try_call(
+                        target, tls, "/grpc.health.v1.Health/Check", payload, timeout
+                    )
                     if ok:
                         sent += 1
                 vuln, det = sent > 10, f"Uploaded {sent}/20"
             elif tech == "stream_consume":
                 consumed = 0
                 for i in range(15):
-                    ok, _ = await _try_call(target, tls, "/grpc.health.v1.Health/Check", struct.pack(">I", i) + b"\x08" * 100, timeout)
+                    ok, _ = await _try_call(
+                        target,
+                        tls,
+                        "/grpc.health.v1.Health/Check",
+                        struct.pack(">I", i) + b"\x08" * 100,
+                        timeout,
+                    )
                     if ok:
                         consumed += 1
                 vuln, det = consumed > 10, f"Consumed {consumed}/15"
             else:
-                vuln, det = await _try_call(target, tls, "/grpc.health.v1.Health/Check", payload, timeout)
-            results.append(_make_attempt(tech, "client_streaming", desc, vuln, det, "", endpoint, refl))
+                vuln, det = await _try_call(
+                    target, tls, "/grpc.health.v1.Health/Check", payload, timeout
+                )
+            results.append(
+                _make_attempt(
+                    tech, "client_streaming", desc, vuln, det, "", endpoint, refl
+                )
+            )
         except Exception as exc:
-            results.append(_make_attempt(tech, "client_streaming", desc, False, "", str(exc)[:100], endpoint, refl, 0))
+            results.append(
+                _make_attempt(
+                    tech,
+                    "client_streaming",
+                    desc,
+                    False,
+                    "",
+                    str(exc)[:100],
+                    endpoint,
+                    refl,
+                    0,
+                )
+            )
     return results
 
 
-async def _test_bidirectional(host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str, refl: dict[str, Any]) -> list[GrpcAttackAttempt]:
+async def _test_bidirectional(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
+    refl: dict[str, Any],
+) -> list[GrpcAttackAttempt]:
     results: list[GrpcAttackAttempt] = []
     target = f"{host}:{port}"
-    for tech, desc in [("bidi_flood", "Bidi flood"), ("bidi_resource_exhaustion", "Bidi exhaustion"), ("bidi_hang", "Bidi hang")]:
+    for tech, desc in [
+        ("bidi_flood", "Bidi flood"),
+        ("bidi_resource_exhaustion", "Bidi exhaustion"),
+        ("bidi_hang", "Bidi hang"),
+    ]:
         try:
             if tech == "bidi_flood":
                 sent = 0
                 for i in range(25):
-                    ok, _ = await _try_call(target, tls, "/grpc.health.v1.Health/Check", struct.pack(">I", i) + b"\x0a\x04test", timeout)
+                    ok, _ = await _try_call(
+                        target,
+                        tls,
+                        "/grpc.health.v1.Health/Check",
+                        struct.pack(">I", i) + b"\x0a\x04test",
+                        timeout,
+                    )
                     if ok:
                         sent += 1
                 vuln, det = sent > 15, f"Bidi flood: {sent}/25"
             elif tech == "bidi_resource_exhaustion":
                 conc = 0
                 for _i in range(10):
-                    ok, _ = await _try_call(target, tls, "/grpc.health.v1.Health/Check", b"\x00\x00\x00\x00\x00", timeout)
+                    ok, _ = await _try_call(
+                        target,
+                        tls,
+                        "/grpc.health.v1.Health/Check",
+                        b"\x00\x00\x00\x00\x00",
+                        timeout,
+                    )
                     if ok:
                         conc += 1
                 vuln, det = conc > 5, f"Concurrent: {conc}/10"
             else:
                 t0 = time.monotonic()
-                vuln, _ = await _try_call(target, tls, "/grpc.health.v1.Health/Check", b"\x00", timeout)
+                vuln, _ = await _try_call(
+                    target, tls, "/grpc.health.v1.Health/Check", b"\x00", timeout
+                )
                 elapsed = time.monotonic() - t0
                 vuln, det = elapsed > 2.0, f"Bidi hang: {elapsed:.2f}s"
-            results.append(_make_attempt(tech, "bidirectional", desc, vuln, det, "", endpoint, refl))
+            results.append(
+                _make_attempt(
+                    tech, "bidirectional", desc, vuln, det, "", endpoint, refl
+                )
+            )
         except Exception as exc:
-            results.append(_make_attempt(tech, "bidirectional", desc, False, "", str(exc)[:100], endpoint, refl, 0))
+            results.append(
+                _make_attempt(
+                    tech,
+                    "bidirectional",
+                    desc,
+                    False,
+                    "",
+                    str(exc)[:100],
+                    endpoint,
+                    refl,
+                    0,
+                )
+            )
     return results
 
 
-async def _test_grpc_web(host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str, refl: dict[str, Any]) -> list[GrpcAttackAttempt]:
+async def _test_grpc_web(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
+    refl: dict[str, Any],
+) -> list[GrpcAttackAttempt]:
     results: list[GrpcAttackAttempt] = []
     scheme = "https" if tls else "http"
-    base = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    base = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
     for tech, desc in [
         ("web_bypass", "gRPC-Web bypass"),
         ("web_cors_abuse", "CORS abuse"),
@@ -328,34 +516,80 @@ async def _test_grpc_web(host: str, port: int, path: str, timeout: float, tls: b
         ("web_proxy_abuse", "Proxy abuse"),
     ]:
         try:
-            async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+            async with httpx.AsyncClient(
+                timeout=timeout, verify=False, follow_redirects=True
+            ) as client:
                 if tech == "web_bypass":
-                    resp = await client.options(base, headers={"Origin": "http://evil.com", "Access-Control-Request-Method": "POST"})
+                    resp = await client.options(
+                        base,
+                        headers={
+                            "Origin": "http://evil.com",
+                            "Access-Control-Request-Method": "POST",
+                        },
+                    )
                     acao = resp.headers.get("access-control-allow-origin", "")
-                    vuln, det = acao in ("*", "http://evil.com"), f"ACAO: {acao or 'not set'}"
+                    vuln, det = (
+                        acao in ("*", "http://evil.com"),
+                        f"ACAO: {acao or 'not set'}",
+                    )
                 elif tech == "web_cors_abuse":
                     resp = await client.post(
-                        base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web", "Origin": "https://evil.com"}
+                        base,
+                        content=b"\x00\x00\x00\x00\x00",
+                        headers={
+                            "Content-Type": "application/grpc-web",
+                            "Origin": "https://evil.com",
+                        },
                     )
                     acao = resp.headers.get("access-control-allow-origin", "")
-                    vuln, det = acao in ("*", "https://evil.com"), f"CORS: {acao or 'not set'}"
+                    vuln, det = (
+                        acao in ("*", "https://evil.com"),
+                        f"CORS: {acao or 'not set'}",
+                    )
                 elif tech == "web_origin_spoof":
                     resp = await client.post(
-                        base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web+proto", "Origin": "https://internal.company.com"}
+                        base,
+                        content=b"\x00\x00\x00\x00\x00",
+                        headers={
+                            "Content-Type": "application/grpc-web+proto",
+                            "Origin": "https://internal.company.com",
+                        },
                     )
-                    vuln, det = resp.status_code == 200, f"Origin spoof: {resp.status_code}"
+                    vuln, det = (
+                        resp.status_code == 200,
+                        f"Origin spoof: {resp.status_code}",
+                    )
                 else:
                     resp = await client.post(
-                        base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web", "X-Forwarded-For": "127.0.0.1"}
+                        base,
+                        content=b"\x00\x00\x00\x00\x00",
+                        headers={
+                            "Content-Type": "application/grpc-web",
+                            "X-Forwarded-For": "127.0.0.1",
+                        },
                     )
                     vuln, det = resp.status_code == 200, f"Proxy: {resp.status_code}"
-            results.append(_make_attempt(tech, "grpc_web", desc, vuln, det, "", endpoint, refl))
+            results.append(
+                _make_attempt(tech, "grpc_web", desc, vuln, det, "", endpoint, refl)
+            )
         except Exception as exc:
-            results.append(_make_attempt(tech, "grpc_web", desc, False, "", str(exc)[:100], endpoint, refl, 0))
+            results.append(
+                _make_attempt(
+                    tech, "grpc_web", desc, False, "", str(exc)[:100], endpoint, refl, 0
+                )
+            )
     return results
 
 
-async def _test_protobuf(host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str, refl: dict[str, Any]) -> list[GrpcAttackAttempt]:
+async def _test_protobuf(
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
+    refl: dict[str, Any],
+) -> list[GrpcAttackAttempt]:
     results: list[GrpcAttackAttempt] = []
     target = f"{host}:{port}"
     payloads = {
@@ -373,14 +607,24 @@ async def _test_protobuf(host: str, port: int, path: str, timeout: float, tls: b
         ("enum_overflow", "Enum overflow"),
     ]:
         try:
-            vuln, det = await _try_call(target, tls, "/grpc.health.v1.Health/Check", payloads[tech], timeout)
-            results.append(_make_attempt(tech, "protobuf", desc, vuln, det, "", endpoint, refl))
+            vuln, det = await _try_call(
+                target, tls, "/grpc.health.v1.Health/Check", payloads[tech], timeout
+            )
+            results.append(
+                _make_attempt(tech, "protobuf", desc, vuln, det, "", endpoint, refl)
+            )
         except Exception as exc:
-            results.append(_make_attempt(tech, "protobuf", desc, False, "", str(exc)[:100], endpoint, refl, 0))
+            results.append(
+                _make_attempt(
+                    tech, "protobuf", desc, False, "", str(exc)[:100], endpoint, refl, 0
+                )
+            )
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[GrpcAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[GrpcAttackAttempt]]]
+] = {
     "reflection": _test_reflection,
     "server_streaming": _test_server_streaming,
     "client_streaming": _test_client_streaming,
@@ -394,10 +638,19 @@ def print_results(result: GrpcAttackResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "gRPC Attack Testing")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
-    print(color("[*]", Cyber.CYAN), f"Reflection: {'enabled' if result.reflection_enabled else 'disabled'}")
-    print(color("[*]", Cyber.CYAN), f"Services: {result.services_count} | Methods: {result.methods_count}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Reflection: {'enabled' if result.reflection_enabled else 'disabled'}",
+    )
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Services: {result.services_count} | Methods: {result.methods_count}",
+    )
     print()
     if result.issues:
         print(color("[!]", Cyber.YELLOW, Cyber.BOLD), "Issues:")
@@ -410,7 +663,10 @@ def print_results(result: GrpcAttackResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -418,16 +674,26 @@ def print_results(result: GrpcAttackResult) -> None:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — gRPC weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — gRPC weaknesses detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — gRPC configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — gRPC configuration looks good",
+        )
     print()
 
 
-async def run_scan(target: str, categories: list[str] | None, timeout: float, output_file: str | None) -> GrpcAttackResult:
+async def run_scan(
+    target: str, categories: list[str] | None, timeout: float, output_file: str | None
+) -> GrpcAttackResult:
     host, path, port, tls = _parse_url(target)
     scheme = "https" if tls else "http"
-    endpoint = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    endpoint = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
     refl = await _discover_reflection(host, port, tls, timeout)
     all_attempts: list[GrpcAttackAttempt] = []
     cats = categories if categories is not None else list(_CATEGORY_MAP.keys())
@@ -439,7 +705,11 @@ async def run_scan(target: str, categories: list[str] | None, timeout: float, ou
             raw = await tester(host, port, path, timeout, tls, endpoint, refl)
             all_attempts.extend(raw)
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, refl, 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, refl, 0
+                )
+            )
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
     issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
@@ -470,7 +740,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="gRPC Attack Testing — Reflection, Streaming, Bidirectional, gRPC-Web, Protobuf",
     )
     parser.add_argument("url", help="URL alvo (grpc://target.com:50051)")
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
     add_common_args(parser)
     return parser
 
@@ -478,7 +754,10 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     result = safe_asyncio_run(
         run_scan(
-            target=args.url, categories=getattr(args, "categories", None), timeout=getattr(args, "timeout", 5.0), output_file=getattr(args, "output", None)
+            target=args.url,
+            categories=getattr(args, "categories", None),
+            timeout=getattr(args, "timeout", 5.0),
+            output_file=getattr(args, "output", None),
         )
     )
     return 1 if result.overall_status == "vulnerable" else 0

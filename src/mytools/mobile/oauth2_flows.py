@@ -14,7 +14,11 @@ logger = logging.getLogger("mytools.mobile.oauth2_flows")
 def _make_pkce_pair() -> tuple[str, str]:
     """Gera par code_verifier/code_challenge para PKCE."""
     verifier = secrets.token_urlsafe(64)
-    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+        .rstrip(b"=")
+        .decode("ascii")
+    )
     return verifier, challenge
 
 
@@ -185,7 +189,11 @@ def validate_jwt(token: str) -> dict[str, Any]:
         import jwt
 
         # Decode without verification to inspect
-        unverified = jwt.decode(token, options={"verify_signature": False}, algorithms=["HS256", "RS256", "ES256"])
+        unverified = jwt.decode(
+            token,
+            options={"verify_signature": False},
+            algorithms=["HS256", "RS256", "ES256"],
+        )
 
         header = jwt.get_unverified_header(token)
 

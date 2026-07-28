@@ -17,7 +17,9 @@ _URL_PATTERNS = [
 
 # API path patterns
 _API_PATH_PATTERNS = [
-    re.compile(rb"/(?:api|v[0-9]+|graphql|rest|oauth|auth|token|login|register|signup|user|users|profile|admin|dashboard|webhook)[a-zA-Z0-9/_\-]*"),
+    re.compile(
+        rb"/(?:api|v[0-9]+|graphql|rest|oauth|auth|token|login|register|signup|user|users|profile|admin|dashboard|webhook)[a-zA-Z0-9/_\-]*"
+    ),
 ]
 
 # Deep link / scheme patterns
@@ -118,9 +120,16 @@ def extract_endpoints(file_path: str) -> dict[str, Any]:
             "firebase_urls": sorted_firebase,
             "schemes": sorted_schemes,
             "domains": sorted_domains,
-            "total_endpoints": len(sorted_urls) + len(sorted_api_paths) + len(sorted_firebase),
+            "total_endpoints": len(sorted_urls)
+            + len(sorted_api_paths)
+            + len(sorted_firebase),
         }
 
     except Exception as e:
         logger.error("Failed to extract endpoints from %s: %s", file_path, e)
-        return {"error": str(e)[:200], "urls": [], "api_paths": [], "total_endpoints": 0}
+        return {
+            "error": str(e)[:200],
+            "urls": [],
+            "api_paths": [],
+            "total_endpoints": 0,
+        }

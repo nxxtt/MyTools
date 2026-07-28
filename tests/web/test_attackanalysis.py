@@ -64,7 +64,9 @@ class TestAttackNode:
 
 class TestAttackEdge:
     def test_creation(self) -> None:
-        edge = AttackEdge(source="vuln_0", target="vuln_1", relationship="same_category")
+        edge = AttackEdge(
+            source="vuln_0", target="vuln_1", relationship="same_category"
+        )
         assert edge.source == "vuln_0"
         assert edge.relationship == "same_category"
 
@@ -156,7 +158,14 @@ class TestBuildGraph:
         assert graph.info_count == 1
 
     def test_exploit_preserved(self) -> None:
-        findings = [{"severity": "high", "category": "xss", "item": "XSS", "exploit": "curl <TARGET>"}]
+        findings = [
+            {
+                "severity": "high",
+                "category": "xss",
+                "item": "XSS",
+                "exploit": "curl <TARGET>",
+            }
+        ]
         graph = build_graph(findings, "test.com")
         assert graph.nodes[0].exploit == "curl <TARGET>"
 
@@ -173,8 +182,18 @@ class TestSuggestExploits:
 
     def test_with_exploits(self) -> None:
         findings = [
-            {"severity": "high", "category": "xss", "item": "XSS", "exploit": "curl <TARGET>"},
-            {"severity": "medium", "category": "sqli", "item": "SQLi", "exploit": "sqlmap <TARGET>"},
+            {
+                "severity": "high",
+                "category": "xss",
+                "item": "XSS",
+                "exploit": "curl <TARGET>",
+            },
+            {
+                "severity": "medium",
+                "category": "sqli",
+                "item": "SQLi",
+                "exploit": "sqlmap <TARGET>",
+            },
         ]
         exploits = suggest_exploits(findings)
         assert len(exploits) == 2
@@ -183,7 +202,12 @@ class TestSuggestExploits:
 
     def test_mixed_exploits(self) -> None:
         findings = [
-            {"severity": "high", "category": "xss", "item": "XSS", "exploit": "curl <TARGET>"},
+            {
+                "severity": "high",
+                "category": "xss",
+                "item": "XSS",
+                "exploit": "curl <TARGET>",
+            },
             {"severity": "medium", "category": "sqli", "item": "SQLi"},
         ]
         exploits = suggest_exploits(findings)
@@ -236,7 +260,14 @@ class TestExportDot:
 
 class TestPrintResults:
     def test_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
-        findings = [{"severity": "high", "category": "xss", "item": "XSS", "exploit": "curl <TARGET>"}]
+        findings = [
+            {
+                "severity": "high",
+                "category": "xss",
+                "item": "XSS",
+                "exploit": "curl <TARGET>",
+            }
+        ]
         graph = build_graph(findings, "test.com")
         exploits = suggest_exploits(findings)
         print_results(graph, exploits)
@@ -244,7 +275,9 @@ class TestPrintResults:
         assert "Attack Analysis" in captured.out
         assert "test.com" in captured.out
 
-    def test_print_results_no_exploits(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_print_results_no_exploits(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         graph = build_graph([], "test.com")
         print_results(graph, [])
         captured = capsys.readouterr()
@@ -254,7 +287,9 @@ class TestPrintResults:
 class TestRunOnceLogging:
     """Testes para logging em run_once()."""
 
-    def test_file_not_found_logs_error(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    def test_file_not_found_logs_error(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         import argparse
 
         args = argparse.Namespace(
@@ -270,7 +305,9 @@ class TestRunOnceLogging:
         assert result == 1
         assert "arquivo não encontrado" in caplog.text
 
-    def test_invalid_json_logs_error(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    def test_invalid_json_logs_error(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         import argparse
 
         bad = tmp_path / "bad.json"
@@ -288,11 +325,15 @@ class TestRunOnceLogging:
         assert result == 1
         assert "JSON inválido" in caplog.text
 
-    def test_png_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    def test_png_saved_logs_info(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         import argparse
 
         findings = tmp_path / "findings.json"
-        findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
+        findings.write_text(
+            '[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8"
+        )
         args = argparse.Namespace(
             findings_file=str(findings),
             target="test.com",
@@ -306,11 +347,15 @@ class TestRunOnceLogging:
         assert result == 0
         assert "PNG salvo" in caplog.text
 
-    def test_svg_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    def test_svg_saved_logs_info(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         import argparse
 
         findings = tmp_path / "findings.json"
-        findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
+        findings.write_text(
+            '[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8"
+        )
         args = argparse.Namespace(
             findings_file=str(findings),
             target="test.com",
@@ -324,11 +369,15 @@ class TestRunOnceLogging:
         assert result == 0
         assert "SVG salvo" in caplog.text
 
-    def test_dot_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    def test_dot_saved_logs_info(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         import argparse
 
         findings = tmp_path / "findings.json"
-        findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
+        findings.write_text(
+            '[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8"
+        )
         args = argparse.Namespace(
             findings_file=str(findings),
             target="test.com",
@@ -344,7 +393,9 @@ class TestRunOnceLogging:
 
 
 class TestJsonOutput:
-    def test_json_output_high_severity(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_json_output_high_severity(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         import argparse
 
         findings = tmp_path / "findings.json"
@@ -368,7 +419,9 @@ class TestJsonOutput:
         assert '"XSS Reflected"' in out
         assert result == 1
 
-    def test_json_output_low_severity(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_json_output_low_severity(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         import argparse
 
         findings = tmp_path / "findings.json"
@@ -391,7 +444,9 @@ class TestJsonOutput:
         assert '"total_vulnerabilities": 1' in out
         assert result == 0
 
-    def test_json_output_no_print_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_json_output_no_print_results(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         import argparse
 
         findings = tmp_path / "findings.json"
@@ -436,7 +491,17 @@ class TestBuildParser:
 
     def test_parser_with_options(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["findings.json", "--png", "out.png", "--svg", "out.svg", "--dot", "out.dot"])
+        args = parser.parse_args(
+            [
+                "findings.json",
+                "--png",
+                "out.png",
+                "--svg",
+                "out.svg",
+                "--dot",
+                "out.dot",
+            ]
+        )
         assert args.png == "out.png"
         assert args.svg == "out.svg"
         assert args.dot == "out.dot"

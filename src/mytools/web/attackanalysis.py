@@ -160,7 +160,9 @@ def export_dot(graph: AttackGraph, output_path: str) -> None:
     for node_id, data in G.nodes(data=True):
         label = data.get("label", node_id).replace("\n", "\\n")
         color_val = _SEVERITY_COLORS.get(data.get("severity", "info"), "#888888")
-        dot_lines.append(f'  "{node_id}" [label="{label}" style=filled fillcolor="{color_val}"];')
+        dot_lines.append(
+            f'  "{node_id}" [label="{label}" style=filled fillcolor="{color_val}"];'
+        )
     for source, target_val, data in G.edges(data=True):
         rel = data.get("relationship", "")
         dot_lines.append(f'  "{source}" -> "{target_val}" [label="{rel}"];')
@@ -172,7 +174,14 @@ def _build_nx_graph(graph: AttackGraph) -> nx.DiGraph:
     """Constrói networkx DiGraph a partir de AttackGraph."""
     G = nx.DiGraph()
     for node in graph.nodes:
-        G.add_node(node.id, label=node.label, severity=node.severity, category=node.category, module=node.module, exploit=node.exploit)
+        G.add_node(
+            node.id,
+            label=node.label,
+            severity=node.severity,
+            category=node.category,
+            module=node.module,
+            exploit=node.exploit,
+        )
     for edge in graph.edges:
         G.add_edge(edge.source, edge.target, relationship=edge.relationship)
     return G
@@ -193,7 +202,18 @@ def _draw_graph(G: nx.DiGraph, graph: AttackGraph, output_path: str, fmt: str) -
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=6)
     plt.title(f"Attack Path — {graph.target}", fontsize=14, fontweight="bold")
     plt.legend(
-        handles=[Line2D([0], [0], marker="o", color="w", markerfacecolor=c, markersize=10, label=s.title()) for s, c in _SEVERITY_COLORS.items()],
+        handles=[
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=c,
+                markersize=10,
+                label=s.title(),
+            )
+            for s, c in _SEVERITY_COLORS.items()
+        ],
         loc="upper left",
     )
     plt.axis("off")
@@ -224,7 +244,10 @@ def print_results(graph: AttackGraph, exploits: list[dict[str, str]]) -> None:
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Attack Analysis")
     print(color("[*]", Cyber.CYAN), f"Target: {graph.target}")
     print()
-    print(color("[*]", Cyber.CYAN), f"Total vulnerabilities: {graph.total_vulnerabilities}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Total vulnerabilities: {graph.total_vulnerabilities}",
+    )
     if graph.critical_count:
         print(color("    [-]", Cyber.RED), f"Critical: {graph.critical_count}")
     if graph.high_count:
@@ -237,7 +260,10 @@ def print_results(graph: AttackGraph, exploits: list[dict[str, str]]) -> None:
         print(color("    [-]", Cyber.GREEN), f"Info: {graph.info_count}")
     print()
     if exploits:
-        print(color("[!]", Cyber.RED, Cyber.BOLD), f"Suggested exploits ({len(exploits)}):")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            f"Suggested exploits ({len(exploits)}):",
+        )
         for exp in exploits:
             print(color("    [-]", Cyber.RED), f"[{exp['severity']}] {exp['module']}")
             print(color("        ->", Cyber.YELLOW), exp["exploit"])
@@ -252,12 +278,18 @@ def build_parser() -> argparse.ArgumentParser:
         prog="mytools-analysis",
         description="Attack Analysis — Visualização de caminhos de ataque",
     )
-    parser.add_argument("findings_file", help="Arquivo JSON com findings (output de attackaudit)")
-    parser.add_argument("--target", default="unknown", help="Target label (default: unknown)")
+    parser.add_argument(
+        "findings_file", help="Arquivo JSON com findings (output de attackaudit)"
+    )
+    parser.add_argument(
+        "--target", default="unknown", help="Target label (default: unknown)"
+    )
     parser.add_argument("--png", help="Caminho para salvar PNG")
     parser.add_argument("--svg", help="Caminho para salvar SVG")
     parser.add_argument("--dot", help="Caminha para salvar DOT")
-    parser.add_argument("--exploits-only", action="store_true", help="Mostrar apenas exploits")
+    parser.add_argument(
+        "--exploits-only", action="store_true", help="Mostrar apenas exploits"
+    )
     add_common_args(parser)
     return parser
 

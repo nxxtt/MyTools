@@ -71,7 +71,15 @@ class TestDotResolverResult:
             host="dns.google",
             port=853,
             records=[],
-            tls_info=DotTlsInfo(issuer="", subject="", not_before="", not_after="", san=[], serial="", version=""),
+            tls_info=DotTlsInfo(
+                issuer="",
+                subject="",
+                not_before="",
+                not_after="",
+                san=[],
+                serial="",
+                version="",
+            ),
             latency_ms=50.0,
             error="",
         )
@@ -85,7 +93,15 @@ class TestDotResolverResult:
             host="dns.google",
             port=853,
             records=[],
-            tls_info=DotTlsInfo(issuer="", subject="", not_before="", not_after="", san=[], serial="", version=""),
+            tls_info=DotTlsInfo(
+                issuer="",
+                subject="",
+                not_before="",
+                not_after="",
+                san=[],
+                serial="",
+                version="",
+            ),
             latency_ms=50.0,
             error="",
         )

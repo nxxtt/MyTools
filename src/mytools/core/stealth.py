@@ -70,7 +70,9 @@ class ProxyPool:
         self._failures[proxy] = self._failures.get(proxy, 0) + 1
         if self._failures[proxy] >= self._max_failures:
             self._dead.add(proxy)
-            logger.debug("proxy %s marcado como morto (falhas=%d)", proxy, self._failures[proxy])
+            logger.debug(
+                "proxy %s marcado como morto (falhas=%d)", proxy, self._failures[proxy]
+            )
 
     def mark_ok(self, proxy: str) -> None:
         """Reseta contagem de falhas do proxy."""
@@ -164,7 +166,11 @@ class UserAgentRotator:
     """
 
     CATEGORIES: ClassVar[dict[str, list[str]]] = {
-        "chrome": [ua for ua in _USER_AGENTS if "Chrome" in ua and "Edg" not in ua and "OPR" not in ua],
+        "chrome": [
+            ua
+            for ua in _USER_AGENTS
+            if "Chrome" in ua and "Edg" not in ua and "OPR" not in ua
+        ],
         "firefox": [ua for ua in _USER_AGENTS if "Firefox" in ua],
         "safari": [ua for ua in _USER_AGENTS if "Safari" in ua and "Chrome" not in ua],
         "edge": [ua for ua in _USER_AGENTS if "Edg" in ua],

@@ -66,11 +66,40 @@ _SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("slack_token", re.compile(r"xoxb-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,36}")),
     ("stripe_key", re.compile(r"sk_live_[0-9a-zA-Z]{24,}")),
     ("private_key", re.compile(r"-----BEGIN\s+(RSA|DSA|EC)\s+PRIVATE\s+KEY-----")),
-    ("password_assign", re.compile(r"""(?:password|passwd|pwd)\s*[:=]\s*['"]?([^\s'"<>]{4,80})['"]?""", re.IGNORECASE)),
-    ("api_key_assign", re.compile(r"""(?:api[_-]?key|apikey)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
-    ("secret_assign", re.compile(r"""(?:secret|secret[_-]?key)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
-    ("token_assign", re.compile(r"""(?:auth[_-]?token|access[_-]?token)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
-    ("connection_string", re.compile(r"(?:mysql|postgres|mongodb|redis)://[^\s\"'<>]{10,}", re.IGNORECASE)),
+    (
+        "password_assign",
+        re.compile(
+            r"""(?:password|passwd|pwd)\s*[:=]\s*['"]?([^\s'"<>]{4,80})['"]?""",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "api_key_assign",
+        re.compile(
+            r"""(?:api[_-]?key|apikey)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "secret_assign",
+        re.compile(
+            r"""(?:secret|secret[_-]?key)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "token_assign",
+        re.compile(
+            r"""(?:auth[_-]?token|access[_-]?token)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "connection_string",
+        re.compile(
+            r"(?:mysql|postgres|mongodb|redis)://[^\s\"'<>]{10,}", re.IGNORECASE
+        ),
+    ),
 ]
 
 
@@ -95,7 +124,9 @@ def _mask_secret(text: str) -> str:
     return text[:4] + "***" + text[-4:]
 
 
-def _scan_content(content: str, source: str, url: str, filename: str) -> list[LeakRecord]:
+def _scan_content(
+    content: str, source: str, url: str, filename: str
+) -> list[LeakRecord]:
     """Busca padroes de credenciais no conteudo de um paste/gist/snippet."""
     leaks: list[LeakRecord] = []
     now = datetime.now(UTC).isoformat()
@@ -188,7 +219,9 @@ async def _query_github_gists(
                         )
                         if s2 == 200:
                             content = c.decode("utf-8", errors="replace")
-                            leaks.extend(_scan_content(content, "github_gists", gist_url, fname))
+                            leaks.extend(
+                                _scan_content(content, "github_gists", gist_url, fname)
+                            )
                     except FetchError:
                         pass
 
@@ -319,7 +352,11 @@ async def _query_gitlab_snippets(
                     )
                     if s2 == 200:
                         content = c.decode("utf-8", errors="replace")
-                        leaks.extend(_scan_content(content, "gitlab_snippets", snippet_url, fname))
+                        leaks.extend(
+                            _scan_content(
+                                content, "gitlab_snippets", snippet_url, fname
+                            )
+                        )
                 except FetchError:
                     pass
 
@@ -392,7 +429,9 @@ async def _query_github_code(
                     )
                     if s2 == 200:
                         content = c.decode("utf-8", errors="replace")
-                        leaks.extend(_scan_content(content, "github_code", html_url, file_path))
+                        leaks.extend(
+                            _scan_content(content, "github_code", html_url, file_path)
+                        )
                 except FetchError:
                     pass
 
@@ -426,20 +465,28 @@ async def scan_leaks(
     try:
         for source in sources:
             if source == "github_gists":
-                found = await _query_github_gists(client, domain, timeout, rate_limiter, max_results)
+                found = await _query_github_gists(
+                    client, domain, timeout, rate_limiter, max_results
+                )
                 all_leaks.extend(found)
                 logger.info("[%s] %d leaks encontrados", source, len(found))
             elif source == "pastebin_rss":
-                found = await _query_pastebin_rss(client, domain, timeout, rate_limiter, max_results)
+                found = await _query_pastebin_rss(
+                    client, domain, timeout, rate_limiter, max_results
+                )
                 all_leaks.extend(found)
                 logger.info("[%s] %d leaks encontrados", source, len(found))
             elif source == "gitlab_snippets":
-                found = await _query_gitlab_snippets(client, domain, timeout, rate_limiter, max_results)
+                found = await _query_gitlab_snippets(
+                    client, domain, timeout, rate_limiter, max_results
+                )
                 all_leaks.extend(found)
                 logger.info("[%s] %d leaks encontrados", source, len(found))
             elif source == "github_code":
                 token = api_keys.get("github_token") or ""
-                found = await _query_github_code(client, domain, timeout, rate_limiter, token, max_results)
+                found = await _query_github_code(
+                    client, domain, timeout, rate_limiter, token, max_results
+                )
                 all_leaks.extend(found)
                 logger.info("[%s] %d leaks encontrados", source, len(found))
     finally:
@@ -460,12 +507,20 @@ def print_results(leaks: list[LeakRecord]) -> None:
 
     total = len(leaks)
     sources_count = len(by_source)
-    print(color(f"\n[+] {total} leak(s) encontrado(s) em {sources_count} fonte(s):", Cyber.GREEN, Cyber.BOLD))
+    print(
+        color(
+            f"\n[+] {total} leak(s) encontrado(s) em {sources_count} fonte(s):",
+            Cyber.GREEN,
+            Cyber.BOLD,
+        )
+    )
 
     for source, source_leaks in by_source.items():
         print(color(f"\n  Fonte: {source}", Cyber.CYAN, Cyber.BOLD))
         for leak in source_leaks:
-            print(f"    {color(leak.matched_pattern, Cyber.RED, Cyber.BOLD)} | {color(leak.filename, Cyber.YELLOW)} | {leak.matched_text}")
+            print(
+                f"    {color(leak.matched_pattern, Cyber.RED, Cyber.BOLD)} | {color(leak.filename, Cyber.YELLOW)} | {leak.matched_text}"
+            )
             print(f"      {color(leak.url, Cyber.GRAY)}")
             print_exploit_info(leak.exploit, leak.tool)
 
@@ -479,7 +534,9 @@ def banner() -> None:
  / /  / / /_/ / /___/ /_/ / /_/ / (__  )
 /_/  /_/\____/_____/\____/\____/_/____/
 """
-    create_banner(art, "   paste/leak monitoring: github gists + pastebin + gitlab snippets")()
+    create_banner(
+        art, "   paste/leak monitoring: github gists + pastebin + gitlab snippets"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -489,8 +546,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_base_args(parser)
     add_http_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para monitorar (ex: example.com).")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha).")
+    parser.add_argument(
+        "domain", nargs="?", help="Dominio alvo para monitorar (ex: example.com)."
+    )
+    parser.add_argument(
+        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
+    )
     parser.add_argument(
         "--source",
         action="append",
@@ -572,7 +633,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(leak) for leak in all_leaks],
-            ["source", "url", "filename", "matched_pattern", "matched_text", "found_at"],
+            [
+                "source",
+                "url",
+                "filename",
+                "matched_pattern",
+                "matched_text",
+                "found_at",
+            ],
             quiet=quiet,
         )
     return 0

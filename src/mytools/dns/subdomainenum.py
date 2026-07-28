@@ -289,7 +289,9 @@ def _load_wordlist() -> tuple[str, ...]:
     """Carrega wordlist de subdomínios de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("dns", "subdomain_enum", default={"wordlist": list(BUILTIN_WORDLIST_DEFAULT)})
+    data = load_payloads(
+        "dns", "subdomain_enum", default={"wordlist": list(BUILTIN_WORDLIST_DEFAULT)}
+    )
     return tuple(data.get("wordlist", BUILTIN_WORDLIST_DEFAULT))
 
 
@@ -330,7 +332,9 @@ def load_wordlist(path: str | None = None) -> list[str]:
     return words
 
 
-def _resolve_subdomain(subdomain: str, domain: str, timeout: float, resolver: dns.resolver.Resolver) -> SubdomainResult:
+def _resolve_subdomain(
+    subdomain: str, domain: str, timeout: float, resolver: dns.resolver.Resolver
+) -> SubdomainResult:
     """Resolve um unico subdominio via DNS A record.
 
     Args:
@@ -366,7 +370,9 @@ def _resolve_subdomain(subdomain: str, domain: str, timeout: float, resolver: dn
         return SubdomainResult(subdomain=fqdn, status="error")
 
 
-def _prefetch_records(domain: str, resolver: dns.resolver.Resolver) -> list[SubdomainResult]:
+def _prefetch_records(
+    domain: str, resolver: dns.resolver.Resolver
+) -> list[SubdomainResult]:
     """Consulta MX e CNAME antes do brute-force para revelar subdominios rapidamente.
 
     Args:
@@ -392,10 +398,19 @@ def _prefetch_records(domain: str, resolver: dns.resolver.Resolver) -> list[Subd
                         a_answers = resolver.resolve(fqdn, "A")
                         ips = sorted(str(r) for r in a_answers)
                         logger.info("%s (via %s) -> %s", fqdn, rtype, ", ".join(ips))
-                        prefetched.append(SubdomainResult(subdomain=fqdn, ip_addresses=ips, status="resolved"))
+                        prefetched.append(
+                            SubdomainResult(
+                                subdomain=fqdn, ip_addresses=ips, status="resolved"
+                            )
+                        )
                     except dns.exception.DNSException as e:
                         logger.debug("prefetch A resolution failed for %s: %s", fqdn, e)
-        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.exception.DNSException) as e:
+        except (
+            dns.resolver.NoAnswer,
+            dns.resolver.NXDOMAIN,
+            dns.resolver.Timeout,
+            dns.exception.DNSException,
+        ) as e:
             logger.debug("prefetch MX/CNAME lookup failed for %s: %s", domain, e)
 
     return prefetched
@@ -679,13 +694,18 @@ def enumerate_subdomains(
     with ThreadPoolExecutor(max_workers=threads) as executor:
         skip_all = prefetched_names | skipped
         remaining = [w for w in wordlist if f"{w}.{domain}" not in skip_all]
-        futures = {executor.submit(_resolve_subdomain, word, domain, timeout, resolver): word for word in remaining}
+        futures = {
+            executor.submit(_resolve_subdomain, word, domain, timeout, resolver): word
+            for word in remaining
+        }
 
         total_brute = len(remaining)
         for done_count, future in enumerate(as_completed(futures), 1):
             result = future.result()
             if done_count % 20 == 0 or done_count == total_brute:
-                sys.stdout.write(f"\r  Progresso: {done_count}/{total_brute} subdominios testados...")
+                sys.stdout.write(
+                    f"\r  Progresso: {done_count}/{total_brute} subdominios testados..."
+                )
                 sys.stdout.flush()
             if result.status == "resolved":
                 sys.stdout.write("\r" + " " * 60 + "\r")
@@ -725,7 +745,9 @@ def run_enum_scan(
         Lista de subdominios resolvidos.
     """
     wordlist = load_wordlist(wordlist_path)
-    return enumerate_subdomains(domain, wordlist, threads=threads, timeout=timeout, skip_names=skip_names)
+    return enumerate_subdomains(
+        domain, wordlist, threads=threads, timeout=timeout, skip_names=skip_names
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -829,7 +851,9 @@ def run_once(args: argparse.Namespace) -> int:
         logger.info("Wordlist: %d subdominios", len(wordlist))
         logger.info("Threads: %d | Timeout: %.1fs", threads, args.timeout)
         if passive_results:
-            logger.info("Passive: %d subdominios (ja resolvidos via DNS)", len(passive_results))
+            logger.info(
+                "Passive: %d subdominios (ja resolvidos via DNS)", len(passive_results)
+            )
         return 0
 
     passive_names = {r.subdomain for r in passive_results}

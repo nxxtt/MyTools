@@ -113,7 +113,14 @@ class TestCertCheckResult:
 
 class TestCategoryMap:
     def test_all_categories_present(self) -> None:
-        expected = {"ocsp_stapling", "cert_chain", "ct_sct", "ct_split_world", "hsts_preload", "mixed_content"}
+        expected = {
+            "ocsp_stapling",
+            "cert_chain",
+            "ct_sct",
+            "ct_split_world",
+            "hsts_preload",
+            "mixed_content",
+        }
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_category_counts(self) -> None:
@@ -203,10 +210,15 @@ class TestDetectMixedContent:
         assert len(result["active_mixed"]) == 2
 
     def test_upgrade_insecure(self) -> None:
-        assert _detect_mixed_content("", "https://example.com")["has_upgrade_insecure"] is False
+        assert (
+            _detect_mixed_content("", "https://example.com")["has_upgrade_insecure"]
+            is False
+        )
 
     def test_csp_upgrade(self) -> None:
-        assert _detect_mixed_content("", "https://example.com")["has_csp_upgrade"] is False
+        assert (
+            _detect_mixed_content("", "https://example.com")["has_csp_upgrade"] is False
+        )
 
 
 class TestExtractScts:
@@ -238,7 +250,9 @@ class TestCheckHstsHeader:
     @pytest.mark.asyncio
     async def test_with_hsts(self) -> None:
         mock_resp = MagicMock()
-        mock_resp.headers = {"strict-transport-security": "max-age=31536000; includeSubDomains; preload"}
+        mock_resp.headers = {
+            "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+        }
         mock_client = AsyncMock()
         mock_client.head = AsyncMock(return_value=mock_resp)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -325,7 +339,9 @@ class TestCLI:
 
     def test_build_parser_with_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "-c", "ocsp_stapling", "cert_chain"])
+        args = parser.parse_args(
+            ["https://example.com", "-c", "ocsp_stapling", "cert_chain"]
+        )
         assert args.categories == ["ocsp_stapling", "cert_chain"]
 
     def test_build_parser_all_choices(self) -> None:

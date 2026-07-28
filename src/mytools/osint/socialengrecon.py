@@ -391,7 +391,9 @@ async def _query_webpages(
                 position = ""
                 if position_tag:
                     pos_text = position_tag.get_text(strip=True)
-                    if len(pos_text) < 60 and any(kw in pos_text.lower() for kw in _JOB_TITLE_KEYWORDS):
+                    if len(pos_text) < 60 and any(
+                        kw in pos_text.lower() for kw in _JOB_TITLE_KEYWORDS
+                    ):
                         position = pos_text
 
                 employees.append(
@@ -458,16 +460,22 @@ async def scan_employees(
 
     for source in sources:
         if source == "github":
-            emps = await _query_github(client, domain, timeout, rate_limiter, max_results)
+            emps = await _query_github(
+                client, domain, timeout, rate_limiter, max_results
+            )
             all_employees.extend(emps)
             logger.info("GitHub: %d funcionarios encontrados", len(emps))
         elif source == "hunter":
             key = api_keys.get("hunter") or ""
-            emps = await _query_hunter(client, domain, key, timeout, rate_limiter, max_results)
+            emps = await _query_hunter(
+                client, domain, key, timeout, rate_limiter, max_results
+            )
             all_employees.extend(emps)
             logger.info("Hunter: %d funcionarios encontrados", len(emps))
         elif source == "web":
-            emps = await _query_webpages(client, domain, timeout, rate_limiter, max_results)
+            emps = await _query_webpages(
+                client, domain, timeout, rate_limiter, max_results
+            )
             all_employees.extend(emps)
             logger.info("Web: %d funcionarios encontrados", len(emps))
 
@@ -476,7 +484,9 @@ async def scan_employees(
     all_employees = _dedup_employees(all_employees)
 
     elapsed = time.monotonic() - started
-    logger.info("Finalizado em %.2fs. Funcionarios unicos: %d", elapsed, len(all_employees))
+    logger.info(
+        "Finalizado em %.2fs. Funcionarios unicos: %d", elapsed, len(all_employees)
+    )
 
     return all_employees
 
@@ -530,7 +540,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha).")
+    parser.add_argument(
+        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
+    )
     parser.add_argument(
         "--source",
         action="append",
@@ -591,7 +603,16 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(e) for e in employees],
-            ["domain", "name", "email", "position", "seniority", "department", "source", "profile_url"],
+            [
+                "domain",
+                "name",
+                "email",
+                "position",
+                "seniority",
+                "department",
+                "source",
+                "profile_url",
+            ],
             quiet=quiet,
         )
     return 0

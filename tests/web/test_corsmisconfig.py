@@ -63,7 +63,10 @@ class TestCheckCORSHeaders:
 
     def test_wildcard_with_credentials(self) -> None:
         vuln, details = _check_cors_headers(
-            {"access-control-allow-origin": "*", "access-control-allow-credentials": "true"},
+            {
+                "access-control-allow-origin": "*",
+                "access-control-allow-credentials": "true",
+            },
             "https://evil.com",
         )
         assert vuln is True
@@ -352,7 +355,14 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "null_origin", "subdomain", "credentials", "reflected", "bypass"]:
+        for cat in [
+            "all",
+            "null_origin",
+            "subdomain",
+            "credentials",
+            "reflected",
+            "bypass",
+        ]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 

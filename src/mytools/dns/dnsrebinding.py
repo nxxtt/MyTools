@@ -140,7 +140,9 @@ def _check_ttl(domain: str, answers: dns.resolver.Answer) -> RebindingResult | N
     return None
 
 
-def _check_private_ips(domain: str, answers: dns.resolver.Answer) -> list[RebindingResult]:
+def _check_private_ips(
+    domain: str, answers: dns.resolver.Answer
+) -> list[RebindingResult]:
     """Verifica se alguma resolucao retorna IP privado."""
     results: list[RebindingResult] = []
 
@@ -174,7 +176,9 @@ def _check_private_ips(domain: str, answers: dns.resolver.Answer) -> list[Rebind
     return results
 
 
-def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.resolver.Resolver) -> RebindingResult | None:
+def _check_cname_chain(
+    domain: str, answers: dns.resolver.Answer, resolver: dns.resolver.Resolver
+) -> RebindingResult | None:
     """Verifica CNAME chain por IPs privados ou TTL baixo."""
     try:
         chaining = answers.chaining_result
@@ -235,9 +239,13 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
     return None
 
 
-def _check_wildcard(domain: str, resolver: dns.resolver.Resolver) -> RebindingResult | None:
+def _check_wildcard(
+    domain: str, resolver: dns.resolver.Resolver
+) -> RebindingResult | None:
     """Testa se o dominio tem wildcard DNS."""
-    random_subdomains = ["".join(random.choices(string.ascii_lowercase, k=12)) for _ in range(5)]
+    random_subdomains = [
+        "".join(random.choices(string.ascii_lowercase, k=12)) for _ in range(5)
+    ]
 
     resolved_any = False
     resolved_ips: list[str] = []
@@ -266,7 +274,9 @@ def _check_wildcard(domain: str, resolver: dns.resolver.Resolver) -> RebindingRe
     )
 
 
-def _check_ip_flip(domain: str, resolver: dns.resolver.Resolver, queries: int = 5) -> RebindingResult | None:
+def _check_ip_flip(
+    domain: str, resolver: dns.resolver.Resolver, queries: int = 5
+) -> RebindingResult | None:
     """Resolve multiplas vezes e detecta alternancia entre IPs publicos e privados."""
     seen_public: set[str] = set()
     seen_private: set[str] = set()
@@ -384,7 +394,11 @@ def scan_rebinding(
 def print_results(results: list[RebindingResult]) -> None:
     """Exibe os resultados de DNS rebinding de forma colorida."""
     if not results:
-        print(color("[*] Nenhuma vulnerabilidade de DNS rebinding encontrada.", Cyber.GREEN))
+        print(
+            color(
+                "[*] Nenhuma vulnerabilidade de DNS rebinding encontrada.", Cyber.GREEN
+            )
+        )
         return
 
     severity_colors: dict[str, str] = {
@@ -399,7 +413,13 @@ def print_results(results: list[RebindingResult]) -> None:
     infos = [r for r in results if r.severity == "info"]
 
     if vulns:
-        print(color(f"\n[!] {len(vulns)} vulnerabilidade(s) de DNS rebinding:", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n[!] {len(vulns)} vulnerabilidade(s) de DNS rebinding:",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
         for r in vulns:
             sev_color = severity_colors.get(r.severity, Cyber.GRAY)
             print(f"  {color(r.severity.upper(), sev_color, Cyber.BOLD)} | {r.detail}")
@@ -413,7 +433,9 @@ def print_results(results: list[RebindingResult]) -> None:
             print(f"  {r.detail}")
 
     if not vulns:
-        print(color("\n[+] Nenhuma vulnerabilidade critica/alta encontrada.", Cyber.GREEN))
+        print(
+            color("\n[+] Nenhuma vulnerabilidade critica/alta encontrada.", Cyber.GREEN)
+        )
 
 
 def banner() -> None:
@@ -425,7 +447,9 @@ def banner() -> None:
    |  __/ | | |  __/| |  | | |_) | |__| |_| | |_| |
    |_|    |_| |_|   |_|  |_|____/|_____\___/ \____|
 """
-    create_banner(art, "   dns rebinding detection: ttl + private ip + cname + wildcard + flip")()
+    create_banner(
+        art, "   dns rebinding detection: ttl + private ip + cname + wildcard + flip"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -434,8 +458,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Deteccao de DNS Rebinding — testa se dominio e vulneravel a rebinding.",
     )
     add_base_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para testar (ex: example.com).")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha).")
+    parser.add_argument(
+        "domain", nargs="?", help="Dominio alvo para testar (ex: example.com)."
+    )
+    parser.add_argument(
+        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
+    )
     parser.add_argument(
         "--queries",
         "-n",
@@ -467,9 +495,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta DNS sera enviada.")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma consulta DNS sera enviada.",
+        )
         for d in domains:
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(d, Cyber.WHITE, Cyber.BOLD)}")
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Dominio: {color(d, Cyber.WHITE, Cyber.BOLD)}",
+            )
         return 0
 
     all_results: list[RebindingResult] = []
@@ -509,7 +543,9 @@ def main() -> int:
         prompt="rebind> ",
         description="DNS Rebinding Detection interativo.",
         example="example.com --queries 10",
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 10\n  -l domains.txt -o results.json"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 10\n  -l domains.txt -o results.json"
+        ),
     )
 
 

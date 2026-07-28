@@ -26,12 +26,16 @@ from mytools.osint.googledorking import (
 
 class TestDorkQuery:
     def test_frozen(self):
-        q = DorkQuery(category="x", dork="y", full_query="z", google_url="a", ddg_url="b")
+        q = DorkQuery(
+            category="x", dork="y", full_query="z", google_url="a", ddg_url="b"
+        )
         with pytest.raises(AttributeError):
             q.dork = "w"  # type: ignore[misc]
 
     def test_defaults(self):
-        q = DorkQuery(category="x", dork="y", full_query="z", google_url="a", ddg_url="b")
+        q = DorkQuery(
+            category="x", dork="y", full_query="z", google_url="a", ddg_url="b"
+        )
         assert q.results == []
 
     def test_all_fields(self):
@@ -269,7 +273,9 @@ async def test_search_ddg_success():
         )
         rate_limiter = RateLimiter(0)
         client = httpx.AsyncClient()
-        results = await search_ddg(client, "site:ex.com filetype:pdf", 5.0, rate_limiter, max_results=5)
+        results = await search_ddg(
+            client, "site:ex.com filetype:pdf", 5.0, rate_limiter, max_results=5
+        )
         await client.aclose()
         assert len(results) == 1
         assert results[0]["title"] == "Title"

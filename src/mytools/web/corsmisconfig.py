@@ -56,11 +56,41 @@ logger = logging.getLogger("mytools.corsmisconfig")
 
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "null_origin": ["null_origin", "null_origin_acac", "null_origin_preflight", "null_origin_flash", "null_origin_ie"],
-    "subdomain": ["evil_subdomain", "deep_subdomain", "prefix_subdomain", "suffix_subdomain", "regex_bypass"],
-    "credentials": ["wildcard_credentials", "null_credentials", "subdomain_credentials", "prefix_credentials", "reflected_credentials"],
-    "reflected": ["reflected_origin", "reflected_subdomain", "reflected_path", "reflected_port", "reflected_protocol"],
-    "bypass": ["prefix_match", "suffix_match", "regex_match", "dot_prefix", "double_dot"],
+    "null_origin": [
+        "null_origin",
+        "null_origin_acac",
+        "null_origin_preflight",
+        "null_origin_flash",
+        "null_origin_ie",
+    ],
+    "subdomain": [
+        "evil_subdomain",
+        "deep_subdomain",
+        "prefix_subdomain",
+        "suffix_subdomain",
+        "regex_bypass",
+    ],
+    "credentials": [
+        "wildcard_credentials",
+        "null_credentials",
+        "subdomain_credentials",
+        "prefix_credentials",
+        "reflected_credentials",
+    ],
+    "reflected": [
+        "reflected_origin",
+        "reflected_subdomain",
+        "reflected_path",
+        "reflected_port",
+        "reflected_protocol",
+    ],
+    "bypass": [
+        "prefix_match",
+        "suffix_match",
+        "regex_match",
+        "dot_prefix",
+        "double_dot",
+    ],
 }
 
 
@@ -68,7 +98,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "corsmisconfig", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "corsmisconfig", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -174,7 +206,9 @@ async def _test_null_origin(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
-                    exploit='curl -H "Origin: evil.com" -v <TARGET>' if vulnerable else "",
+                    exploit='curl -H "Origin: evil.com" -v <TARGET>'
+                    if vulnerable
+                    else "",
                     tool="curl",
                 )
             )
@@ -218,7 +252,9 @@ async def _test_subdomain(
 
     for technique, origin in zip(techniques, variants, strict=True):
         try:
-            resp = await client.get(url, headers={"Origin": origin}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={"Origin": origin}, follow_redirects=True
+            )
 
             resp_headers = dict(resp.headers)
 
@@ -359,7 +395,9 @@ async def _test_reflected(
 
     for technique, origin in origins:
         try:
-            resp = await client.get(url, headers={"Origin": origin}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={"Origin": origin}, follow_redirects=True
+            )
 
             resp_headers = dict(resp.headers)
 
@@ -424,7 +462,9 @@ async def _test_bypass(
 
     for technique, origin in origins:
         try:
-            resp = await client.get(url, headers={"Origin": origin}, follow_redirects=True)
+            resp = await client.get(
+                url, headers={"Origin": origin}, follow_redirects=True
+            )
 
             resp_headers = dict(resp.headers)
 
@@ -557,7 +597,12 @@ def print_results(result: CORSResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [-] Nenhuma CORS Misconfiguration detectada", Cyber.YELLOW))
@@ -596,20 +641,28 @@ async def run_scan(
                 all_attempts.extend(await _test_null_origin(client, target))
 
             elif cat == "subdomain":
-                all_attempts.extend(await _test_subdomain(client, target, target_domain))
+                all_attempts.extend(
+                    await _test_subdomain(client, target, target_domain)
+                )
 
             elif cat == "credentials":
-                all_attempts.extend(await _test_credentials(client, target, target_domain))
+                all_attempts.extend(
+                    await _test_credentials(client, target, target_domain)
+                )
 
             elif cat == "reflected":
-                all_attempts.extend(await _test_reflected(client, target, target_domain))
+                all_attempts.extend(
+                    await _test_reflected(client, target, target_domain)
+                )
 
             elif cat == "bypass":
                 all_attempts.extend(await _test_bypass(client, target, target_domain))
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -623,7 +676,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         if json_output:
@@ -660,7 +715,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   cors misconfiguration: null origin, subdomain, credentials, reflected, bypass")()
+    create_banner(
+        art,
+        "   cors misconfiguration: null origin, subdomain, credentials, reflected, bypass",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -685,7 +743,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "null_origin", "subdomain", "credentials", "reflected", "bypass"],
+        choices=[
+            "all",
+            "null_origin",
+            "subdomain",
+            "credentials",
+            "reflected",
+            "bypass",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -722,7 +787,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="cors> ",
         description="CORS Misconfiguration interativo.",
         example="https://target.com -c null_origin",

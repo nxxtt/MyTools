@@ -61,7 +61,9 @@ class TestServiceFingerprints:
         services = _get_services()
         for name, svc in services.items():
             assert "http_signatures" in svc, f"{name} missing http_signatures"
-            assert isinstance(svc["http_signatures"], list), f"{name} http_signatures not list"
+            assert isinstance(svc["http_signatures"], list), (
+                f"{name} http_signatures not list"
+            )
             assert len(svc["http_signatures"]) > 0, f"{name} http_signatures empty"
 
 
@@ -209,7 +211,10 @@ class TestEnumerateCrtsh:
             assert "*.example.com" not in result
 
     def test_connection_error_fallback(self) -> None:
-        with patch("mytools.web.subdomaintakeover.httpx.get", side_effect=Exception("connection")):
+        with patch(
+            "mytools.web.subdomaintakeover.httpx.get",
+            side_effect=Exception("connection"),
+        ):
             result = _enumerate_crtsh("example.com")
             assert result == []
 
@@ -464,7 +469,9 @@ class TestMain:
 class TestRunScan:
     def test_no_subdomains(self) -> None:
         async def run() -> TakeoverResult:
-            with patch("mytools.web.subdomaintakeover._enumerate_subdomains", return_value=[]):
+            with patch(
+                "mytools.web.subdomaintakeover._enumerate_subdomains", return_value=[]
+            ):
                 return await run_scan(domain="example.com")
 
         result = asyncio.run(run())
@@ -500,7 +507,10 @@ class TestRunScan:
                 client.aclose = AsyncMock()
                 client.__aenter__ = AsyncMock(return_value=client)
                 client.__aexit__ = AsyncMock(return_value=False)
-                with patch("mytools.web.subdomaintakeover.create_async_client", return_value=client):
+                with patch(
+                    "mytools.web.subdomaintakeover.create_async_client",
+                    return_value=client,
+                ):
                     return await run_scan(domain="example.com")
 
         result = asyncio.run(run())
@@ -533,7 +543,10 @@ class TestRunScan:
                 client.aclose = AsyncMock()
                 client.__aenter__ = AsyncMock(return_value=client)
                 client.__aexit__ = AsyncMock(return_value=False)
-                with patch("mytools.web.subdomaintakeover.create_async_client", return_value=client):
+                with patch(
+                    "mytools.web.subdomaintakeover.create_async_client",
+                    return_value=client,
+                ):
                     return await run_scan(domain="example.com")
 
         result = asyncio.run(run())
@@ -552,14 +565,22 @@ class TestRunScan:
                 ),
                 patch(
                     "mytools.web.subdomaintakeover._get_services",
-                    return_value={"s3": {"cname_suffix": ".s3.amazonaws.com", "http_signatures": []}},
+                    return_value={
+                        "s3": {
+                            "cname_suffix": ".s3.amazonaws.com",
+                            "http_signatures": [],
+                        }
+                    },
                 ),
             ):
                 client = MagicMock()
                 client.aclose = AsyncMock()
                 client.__aenter__ = AsyncMock(return_value=client)
                 client.__aexit__ = AsyncMock(return_value=False)
-                with patch("mytools.web.subdomaintakeover.create_async_client", return_value=client):
+                with patch(
+                    "mytools.web.subdomaintakeover.create_async_client",
+                    return_value=client,
+                ):
                     return await run_scan(domain="example.com")
 
         result = asyncio.run(run())

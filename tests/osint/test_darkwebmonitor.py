@@ -19,7 +19,15 @@ class TestDarkWebMention:
     """Testes do dataclass DarkWebMention."""
 
     def test_frozen(self) -> None:
-        r = DarkWebMention(source="a", url="b", title="c", snippet="d", date_seen="e", domain="f", severity="g")
+        r = DarkWebMention(
+            source="a",
+            url="b",
+            title="c",
+            snippet="d",
+            date_seen="e",
+            domain="f",
+            severity="g",
+        )
         with pytest.raises(AttributeError):
             r.source = "x"  # type: ignore[misc]
 
@@ -53,14 +61,46 @@ class TestDedupMentions:
     """Testes da funcao _dedup_mentions."""
 
     def test_dedup(self) -> None:
-        r1 = DarkWebMention(source="a", url="b", title="c", snippet="d", date_seen="e", domain="f", severity="g")
-        r2 = DarkWebMention(source="a", url="b", title="c", snippet="d", date_seen="e", domain="f", severity="g")
+        r1 = DarkWebMention(
+            source="a",
+            url="b",
+            title="c",
+            snippet="d",
+            date_seen="e",
+            domain="f",
+            severity="g",
+        )
+        r2 = DarkWebMention(
+            source="a",
+            url="b",
+            title="c",
+            snippet="d",
+            date_seen="e",
+            domain="f",
+            severity="g",
+        )
         result = _dedup_mentions([r1, r2])
         assert len(result) == 1
 
     def test_different_sources(self) -> None:
-        r1 = DarkWebMention(source="a", url="b", title="c", snippet="d", date_seen="e", domain="f", severity="g")
-        r2 = DarkWebMention(source="x", url="b", title="c", snippet="d", date_seen="e", domain="f", severity="g")
+        r1 = DarkWebMention(
+            source="a",
+            url="b",
+            title="c",
+            snippet="d",
+            date_seen="e",
+            domain="f",
+            severity="g",
+        )
+        r2 = DarkWebMention(
+            source="x",
+            url="b",
+            title="c",
+            snippet="d",
+            date_seen="e",
+            domain="f",
+            severity="g",
+        )
         result = _dedup_mentions([r1, r2])
         assert len(result) == 2
 
@@ -78,7 +118,9 @@ class TestParser:
 
     def test_source(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["example.com", "--source", "ahmia", "--source", "darksearch"])
+        args = parser.parse_args(
+            ["example.com", "--source", "ahmia", "--source", "darksearch"]
+        )
         assert args.sources == ["ahmia", "darksearch"]
 
     def test_intelx_key(self) -> None:

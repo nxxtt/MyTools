@@ -52,7 +52,10 @@ VERIFY_PAYLOADS: dict[str, dict[str, tuple[str, list[bytes]]]] = {
         "bypass": ("%0a whoami", [b"www-data", b"root", b"nobody"]),
     },
     "sqliscan": {
-        "error": ('" OR 1=1--', [b"error", b"warning", b"mysql", b"sqlite", b"postgresql"]),
+        "error": (
+            '" OR 1=1--',
+            [b"error", b"warning", b"mysql", b"sqlite", b"postgresql"],
+        ),
     },
     "lfidetect": {
         "lfi": ("../../../../etc/hostname", [b"\n"]),

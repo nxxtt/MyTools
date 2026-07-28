@@ -56,18 +56,50 @@ logger = logging.getLogger("mytools.headerinject")
 
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "param_reflected": ["x_injected", "x_custom", "x_forwarded", "x_real_ip", "x_requested"],
-    "header_overwrite": ["overwrite_xfo", "overwrite_csp", "overwrite_ct", "overwrite_p3p", "overwrite_hsts"],
-    "redirect_header": ["redirect_x_injected", "redirect_set_cookie", "redirect_auth", "redirect_location", "redirect_xss"],
-    "cookie_inject": ["cookie_path", "cookie_domain", "cookie_httponly", "cookie_secure", "cookie_samesite"],
-    "bypass": ["bypass_encoding", "bypass_case", "bypass_double", "bypass_newline", "bypass_nullbyte"],
+    "param_reflected": [
+        "x_injected",
+        "x_custom",
+        "x_forwarded",
+        "x_real_ip",
+        "x_requested",
+    ],
+    "header_overwrite": [
+        "overwrite_xfo",
+        "overwrite_csp",
+        "overwrite_ct",
+        "overwrite_p3p",
+        "overwrite_hsts",
+    ],
+    "redirect_header": [
+        "redirect_x_injected",
+        "redirect_set_cookie",
+        "redirect_auth",
+        "redirect_location",
+        "redirect_xss",
+    ],
+    "cookie_inject": [
+        "cookie_path",
+        "cookie_domain",
+        "cookie_httponly",
+        "cookie_secure",
+        "cookie_samesite",
+    ],
+    "bypass": [
+        "bypass_encoding",
+        "bypass_case",
+        "bypass_double",
+        "bypass_newline",
+        "bypass_nullbyte",
+    ],
 }
 
 
 _MARKER = "HDRINJECT_TEST"
 
 
-async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, dict[str, str], bytes]:
+async def _test_baseline(
+    client: httpx.AsyncClient, url: str
+) -> tuple[int, int, dict[str, str], bytes]:
     """Envia request baseline para obter status, tamanho, headers e corpo."""
 
     try:
@@ -129,7 +161,9 @@ async def _test_param_reflected(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
-                    exploit='curl -H "X-Injected: malicious" <TARGET>' if vulnerable else "",
+                    exploit='curl -H "X-Injected: malicious" <TARGET>'
+                    if vulnerable
+                    else "",
                     tool="curl",
                 )
             )
@@ -163,10 +197,25 @@ async def _test_header_overwrite(
 
     overwrite_tests: list[tuple[str, str, str, str]] = [
         ("overwrite_xfo", "X-Frame-Options", "ALLOWALL", "x-frame-options"),
-        ("overwrite_csp", "Content-Security-Policy", "default-src *", "content-security-policy"),
+        (
+            "overwrite_csp",
+            "Content-Security-Policy",
+            "default-src *",
+            "content-security-policy",
+        ),
         ("overwrite_ct", "X-Content-Type-Options", "nosniff", "x-content-type-options"),
-        ("overwrite_p3p", "P3P", 'CP="IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR IND CNT"', "p3p"),
-        ("overwrite_hsts", "Strict-Transport-Security", "max-age=0", "strict-transport-security"),
+        (
+            "overwrite_p3p",
+            "P3P",
+            'CP="IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR IND CNT"',
+            "p3p",
+        ),
+        (
+            "overwrite_hsts",
+            "Strict-Transport-Security",
+            "max-age=0",
+            "strict-transport-security",
+        ),
     ]
 
     for technique, param_name, marker, header_check in overwrite_tests:
@@ -186,7 +235,9 @@ async def _test_header_overwrite(
             if marker.lower() in injected_val.lower():
                 vulnerable = True
 
-                details = f"Header de seguranca sobrescrito: {header_check}: {injected_val}"
+                details = (
+                    f"Header de seguranca sobrescrito: {header_check}: {injected_val}"
+                )
 
             results.append(
                 HeaderInjectAttempt(
@@ -379,7 +430,11 @@ async def _test_bypass(
 
     for technique, param_name, marker in bypass_tests:
         try:
-            url_with_param = f"{url}?{param_name}={marker}" if "=" not in param_name else f"{url}?{param_name}"
+            url_with_param = (
+                f"{url}?{param_name}={marker}"
+                if "=" not in param_name
+                else f"{url}?{param_name}"
+            )
 
             resp = await client.get(url_with_param, follow_redirects=True)
 
@@ -390,7 +445,10 @@ async def _test_bypass(
             details = ""
 
             for hdr_name, hdr_val in resp_headers.items():
-                if _MARKER.lower() in str(hdr_val).lower() or "xss" in str(hdr_val).lower():
+                if (
+                    _MARKER.lower() in str(hdr_val).lower()
+                    or "xss" in str(hdr_val).lower()
+                ):
                     vulnerable = True
 
                     details = f"Bypass via param: {hdr_name}: {hdr_val}"
@@ -526,10 +584,19 @@ def print_results(result: HeaderInjectResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
 
     else:
-        print(color("\n  [-] Nenhum Header Injection detectado via URL params", Cyber.YELLOW))
+        print(
+            color(
+                "\n  [-] Nenhum Header Injection detectado via URL params", Cyber.YELLOW
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -573,7 +640,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -587,7 +656,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -621,7 +692,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   header injection via url params: reflected, overwrite, redirect, cookie, bypass")()
+    create_banner(
+        art,
+        "   header injection via url params: reflected, overwrite, redirect, cookie, bypass",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -646,7 +720,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "param_reflected", "header_overwrite", "redirect_header", "cookie_inject", "bypass"],
+        choices=[
+            "all",
+            "param_reflected",
+            "header_overwrite",
+            "redirect_header",
+            "cookie_inject",
+            "bypass",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -682,7 +763,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="headerinject> ",
         description="Header Injection via URL params interativo.",
         example="https://target.com -c param_reflected",

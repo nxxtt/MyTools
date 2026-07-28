@@ -39,7 +39,16 @@ class TestCategoryMap:
         assert len(_CATEGORY_MAP) == 8
 
     def test_categories_are_correct(self) -> None:
-        expected = {"domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain", "cookie_quoting"}
+        expected = {
+            "domain",
+            "flags",
+            "path",
+            "path_traversal",
+            "double_submit",
+            "samesite_dns",
+            "csrf_subdomain",
+            "cookie_quoting",
+        }
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_domain_has_five_techniques(self) -> None:
@@ -390,8 +399,26 @@ class TestFlagAttributes:
 
     def test_multiple_cookies(self) -> None:
         cookies = [
-            CookieInfo(name="a", value="1", domain="", path="/", secure=True, httponly=True, samesite="Lax", raw=""),
-            CookieInfo(name="b", value="2", domain="", path="/", secure=False, httponly=False, samesite="", raw=""),
+            CookieInfo(
+                name="a",
+                value="1",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            ),
+            CookieInfo(
+                name="b",
+                value="2",
+                domain="",
+                path="/",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw="",
+            ),
         ]
         results = _test_flag_attributes(cookies)
         assert len(results) == 7
@@ -650,7 +677,9 @@ class TestPathTraversalActive:
             )
         ]
         mock_client = AsyncMock()
-        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
         assert len(results) == 0
 
     @pytest.mark.asyncio
@@ -673,7 +702,9 @@ class TestPathTraversalActive:
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
         assert len(results) > 0
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) == 0
@@ -694,11 +725,15 @@ class TestPathTraversalActive:
         ]
         mock_resp = MagicMock()
         mock_resp.headers = MagicMock()
-        mock_resp.headers.get_list = MagicMock(return_value=["session=stolen; Path=/api"])
+        mock_resp.headers.get_list = MagicMock(
+            return_value=["session=stolen; Path=/api"]
+        )
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
         assert len(results) > 0
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) > 0
@@ -720,7 +755,9 @@ class TestPathTraversalActive:
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
 
-        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
         assert len(results) > 0
         errors = [r for r in results if r.error]
         assert len(errors) > 0
@@ -745,7 +782,9 @@ class TestPathTraversalActive:
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
         case_techs = [r for r in results if r.technique == "traversal_case_variation"]
         assert len(case_techs) == 1
 
@@ -769,7 +808,9 @@ class TestPathTraversalActive:
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
         trail_techs = [r for r in results if r.technique == "traversal_trailing_slash"]
         assert len(trail_techs) == 1
 
@@ -793,7 +834,9 @@ class TestPathTraversalActive:
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
         prefix_techs = [r for r in results if r.technique == "traversal_prefix_match"]
         assert len(prefix_techs) == 1
 
@@ -1680,7 +1723,17 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain", "cookie_quoting"]:
+        for cat in [
+            "all",
+            "domain",
+            "flags",
+            "path",
+            "path_traversal",
+            "double_submit",
+            "samesite_dns",
+            "csrf_subdomain",
+            "cookie_quoting",
+        ]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 

@@ -124,7 +124,9 @@ def _random_label(length: int = 12) -> str:
     return "".join(random.choices(string.ascii_lowercase, k=length))
 
 
-def _query_nsec(domain: str, nameserver: str, timeout: float) -> tuple[str, str, list[str], bool]:
+def _query_nsec(
+    domain: str, nameserver: str, timeout: float
+) -> tuple[str, str, list[str], bool]:
     """Consulta NSEC para um nome e retorna (name, next_name, types, is_nsec3)."""
     random_name = f"{_random_label()}.{domain}"
     resolver = dns.resolver.Resolver()
@@ -228,10 +230,16 @@ def print_results(result: NsecResult) -> None:
     print(f"  Dominio: {color(result.domain, Cyber.WHITE, Cyber.BOLD)}")
     print()
 
-    print(f"  NSEC3: {color('SIM', Cyber.YELLOW) if result.has_nsec3 else color('NAO', Cyber.GREEN)}")
-    print(f"  Enumerado: {color('SIM', Cyber.GREEN, Cyber.BOLD) if result.zone_enumerated else color('NAO', Cyber.RED)}")
+    print(
+        f"  NSEC3: {color('SIM', Cyber.YELLOW) if result.has_nsec3 else color('NAO', Cyber.GREEN)}"
+    )
+    print(
+        f"  Enumerado: {color('SIM', Cyber.GREEN, Cyber.BOLD) if result.zone_enumerated else color('NAO', Cyber.RED)}"
+    )
     print(f"  Hops: {color(str(result.hops_used), Cyber.WHITE)} / {result.max_hops}")
-    print(f"  Nomes encontrados: {color(str(result.total_names), Cyber.CYAN, Cyber.BOLD)}")
+    print(
+        f"  Nomes encontrados: {color(str(result.total_names), Cyber.CYAN, Cyber.BOLD)}"
+    )
     print()
 
     if result.has_nsec3:
@@ -247,8 +255,16 @@ def print_results(result: NsecResult) -> None:
             print(f"    ... e mais {len(result.entries) - 50} nomes")
 
         print()
-        print(color("  [!] ATENCAO: Esta enumeracao revela todos os hosts da zona", Cyber.RED, Cyber.BOLD))
-        print(color("  [!] Use apenas em zonas com autorizacao para pentest", Cyber.RED))
+        print(
+            color(
+                "  [!] ATENCAO: Esta enumeracao revela todos os hosts da zona",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
+        print(
+            color("  [!] Use apenas em zonas com autorizacao para pentest", Cyber.RED)
+        )
     else:
         print(color("  [-] Nenhum registro NSEC encontrado", Cyber.RED))
         print(color("  [-] Zona pode nao ter DNSSEC ou usar NSEC3", Cyber.YELLOW))
@@ -330,7 +346,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(result)],
-            ["domain", "total_names", "has_nsec3", "zone_enumerated", "max_hops", "hops_used"],
+            [
+                "domain",
+                "total_names",
+                "has_nsec3",
+                "zone_enumerated",
+                "max_hops",
+                "hops_used",
+            ],
             quiet=quiet,
         )
     return 0
@@ -351,7 +374,9 @@ def main() -> int:
         prompt="nsec> ",
         description="NSEC Walking interativo.",
         example="example.com --max-hops 500",
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --max-hops 500\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --max-hops 500\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 

@@ -123,7 +123,11 @@ def _get_banner(server: smtplib.SMTP) -> str:
     try:
         _code, banner = server.ehlo()
 
-        return banner.decode("utf-8", errors="replace") if isinstance(banner, bytes) else str(banner)
+        return (
+            banner.decode("utf-8", errors="replace")
+            if isinstance(banner, bytes)
+            else str(banner)
+        )
 
     except smtplib.SMTPException:
         return ""
@@ -326,7 +330,9 @@ def scan_smtp_downgrade(
             DowngradeTest(
                 name="HELO Downgrade",
                 status="fail" if helo_ok else "pass",
-                description="Servidor aceita HELO (downgrade de EHLO)" if helo_ok else "Servidor nao aceita HELO",
+                description="Servidor aceita HELO (downgrade de EHLO)"
+                if helo_ok
+                else "Servidor nao aceita HELO",
                 details=helo_details,
             )
         )
@@ -346,13 +352,17 @@ def scan_smtp_downgrade(
                 DowngradeTest(
                     name="AUTH without TLS",
                     status="vulnerable" if auth_without_tls else "pass",
-                    description="Servidor aceita AUTH em plaintext" if auth_without_tls else "Servidor exige TLS para AUTH",
+                    description="Servidor aceita AUTH em plaintext"
+                    if auth_without_tls
+                    else "Servidor exige TLS para AUTH",
                     details=f"AUTH response: {code}",
                 )
             )
 
             if auth_without_tls:
-                issues.append("Servidor aceita autenticacao em plaintext — MITM possivel")
+                issues.append(
+                    "Servidor aceita autenticacao em plaintext — MITM possivel"
+                )
 
         except (smtplib.SMTPException, OSError) as exc:
             tests.append(
@@ -431,17 +441,29 @@ def print_results(result: DowngradeResult) -> None:
 
     print()
 
-    print(f"  STARTTLS anunciado: {color('Sim' if result.ehlo_advertises_starttls else 'Nao', Cyber.CYAN)}")
+    print(
+        f"  STARTTLS anunciado: {color('Sim' if result.ehlo_advertises_starttls else 'Nao', Cyber.CYAN)}"
+    )
 
-    print(f"  STARTTLS suportado: {color('Sim' if result.supports_starttls else 'Nao', Cyber.CYAN)}")
+    print(
+        f"  STARTTLS suportado: {color('Sim' if result.supports_starttls else 'Nao', Cyber.CYAN)}"
+    )
 
-    print(f"  TLS obrigatório: {color('Sim' if result.requires_starttls else 'Nao', Cyber.GREEN if result.requires_starttls else Cyber.RED)}")
+    print(
+        f"  TLS obrigatório: {color('Sim' if result.requires_starttls else 'Nao', Cyber.GREEN if result.requires_starttls else Cyber.RED)}"
+    )
 
-    print(f"  Plaintext aceito: {color('Sim' if result.plaintext_accepted else 'Nao', Cyber.RED if result.plaintext_accepted else Cyber.GREEN)}")
+    print(
+        f"  Plaintext aceito: {color('Sim' if result.plaintext_accepted else 'Nao', Cyber.RED if result.plaintext_accepted else Cyber.GREEN)}"
+    )
 
-    print(f"  HELO downgrade: {color('Sim' if result.helo_downgrade_accepted else 'Nao', Cyber.YELLOW if result.helo_downgrade_accepted else Cyber.GREEN)}")
+    print(
+        f"  HELO downgrade: {color('Sim' if result.helo_downgrade_accepted else 'Nao', Cyber.YELLOW if result.helo_downgrade_accepted else Cyber.GREEN)}"
+    )
 
-    print(f"  AUTH sem TLS: {color('Sim' if result.auth_without_tls else 'Nao', Cyber.RED if result.auth_without_tls else Cyber.GREEN)}")
+    print(
+        f"  AUTH sem TLS: {color('Sim' if result.auth_without_tls else 'Nao', Cyber.RED if result.auth_without_tls else Cyber.GREEN)}"
+    )
 
     print()
 
@@ -477,12 +499,29 @@ def print_results(result: DowngradeResult) -> None:
         print()
 
     if result.overall_status == "secure":
-        print(color("  [+] Servidor protegido contra downgrade — força TLS", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Servidor protegido contra downgrade — força TLS",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
     elif result.overall_status == "vulnerable":
-        print(color("  [-] Servidor VULNERAVEL a SMTP Downgrade Attack", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                "  [-] Servidor VULNERAVEL a SMTP Downgrade Attack",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
-        print(color("  [-] Remedio: Forcar STARTTLS obrigatorio e rejeitar plaintext", Cyber.CYAN))
+        print(
+            color(
+                "  [-] Remedio: Forcar STARTTLS obrigatorio e rejeitar plaintext",
+                Cyber.CYAN,
+            )
+        )
 
     else:
         print(color("  [!] Servidor com configuracao parcial — revisar", Cyber.YELLOW))
@@ -505,7 +544,9 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   smtp downgrade: testa forcar downgrade de STARTTLS para plaintext")()
+    create_banner(
+        art, "   smtp downgrade: testa forcar downgrade de STARTTLS para plaintext"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -518,7 +559,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_base_args(parser)
 
-    parser.add_argument("target", nargs="?", help="Host SMTP alvo (ex: mail.example.com).")
+    parser.add_argument(
+        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+    )
 
     parser.add_argument(
         "--port",
@@ -601,7 +644,9 @@ def main() -> int:
         prompt="smtpdown> ",
         description="SMTP Downgrade — testa forcar downgrade de STARTTLS.",
         example="mail.example.com --port 587",
-        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"),
+        contextual_help=(
+            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"
+        ),
     )
 
 

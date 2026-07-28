@@ -148,11 +148,17 @@ class TestBuildParser:
 class TestRunScan:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
-        with patch("mytools.web.lfidetect._test_baseline", return_value=(0, 0, b"")):
+        with patch(
+            "mytools.web.lfidetect._test_baseline",
+            new_callable=AsyncMock,
+            return_value=(0, 0, b""),
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.lfidetect.create_async_client", return_value=mock_client):
+            with patch(
+                "mytools.web.lfidetect.create_async_client", return_value=mock_client
+            ):
                 result = await run_scan("https://target.com/?page=home")
                 assert result.overall_status == "error"
 
@@ -167,7 +173,9 @@ class TestRunScan:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("mytools.web.lfidetect.create_async_client", return_value=mock_client):
+        with patch(
+            "mytools.web.lfidetect.create_async_client", return_value=mock_client
+        ):
             result = await run_scan("https://target.com/?page=home", category="lfi")
             assert isinstance(result, LFIFindings)
             assert result.baseline_status == 200

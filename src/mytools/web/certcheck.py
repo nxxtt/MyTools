@@ -348,7 +348,9 @@ def _parse_ocsp_response(response_der: bytes) -> dict[str, Any]:
 
         ocsp_resp = ocsp_mod.load_der_ocsp_response(response_der)
         status = ocsp_resp.certificate_status
-        result["response_status"] = "good" if status == ocsp_mod.OCSPCertStatus.GOOD else "revoked"
+        result["response_status"] = (
+            "good" if status == ocsp_mod.OCSPCertStatus.GOOD else "revoked"
+        )
         result["revocation_status"] = result["response_status"]
 
         if ocsp_resp.this_update:
@@ -440,7 +442,9 @@ async def _check_hsts_header(url: str, timeout: float) -> dict[str, Any]:
     try:
         import httpx
 
-        async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, verify=False, follow_redirects=True
+        ) as client:
             resp = await client.head(url)
             hsts = resp.headers.get("strict-transport-security", "")
 
@@ -486,7 +490,9 @@ async def _fetch_page_content(url: str, timeout: float) -> str:
     try:
         import httpx
 
-        async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, verify=False, follow_redirects=True
+        ) as client:
             resp = await client.get(url)
             return resp.text
     except Exception:
@@ -571,7 +577,9 @@ async def _test_ocsp_stapling(
         try:
             if tech == "ocsp_stapling_check":
                 vulnerable = not ocsp_info.get("stapling", False)
-                details = f"OCSP Stapling: {'enabled' if not vulnerable else 'not available'}"
+                details = (
+                    f"OCSP Stapling: {'enabled' if not vulnerable else 'not available'}"
+                )
             elif tech == "ocsp_response_status":
                 status = ocsp_info.get("response_status", "unknown")
                 vulnerable = status not in ("good", "stapled", "unknown")
@@ -675,7 +683,9 @@ async def _test_cert_chain(
     not_yet_valid = False
     try:
         if cert_expiry:
-            expiry_dt = datetime.strptime(cert_expiry, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
+            expiry_dt = datetime.strptime(cert_expiry, "%b %d %H:%M:%S %Y %Z").replace(
+                tzinfo=UTC
+            )
             expired = expiry_dt < now
     except Exception:
         pass
@@ -683,19 +693,29 @@ async def _test_cert_chain(
     not_before = cert.get("notBefore", "")
     try:
         if not_before:
-            start_dt = datetime.strptime(not_before, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
+            start_dt = datetime.strptime(not_before, "%b %d %H:%M:%S %Y %Z").replace(
+                tzinfo=UTC
+            )
             not_yet_valid = start_dt > now
     except Exception:
         pass
 
-    self_signed = (cert_issuer == cert_subject) or (chain_length <= 1 and not cert_issuer)
+    self_signed = (cert_issuer == cert_subject) or (
+        chain_length <= 1 and not cert_issuer
+    )
     intermediate_missing = chain_length < 3 and not self_signed
     hostname_mismatch = True
     if san:
-        hostname_mismatch = not any(host == entry[1] or (entry[0] == "DNS" and host.endswith(entry[1].lstrip("*."))) for entry in san)
+        hostname_mismatch = not any(
+            host == entry[1]
+            or (entry[0] == "DNS" and host.endswith(entry[1].lstrip("*.")))
+            for entry in san
+        )
 
     weak_key = key_size < 2048 and key_size > 0
-    pinned = bool(cert_info.get("ca_issuers")) and bool(cert_info.get("crl_distribution"))
+    pinned = bool(cert_info.get("ca_issuers")) and bool(
+        cert_info.get("crl_distribution")
+    )
 
     techniques = [
         ("full_chain", "Full certificate chain"),
@@ -922,7 +942,11 @@ async def _test_ct_split_world(
             elif tech == "regional_issuance":
                 regional = ca_names.intersection(_CT_REGIONAL_CAS)
                 vulnerable = len(regional) > 0
-                details = f"Regional CAs: {regional}" if regional else "No regional CAs detected"
+                details = (
+                    f"Regional CAs: {regional}"
+                    if regional
+                    else "No regional CAs detected"
+                )
             elif tech == "ca_comparison":
                 known = ca_names.intersection(_CT_SPLIT_WORLD_CAS)
                 unknown = ca_names - _CT_SPLIT_WORLD_CAS
@@ -1115,7 +1139,9 @@ async def _test_mixed_content(
     try:
         import httpx
 
-        async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, verify=False, follow_redirects=True
+        ) as client:
             resp = await client.get(url)
             upgrade_header = resp.headers.get("upgrade-insecure-requests", "")
             csp_header = resp.headers.get("content-security-policy", "")
@@ -1189,7 +1215,9 @@ async def _test_mixed_content(
 
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[CertCheckAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[CertCheckAttempt]]]
+] = {
     "ocsp_stapling": _test_ocsp_stapling,
     "cert_chain": _test_cert_chain,
     "ct_sct": _test_ct_sct,
@@ -1206,11 +1234,17 @@ def print_results(result: CertCheckResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Certificate Checks")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
     print(color("[*]", Cyber.CYAN), f"Issuer: {result.cert_issuer}")
     print(color("[*]", Cyber.CYAN), f"Subject: {result.cert_subject}")
     print(color("[*]", Cyber.CYAN), f"Expiry: {result.cert_expiry}")
-    print(color("[*]", Cyber.CYAN), f"Chain: {'valid' if result.chain_valid else 'invalid'}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Chain: {'valid' if result.chain_valid else 'invalid'}",
+    )
     print()
 
     if result.issues:
@@ -1226,7 +1260,10 @@ def print_results(result: CertCheckResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -1235,9 +1272,15 @@ def print_results(result: CertCheckResult) -> None:
 
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Certificate issues detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Certificate issues detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Certificate configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Certificate configuration looks good",
+        )
     print()
 
 

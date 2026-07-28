@@ -160,7 +160,15 @@ _PAYLOADS_WS_FUZZ: list[tuple[str, str, list[str], list[str], list[str], float]]
             "' AND 1=CONVERT(int,@@version)--",
             "1' ORDER BY 100--",
         ],
-        ["syntax error", "SQL", "mysql", "ORA-", "PostgreSQL", "SQLite", "unterminated"],
+        [
+            "syntax error",
+            "SQL",
+            "mysql",
+            "ORA-",
+            "PostgreSQL",
+            "SQLite",
+            "unterminated",
+        ],
         ["'; WAITFOR DELAY '0:0:5'--", "'; SELECT SLEEP(5)--", "' AND pg_sleep(5)--"],
         7.0,
     ),
@@ -784,7 +792,11 @@ async def _test_ws_scanner(
 
                     status = 101
 
-                    vulnerable = technique in ("cswh_hijack", "missing_auth", "info_disclosure")
+                    vulnerable = technique in (
+                        "cswh_hijack",
+                        "missing_auth",
+                        "info_disclosure",
+                    )
 
                     sock.close()
 
@@ -1274,7 +1286,10 @@ async def _test_ws_compression_bomb(
                 ("Connection", "Upgrade"),
                 ("Sec-WebSocket-Key", _generate_ws_key()),
                 ("Sec-WebSocket-Version", "13"),
-                ("Sec-WebSocket-Extensions", "permessage-deflate; client_max_window_bits=15"),
+                (
+                    "Sec-WebSocket-Extensions",
+                    "permessage-deflate; client_max_window_bits=15",
+                ),
             ],
             b"A" * 10000,
         ),
@@ -1298,7 +1313,10 @@ async def _test_ws_compression_bomb(
                 ("Connection", "Upgrade"),
                 ("Sec-WebSocket-Key", _generate_ws_key()),
                 ("Sec-WebSocket-Version", "13"),
-                ("Sec-WebSocket-Extensions", "permessage-deflate; client_max_window_bits=15"),
+                (
+                    "Sec-WebSocket-Extensions",
+                    "permessage-deflate; client_max_window_bits=15",
+                ),
             ],
             b"\x00" * 1048576,
         ),
@@ -1322,7 +1340,10 @@ async def _test_ws_compression_bomb(
                 ("Connection", "Upgrade"),
                 ("Sec-WebSocket-Key", _generate_ws_key()),
                 ("Sec-WebSocket-Version", "13"),
-                ("Sec-WebSocket-Extensions", "permessage-deflate; client_max_window_bits=15; server_max_window_bits=15"),
+                (
+                    "Sec-WebSocket-Extensions",
+                    "permessage-deflate; client_max_window_bits=15; server_max_window_bits=15",
+                ),
             ],
             b"test",
         ),
@@ -1401,7 +1422,14 @@ async def _test_ws_payload_fuzz(
 
     results: list[WSAttackAttempt] = []
 
-    for technique, desc, refl_payloads, indicators, timing_payloads, timing_threshold in _PAYLOADS_WS_FUZZ:
+    for (
+        technique,
+        desc,
+        refl_payloads,
+        indicators,
+        timing_payloads,
+        timing_threshold,
+    ) in _PAYLOADS_WS_FUZZ:
         # --- Reflection-based detection ---
         for payload_str in refl_payloads:
             conn = _ws_handshake(host, port, path, timeout, tls)
@@ -1505,7 +1533,9 @@ async def _test_ws_payload_fuzz(
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[WSAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[WSAttackAttempt]]]
+] = {
     "ws_scanner": _test_ws_scanner,
     "ws_upgrade_abuse": _test_ws_upgrade_abuse,
     "ws_message_inject": _test_ws_message_inject,
@@ -1527,9 +1557,15 @@ def print_results(result: WSAttackResult) -> None:
 
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
 
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
 
-    print(color("[*]", Cyber.CYAN), f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)",
+    )
 
     print()
 
@@ -1550,7 +1586,10 @@ def print_results(result: WSAttackResult) -> None:
         vuln_in_cat = [a for a in attempts if a.vulnerable]
 
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
 
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
@@ -1563,10 +1602,16 @@ def print_results(result: WSAttackResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — WebSocket vulnerabilities detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — WebSocket vulnerabilities detected!",
+        )
 
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No WebSocket vulnerabilities detected")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — No WebSocket vulnerabilities detected",
+        )
 
     print()
 

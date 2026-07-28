@@ -29,7 +29,10 @@ class TestBuildBaselineUrl:
     """Testes para _build_baseline_url."""
 
     def test_full_url(self) -> None:
-        assert _build_baseline_url("https://example.com/path") == "https://example.com/path"
+        assert (
+            _build_baseline_url("https://example.com/path")
+            == "https://example.com/path"
+        )
 
     def test_no_scheme(self) -> None:
         result = _build_baseline_url("example.com/path")
@@ -142,7 +145,9 @@ class TestTestNullInUrl:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_null_in_url(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_null_in_url(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         assert len(attempts) > 0
         assert all(isinstance(a, NullByteAttempt) for a in attempts)
 
@@ -154,7 +159,9 @@ class TestTestNullInUrl:
         mock_resp.content = b"Forbidden"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_null_in_url(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_null_in_url(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         vuln = [a for a in attempts if a.vulnerable]
         assert len(vuln) == 0
 
@@ -166,7 +173,9 @@ class TestTestNullInUrl:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_null_in_url(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_null_in_url(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         categories = {a.category for a in attempts}
         assert "url" in categories
 
@@ -182,7 +191,9 @@ class TestTestNullInHeaders:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_null_in_headers(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_null_in_headers(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         assert len(attempts) == 4
         assert all(a.category == "header" for a in attempts)
 
@@ -194,7 +205,9 @@ class TestTestNullInHeaders:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_null_in_headers(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_null_in_headers(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         techniques = {a.technique for a in attempts}
         assert "ua_null" in techniques
         assert "cookie_null" in techniques
@@ -214,7 +227,9 @@ class TestTestNullInParams:
         mock_client.get.return_value = mock_resp
         mock_client.post.return_value = mock_resp
 
-        attempts = await _test_null_in_params(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_null_in_params(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         assert len(attempts) > 0
         assert all(a.category == "param" for a in attempts)
 
@@ -227,7 +242,9 @@ class TestTestNullInParams:
         mock_client.get.return_value = mock_resp
         mock_client.post.return_value = mock_resp
 
-        attempts = await _test_null_in_params(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_null_in_params(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         techniques = {a.technique for a in attempts}
         assert "get_null" in techniques
         assert "post_null" in techniques
@@ -245,7 +262,9 @@ class TestTestPathTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_path_traversal(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_path_traversal(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         assert len(attempts) > 0
         assert all(a.category == "traversal" for a in attempts)
 
@@ -257,7 +276,9 @@ class TestTestPathTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_path_traversal(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_path_traversal(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         techniques = {a.technique for a in attempts}
         assert "path_traversal" in techniques
         assert "file_bypass" in techniques
@@ -275,7 +296,9 @@ class TestTestAuthBypass:
         mock_resp.content = b"Unauthorized"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_auth_bypass(mock_client, "https://example.com", (200, 14, b""))
+        attempts = await _test_auth_bypass(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
         assert len(attempts) == 3
         assert all(a.category == "auth" for a in attempts)
 
@@ -454,6 +477,9 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-nullbyte"]), patch("builtins.input", side_effect=EOFError("exit")):
+        with (
+            patch("sys.argv", ["mytools-nullbyte"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+        ):
             result = main()
             assert result == 0

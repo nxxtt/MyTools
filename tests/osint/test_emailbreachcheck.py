@@ -151,7 +151,9 @@ async def test_xposedornot_no_breaches():
 async def test_xposedornot_dict_breaches():
     with respx.mock:
         respx.route(method="GET", url__startswith="https://api.xposedornot.com/").mock(
-            return_value=httpx.Response(200, json={"breaches": {"LinkedIn": {}, "Adobe": {}}}),
+            return_value=httpx.Response(
+                200, json={"breaches": {"LinkedIn": {}, "Adobe": {}}}
+            ),
         )
         client = httpx.AsyncClient()
         rl = RateLimiter(0)
@@ -198,7 +200,10 @@ async def test_leakcheck_breach_found():
                 json={
                     "success": True,
                     "found": 2,
-                    "sources": [{"name": "LinkedIn", "date": "2012"}, {"name": "Adobe", "date": "2013"}],
+                    "sources": [
+                        {"name": "LinkedIn", "date": "2012"},
+                        {"name": "Adobe", "date": "2013"},
+                    ],
                 },
             ),
         )
@@ -267,7 +272,12 @@ async def test_hibp_breach_found():
             return_value=httpx.Response(
                 200,
                 json=[
-                    {"Name": "LinkedIn", "BreachDate": "2012-05-05", "PwnCount": 164000000, "DataClasses": ["passwords", "emails"]},
+                    {
+                        "Name": "LinkedIn",
+                        "BreachDate": "2012-05-05",
+                        "PwnCount": 164000000,
+                        "DataClasses": ["passwords", "emails"],
+                    },
                 ],
             ),
         )
@@ -326,11 +336,16 @@ async def test_query_email_multiple_sources():
             return_value=httpx.Response(200, json={"breaches": ["LinkedIn"]}),
         )
         respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
-            return_value=httpx.Response(200, json={"success": True, "found": 1, "sources": [{"name": "LinkedIn"}]}),
+            return_value=httpx.Response(
+                200,
+                json={"success": True, "found": 1, "sources": [{"name": "LinkedIn"}]},
+            ),
         )
         client = httpx.AsyncClient()
         rl = RateLimiter(0)
-        breaches = await _query_email(client, "test@test.com", ["xposedornot", "leakcheck"], {}, 5.0, rl)
+        breaches = await _query_email(
+            client, "test@test.com", ["xposedornot", "leakcheck"], {}, 5.0, rl
+        )
         await client.aclose()
         names = {b.breach_name for b in breaches}
         assert "LinkedIn" in names
@@ -362,7 +377,9 @@ class TestBuildParser:
         assert args.sources is None
 
     def test_multiple_sources(self):
-        args = build_parser().parse_args(["--source", "xposedornot", "--source", "hibp"])
+        args = build_parser().parse_args(
+            ["--source", "xposedornot", "--source", "hibp"]
+        )
         assert args.sources == ["xposedornot", "hibp"]
 
 
@@ -450,7 +467,10 @@ async def test_check_breaches_dedup_across_sources():
             return_value=httpx.Response(200, json={"breaches": ["LinkedIn"]}),
         )
         respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
-            return_value=httpx.Response(200, json={"success": True, "found": 1, "sources": [{"name": "LinkedIn"}]}),
+            return_value=httpx.Response(
+                200,
+                json={"success": True, "found": 1, "sources": [{"name": "LinkedIn"}]},
+            ),
         )
         breaches = await check_breaches(
             emails=["test@test.com"],

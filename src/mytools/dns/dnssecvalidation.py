@@ -94,7 +94,9 @@ class DnssecResult:
     tool: str = ""
 
 
-def _check_dnskey(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, list[DnssecCheck]]:
+def _check_dnskey(
+    domain: str, resolver: dns.resolver.Resolver
+) -> tuple[bool, list[DnssecCheck]]:
     """Verifica registros DNSKEY."""
     checks: list[DnssecCheck] = []
     has_dnskey = False
@@ -205,7 +207,9 @@ def _check_dnskey(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, l
     return has_dnskey, checks
 
 
-def _check_ds(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, list[DnssecCheck]]:
+def _check_ds(
+    domain: str, resolver: dns.resolver.Resolver
+) -> tuple[bool, list[DnssecCheck]]:
     """Verifica registros DS (delegacao signer)."""
     checks: list[DnssecCheck] = []
     has_ds = False
@@ -264,7 +268,9 @@ def _check_ds(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, list[
     return has_ds, checks
 
 
-def _check_rrsig(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, list[DnssecCheck]]:
+def _check_rrsig(
+    domain: str, resolver: dns.resolver.Resolver
+) -> tuple[bool, list[DnssecCheck]]:
     """Verifica registros RRSIG (assinaturas)."""
     checks: list[DnssecCheck] = []
     has_rrsig = False
@@ -512,34 +518,72 @@ def print_results(result: DnssecResult) -> None:
     }
     sc = status_colors.get(result.overall_status, (Cyber.WHITE, ""))
     print(f"  Status: {color(result.overall_status.upper(), *sc)}")
-    print(f"  Assinado: {color('SIM', Cyber.GREEN) if result.is_signed else color('NAO', Cyber.RED)}")
-    print(f"  DS Record: {color('SIM', Cyber.GREEN) if result.has_ds else color('NAO', Cyber.RED)}")
-    print(f"  DNSKEY: {color('SIM', Cyber.GREEN) if result.has_dnskey else color('NAO', Cyber.RED)}")
-    print(f"  RRSIG: {color('SIM', Cyber.GREEN) if result.has_rrsig else color('NAO', Cyber.RED)}")
-    print(f"  Cadeia: {color('VALIDA', Cyber.GREEN, Cyber.BOLD) if result.chain_valid else color('INVALIDA', Cyber.RED, Cyber.BOLD)}")
+    print(
+        f"  Assinado: {color('SIM', Cyber.GREEN) if result.is_signed else color('NAO', Cyber.RED)}"
+    )
+    print(
+        f"  DS Record: {color('SIM', Cyber.GREEN) if result.has_ds else color('NAO', Cyber.RED)}"
+    )
+    print(
+        f"  DNSKEY: {color('SIM', Cyber.GREEN) if result.has_dnskey else color('NAO', Cyber.RED)}"
+    )
+    print(
+        f"  RRSIG: {color('SIM', Cyber.GREEN) if result.has_rrsig else color('NAO', Cyber.RED)}"
+    )
+    print(
+        f"  Cadeia: {color('VALIDA', Cyber.GREEN, Cyber.BOLD) if result.chain_valid else color('INVALIDA', Cyber.RED, Cyber.BOLD)}"
+    )
 
-    algo_colors = {"strong": (Cyber.GREEN, Cyber.BOLD), "medium": (Cyber.YELLOW, ""), "weak": (Cyber.RED, ""), "unknown": (Cyber.WHITE, "")}
+    algo_colors = {
+        "strong": (Cyber.GREEN, Cyber.BOLD),
+        "medium": (Cyber.YELLOW, ""),
+        "weak": (Cyber.RED, ""),
+        "unknown": (Cyber.WHITE, ""),
+    }
     ac = algo_colors.get(result.algorithm_strength, (Cyber.WHITE, ""))
     print(f"  Algoritmos: {color(result.algorithm_strength.upper(), *ac)}")
     print()
 
     print(color("  Checks:", Cyber.YELLOW, Cyber.BOLD))
-    status_icons = {"pass": color("[+]", Cyber.GREEN), "warn": color("[!]", Cyber.YELLOW), "fail": color("[-]", Cyber.RED), "missing": color("[?]", Cyber.GRAY)}
+    status_icons = {
+        "pass": color("[+]", Cyber.GREEN),
+        "warn": color("[!]", Cyber.YELLOW),
+        "fail": color("[-]", Cyber.RED),
+        "missing": color("[?]", Cyber.GRAY),
+    }
     for check in result.checks:
         icon = status_icons.get(check.status, color("[?]", Cyber.WHITE))
         print(f"    {icon} {check.check}: {check.detail}")
 
     print()
     if result.overall_status == "secure":
-        print(color("  [+] DNSSEC configurado corretamente — zona segura", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] DNSSEC configurado corretamente — zona segura",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
     elif result.overall_status == "insecure":
-        print(color("  [!] Zona parcialmente assinada — sem delegacao DS", Cyber.YELLOW))
+        print(
+            color("  [!] Zona parcialmente assinada — sem delegacao DS", Cyber.YELLOW)
+        )
         print(color("  [!] Considere configurar DNSSEC no parent zone", Cyber.YELLOW))
     elif result.overall_status == "partial":
-        print(color("  [!] DNSSEC parcialmente configurado — cadeia incompleta", Cyber.YELLOW))
+        print(
+            color(
+                "  [!] DNSSEC parcialmente configurado — cadeia incompleta",
+                Cyber.YELLOW,
+            )
+        )
     else:
         print(color("  [-] DNSSEC nao configurado — zona nao assinada", Cyber.RED))
-        print(color("  [-] Recomendacao: implementar DNSSEC para protecao contra spoofing", Cyber.YELLOW))
+        print(
+            color(
+                "  [-] Recomendacao: implementar DNSSEC para protecao contra spoofing",
+                Cyber.YELLOW,
+            )
+        )
 
     print_exploit_info(result.exploit, result.tool)
 
@@ -553,7 +597,9 @@ def banner() -> None:
  / /  / / /_/ / /  __/ / / / / / / / / /_/ / / (__  )
 /_/  /_/\____/_/\___/_/ /_/_/_/_/ /_/\____/ /_/____/
 """
-    create_banner(art, "   dnssec validation: verifica se DNSSEC esta configurado corretamente")()
+    create_banner(
+        art, "   dnssec validation: verifica se DNSSEC esta configurado corretamente"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -589,8 +635,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma query DNS sera enviada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma query DNS sera enviada.",
+        )
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}",
+        )
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Nameserver: {args.nameserver}")
         return 0
 
@@ -607,7 +659,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(result)],
-            ["domain", "nameserver", "is_signed", "has_ds", "has_dnskey", "has_rrsig", "chain_valid", "algorithm_strength", "overall_status"],
+            [
+                "domain",
+                "nameserver",
+                "is_signed",
+                "has_ds",
+                "has_dnskey",
+                "has_rrsig",
+                "chain_valid",
+                "algorithm_strength",
+                "overall_status",
+            ],
             quiet=quiet,
         )
     return 0
@@ -628,7 +690,9 @@ def main() -> int:
         prompt="dnssec> ",
         description="DNSSEC Validation interativo.",
         example="example.com --nameserver 8.8.8.8",
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1\n  example.com --query-timeout 10"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1\n  example.com --query-timeout 10"
+        ),
     )
 
 

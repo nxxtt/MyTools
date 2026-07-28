@@ -131,7 +131,9 @@ def _parse_ipapi(body: bytes) -> IpAsnInfo | None:
         is_hosting=data.get("hosting", False),
         is_proxy=data.get("proxy", False),
         source="ipapi",
-        exploit=f"https://bgp.he.net/ip/{data.get('query', '')}" if data.get("as") else "",
+        exploit=f"https://bgp.he.net/ip/{data.get('query', '')}"
+        if data.get("as")
+        else "",
         tool="bgp.he.net",
     )
 
@@ -167,7 +169,9 @@ def _parse_ipapi_batch(body: bytes) -> list[IpAsnInfo]:
                 is_hosting=item.get("hosting", False),
                 is_proxy=item.get("proxy", False),
                 source="ipapi",
-                exploit=f"https://bgp.he.net/ip/{item.get('query', '')}" if item.get("as") else "",
+                exploit=f"https://bgp.he.net/ip/{item.get('query', '')}"
+                if item.get("as")
+                else "",
                 tool="bgp.he.net",
             )
         )
@@ -223,11 +227,15 @@ async def _query_batch(ips: list[str], timeout: float) -> list[IpAsnInfo]:
             batch = ips[i : i + 100]
             url = "http://ip-api.com/batch?fields=query,as,asname,isp,org,country,countryCode,city,hosting,proxy"
             try:
-                resp = await client.post(url, content=json.dumps(batch).encode(), timeout=timeout)
+                resp = await client.post(
+                    url, content=json.dumps(batch).encode(), timeout=timeout
+                )
                 if resp.status_code == 200:
                     results.extend(_parse_ipapi_batch(resp.content))
             except httpx.RequestError, httpx.HTTPStatusError:
-                logger.debug("ip-api.com batch falhou para lote %d-%d", i, i + len(batch))
+                logger.debug(
+                    "ip-api.com batch falhou para lote %d-%d", i, i + len(batch)
+                )
 
             # Respeitar rate limit do batch (15 req/min)
             if i + 100 < len(ips):
@@ -282,9 +290,15 @@ def build_parser() -> argparse.ArgumentParser:
         prog="mytools-ipasn",
         description="Enriquece IPs com dados BGP (ASN, organizacao, pais).",
     )
-    parser.add_argument("ips", nargs="*", help="IP(s) para consultar (ex: 8.8.8.8 1.1.1.1).")
-    parser.add_argument("-f", "--file", dest="ip_file", help="Arquivo com IPs (um por linha).")
-    parser.add_argument("--batch", action="store_true", help="Forca modo batch via ip-api.com.")
+    parser.add_argument(
+        "ips", nargs="*", help="IP(s) para consultar (ex: 8.8.8.8 1.1.1.1)."
+    )
+    parser.add_argument(
+        "-f", "--file", dest="ip_file", help="Arquivo com IPs (um por linha)."
+    )
+    parser.add_argument(
+        "--batch", action="store_true", help="Forca modo batch via ip-api.com."
+    )
     add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
     return parser
 
@@ -292,7 +306,9 @@ def build_parser() -> argparse.ArgumentParser:
 def _print_results(results: list[IpAsnInfo]) -> None:
     """Imprime tabela de resultados."""
     if not results:
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhuma informacao ASN encontrada.")
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD), "Nenhuma informacao ASN encontrada."
+        )
         return
 
     print_table(
@@ -341,7 +357,10 @@ def _load_ips_from_args(args: argparse.Namespace) -> list[str]:
                     if line and not line.startswith("#"):
                         ips.append(line)
         except FileNotFoundError:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"Arquivo nao encontrado: {args.ip_file}")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"Arquivo nao encontrado: {args.ip_file}",
+            )
             return []
 
     return ips
@@ -354,13 +373,25 @@ def run_once(args: argparse.Namespace) -> int:
     ips = _load_ips_from_args(args)
 
     if not ips:
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "Nenhum IP especificado. Use posicao ou --file.")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "Nenhum IP especificado. Use posicao ou --file.",
+        )
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma consulta sera realizada.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"IPs: {color(str(len(ips)), Cyber.WHITE, Cyber.BOLD)}")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Modo: {'batch' if getattr(args, 'batch', False) or len(ips) >= 5 else 'individual'}")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma consulta sera realizada.",
+        )
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"IPs: {color(str(len(ips)), Cyber.WHITE, Cyber.BOLD)}",
+        )
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"Modo: {'batch' if getattr(args, 'batch', False) or len(ips) >= 5 else 'individual'}",
+        )
         return 0
 
     start = time.time()

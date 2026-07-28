@@ -77,14 +77,28 @@ _CMS_SIGNATURES_DEFAULT: dict[str, Any] = {
     "wordpress": {
         "detect_paths": ["/wp-login.php", "/wp-admin/", "/wp-includes/"],
         "version_paths": ["/readme.html", "/feed/", "/wp-includes/version.php"],
-        "plugins": ["akismet", "contact-form-7", "wordfence", "yoast-seo", "woocommerce"],
+        "plugins": [
+            "akismet",
+            "contact-form-7",
+            "wordfence",
+            "yoast-seo",
+            "woocommerce",
+        ],
         "themes": ["twentytwentythree", "twentytwentytwo", "astra", "generatepress"],
         "user_paths": ["/?author=1", "/wp-json/wp/v2/users", "/xmlrpc.php"],
     },
     "joomla": {
         "detect_paths": ["/administrator/", "/configuration.php", "/components/"],
-        "version_paths": ["/language/en-GB/en-GB.xml", "/administrator/manifests/files/joomla.xml"],
-        "third_party_extensions": ["com_hikashop", "com_jce", "com_k2", "com_virtuemart"],
+        "version_paths": [
+            "/language/en-GB/en-GB.xml",
+            "/administrator/manifests/files/joomla.xml",
+        ],
+        "third_party_extensions": [
+            "com_hikashop",
+            "com_jce",
+            "com_k2",
+            "com_virtuemart",
+        ],
     },
     "drupal": {
         "detect_paths": ["/core/", "/sites/default/", "/CHANGELOG.txt"],
@@ -318,7 +332,9 @@ async def _detect_joomla_info(
 
     # Version via manifests
     if not version:
-        status, body = await _check_path(client, base_url, "/administrator/manifests/files/joomla.xml")
+        status, body = await _check_path(
+            client, base_url, "/administrator/manifests/files/joomla.xml"
+        )
         if status == 200:
             m = re.search(r"<version>([\d.]+)</version>", body)
             if m:
@@ -387,7 +403,13 @@ async def scan_cms_fingerprint(
                 )
 
         # Step 2: WordPress-specific checks
-        if cms_detected == "wordpress" or "wp_version" in cats or "wp_plugins" in cats or "wp_themes" in cats or "wp_users" in cats:
+        if (
+            cms_detected == "wordpress"
+            or "wp_version" in cats
+            or "wp_plugins" in cats
+            or "wp_themes" in cats
+            or "wp_users" in cats
+        ):
             sigs = _CMS_SIGNATURES.get("wordpress", {})
 
             # Version
@@ -552,7 +574,10 @@ def print_results(result: CmsResult) -> None:
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
 
     if result.cms_detected:
-        print(color("[*]", Cyber.CYAN), f"CMS: {result.cms_detected} {result.version}".strip())
+        print(
+            color("[*]", Cyber.CYAN),
+            f"CMS: {result.cms_detected} {result.version}".strip(),
+        )
     else:
         print(color("[*]", Cyber.CYAN), "CMS: not detected")
 

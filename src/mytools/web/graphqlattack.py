@@ -42,9 +42,7 @@ logger = logging.getLogger("mytools.graphqlattack")
 
 # ─── Banner ──────────────────────────────────────────────────────────────────
 
-_BANNER_LINES: str = (
-    "  ___           _        __ _   \n | __|_ _  __ _| |_ ___ / _(_)__ _\n | _/ _` |/ _` |  _/ -_)  _| / _` |\n |_\\__,_|\\__,_|\\__\\___|_| |_\\__,_|\n"
-)
+_BANNER_LINES: str = "  ___           _        __ _   \n | __|_ _  __ _| |_ ___ / _(_)__ _\n | _/ _` |/ _` |  _/ -_)  _| / _` |\n |_\\__,_|\\__,_|\\__\\___|_| |_\\__,_|\n"
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -108,11 +106,28 @@ _DEEP_INTROSPECTION_QUERY: str = json.dumps(
 )
 
 _TOOL_SIGNATURES: list[tuple[str, re.Pattern[str]]] = [
-    ("graphiql", re.compile(r"<div\s+id=['\"]?graphiql['\"]?|GraphiQL\.create|new\s+GraphiQL", re.IGNORECASE)),
-    ("playground", re.compile(r"graphql-playground|GraphQL Playground|createPlayground", re.IGNORECASE)),
+    (
+        "graphiql",
+        re.compile(
+            r"<div\s+id=['\"]?graphiql['\"]?|GraphiQL\.create|new\s+GraphiQL",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "playground",
+        re.compile(
+            r"graphql-playground|GraphQL Playground|createPlayground", re.IGNORECASE
+        ),
+    ),
     ("altair", re.compile(r"altair-graphql|AltairGraphQL|altair\.js", re.IGNORECASE)),
-    ("voyager", re.compile(r"graphql-voyager|GraphQLVoyager|voyager\.render", re.IGNORECASE)),
-    ("apollo-sandbox", re.compile(r"apollo-sandbox|Apollo Sandbox|ApolloSandbox", re.IGNORECASE)),
+    (
+        "voyager",
+        re.compile(r"graphql-voyager|GraphQLVoyager|voyager\.render", re.IGNORECASE),
+    ),
+    (
+        "apollo-sandbox",
+        re.compile(r"apollo-sandbox|Apollo Sandbox|ApolloSandbox", re.IGNORECASE),
+    ),
 ]
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
@@ -247,11 +262,15 @@ async def _find_endpoint(
 ) -> str:
     """Encontra endpoint GraphQL testando paths comuns."""
     scheme = "https" if tls else "http"
-    base = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    base = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
 
     paths_to_try = [path] if path and path != "/" else _DEFAULT_PATHS
 
-    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=False, follow_redirects=True
+    ) as client:
         for p in paths_to_try:
             url = f"{base}/{p}".replace("//", "/").replace("://", "://")
             try:
@@ -264,7 +283,9 @@ async def _find_endpoint(
                 if resp.status_code == 200 and ("json" in ct or "graphql" in ct):
                     try:
                         data = resp.json()
-                        if isinstance(data, dict) and ("data" in data or "errors" in data):
+                        if isinstance(data, dict) and (
+                            "data" in data or "errors" in data
+                        ):
                             return url
                     except ValueError:
                         pass
@@ -291,7 +312,9 @@ async def _execute_query(
         req_headers.update(headers)
 
     try:
-        async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, verify=False, follow_redirects=True
+        ) as client:
             resp = await client.post(
                 endpoint,
                 content=json.dumps(payload),
@@ -344,7 +367,9 @@ def _build_circular_query() -> str:
 
 def _build_fragment_spread_query(depth: int) -> str:
     """Constrói query com fragment spread encadeado."""
-    fragments = [f"fragment F{i} on Query {{ __typename ...F{i + 1} }}" for i in range(depth)]
+    fragments = [
+        f"fragment F{i} on Query {{ __typename ...F{i + 1} }}" for i in range(depth)
+    ]
     fragments.append(f"fragment F{depth} on Query {{ __typename }}")
     return "{ ...F0 }\n" + "\n".join(fragments)
 
@@ -403,28 +428,38 @@ async def _test_introspection(
                 details = f"Types found: {types_count}"
             elif tech == "full_introspection":
                 full_query = _DEEP_INTROSPECTION_QUERY
-                _status, data = await _execute_query(endpoint_url, full_query, timeout=timeout)
+                _status, data = await _execute_query(
+                    endpoint_url, full_query, timeout=timeout
+                )
                 vuln_data = data.get("data", {})
                 has_schema = isinstance(vuln_data, dict) and "__schema" in vuln_data
                 vulnerable = has_schema
                 details = f"Full schema: {'available' if vulnerable else 'blocked'}"
             elif tech == "partial_introspection":
                 query = "{ __schema { types { name } } }"
-                _status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                _status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vuln_data = data.get("data", {})
                 has_types = isinstance(vuln_data, dict) and "__schema" in vuln_data
                 vulnerable = has_types
-                details = f"Partial introspection: {'available' if vulnerable else 'blocked'}"
+                details = (
+                    f"Partial introspection: {'available' if vulnerable else 'blocked'}"
+                )
             elif tech == "mutation_discovery":
                 query = "{ __schema { mutationType { name fields { name } } } }"
-                _status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                _status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vuln_data = data.get("data", {})
                 has_mutation = isinstance(vuln_data, dict) and "__schema" in vuln_data
                 vulnerable = has_mutation
                 details = f"Mutations: {'discoverable' if vulnerable else 'hidden'}"
             elif tech == "subscription_discovery":
                 query = "{ __schema { subscriptionType { name fields { name } } } }"
-                _status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                _status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vuln_data = data.get("data", {})
                 has_sub = isinstance(vuln_data, dict) and "__schema" in vuln_data
                 vulnerable = has_sub
@@ -498,33 +533,49 @@ async def _test_depth_abuse(
             if tech == "nested_query_dos":
                 query = _build_nested_query(50)
                 t0 = time.monotonic()
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 elapsed = time.monotonic() - t0
                 has_errors = "errors" in data
                 vulnerable = elapsed > 5.0 or (has_errors and status == 200)
-                details = f"Time: {elapsed:.2f}s, Errors: {has_errors}, Status: {status}"
+                details = (
+                    f"Time: {elapsed:.2f}s, Errors: {has_errors}, Status: {status}"
+                )
             elif tech == "circular_ref":
                 query = _build_circular_query()
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 has_errors = "errors" in data
                 vulnerable = not has_errors and status == 200
                 details = f"Circular ref: {'accepted' if vulnerable else 'rejected'}"
             elif tech == "fragment_spread":
                 query = _build_fragment_spread_query(100)
                 t0 = time.monotonic()
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 elapsed = time.monotonic() - t0
                 vulnerable = elapsed > 3.0
                 details = f"Fragment depth 100: {elapsed:.2f}s"
             elif tech == "directive_overload":
-                query = "{ __typename " + " ".join(f'@deprecated(reason: "test{i}")' for i in range(50)) + " }"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                query = (
+                    "{ __typename "
+                    + " ".join(f'@deprecated(reason: "test{i}")' for i in range(50))
+                    + " }"
+                )
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vulnerable = status == 200 and "errors" not in data
                 details = f"50 directives: {'accepted' if vulnerable else 'rejected'}"
             elif tech == "alias_chain_dos":
                 query = _build_alias_query(1000)
                 t0 = time.monotonic()
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 elapsed = time.monotonic() - t0
                 vulnerable = elapsed > 5.0
                 details = f"1000 aliases: {elapsed:.2f}s, Status: {status}"
@@ -543,7 +594,16 @@ async def _test_depth_abuse(
                     endpoint=endpoint_url,
                     query_type=schema_info.get("query_type", ""),
                     schema_types=types_count,
-                    response_code=status if tech in ("nested_query_dos", "circular_ref", "fragment_spread", "directive_overload", "alias_chain_dos") else 200,
+                    response_code=status
+                    if tech
+                    in (
+                        "nested_query_dos",
+                        "circular_ref",
+                        "fragment_spread",
+                        "directive_overload",
+                        "alias_chain_dos",
+                    )
+                    else 200,
                     exploit="introspection_query",
                     tool="graphql-playground",
                 )
@@ -597,14 +657,22 @@ async def _test_batch_abuse(
                 batch = [{"query": "{ __typename }"} for _ in range(10)]
                 payload = json.dumps(batch)
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                    resp = await client.post(endpoint_url, content=payload, headers={"Content-Type": "application/json"})
+                    resp = await client.post(
+                        endpoint_url,
+                        content=payload,
+                        headers={"Content-Type": "application/json"},
+                    )
                     vulnerable = resp.status_code == 200
                     details = f"10 queries batch: status {resp.status_code}"
             elif tech == "batch_size_abuse":
                 batch = [{"query": "{ __typename }"} for _ in range(100)]
                 payload = json.dumps(batch)
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                    resp = await client.post(endpoint_url, content=payload, headers={"Content-Type": "application/json"})
+                    resp = await client.post(
+                        endpoint_url,
+                        content=payload,
+                        headers={"Content-Type": "application/json"},
+                    )
                     vulnerable = resp.status_code == 200
                     details = f"100 queries batch: status {resp.status_code}"
             elif tech == "batch_mutation_mix":
@@ -615,14 +683,22 @@ async def _test_batch_abuse(
                 ]
                 payload = json.dumps(batch)
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                    resp = await client.post(endpoint_url, content=payload, headers={"Content-Type": "application/json"})
+                    resp = await client.post(
+                        endpoint_url,
+                        content=payload,
+                        headers={"Content-Type": "application/json"},
+                    )
                     vulnerable = resp.status_code == 200
                     details = f"Mixed mutations batch: status {resp.status_code}"
             elif tech == "batch_auth_bypass":
                 batch = [{"query": "{ __typename }"} for _ in range(5)]
                 payload = json.dumps(batch)
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                    resp = await client.post(endpoint_url, content=payload, headers={"Content-Type": "application/json"})
+                    resp = await client.post(
+                        endpoint_url,
+                        content=payload,
+                        headers={"Content-Type": "application/json"},
+                    )
                     vulnerable = resp.status_code == 200
                     details = f"5 queries without auth: status {resp.status_code}"
             else:
@@ -694,27 +770,37 @@ async def _test_alias_overload(
             if tech == "alias_count_bypass":
                 query = _build_alias_query(1000)
                 t0 = time.monotonic()
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 elapsed = time.monotonic() - t0
                 vulnerable = status == 200 and "errors" not in data
                 details = f"1000 aliases: {elapsed:.2f}s, status {status}"
             elif tech == "alias_field_dup":
                 aliases = ", ".join(f"a{i}: __typename" for i in range(500))
                 query = f"{{ {aliases} }}"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vulnerable = status == 200 and "errors" not in data
                 details = f"500 field aliases: status {status}"
             elif tech == "alias_mutation_overload":
                 aliases = ", ".join(f"m{i}: __typename" for i in range(100))
                 query = f"{{ {aliases} }}"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vulnerable = status == 200
                 details = f"100 mutation aliases: status {status}"
             elif tech == "alias_fragment_mix":
-                fragments = "\n".join(f"fragment F{i} on Query {{ __typename }}" for i in range(10))
+                fragments = "\n".join(
+                    f"fragment F{i} on Query {{ __typename }}" for i in range(10)
+                )
                 aliases = ", ".join(f"a{i}: ...F{i % 10}" for i in range(100))
                 query = f"{{ {aliases} }}\n{fragments}"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vulnerable = status == 200 and "errors" not in data
                 details = f"100 alias + 10 fragments: status {status}"
             else:
@@ -783,26 +869,41 @@ async def _test_schema_stitching(
         try:
             if tech == "remote_schema_discovery":
                 query = "{ __schema { directives { name locations } } }"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vuln_data = data.get("data", {})
                 has_directives = isinstance(vuln_data, dict) and "__schema" in vuln_data
                 vulnerable = has_directives
                 details = f"Directives: {'exposed' if vulnerable else 'hidden'}"
             elif tech == "stitching_bypass":
                 query = "{ _entities { __typename } }"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vulnerable = status == 200 and "errors" not in data
-                details = f"Federation _entities: {'accessible' if vulnerable else 'blocked'}"
+                details = (
+                    f"Federation _entities: {'accessible' if vulnerable else 'blocked'}"
+                )
             elif tech == "federated_graph_abuse":
                 query = "{ _service { sdl } }"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
-                vulnerable = status == 200 and "data" in data and data["data"] is not None
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
+                vulnerable = (
+                    status == 200 and "data" in data and data["data"] is not None
+                )
                 details = f"Service SDL: {'exposed' if vulnerable else 'hidden'}"
             elif tech == "schema_leak":
                 query = "{ __nonexistent_field_abc123 }"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 error_msg = str(data.get("errors", ""))
-                vulnerable = "did you mean" in error_msg.lower() or "suggestion" in error_msg.lower()
+                vulnerable = (
+                    "did you mean" in error_msg.lower()
+                    or "suggestion" in error_msg.lower()
+                )
                 details = f"Error leak: {'yes' if vulnerable else 'no'}"
             else:
                 vulnerable = False
@@ -875,34 +976,68 @@ async def _test_persisted_abuse(
     for tech, desc in techniques:
         try:
             if tech == "apq_bypass":
-                payload = {"extensions": {"persistedQuery": {"version": 1, "sha256Hash": common_hashes[0]}}}
+                payload = {
+                    "extensions": {
+                        "persistedQuery": {"version": 1, "sha256Hash": common_hashes[0]}
+                    }
+                }
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                    resp = await client.post(endpoint_url, content=json.dumps(payload), headers={"Content-Type": "application/json"})
+                    resp = await client.post(
+                        endpoint_url,
+                        content=json.dumps(payload),
+                        headers={"Content-Type": "application/json"},
+                    )
                     data = resp.json() if resp.status_code == 200 else {}
                     vulnerable = resp.status_code == 200 and "data" in data
                     details = f"APQ without query: status {resp.status_code}"
             elif tech == "apq_hash_collision":
                 fake_hash = hashlib.sha256(b"nonexistent_query").hexdigest()
-                payload = {"extensions": {"persistedQuery": {"version": 1, "sha256Hash": fake_hash}}}
+                payload = {
+                    "extensions": {
+                        "persistedQuery": {"version": 1, "sha256Hash": fake_hash}
+                    }
+                }
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                    resp = await client.post(endpoint_url, content=json.dumps(payload), headers={"Content-Type": "application/json"})
+                    resp = await client.post(
+                        endpoint_url,
+                        content=json.dumps(payload),
+                        headers={"Content-Type": "application/json"},
+                    )
                     data = resp.json() if resp.status_code == 200 else {}
                     vulnerable = resp.status_code == 200 and "data" in data
                     details = f"Fake hash: status {resp.status_code}"
             elif tech == "apq_mutation_bypass":
                 query_hash = hashlib.sha256(b"mutation { __typename }").hexdigest()
-                payload = {"extensions": {"persistedQuery": {"version": 1, "sha256Hash": query_hash}}}
+                payload = {
+                    "extensions": {
+                        "persistedQuery": {"version": 1, "sha256Hash": query_hash}
+                    }
+                }
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                    resp = await client.post(endpoint_url, content=json.dumps(payload), headers={"Content-Type": "application/json"})
+                    resp = await client.post(
+                        endpoint_url,
+                        content=json.dumps(payload),
+                        headers={"Content-Type": "application/json"},
+                    )
                     data = resp.json() if resp.status_code == 200 else {}
                     vulnerable = resp.status_code == 200 and "data" in data
                     details = f"APQ mutation: status {resp.status_code}"
             elif tech == "persisted_query_enumeration":
                 found = 0
                 for h in common_hashes:
-                    payload = {"extensions": {"persistedQuery": {"version": 1, "sha256Hash": h}}}
-                    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                        resp = await client.post(endpoint_url, content=json.dumps(payload), headers={"Content-Type": "application/json"})
+                    payload = {
+                        "extensions": {
+                            "persistedQuery": {"version": 1, "sha256Hash": h}
+                        }
+                    }
+                    async with httpx.AsyncClient(
+                        timeout=timeout, verify=False
+                    ) as client:
+                        resp = await client.post(
+                            endpoint_url,
+                            content=json.dumps(payload),
+                            headers={"Content-Type": "application/json"},
+                        )
                         if resp.status_code == 200:
                             data = resp.json()
                             if "data" in data and data["data"] is not None:
@@ -995,27 +1130,42 @@ async def _test_resolver_analysis(
                 found_inj = False
                 for _payload in sqli_payloads:
                     query = "{ __typename }"
-                    status, data = await _execute_query(endpoint_url, query, timeout=timeout)
-                    if "error" in str(data).lower() and ("sql" in str(data).lower() or "syntax" in str(data).lower()):
+                    status, data = await _execute_query(
+                        endpoint_url, query, timeout=timeout
+                    )
+                    if "error" in str(data).lower() and (
+                        "sql" in str(data).lower() or "syntax" in str(data).lower()
+                    ):
                         found_inj = True
                         break
                 vulnerable = found_inj
-                details = f"SQL error leak: {'detected' if vulnerable else 'not detected'}"
+                details = (
+                    f"SQL error leak: {'detected' if vulnerable else 'not detected'}"
+                )
             elif tech == "ssrf_in_resolver":
                 query = "{ __typename }"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vulnerable = False
                 details = "SSRF: requires schema with URL-fetching resolvers"
             elif tech == "authz_bypass":
                 query = "{ __typename }"
-                status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 vulnerable = status == 200
                 details = f"Unauthenticated access: status {status}"
             elif tech == "info_leak_resolver":
                 error_query = "{ nonExistentField12345 }"
-                status, data = await _execute_query(endpoint_url, error_query, timeout=timeout)
+                status, data = await _execute_query(
+                    endpoint_url, error_query, timeout=timeout
+                )
                 error_str = json.dumps(data)
-                vulnerable = any(kw in error_str.lower() for kw in ["stack", "trace", "debug", "internal", "exception"])
+                vulnerable = any(
+                    kw in error_str.lower()
+                    for kw in ["stack", "trace", "debug", "internal", "exception"]
+                )
                 details = f"Error info leak: {'yes' if vulnerable else 'no'}"
             else:
                 vulnerable = False
@@ -1093,9 +1243,19 @@ async def _test_persisted_enum(
                 found = 0
                 for q in common_queries:
                     h = hashlib.sha256(q.encode()).hexdigest()
-                    payload = {"extensions": {"persistedQuery": {"version": 1, "sha256Hash": h}}}
-                    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                        resp = await client.post(endpoint_url, content=json.dumps(payload), headers={"Content-Type": "application/json"})
+                    payload = {
+                        "extensions": {
+                            "persistedQuery": {"version": 1, "sha256Hash": h}
+                        }
+                    }
+                    async with httpx.AsyncClient(
+                        timeout=timeout, verify=False
+                    ) as client:
+                        resp = await client.post(
+                            endpoint_url,
+                            content=json.dumps(payload),
+                            headers={"Content-Type": "application/json"},
+                        )
                         if resp.status_code == 200:
                             data = resp.json()
                             if "data" in data and data["data"] is not None:
@@ -1106,8 +1266,14 @@ async def _test_persisted_enum(
                 found = 0
                 for i in range(10):
                     payload = {"id": str(i)}
-                    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                        resp = await client.post(endpoint_url, content=json.dumps(payload), headers={"Content-Type": "application/json"})
+                    async with httpx.AsyncClient(
+                        timeout=timeout, verify=False
+                    ) as client:
+                        resp = await client.post(
+                            endpoint_url,
+                            content=json.dumps(payload),
+                            headers={"Content-Type": "application/json"},
+                        )
                         if resp.status_code == 200:
                             data = resp.json()
                             if "data" in data and data["data"] is not None:
@@ -1116,7 +1282,9 @@ async def _test_persisted_enum(
                 details = f"Found {found}/10 ID-based queries"
             elif tech == "query_from_response":
                 query = "{ __typename }"
-                _status, data = await _execute_query(endpoint_url, query, timeout=timeout)
+                _status, data = await _execute_query(
+                    endpoint_url, query, timeout=timeout
+                )
                 data_str = json.dumps(data)
                 has_hash = bool(re.search(r"[a-f0-9]{64}", data_str))
                 vulnerable = has_hash
@@ -1128,14 +1296,24 @@ async def _test_persisted_enum(
                     await _execute_query(endpoint_url, query, timeout=timeout)
                 dynamic_time = time.monotonic() - t0
                 h = hashlib.sha256(query.encode()).hexdigest()
-                payload = {"extensions": {"persistedQuery": {"version": 1, "sha256Hash": h}}}
+                payload = {
+                    "extensions": {"persistedQuery": {"version": 1, "sha256Hash": h}}
+                }
                 t0 = time.monotonic()
                 for _ in range(5):
-                    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                        await client.post(endpoint_url, content=json.dumps(payload), headers={"Content-Type": "application/json"})
+                    async with httpx.AsyncClient(
+                        timeout=timeout, verify=False
+                    ) as client:
+                        await client.post(
+                            endpoint_url,
+                            content=json.dumps(payload),
+                            headers={"Content-Type": "application/json"},
+                        )
                 persisted_time = time.monotonic() - t0
                 vulnerable = persisted_time < dynamic_time * 0.5
-                details = f"Dynamic: {dynamic_time:.2f}s, Persisted: {persisted_time:.2f}s"
+                details = (
+                    f"Dynamic: {dynamic_time:.2f}s, Persisted: {persisted_time:.2f}s"
+                )
             else:
                 vulnerable = False
                 details = ""
@@ -1177,7 +1355,9 @@ async def _test_persisted_enum(
 
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[GraphQLAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[GraphQLAttackAttempt]]]
+] = {
     "introspection": _test_introspection,
     "depth_abuse": _test_depth_abuse,
     "batch_abuse": _test_batch_abuse,
@@ -1196,10 +1376,19 @@ def print_results(result: GraphQLAttackResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "GraphQL Attack Testing")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
-    print(color("[*]", Cyber.CYAN), f"Schema: {'found' if result.schema_found else 'not found'} ({result.types_count} types)")
-    print(color("[*]", Cyber.CYAN), f"Queries: {result.queries_count} | Mutations: {result.mutations_count}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Schema: {'found' if result.schema_found else 'not found'} ({result.types_count} types)",
+    )
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Queries: {result.queries_count} | Mutations: {result.mutations_count}",
+    )
     print()
 
     if result.issues:
@@ -1215,7 +1404,10 @@ def print_results(result: GraphQLAttackResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -1224,9 +1416,15 @@ def print_results(result: GraphQLAttackResult) -> None:
 
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — GraphQL weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — GraphQL weaknesses detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — GraphQL configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — GraphQL configuration looks good",
+        )
     print()
 
 
@@ -1245,7 +1443,9 @@ async def run_scan(
     endpoint_url = await _find_endpoint(host, port, path, timeout, tls)
 
     schema_data = await _introspect_schema(endpoint_url, timeout)
-    types, query_type, mutation_type, subscription_type = _parse_introspection(schema_data)
+    types, query_type, mutation_type, subscription_type = _parse_introspection(
+        schema_data
+    )
 
     schema_info = {
         "types": types,
@@ -1262,7 +1462,9 @@ async def run_scan(
         if tester is None:
             continue
         try:
-            raw = await tester(host, port, path, timeout, tls, endpoint_url, schema_info)
+            raw = await tester(
+                host, port, path, timeout, tls, endpoint_url, schema_info
+            )
             all_attempts.extend(raw)
         except Exception as e:
             all_attempts.append(
@@ -1333,13 +1535,23 @@ def _parse_introspection(data: dict[str, Any]) -> tuple[list[str], str, str, str
                     types.append(f"{name} ({kind})")
 
     query_type_obj = schema.get("queryType", {})
-    query_type = str(query_type_obj.get("name", "")) if isinstance(query_type_obj, dict) else ""
+    query_type = (
+        str(query_type_obj.get("name", "")) if isinstance(query_type_obj, dict) else ""
+    )
 
     mutation_type_obj = schema.get("mutationType", {})
-    mutation_type = str(mutation_type_obj.get("name", "")) if isinstance(mutation_type_obj, dict) else ""
+    mutation_type = (
+        str(mutation_type_obj.get("name", ""))
+        if isinstance(mutation_type_obj, dict)
+        else ""
+    )
 
     subscription_type_obj = schema.get("subscriptionType", {})
-    subscription_type = str(subscription_type_obj.get("name", "")) if isinstance(subscription_type_obj, dict) else ""
+    subscription_type = (
+        str(subscription_type_obj.get("name", ""))
+        if isinstance(subscription_type_obj, dict)
+        else ""
+    )
 
     return types, query_type, mutation_type, subscription_type
 

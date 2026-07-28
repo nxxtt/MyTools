@@ -213,7 +213,11 @@ def _get_str_list(key: str, default: list[str]) -> list[str]:
 
 def _get_tuple_list(key: str, default: list[tuple[str, str]]) -> list[tuple[str, str]]:
     raw = _get_list(key, default)
-    result = [(str(item[0]), str(item[1])) for item in raw if isinstance(item, list) and len(item) >= 2]
+    result = [
+        (str(item[0]), str(item[1]))
+        for item in raw
+        if isinstance(item, list) and len(item) >= 2
+    ]
     return result if result else default
 
 
@@ -287,7 +291,9 @@ async def _probe_openapi(
                 continue
             endpoints = list(paths.keys())
             if endpoints:
-                logger.info("OpenAPI spec encontrado em %s: %d endpoints", path, len(endpoints))
+                logger.info(
+                    "OpenAPI spec encontrado em %s: %d endpoints", path, len(endpoints)
+                )
                 return endpoints
         except json.JSONDecodeError, httpx.RequestError:
             continue
@@ -357,7 +363,11 @@ async def _test_auth_bypass(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (401, 403)
-            details = f"Auth bypass: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            details = (
+                f"Auth bypass: {b_status}->{t_status}"
+                if vulnerable
+                else f"Status {t_status}"
+            )
             attempts.append(
                 RestFuzzAttempt(
                     technique=f"bearer_{token or 'empty'}",
@@ -374,7 +384,9 @@ async def _test_auth_bypass(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
-                    exploit=f"curl -H 'Authorization: {token}' '{url}'" if vulnerable else "",
+                    exploit=f"curl -H 'Authorization: {token}' '{url}'"
+                    if vulnerable
+                    else "",
                     tool="curl" if vulnerable else "",
                 )
             )
@@ -409,7 +421,11 @@ async def _test_auth_bypass(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (401, 403)
-            details = f"Auth bypass: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            details = (
+                f"Auth bypass: {b_status}->{t_status}"
+                if vulnerable
+                else f"Status {t_status}"
+            )
             attempts.append(
                 RestFuzzAttempt(
                     technique=f"header_{hdr_name}",
@@ -426,7 +442,9 @@ async def _test_auth_bypass(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
-                    exploit=f"curl -H '{hdr_name}: {hdr_value}' '{url}'" if vulnerable else "",
+                    exploit=f"curl -H '{hdr_name}: {hdr_value}' '{url}'"
+                    if vulnerable
+                    else "",
                     tool="curl" if vulnerable else "",
                 )
             )
@@ -461,7 +479,11 @@ async def _test_auth_bypass(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (401, 403)
-            details = f"Auth bypass: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            details = (
+                f"Auth bypass: {b_status}->{t_status}"
+                if vulnerable
+                else f"Status {t_status}"
+            )
             attempts.append(
                 RestFuzzAttempt(
                     technique=f"cookie_{cookie_name}",
@@ -478,7 +500,9 @@ async def _test_auth_bypass(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
-                    exploit=f"curl -b '{cookie_name}={cookie_value}' '{url}'" if vulnerable else "",
+                    exploit=f"curl -b '{cookie_name}={cookie_value}' '{url}'"
+                    if vulnerable
+                    else "",
                     tool="curl" if vulnerable else "",
                 )
             )
@@ -546,7 +570,11 @@ async def _test_content_type(
             t_size = len(resp.content)
             ct_changed = resp.headers.get("content-type", "") != b_ct
             vulnerable = t_status == 200 and b_status in (400, 415, 422)
-            details = f"Accepted {ct}: {b_status}->{t_status}" if vulnerable else f"Status {t_status}, CT changed: {ct_changed}"
+            details = (
+                f"Accepted {ct}: {b_status}->{t_status}"
+                if vulnerable
+                else f"Status {t_status}, CT changed: {ct_changed}"
+            )
             attempts.append(
                 RestFuzzAttempt(
                     technique=f"ct_switch_{ct.split('/')[1].split(';')[0]}",
@@ -563,7 +591,9 @@ async def _test_content_type(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
-                    exploit=f"curl -X POST -H 'Content-Type: {ct}' -d '{body[:50]}' '{url}'" if vulnerable else "",
+                    exploit=f"curl -X POST -H 'Content-Type: {ct}' -d '{body[:50]}' '{url}'"
+                    if vulnerable
+                    else "",
                     tool="curl" if vulnerable else "",
                 )
             )
@@ -599,7 +629,11 @@ async def _test_content_type(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status == 200 and b_status in (400, 415, 422)
-            details = f"Charset accepted: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            details = (
+                f"Charset accepted: {b_status}->{t_status}"
+                if vulnerable
+                else f"Status {t_status}"
+            )
             attempts.append(
                 RestFuzzAttempt(
                     technique=f"ct_charset_{ct.split('charset=')[1] if 'charset=' in ct else ct}",
@@ -651,7 +685,11 @@ async def _test_content_type(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status == 200 and b_status in (400, 415, 422)
-            details = f"Boundary accepted: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            details = (
+                f"Boundary accepted: {b_status}->{t_status}"
+                if vulnerable
+                else f"Status {t_status}"
+            )
             attempts.append(
                 RestFuzzAttempt(
                     technique=f"ct_boundary_{boundary[:20]}",
@@ -722,8 +760,15 @@ async def _test_version_enum(
                     resp = await client.get(url, follow_redirects=False)
                     t_status = resp.status_code
                     t_size = len(resp.content)
-                    vulnerable = t_status in (200, 201, 202, 204) and b_status in (404, 405)
-                    details = f"Version found: {versioned_endpoint} ({t_status})" if vulnerable else f"Status {t_status}"
+                    vulnerable = t_status in (200, 201, 202, 204) and b_status in (
+                        404,
+                        405,
+                    )
+                    details = (
+                        f"Version found: {versioned_endpoint} ({t_status})"
+                        if vulnerable
+                        else f"Status {t_status}"
+                    )
                     attempts.append(
                         RestFuzzAttempt(
                             technique=f"version_{prefix}{version}{suffix}",
@@ -802,7 +847,11 @@ async def _test_hateoas(
                 t_status = resp.status_code
                 t_size = len(resp.content)
                 vulnerable = t_status in (200, 201, 202, 204) and b_status in (405, 404)
-                details = f"Method override accepted: {override_header}={method}" if vulnerable else f"Status {t_status}"
+                details = (
+                    f"Method override accepted: {override_header}={method}"
+                    if vulnerable
+                    else f"Status {t_status}"
+                )
                 attempts.append(
                     RestFuzzAttempt(
                         technique=f"hateoas_override_{override_header}",
@@ -819,7 +868,9 @@ async def _test_hateoas(
                         vulnerable=vulnerable,
                         details=details,
                         error="",
-                        exploit=f"curl -X {method} -H '{override_header}: {method}' '{url}'" if vulnerable else "",
+                        exploit=f"curl -X {method} -H '{override_header}: {method}' '{url}'"
+                        if vulnerable
+                        else "",
                         tool="curl" if vulnerable else "",
                     )
                 )
@@ -860,7 +911,11 @@ async def _test_hateoas(
                 t_size = len(resp.content)
                 ct_changed = resp.headers.get("content-type", "") != _b_ct
                 vulnerable = ct_changed and t_status in (200, 201, 202, 204)
-                details = f"Format param changed CT: {param}={fmt_value}" if vulnerable else f"Status {t_status}"
+                details = (
+                    f"Format param changed CT: {param}={fmt_value}"
+                    if vulnerable
+                    else f"Status {t_status}"
+                )
                 attempts.append(
                     RestFuzzAttempt(
                         technique=f"hateoas_format_{param}",
@@ -906,7 +961,11 @@ async def _test_hateoas(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (405, 404)
-            details = f"Verb {verb} accepted: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            details = (
+                f"Verb {verb} accepted: {b_status}->{t_status}"
+                if vulnerable
+                else f"Status {t_status}"
+            )
             attempts.append(
                 RestFuzzAttempt(
                     technique=f"hateoas_verb_{verb.lower()}",
@@ -972,7 +1031,11 @@ async def run_scan(
     tls = parsed.scheme == "https"
     base_url = f"{parsed.scheme}://{parsed.netloc}"
 
-    cats = ["auth_bypass", "content_type", "version_enum", "hateoas"] if not categories or categories == ["all"] else categories
+    cats = (
+        ["auth_bypass", "content_type", "version_enum", "hateoas"]
+        if not categories or categories == ["all"]
+        else categories
+    )
 
     async with create_async_client(
         user_agent="MyTools/restfuzz",
@@ -1007,7 +1070,9 @@ async def run_scan(
             if "content_type" in cats:
                 tasks.append(_limited(_test_content_type(client, endpoint, baseline)))
             if "version_enum" in cats:
-                tasks.append(_limited(_test_version_enum(client, endpoint, base_url, baseline)))
+                tasks.append(
+                    _limited(_test_version_enum(client, endpoint, base_url, baseline))
+                )
             if "hateoas" in cats:
                 tasks.append(_limited(_test_hateoas(client, endpoint, baseline)))
 
@@ -1080,7 +1145,12 @@ def print_results(result: RestFuzzResult) -> None:
         cat_attempts = [a for a in result.attempts if a.category == cat]
         cat_vuln = [a for a in cat_attempts if a.vulnerable]
         if cat_vuln:
-            print(color(f"\n  [{cat.upper()}] {len(cat_vuln)}/{len(cat_attempts)} vulneraveis", Cyber.YELLOW))
+            print(
+                color(
+                    f"\n  [{cat.upper()}] {len(cat_vuln)}/{len(cat_attempts)} vulneraveis",
+                    Cyber.YELLOW,
+                )
+            )
 
     if result.issues:
         print(color("\n  Observacoes:", Cyber.YELLOW))
@@ -1117,7 +1187,9 @@ def build_parser() -> argparse.ArgumentParser:
         prog="mytools-restfuzz",
         description="REST API Fuzzer — auth bypass, content-type switching, version enum, HATEOAS.",
     )
-    parser.add_argument("url", nargs="?", help="URL base da API (https://api.example.com)")
+    parser.add_argument(
+        "url", nargs="?", help="URL base da API (https://api.example.com)"
+    )
     parser.add_argument(
         "-c",
         "--categories",

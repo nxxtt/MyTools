@@ -39,9 +39,21 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.ssiinject")
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "detect": ["basic_echo", "basic_exec", "basic_include", "basic_config", "basic_printenv"],
+    "detect": [
+        "basic_echo",
+        "basic_exec",
+        "basic_include",
+        "basic_config",
+        "basic_printenv",
+    ],
     "rce": ["exec_whoami", "exec_id", "exec_ls", "exec_cat", "exec_uname"],
-    "file_read": ["include_passwd", "include_hosts", "include_etc", "include_proc", "include_iis"],
+    "file_read": [
+        "include_passwd",
+        "include_hosts",
+        "include_etc",
+        "include_proc",
+        "include_iis",
+    ],
     "blind": ["blind_sleep", "blind_expr", "blind_len", "blind_md5", "blind_hash"],
     "bypass": ["url_encode", "double_encode", "null_byte", "case_variation", "nesting"],
 }
@@ -313,7 +325,9 @@ async def _test_detect(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                             exploit="<!--#exec cmd='id'-->" if vulnerable else "",
                             tool="curl",
@@ -387,7 +401,9 @@ async def _test_rce(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                             exploit="<!--#exec cmd='id'-->" if vulnerable else "",
                             tool="curl",
@@ -461,7 +477,9 @@ async def _test_file_read(
                             status_changed=status_changed,
                             size_changed=abs(t_size - b_size) > 50,
                             vulnerable=vulnerable,
-                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            details=f"Status {b_status}->{t_status}"
+                            if status_changed
+                            else "Sem mudanca",
                             error="",
                             exploit="<!--#exec cmd='id'-->" if vulnerable else "",
                             tool="curl",
@@ -606,7 +624,9 @@ async def _test_bypass(
                         status_changed=status_changed,
                         size_changed=abs(t_size - b_size) > 50,
                         vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        details=f"Status {b_status}->{t_status}"
+                        if status_changed
+                        else "Sem mudanca",
                         error="",
                         exploit="<!--#exec cmd='id'-->" if vulnerable else "",
                         tool="curl",
@@ -642,12 +662,21 @@ def print_results(result: SSIiResult) -> None:
     print(color("=" * 60, Cyber.GRAY))
 
     print(color(f"  Target:     {result.target}", Cyber.WHITE))
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_techs = result.vulnerable_techniques
     if vuln_techs:
-        print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD
+            )
+        )
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
             a = next((a for a in result.attempts if a.technique == tech), None)
@@ -716,8 +745,14 @@ async def run_scan(
                     all_attempts.extend(r)
 
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
-        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
+        blocked = [
+            a.technique for a in all_attempts if not a.vulnerable and not a.error
+        ]
+        issues: list[str] = [
+            f"VULN: {att.technique} - {att.details}"
+            for att in all_attempts
+            if att.vulnerable
+        ]
 
         overall = "vulnerable" if vuln_techs else "secure"
 
@@ -738,7 +773,11 @@ async def run_scan(
         if output_file:
             write_output(output_file, asdict(result))
 
-        logger.info("SSI scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "SSI scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
         return 1 if vuln_techs else 0
 
     finally:
@@ -772,7 +811,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=list(_CATEGORY_MAP.keys()),
         help="Categoria de testes (default: todas)",
     )
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
     add_common_args(parser)
     return parser
 
@@ -801,7 +845,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="ssi> ",
         description="SSI Injection interativo.",
         example="https://target.com -c detect",

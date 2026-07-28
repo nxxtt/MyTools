@@ -386,7 +386,9 @@ class TestTestHeader:
         mock_resp.headers = {"vary": "X-Forwarded-Host"}
         mock_client.get.return_value = mock_resp
 
-        results = await _test_header(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_header(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
@@ -396,7 +398,9 @@ class TestTestHeader:
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
-        results = await _test_header(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_header(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -413,7 +417,9 @@ class TestTestEncoding:
         mock_resp.headers = {"transfer-encoding": "chunked"}
         mock_client.post.return_value = mock_resp
 
-        results = await _test_encoding(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_encoding(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
@@ -423,7 +429,9 @@ class TestTestEncoding:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
-        results = await _test_encoding(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_encoding(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -440,7 +448,9 @@ class TestTestBypass:
         mock_resp.headers = {}
         mock_client.get.return_value = mock_resp
 
-        results = await _test_bypass(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_bypass(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
@@ -450,7 +460,9 @@ class TestTestBypass:
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
-        results = await _test_bypass(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_bypass(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -535,13 +547,21 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_returns_int(self) -> None:
-        with patch("sys.argv", ["mytools-cachepoison"]), patch("mytools.web.cachepoisoning.run_main_loop", return_value=0) as mock_loop:
+        with (
+            patch("sys.argv", ["mytools-cachepoison"]),
+            patch(
+                "mytools.web.cachepoisoning.run_main_loop", return_value=0
+            ) as mock_loop,
+        ):
             result = main()
             assert isinstance(result, int)
             mock_loop.assert_called_once()
 
     def test_main_passes_args(self) -> None:
-        with patch("sys.argv", ["mytools-cachepoison", "https://example.com"]), patch("mytools.web.cachepoisoning.run_main_loop", return_value=0):
+        with (
+            patch("sys.argv", ["mytools-cachepoison", "https://example.com"]),
+            patch("mytools.web.cachepoisoning.run_main_loop", return_value=0),
+        ):
             result = main()
             assert result == 0
 
@@ -650,7 +670,9 @@ class TestIntegration:
             side_effect=side_effect,
         )
         respx.route(method="POST", url__startswith="https://example.com").mock(
-            return_value=httpx.Response(200, text="evil.com", headers={"x-cache": "HIT"}),
+            return_value=httpx.Response(
+                200, text="evil.com", headers={"x-cache": "HIT"}
+            ),
         )
         result = await run_scan(
             target="https://example.com",
@@ -711,12 +733,16 @@ class TestIntegration:
         args.output = None
         args.verbose = False
 
-        with patch("mytools.web.cachepoisoning.safe_asyncio_run", return_value=0) as mock_run:
+        with patch(
+            "mytools.web.cachepoisoning.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             from mytools.web.cachepoisoning import run_once
 
             result = run_once(args)
             assert result == 0
-            mock_run.assert_called_once()
+            mock_scan.assert_called_once()
 
     def test_run_once_no_category(self) -> None:
         args = MagicMock()
@@ -727,7 +753,11 @@ class TestIntegration:
         args.output = None
         args.verbose = False
 
-        with patch("mytools.web.cachepoisoning.safe_asyncio_run", return_value=0):
+        with patch(
+            "mytools.web.cachepoisoning.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ):
             from mytools.web.cachepoisoning import run_once
 
             result = run_once(args)

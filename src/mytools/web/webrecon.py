@@ -68,9 +68,14 @@ As assinaturas de fingerprinting usam 4 sinais:
 # ---------------------------------------------------------------------------
 
 
-def _lower_signatures(sigs: dict[str, dict[str, list[str]]]) -> dict[str, dict[str, list[str]]]:
+def _lower_signatures(
+    sigs: dict[str, dict[str, list[str]]],
+) -> dict[str, dict[str, list[str]]]:
     """Pré-computa valores lowercase de todas as assinaturas."""
-    return {name: {k: [v.lower() for v in vals] for k, vals in sigs_dict.items()} for name, sigs_dict in sigs.items()}
+    return {
+        name: {k: [v.lower() for v in vals] for k, vals in sigs_dict.items()}
+        for name, sigs_dict in sigs.items()
+    }
 
 
 CMS_SIGNATURES = _lower_signatures(
@@ -276,7 +281,9 @@ VERSION_PATTERNS: dict[str, list[tuple[re.Pattern[str], str]]] = {
         (re.compile(r"X-AspNet-Version:\s*([\d.]+)", re.IGNORECASE), "header"),
         (re.compile(r"X-AspNetMvc-Version:\s*([\d.]+)", re.IGNORECASE), "header"),
     ],
-    "WordPress": [(re.compile(r'content="WordPress\s+([\d.]+)"', re.IGNORECASE), "body")],
+    "WordPress": [
+        (re.compile(r'content="WordPress\s+([\d.]+)"', re.IGNORECASE), "body")
+    ],
     "Joomla": [(re.compile(r'content="Joomla!\s*([\d.]+)"', re.IGNORECASE), "body")],
     "Drupal": [(re.compile(r'content="Drupal\s+([\d.]+)"', re.IGNORECASE), "body")],
     "Angular": [(re.compile(r'ng-version="([\d.]+)"', re.IGNORECASE), "body")],
@@ -286,7 +293,10 @@ VERSION_PATTERNS: dict[str, list[tuple[re.Pattern[str], str]]] = {
     ],
     "Bootstrap": [
         (re.compile(r"bootstrap[.-]([\d]+(?:\.[\d]+)*)", re.IGNORECASE), "body"),
-        (re.compile(r"bootstrap\.min\.css\?v=([\d]+(?:\.[\d]+)*)", re.IGNORECASE), "body"),
+        (
+            re.compile(r"bootstrap\.min\.css\?v=([\d]+(?:\.[\d]+)*)", re.IGNORECASE),
+            "body",
+        ),
     ],
 }
 
@@ -358,7 +368,12 @@ def detect_technologies(
     sao reutilizados entre detect_technologies, detect_waf e extract_versions
     para evitar recalcular a mesma coisa multiplas vezes.
     """
-    result: dict[str, list[str]] = {"cms": [], "frameworks": [], "libraries": [], "server": []}
+    result: dict[str, list[str]] = {
+        "cms": [],
+        "frameworks": [],
+        "libraries": [],
+        "server": [],
+    }
     if lower_headers is None:
         lower_headers = {k.lower(): v for k, v in headers.items()}
     if header_blob is None:
@@ -465,7 +480,9 @@ def harvest_emails(text: str) -> list[str]:
     return sorted(set(EMAIL_PATTERN.findall(text)))
 
 
-async def _fetch_file(client: httpx.AsyncClient, url: str, timeout: float) -> tuple[str, int | None]:
+async def _fetch_file(
+    client: httpx.AsyncClient, url: str, timeout: float
+) -> tuple[str, int | None]:
     """Busca o conteudo de um arquivo (robots.txt, sitemap.xml) e seu status."""
     try:
         status, _, body, _ = await fetch(client, url, timeout=timeout)
@@ -567,7 +584,9 @@ async def lookup_cves(
             logger.info("NVD lookup: %s", keyword)
 
             try:
-                results = await query_nvd(keyword, api_key=api_key, limit=limit_per_tech, client=client)
+                results = await query_nvd(
+                    keyword, api_key=api_key, limit=limit_per_tech, client=client
+                )
             except Exception as error:
                 logger.debug("NVD lookup failed for %s: %s", keyword, error)
                 return []
@@ -747,7 +766,9 @@ def candidate_urls(url: str) -> list[str]:
     return [normalize_url("https://" + url), normalize_url("http://" + url)]
 
 
-async def probe_status(client: httpx.AsyncClient, url: str, timeout: float) -> int | None:
+async def probe_status(
+    client: httpx.AsyncClient, url: str, timeout: float
+) -> int | None:
     """Verifica o status HTTP de uma URL, retornando None em caso de falha."""
     try:
         status, _, _, _ = await fetch(client, url, timeout=timeout)
@@ -779,24 +800,42 @@ async def run_recon(
     """
     started = time.monotonic()
     errors = []
-    async with create_async_client(user_agent=user_agent, proxy=proxy, verify=verify) as client:
-        await apply_session_auth_async(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
+    async with create_async_client(
+        user_agent=user_agent, proxy=proxy, verify=verify
+    ) as client:
+        await apply_session_auth_async(
+            client,
+            auth=auth,
+            bearer_token=bearer_token,
+            cookie=cookie,
+            extra_headers=extra_headers,
+        )
 
         logger.info("recon iniciado: %s", url)
 
         for target in candidate_urls(url):
             try:
-                status, headers, body, raw_headers = await fetch(client, target, timeout=timeout)
+                status, headers, body, raw_headers = await fetch(
+                    client, target, timeout=timeout
+                )
                 break
             except FetchError as error:
                 errors.append(str(error))
         else:
             if len(errors) > 1:
-                raise FetchError(url=url, attempts=len(errors), last_error=ValueError("falha em https e http"))
+                raise FetchError(
+                    url=url,
+                    attempts=len(errors),
+                    last_error=ValueError("falha em https e http"),
+                )
             raise FetchError(url=url, attempts=1, last_error=ValueError(errors[0]))
 
         content_type = header_get(headers, "content-type")
-        text = body.decode("utf-8", errors="replace") if "text/html" in content_type.lower() else ""
+        text = (
+            body.decode("utf-8", errors="replace")
+            if "text/html" in content_type.lower()
+            else ""
+        )
 
         robots_url = urljoin(target.rstrip("/") + "/", "robots.txt")
         sitemap_url = urljoin(target.rstrip("/") + "/", "sitemap.xml")
@@ -838,9 +877,17 @@ async def run_recon(
 
         cve_findings: list[CVEFinding] = []
         if cve:
-            versions = extract_versions(headers=headers, body=text, lower_headers=lower_headers, header_blob=header_blob, body_lower=body_lower)
+            versions = extract_versions(
+                headers=headers,
+                body=text,
+                lower_headers=lower_headers,
+                header_blob=header_blob,
+                body_lower=body_lower,
+            )
             if versions:
-                cve_findings = await lookup_cves(versions, api_key=nvd_api_key, client=client)
+                cve_findings = await lookup_cves(
+                    versions, api_key=nvd_api_key, client=client
+                )
 
         emails = harvest_emails(text)
         robots_text, robots_status = await _fetch_file(client, robots_url, timeout)
@@ -848,7 +895,11 @@ async def run_recon(
         sitemap_text, sitemap_status = await _fetch_file(client, sitemap_url, timeout)
         emails.extend(harvest_emails(sitemap_text))
         if deep:
-            emails.extend(await crawl_internal_links(client, target, text, timeout, max_links=crawl_limit))
+            emails.extend(
+                await crawl_internal_links(
+                    client, target, text, timeout, max_links=crawl_limit
+                )
+            )
         emails = sorted(set(emails))
 
         whois_data = await run_whois(target)
@@ -878,13 +929,25 @@ async def run_recon(
 
 def print_result(result: ReconResult) -> None:
     """Exibe o resultado do reconhecimento formatado no terminal."""
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"URL: {color(result.url, Cyber.WHITE, Cyber.BOLD)}")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {status_text(result.status)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}")
+    print(
+        color("[*]", Cyber.CYAN, Cyber.BOLD),
+        f"URL: {color(result.url, Cyber.WHITE, Cyber.BOLD)}",
+    )
+    print(
+        color("[*]", Cyber.CYAN, Cyber.BOLD),
+        f"Status: {status_text(result.status)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}",
+    )
 
     if result.redirect:
-        print(color("[>]", Cyber.YELLOW, Cyber.BOLD), f"Redirect: {color(result.redirect, Cyber.YELLOW)}")
+        print(
+            color("[>]", Cyber.YELLOW, Cyber.BOLD),
+            f"Redirect: {color(result.redirect, Cyber.YELLOW)}",
+        )
     if result.title:
-        print(color("[T]", Cyber.MAGENTA, Cyber.BOLD), f"Title: {color(result.title, Cyber.WHITE)}")
+        print(
+            color("[T]", Cyber.MAGENTA, Cyber.BOLD),
+            f"Title: {color(result.title, Cyber.WHITE)}",
+        )
 
     print(color("\nHeaders interessantes", Cyber.CYAN, Cyber.BOLD))
     rows = {
@@ -894,7 +957,11 @@ def print_result(result: ReconResult) -> None:
         "content-length": str(result.content_length),
     }
     for key, value in rows.items():
-        marker = color("[+]", Cyber.GREEN, Cyber.BOLD) if value else color("[-]", Cyber.RED, Cyber.BOLD)
+        marker = (
+            color("[+]", Cyber.GREEN, Cyber.BOLD)
+            if value
+            else color("[-]", Cyber.RED, Cyber.BOLD)
+        )
         print(f"{marker} {color(key.ljust(16), Cyber.GRAY)} {value or 'ausente'}")
 
     print(color("\nSecurity headers", Cyber.CYAN, Cyber.BOLD))
@@ -911,21 +978,35 @@ def print_result(result: ReconResult) -> None:
 
     if result.waf_detected:
         print(color("\nWAF detectado", Cyber.CYAN, Cyber.BOLD))
-        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {', '.join(result.waf_detected)}")
+        print(
+            f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {', '.join(result.waf_detected)}"
+        )
 
     if result.emails:
-        print(color(f"\nEmails encontrados ({len(result.emails)})", Cyber.CYAN, Cyber.BOLD))
+        print(
+            color(
+                f"\nEmails encontrados ({len(result.emails)})", Cyber.CYAN, Cyber.BOLD
+            )
+        )
         for email in result.emails[:30]:
-            print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color(email, Cyber.GREEN)}")
+            print(
+                f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color(email, Cyber.GREEN)}"
+            )
         if len(result.emails) > 30:
-            print(f"  {color(f'... e mais {len(result.emails) - 30} emails', Cyber.GRAY)}")
+            print(
+                f"  {color(f'... e mais {len(result.emails) - 30} emails', Cyber.GRAY)}"
+            )
 
     if result.whois_data:
         _print_whois(result.whois_data)
 
     print(color("\nArquivos comuns", Cyber.CYAN, Cyber.BOLD))
-    print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} robots.txt  {status_text(result.robots_status)}")
-    print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} sitemap.xml  {status_text(result.sitemap_status)}")
+    print(
+        f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} robots.txt  {status_text(result.robots_status)}"
+    )
+    print(
+        f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} sitemap.xml  {status_text(result.sitemap_status)}"
+    )
 
 
 def _print_technologies(tech: dict[str, list[str]]) -> None:
@@ -951,7 +1032,9 @@ def _print_cve_findings(findings: list[CVEFinding]) -> None:
     """Exibe os CVEs encontrados no terminal."""
     if not findings:
         print(color("\nCVEs", Cyber.CYAN, Cyber.BOLD))
-        print(f"  {color('[-]', Cyber.GREEN, Cyber.BOLD)} Nenhuma vulnerabilidade encontrada")
+        print(
+            f"  {color('[-]', Cyber.GREEN, Cyber.BOLD)} Nenhuma vulnerabilidade encontrada"
+        )
         return
 
     print(color(f"\nCVEs ({len(findings)} encontrados)", Cyber.CYAN, Cyber.BOLD))
@@ -989,11 +1072,17 @@ def _print_whois(w: WhoisResult) -> None:
             print(f"{marker} {color(label.ljust(16), Cyber.GRAY)} {value}")
 
     if w.name_servers:
-        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Nameservers'.ljust(16), Cyber.GRAY)} {', '.join(w.name_servers)}")
+        print(
+            f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Nameservers'.ljust(16), Cyber.GRAY)} {', '.join(w.name_servers)}"
+        )
     if w.emails:
-        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Emails'.ljust(16), Cyber.GRAY)} {', '.join(w.emails)}")
+        print(
+            f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Emails'.ljust(16), Cyber.GRAY)} {', '.join(w.emails)}"
+        )
     if w.status:
-        print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Status'.ljust(16), Cyber.GRAY)} {', '.join(w.status[:5])}")
+        print(
+            f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color('Status'.ljust(16), Cyber.GRAY)} {', '.join(w.status[:5])}"
+        )
 
 
 def status_text(status: int | None) -> str:
@@ -1005,22 +1094,53 @@ def status_text(status: int | None) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(description="HTTP recon rapido para laboratorios e hosts autorizados.")
+    parser = argparse.ArgumentParser(
+        description="HTTP recon rapido para laboratorios e hosts autorizados."
+    )
     add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
-    parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
-    parser.add_argument("--cve", action="store_true", help="Busca CVEs para versoes detectadas (via NIST NVD).")
-    parser.add_argument("--nvd-api-key", dest="nvd_api_key", help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).")
     parser.add_argument(
-        "--crawl-limit", dest="crawl_limit", type=int, default=10, help="Limite de links internos para crawl de emails. Padrao: 10. Requer --deep."
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
     )
-    parser.add_argument("--deep", action="store_true", help="Ativa crawl de links internos para coleta de emails.")
-    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) WebRecon/{__version__}")
+    parser.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        help="Diretorio para salvos individuais (hostname.json).",
+    )
+    parser.add_argument(
+        "--cve",
+        action="store_true",
+        help="Busca CVEs para versoes detectadas (via NIST NVD).",
+    )
+    parser.add_argument(
+        "--nvd-api-key",
+        dest="nvd_api_key",
+        help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).",
+    )
+    parser.add_argument(
+        "--crawl-limit",
+        dest="crawl_limit",
+        type=int,
+        default=10,
+        help="Limite de links internos para crawl de emails. Padrao: 10. Requer --deep.",
+    )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="Ativa crawl de links internos para coleta de emails.",
+    )
+    parser.set_defaults(
+        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) WebRecon/{__version__}"
+    )
     return parser
 
 
-async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -> ReconResult:
+async def _run_single(
+    url: str, args: argparse.Namespace, quiet: bool = False
+) -> ReconResult:
     """Executa recon em uma unica URL."""
     result = await run_recon(
         url,
@@ -1051,18 +1171,29 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     ensure_output_dir(output_dir)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma requisicao HTTP sera enviada.",
+        )
         for url in urls:
             candidates = candidate_urls(url)
             for c in candidates:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(c, Cyber.WHITE, Cyber.BOLD)}")
+                print(
+                    color("[*]", Cyber.CYAN, Cyber.BOLD),
+                    f"Alvo: {color(c, Cyber.WHITE, Cyber.BOLD)}",
+                )
             features = []
             if getattr(args, "cve", False):
                 features.append("CVE lookup")
             if getattr(args, "deep", False):
-                features.append(f"deep crawl (limit={getattr(args, 'crawl_limit', 10)})")
+                features.append(
+                    f"deep crawl (limit={getattr(args, 'crawl_limit', 10)})"
+                )
             if features:
-                print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Features: {color(', '.join(features), Cyber.WHITE, Cyber.BOLD)}")
+                print(
+                    color("[*]", Cyber.CYAN, Cyber.BOLD),
+                    f"Features: {color(', '.join(features), Cyber.WHITE, Cyber.BOLD)}",
+                )
         return 0
 
     all_results: list[ReconResult] = []

@@ -89,14 +89,41 @@ INTROSPECTION_QUERY = json.dumps(
 )
 
 TOOL_SIGNATURES: list[tuple[str, re.Pattern[str]]] = [
-    ("graphiql", re.compile(r"<div\s+id=['\"]?graphiql['\"]?|graphiql\.react\.min\.js|GraphiQL\.create|new\s+GraphiQL", re.IGNORECASE)),
+    (
+        "graphiql",
+        re.compile(
+            r"<div\s+id=['\"]?graphiql['\"]?|graphiql\.react\.min\.js|GraphiQL\.create|new\s+GraphiQL",
+            re.IGNORECASE,
+        ),
+    ),
     (
         "playground",
-        re.compile(r"graphql-playground|GraphQL Playground|playground\.render|createPlayground|[\"']playground[\"']|class=[\"'].*playground", re.IGNORECASE),
+        re.compile(
+            r"graphql-playground|GraphQL Playground|playground\.render|createPlayground|[\"']playground[\"']|class=[\"'].*playground",
+            re.IGNORECASE,
+        ),
     ),
-    ("altair", re.compile(r"altair-graphql|AltairGraphQL|altair\.js|altair\.render|window\.altair", re.IGNORECASE)),
-    ("voyager", re.compile(r"graphql-voyager|GraphQLVoyager|voyager\.render|voyager\.min\.js|[\"']voyager[\"']|class=[\"'].*voyager", re.IGNORECASE)),
-    ("apollo-sandbox", re.compile(r"apollo-sandbox|Apollo Sandbox|ApolloSandbox|sandbox\.apollo\.dev", re.IGNORECASE)),
+    (
+        "altair",
+        re.compile(
+            r"altair-graphql|AltairGraphQL|altair\.js|altair\.render|window\.altair",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "voyager",
+        re.compile(
+            r"graphql-voyager|GraphQLVoyager|voyager\.render|voyager\.min\.js|[\"']voyager[\"']|class=[\"'].*voyager",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "apollo-sandbox",
+        re.compile(
+            r"apollo-sandbox|Apollo Sandbox|ApolloSandbox|sandbox\.apollo\.dev",
+            re.IGNORECASE,
+        ),
+    ),
 ]
 
 banner = create_banner(
@@ -161,13 +188,23 @@ def parse_introspection(data: dict[str, object]) -> tuple[list[str], str, str, s
                     types.append(f"{name} ({kind})")
 
     query_type_obj = schema.get("queryType", {})
-    query_type = str(query_type_obj.get("name", "")) if isinstance(query_type_obj, dict) else ""
+    query_type = (
+        str(query_type_obj.get("name", "")) if isinstance(query_type_obj, dict) else ""
+    )
 
     mutation_type_obj = schema.get("mutationType", {})
-    mutation_type = str(mutation_type_obj.get("name", "")) if isinstance(mutation_type_obj, dict) else ""
+    mutation_type = (
+        str(mutation_type_obj.get("name", ""))
+        if isinstance(mutation_type_obj, dict)
+        else ""
+    )
 
     subscription_type_obj = schema.get("subscriptionType", {})
-    subscription_type = str(subscription_type_obj.get("name", "")) if isinstance(subscription_type_obj, dict) else ""
+    subscription_type = (
+        str(subscription_type_obj.get("name", ""))
+        if isinstance(subscription_type_obj, dict)
+        else ""
+    )
 
     return types, query_type, mutation_type, subscription_type
 
@@ -238,7 +275,11 @@ async def probe_endpoint(
 
     content_type = header_get(headers, "content-type").lower()
     body = ""
-    if "html" in content_type or "text" in content_type or content.strip().startswith(b"<"):
+    if (
+        "html" in content_type
+        or "text" in content_type
+        or content.strip().startswith(b"<")
+    ):
         body = content.decode("utf-8", errors="replace")
     elif "json" in content_type:
         try:
@@ -309,11 +350,15 @@ async def scan_graphql(
 
     logger.info("scan GraphQL iniciado: %s (%d paths)", base_url, len(paths))
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+    print(
+        color("[*]", Cyber.CYAN, Cyber.BOLD),
+        f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}",
+    )
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}" + (f" | Introspection: {color('sim', Cyber.GREEN)}" if introspect else ""),
+        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}"
+        + (f" | Introspection: {color('sim', Cyber.GREEN)}" if introspect else ""),
     )
 
     sem = asyncio.Semaphore(concurrency)
@@ -323,10 +368,14 @@ async def scan_graphql(
     async def _limited_probe(path: str) -> GraphqlEndpoint | None:
         nonlocal completed
         async with sem:
-            result = await probe_endpoint(client, rate_limiter, base_url, path, timeout, introspect, retries)
+            result = await probe_endpoint(
+                client, rate_limiter, base_url, path, timeout, introspect, retries
+            )
             completed += 1
             if completed % 10 == 0 or completed == total:
-                sys.stdout.write(f"\r  Progresso: {completed}/{total} paths testados...")
+                sys.stdout.write(
+                    f"\r  Progresso: {completed}/{total} paths testados..."
+                )
                 sys.stdout.flush()
             return result
 
@@ -446,7 +495,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
     parser.add_argument(
         "--concurrency",
         type=int,
@@ -489,10 +543,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False):
         paths = _load_paths_from_args(args)
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma requisicao HTTP sera enviada.",
+        )
         for url in urls:
-            base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}",
+            )
             print(
                 color("[*]", Cyber.CYAN, Cyber.BOLD),
                 f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}",
@@ -501,7 +563,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     all_endpoints: list[GraphqlEndpoint] = []
     for url in urls:
-        base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+        base_url = normalize_url(
+            url, default_scheme="https", ensure_trailing_slash=True
+        )
         paths = _load_paths_from_args(args)
 
         endpoints = await scan_graphql(
@@ -531,7 +595,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             write_output(
                 out_path,
                 [asdict(e) for e in endpoints],
-                ["url", "tool", "status", "supports_introspection", "query_type", "mutation_type", "subscription_type", "schema_types", "raw_size"],
+                [
+                    "url",
+                    "tool",
+                    "status",
+                    "supports_introspection",
+                    "query_type",
+                    "mutation_type",
+                    "subscription_type",
+                    "schema_types",
+                    "raw_size",
+                ],
                 quiet=quiet,
             )
 
@@ -539,7 +613,17 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(e) for e in all_endpoints],
-            ["url", "tool", "status", "supports_introspection", "query_type", "mutation_type", "subscription_type", "schema_types", "raw_size"],
+            [
+                "url",
+                "tool",
+                "status",
+                "supports_introspection",
+                "query_type",
+                "mutation_type",
+                "subscription_type",
+                "schema_types",
+                "raw_size",
+            ],
             quiet=quiet,
         )
     return 0

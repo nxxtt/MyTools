@@ -94,7 +94,10 @@ class TestCategoryMap:
         assert set(_CATEGORY_MAP.keys()) == {"kubernetes"}
 
     def test_kubernetes_techniques(self) -> None:
-        assert set(_CATEGORY_MAP["kubernetes"]) == {"api_enumeration", "dashboard_exposed"}
+        assert set(_CATEGORY_MAP["kubernetes"]) == {
+            "api_enumeration",
+            "dashboard_exposed",
+        }
 
     def test_total_techniques(self) -> None:
         total = sum(len(v) for v in _CATEGORY_MAP.values())
@@ -159,7 +162,17 @@ class TestParseUrl:
 
 class TestMakeAttempt:
     def test_creation(self) -> None:
-        a = _make_attempt("api_enumeration", "kubernetes", "desc", True, "details", "", "url", "v1.28", 200)
+        a = _make_attempt(
+            "api_enumeration",
+            "kubernetes",
+            "desc",
+            True,
+            "details",
+            "",
+            "url",
+            "v1.28",
+            200,
+        )
         assert a.vulnerable is True
         assert a.api_version == "v1.28"
 
@@ -232,7 +245,12 @@ class TestCLI:
 @respx.mock
 async def test_category_dispatch_all_return_lists() -> None:
     """All category dispatchers should return a list."""
-    respx.route().mock(return_value=httpx.Response(404, text='{"kind":"Status","status":"Failure","message":"not found","reason":"NotFound"}'))
+    respx.route().mock(
+        return_value=httpx.Response(
+            404,
+            text='{"kind":"Status","status":"Failure","message":"not found","reason":"NotFound"}',
+        )
+    )
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("target.com", 6443, "", 0.1, True, "https://target.com:6443")
         assert isinstance(result, list), f"{cat} did not return a list"

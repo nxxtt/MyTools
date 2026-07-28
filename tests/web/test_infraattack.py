@@ -162,12 +162,32 @@ class TestParseUrl:
 
 class TestMakeAttempt:
     def test_creation(self) -> None:
-        a = _make_attempt("terraform_state_leak", "infrastructure", "desc", True, "details", "", "url", "terraform", 200)
+        a = _make_attempt(
+            "terraform_state_leak",
+            "infrastructure",
+            "desc",
+            True,
+            "details",
+            "",
+            "url",
+            "terraform",
+            200,
+        )
         assert a.vulnerable is True
         assert a.service_type == "terraform"
 
     def test_no_service(self) -> None:
-        a = _make_attempt("debug_endpoints", "infrastructure", "desc", False, "details", "", "url", "unknown", 200)
+        a = _make_attempt(
+            "debug_endpoints",
+            "infrastructure",
+            "desc",
+            False,
+            "details",
+            "",
+            "url",
+            "unknown",
+            200,
+        )
         assert a.service_type == "unknown"
 
 

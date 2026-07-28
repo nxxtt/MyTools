@@ -149,7 +149,9 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 def _load_category_map() -> dict[str, list[str]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cookieboundary", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "cookieboundary", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
@@ -542,7 +544,9 @@ def _test_domain_attributes(
                 )
             )
 
-        elif not cookie_domain.endswith(target_base) and not target_base.endswith(cookie_domain):
+        elif not cookie_domain.endswith(target_base) and not target_base.endswith(
+            cookie_domain
+        ):
             results.append(
                 CookieBoundaryAttempt(
                     technique="domain_mismatch",
@@ -605,7 +609,9 @@ def _test_flag_attributes(
                 attribute_tested="HttpOnly",
                 attribute_value=str(cookie.httponly),
                 vulnerable=not cookie.httponly,
-                details=f"Cookie '{cookie.name}' sem HttpOnly" if not cookie.httponly else "",
+                details=f"Cookie '{cookie.name}' sem HttpOnly"
+                if not cookie.httponly
+                else "",
                 error="",
                 exploit="cookie_theft_payload" if not cookie.httponly else "",
                 tool="curl",
@@ -620,7 +626,9 @@ def _test_flag_attributes(
                 attribute_tested="Secure",
                 attribute_value=str(cookie.secure),
                 vulnerable=not cookie.secure,
-                details=f"Cookie '{cookie.name}' sem Secure" if not cookie.secure else "",
+                details=f"Cookie '{cookie.name}' sem Secure"
+                if not cookie.secure
+                else "",
                 error="",
                 exploit="cookie_theft_payload" if not cookie.secure else "",
                 tool="curl",
@@ -639,7 +647,9 @@ def _test_flag_attributes(
                 attribute_tested="SameSite",
                 attribute_value=cookie.samesite or "ausente",
                 vulnerable=not has_samesite,
-                details=f"Cookie '{cookie.name}' sem SameSite" if not has_samesite else "",
+                details=f"Cookie '{cookie.name}' sem SameSite"
+                if not has_samesite
+                else "",
                 error="",
                 exploit="cookie_theft_payload" if not has_samesite else "",
                 tool="curl",
@@ -655,7 +665,9 @@ def _test_flag_attributes(
                     attribute_tested="SameSite",
                     attribute_value=cookie.samesite,
                     vulnerable=samesite_none,
-                    details=f"Cookie '{cookie.name}' SameSite=None (permite cross-site)" if samesite_none else "",
+                    details=f"Cookie '{cookie.name}' SameSite=None (permite cross-site)"
+                    if samesite_none
+                    else "",
                     error="",
                     exploit="cookie_theft_payload" if samesite_none else "",
                     tool="curl",
@@ -931,7 +943,9 @@ async def _test_double_submit(
                 attribute_tested="HttpOnly",
                 attribute_value=str(cookie.httponly),
                 vulnerable=not cookie.httponly,
-                details=f"Cookie CSRF '{cookie.name}' legivel via JS (sem HttpOnly)" if not cookie.httponly else "",
+                details=f"Cookie CSRF '{cookie.name}' legivel via JS (sem HttpOnly)"
+                if not cookie.httponly
+                else "",
                 error="",
                 exploit="cookie_theft_payload" if not cookie.httponly else "",
                 tool="curl",
@@ -950,9 +964,13 @@ async def _test_double_submit(
                 attribute_tested="SameSite",
                 attribute_value=cookie.samesite or "ausente",
                 vulnerable=not has_samesite or samesite_none,
-                details=f"Cookie CSRF '{cookie.name}' enviado cross-site" if not has_samesite or samesite_none else "",
+                details=f"Cookie CSRF '{cookie.name}' enviado cross-site"
+                if not has_samesite or samesite_none
+                else "",
                 error="",
-                exploit="cookie_theft_payload" if not has_samesite or samesite_none else "",
+                exploit="cookie_theft_payload"
+                if not has_samesite or samesite_none
+                else "",
                 tool="curl",
             )
         )
@@ -969,7 +987,9 @@ async def _test_double_submit(
                 attribute_tested="Domain",
                 attribute_value=cookie.domain or "ausente",
                 vulnerable=overly_broad,
-                details=f"Cookie CSRF '{cookie.name}' em domain amplo: {cookie.domain}" if overly_broad else "",
+                details=f"Cookie CSRF '{cookie.name}' em domain amplo: {cookie.domain}"
+                if overly_broad
+                else "",
                 error="",
                 exploit="cookie_theft_payload" if overly_broad else "",
                 tool="curl",
@@ -984,7 +1004,9 @@ async def _test_double_submit(
                 attribute_tested="Secure",
                 attribute_value=str(cookie.secure),
                 vulnerable=not cookie.secure,
-                details=f"Cookie CSRF '{cookie.name}' sem Secure" if not cookie.secure else "",
+                details=f"Cookie CSRF '{cookie.name}' sem Secure"
+                if not cookie.secure
+                else "",
                 error="",
                 exploit="cookie_theft_payload" if not cookie.secure else "",
                 tool="curl",
@@ -998,7 +1020,10 @@ async def _test_double_submit(
 
         has_form = "<form" in body_text
 
-        has_csrf_field = any(f'name="{field}"' in body_text or f"name='{field}'" in body_text for field in _CSRF_FIELD_NAMES)
+        has_csrf_field = any(
+            f'name="{field}"' in body_text or f"name='{field}'" in body_text
+            for field in _CSRF_FIELD_NAMES
+        )
 
         pattern_confirmed = has_form and has_csrf_field
 
@@ -1010,7 +1035,9 @@ async def _test_double_submit(
                 attribute_tested="Pattern",
                 attribute_value="confirmed" if pattern_confirmed else "not_detected",
                 vulnerable=pattern_confirmed,
-                details="Double Submit Cookie pattern confirmado (cookie + campo hidden)" if pattern_confirmed else "",
+                details="Double Submit Cookie pattern confirmado (cookie + campo hidden)"
+                if pattern_confirmed
+                else "",
                 error="",
                 exploit="cookie_theft_payload" if pattern_confirmed else "",
                 tool="curl",
@@ -1053,7 +1080,9 @@ async def _test_samesite_dns_bypass(
 
         results.append(
             CookieBoundaryAttempt(
-                technique="samesite_lax_detected" if not is_missing else "samesite_missing_detected",
+                technique="samesite_lax_detected"
+                if not is_missing
+                else "samesite_missing_detected",
                 category="samesite_dns",
                 cookie_name=cookie.name,
                 attribute_tested="SameSite",
@@ -1093,11 +1122,19 @@ async def _test_samesite_dns_bypass(
 
         return results
 
-    has_low_ttl = any(r.check == "ttl" and r.severity in {"critical", "high", "medium"} for r in rebinding_results)
+    has_low_ttl = any(
+        r.check == "ttl" and r.severity in {"critical", "high", "medium"}
+        for r in rebinding_results
+    )
 
-    has_wildcard = any(r.check == "wildcard" and r.severity in {"critical", "high", "medium"} for r in rebinding_results)
+    has_wildcard = any(
+        r.check == "wildcard" and r.severity in {"critical", "high", "medium"}
+        for r in rebinding_results
+    )
 
-    has_ip_flip = any(r.check == "ip_flip" and r.severity == "critical" for r in rebinding_results)
+    has_ip_flip = any(
+        r.check == "ip_flip" and r.severity == "critical" for r in rebinding_results
+    )
 
     if has_low_ttl:
         results.append(
@@ -1195,7 +1232,9 @@ async def _test_csrf_subdomain(
         if cookie.domain:
             is_wildcard = cookie.domain.startswith(".")
 
-            is_broad = is_wildcard or (base_domain in cookie.domain and cookie.domain != domain)
+            is_broad = is_wildcard or (
+                base_domain in cookie.domain and cookie.domain != domain
+            )
 
             if is_wildcard:
                 results.append(
@@ -1285,7 +1324,11 @@ async def _test_csrf_subdomain(
 
         return results
 
-    own_subdomains = [s for s in subdomains if s.subdomain.endswith(f".{domain}") and s.subdomain != domain]
+    own_subdomains = [
+        s
+        for s in subdomains
+        if s.subdomain.endswith(f".{domain}") and s.subdomain != domain
+    ]
 
     if own_subdomains:
         sub_list = ", ".join(s.subdomain for s in own_subdomains[:5])
@@ -1306,15 +1349,24 @@ async def _test_csrf_subdomain(
             )
         )
 
-    has_cookie_scope = any(a.technique in {"csrf_subdomain_cookie_scope", "csrf_subdomain_wildcard_domain"} for a in results)
+    has_cookie_scope = any(
+        a.technique in {"csrf_subdomain_cookie_scope", "csrf_subdomain_wildcard_domain"}
+        for a in results
+    )
 
     has_no_httponly = any(a.technique == "csrf_subdomain_no_httponly" for a in results)
 
-    has_samesite_none = any(a.technique == "csrf_subdomain_samesite_none" for a in results)
+    has_samesite_none = any(
+        a.technique == "csrf_subdomain_samesite_none" for a in results
+    )
 
-    has_subdomains = any(a.technique == "csrf_subdomain_takeover_risk" and a.vulnerable for a in results)
+    has_subdomains = any(
+        a.technique == "csrf_subdomain_takeover_risk" and a.vulnerable for a in results
+    )
 
-    risk_count = sum([has_cookie_scope, has_no_httponly, has_samesite_none, has_subdomains])
+    risk_count = sum(
+        [has_cookie_scope, has_no_httponly, has_samesite_none, has_subdomains]
+    )
 
     if risk_count >= 2:
         cookie_names = ", ".join(c.name for c in csrf_cookies)
@@ -1341,7 +1393,9 @@ async def _test_csrf_subdomain(
                 attribute_tested="Combined Risk",
                 attribute_value="high" if risk_count >= 3 else "medium",
                 vulnerable=True,
-                details=(f"CSRF cookies ({cookie_names}) com {risk_count} indicadores de bypass via subdominio: {', '.join(indicators)}"),
+                details=(
+                    f"CSRF cookies ({cookie_names}) com {risk_count} indicadores de bypass via subdominio: {', '.join(indicators)}"
+                ),
                 error="",
                 exploit="cookie_theft_payload",
             )
@@ -1483,7 +1537,12 @@ def print_results(result: CookieBoundaryResult) -> None:
 
     print(color(f"  Vulneraveis:   {len(vuln)}", Cyber.RED if vuln else Cyber.GRAY))
 
-    print(color(f"  Protegidos:    {len(protected)}", Cyber.GREEN if protected else Cyber.GRAY))
+    print(
+        color(
+            f"  Protegidos:    {len(protected)}",
+            Cyber.GREEN if protected else Cyber.GRAY,
+        )
+    )
 
     print(color(f"  Erros:         {len(errors)}", Cyber.RED if errors else Cyber.GRAY))
 
@@ -1510,7 +1569,12 @@ def print_results(result: CookieBoundaryResult) -> None:
 
             attr_str = "; ".join(attrs) if attrs else "sem atributos"
 
-            print(color(f"    {c.name}={c.value[:30]}{'...' if len(c.value) > 30 else ''}", Cyber.WHITE))
+            print(
+                color(
+                    f"    {c.name}={c.value[:30]}{'...' if len(c.value) > 30 else ''}",
+                    Cyber.WHITE,
+                )
+            )
 
             print(color(f"      {attr_str}", Cyber.GRAY))
 
@@ -1531,17 +1595,32 @@ def print_results(result: CookieBoundaryResult) -> None:
 
             print(color(f"      Cookie: {a.cookie_name}", Cyber.WHITE))
 
-            print(color(f"      Atributo: {a.attribute_tested} = {a.attribute_value}", Cyber.WHITE))
+            print(
+                color(
+                    f"      Atributo: {a.attribute_tested} = {a.attribute_value}",
+                    Cyber.WHITE,
+                )
+            )
 
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
 
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade de Cookie Domain Boundary detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade de Cookie Domain Boundary detectada",
+                Cyber.GREEN,
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -1566,7 +1645,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            _status, _headers, _body, raw_headers = await fetch(client, target, timeout=timeout)
+            _status, _headers, _body, raw_headers = await fetch(
+                client, target, timeout=timeout
+            )
 
         except Exception as e:
             logger.warning("Erro ao acessar %s: %s", target, e)
@@ -1620,7 +1701,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        protected_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        protected_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -1639,7 +1722,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             protected_techniques=protected_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if protected_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if protected_techs else "unknown"),
         )
 
         print_results(result)
@@ -1676,7 +1761,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   cookieboundary: domain, flags, path, path_traversal, double_submit, samesite_dns, csrf_subdomain, cookie_quoting")()
+    create_banner(
+        art,
+        "   cookieboundary: domain, flags, path, path_traversal, double_submit, samesite_dns, csrf_subdomain, cookie_quoting",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1706,7 +1794,17 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "domain", "flags", "path", "path_traversal", "double_submit", "samesite_dns", "csrf_subdomain", "cookie_quoting"],
+        choices=[
+            "all",
+            "domain",
+            "flags",
+            "path",
+            "path_traversal",
+            "double_submit",
+            "samesite_dns",
+            "csrf_subdomain",
+            "cookie_quoting",
+        ],
         help="Categoria de testes (default: todas)",
     )
 
@@ -1742,7 +1840,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="cookieboundary> ",
         description="Cookie Domain Boundary interativo.",
         example="https://target.com -c domain",

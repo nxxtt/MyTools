@@ -267,7 +267,9 @@ class TestDetectBodyTechs:
         assert any(r.name == "Nuxt.js" for r in results)
 
     def test_shopify(self):
-        body = '<script src="https://cdn.shopify.com/s/files/1/0001/script.js"></script>'
+        body = (
+            '<script src="https://cdn.shopify.com/s/files/1/0001/script.js"></script>'
+        )
         results = _detect_body_techs(body)
         assert any(r.name == "Shopify" for r in results)
 
@@ -437,7 +439,14 @@ class TestRunOnce:
     @patch("mytools.web.techfingerprint._scan_url")
     def test_scan_calls_correctly(self, mock_scan):
         mock_scan.return_value = [
-            TechFingerprint(name="Nginx", version="1.25.4", source="header", confidence="high", evidence="Server: nginx/1.25.4", category="server"),
+            TechFingerprint(
+                name="Nginx",
+                version="1.25.4",
+                source="header",
+                confidence="high",
+                evidence="Server: nginx/1.25.4",
+                category="server",
+            ),
         ]
         args = build_parser().parse_args(["https://example.com"])
         args.urls = ["https://example.com"]
@@ -449,7 +458,9 @@ class TestRunOnce:
     def test_scan_returns_error_for_fetch(self, mock_scan):
         from mytools.core.utils import FetchError
 
-        mock_scan.side_effect = FetchError("https://example.com", 3, Exception("timeout"))
+        mock_scan.side_effect = FetchError(
+            "https://example.com", 3, Exception("timeout")
+        )
         args = build_parser().parse_args(["https://example.com"])
         args.urls = ["https://example.com"]
         result = run_once(args)

@@ -128,11 +128,17 @@ class InjectionResult:
     tool: str = ""
 
 
-def _connect_smtp(target: str, port: int, timeout: float, use_tls: bool) -> tuple[smtplib.SMTP, str, str]:
+def _connect_smtp(
+    target: str, port: int, timeout: float, use_tls: bool
+) -> tuple[smtplib.SMTP, str, str]:
     """Conecta ao servidor SMTP e retorna (conexao, banner, ehlo_response)."""
 
     try:
-        server = smtplib.SMTP_SSL(target, port, timeout=timeout) if port == 465 else smtplib.SMTP(target, port, timeout=timeout)
+        server = (
+            smtplib.SMTP_SSL(target, port, timeout=timeout)
+            if port == 465
+            else smtplib.SMTP(target, port, timeout=timeout)
+        )
 
     except smtplib.SMTPConnectError as exc:
         raise ConnectionError(f"Falha ao conectar: {exc}") from exc
@@ -191,7 +197,11 @@ def _test_injection(
     except smtplib.SMTPResponseException as exc:
         status_code = exc.smtp_code
 
-        err_msg = exc.smtp_error if isinstance(exc.smtp_error, str) else exc.smtp_error.decode("utf-8", errors="replace")
+        err_msg = (
+            exc.smtp_error
+            if isinstance(exc.smtp_error, str)
+            else exc.smtp_error.decode("utf-8", errors="replace")
+        )
 
         if status_code in (501, 502, 503, 550, 554, 555, 556):
             return InjectionAttempt(
@@ -279,12 +289,16 @@ def scan_smtp_injection(
     try:
         for field in test_fields:
             for payload_name, payload in _INJECTION_PAYLOADS.items():
-                attempt = _test_injection(server, from_addr, to_addr, field, payload_name, payload)
+                attempt = _test_injection(
+                    server, from_addr, to_addr, field, payload_name, payload
+                )
 
                 attempts.append(attempt)
 
                 if attempt.status == "injected":
-                    issues.append(f"INJECAO DETECTADA: {field} aceitou payload {payload_name}")
+                    issues.append(
+                        f"INJECAO DETECTADA: {field} aceitou payload {payload_name}"
+                    )
 
                 logger.debug(
                     "field=%s payload=%s status=%s response=%s",
@@ -324,7 +338,9 @@ def print_results(result: InjectionResult) -> None:
 
     print(f"  Target: {color(result.target, Cyber.WHITE, Cyber.BOLD)}:{result.port}")
 
-    print(f"  TLS: {color('Sim' if result.tls else 'Nao', Cyber.GREEN if result.tls else Cyber.RED)}")
+    print(
+        f"  TLS: {color('Sim' if result.tls else 'Nao', Cyber.GREEN if result.tls else Cyber.RED)}"
+    )
 
     print()
 
@@ -343,7 +359,9 @@ def print_results(result: InjectionResult) -> None:
         print(color("  VULNERAVEL — Injecoes detectadas:", Cyber.RED, Cyber.BOLD))
 
         for a in injected:
-            print(f"    {color('INJETADO', Cyber.RED, Cyber.BOLD)} {a.field} + {a.payload_name}")
+            print(
+                f"    {color('INJETADO', Cyber.RED, Cyber.BOLD)} {a.field} + {a.payload_name}"
+            )
 
             print(f"      Payload: {a.payload!r}")
 
@@ -360,7 +378,9 @@ def print_results(result: InjectionResult) -> None:
         print(color(f"  Bloqueados: {len(blocked)}", Cyber.GREEN))
 
         for a in blocked:
-            print(f"    {color('BLOQUEADO', Cyber.GREEN)} {a.field} + {a.payload_name}: {a.server_response}")
+            print(
+                f"    {color('BLOQUEADO', Cyber.GREEN)} {a.field} + {a.payload_name}: {a.server_response}"
+            )
 
     print()
 
@@ -368,7 +388,9 @@ def print_results(result: InjectionResult) -> None:
         print(color(f"  Erros/Timeouts: {len(errors)}", Cyber.YELLOW))
 
         for a in errors:
-            print(f"    {color('ERRO', Cyber.YELLOW)} {a.field} + {a.payload_name}: {a.error or a.server_response}")
+            print(
+                f"    {color('ERRO', Cyber.YELLOW)} {a.field} + {a.payload_name}: {a.error or a.server_response}"
+            )
 
         print()
 
@@ -380,12 +402,29 @@ def print_results(result: InjectionResult) -> None:
 
         print()
 
-        print(color("  [-] Servidor vulneravel a SMTP Header Injection", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                "  [-] Servidor vulneravel a SMTP Header Injection",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
-        print(color("  [-] Remedio: Sanitize todos os campos de entrada antes de enviar", Cyber.CYAN))
+        print(
+            color(
+                "  [-] Remedio: Sanitize todos os campos de entrada antes de enviar",
+                Cyber.CYAN,
+            )
+        )
 
     else:
-        print(color("  [+] Servidor rejeita injecoes CRLF corretamente", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Servidor rejeita injecoes CRLF corretamente",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
 
 def banner_art() -> None:
@@ -418,7 +457,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_base_args(parser)
 
-    parser.add_argument("target", nargs="?", help="Host SMTP alvo (ex: mail.example.com).")
+    parser.add_argument(
+        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+    )
 
     parser.add_argument(
         "--port",
@@ -517,7 +558,9 @@ def main() -> int:
         prompt="smtpinject> ",
         description="SMTP Injection — testa injecao CRLF em campos de email.",
         example="mail.example.com --port 587 --from-addr admin@test.com",
-        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25 --no-tls\n  mail.example.com --fields To,Subject"),
+        contextual_help=(
+            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25 --no-tls\n  mail.example.com --fields To,Subject"
+        ),
     )
 
 

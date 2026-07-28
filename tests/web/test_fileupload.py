@@ -94,7 +94,14 @@ def test_boundary_payloads_count() -> None:
 
 
 def test_all_payloads_have_five_elements() -> None:
-    all_lists = _POLYGLOT_PAYLOADS + _SVG_XXE_PAYLOADS + _IMAGIC_PAYLOADS + _ZIP_SLIP_PAYLOADS + _FILENAME_PAYLOADS + _CONTENT_TYPE_PAYLOADS
+    all_lists = (
+        _POLYGLOT_PAYLOADS
+        + _SVG_XXE_PAYLOADS
+        + _IMAGIC_PAYLOADS
+        + _ZIP_SLIP_PAYLOADS
+        + _FILENAME_PAYLOADS
+        + _CONTENT_TYPE_PAYLOADS
+    )
     for p in all_lists:
         assert len(p) == 5, f"Payload {p[0]} should have 5 elements"
 
@@ -218,7 +225,14 @@ def test_no_duplicate_payload_names_across_lists() -> None:
 
 
 def test_all_payloads_have_indicators() -> None:
-    all_lists = _POLYGLOT_PAYLOADS + _SVG_XXE_PAYLOADS + _IMAGIC_PAYLOADS + _ZIP_SLIP_PAYLOADS + _FILENAME_PAYLOADS + _CONTENT_TYPE_PAYLOADS
+    all_lists = (
+        _POLYGLOT_PAYLOADS
+        + _SVG_XXE_PAYLOADS
+        + _IMAGIC_PAYLOADS
+        + _ZIP_SLIP_PAYLOADS
+        + _FILENAME_PAYLOADS
+        + _CONTENT_TYPE_PAYLOADS
+    )
     for p in all_lists:
         assert len(p[4]) >= 1, f"Payload {p[0]} must have at least 1 indicator"
 
@@ -235,7 +249,9 @@ def test_all_payloads_mapping_completeness() -> None:
 
 def test_category_testers_mapping_completeness() -> None:
     for cat in _CATEGORY_MAP:
-        assert cat in _CATEGORY_TESTERS, f"Category {cat} missing from _CATEGORY_TESTERS"
+        assert cat in _CATEGORY_TESTERS, (
+            f"Category {cat} missing from _CATEGORY_TESTERS"
+        )
 
 
 # --- _find_upload_endpoint tests ---
@@ -354,7 +370,9 @@ class TestMultipartBoundary:
 
     @pytest.mark.asyncio
     async def test_vulnerable_response(self) -> None:
-        client = _mock_client_post(200, "Content-Disposition: form-data onmouseover=alert(1)")
+        client = _mock_client_post(
+            200, "Content-Disposition: form-data onmouseover=alert(1)"
+        )
         results = await _test_multipart_boundary_category(
             client,
             _UPLOAD_URL,
@@ -472,7 +490,9 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.fileupload.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.fileupload.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.side_effect = httpx.RequestError("fail")
                 result = await run_scan(_TARGET, [], 10, None)
                 assert result == 1
@@ -483,7 +503,9 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.fileupload.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.fileupload.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>upload</html>", b"")
                 with patch("mytools.web.fileupload._CATEGORY_TESTERS") as mock_testers:
                     mock_attempt = UploadAttempt(
@@ -502,7 +524,9 @@ class TestRunScan:
                         details="polyglot detected",
                         error="",
                     )
-                    mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
+                    mock_testers.get.return_value = AsyncMock(
+                        return_value=[mock_attempt]
+                    )
                     result = await run_scan(_TARGET, ["polyglot"], 10, None)
                     assert result == 1
 
@@ -512,7 +536,9 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.fileupload.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.fileupload.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
                 with patch("mytools.web.fileupload._CATEGORY_TESTERS") as mock_testers:
                     mock_attempt = UploadAttempt(
@@ -531,7 +557,9 @@ class TestRunScan:
                         details="",
                         error="",
                     )
-                    mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
+                    mock_testers.get.return_value = AsyncMock(
+                        return_value=[mock_attempt]
+                    )
                     result = await run_scan(_TARGET, ["polyglot"], 10, None)
                     assert result == 0
 
@@ -541,7 +569,9 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.fileupload.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.fileupload.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
                 with patch("mytools.web.fileupload._CATEGORY_TESTERS") as mock_testers:
                     mock_testers.get.return_value = AsyncMock(return_value=[])
@@ -555,7 +585,9 @@ class TestRunScan:
             mock_client = AsyncMock()
             mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
-            with patch("mytools.web.fileupload.fetch", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "mytools.web.fileupload.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
                 with patch("mytools.web.fileupload._CATEGORY_TESTERS") as mock_testers:
                     mock_testers.get.return_value = AsyncMock(return_value=[])
@@ -575,7 +607,9 @@ class TestRunOnce:
             timeout=10,
             output=None,
         )
-        with patch("mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
+        with patch(
+            "mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0
+        ) as mock_scan:
             run_once(args)
             assert mock_scan.call_args.kwargs["categories"] == ["polyglot"]
 
@@ -586,6 +620,8 @@ class TestRunOnce:
             timeout=10,
             output=None,
         )
-        with patch("mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
+        with patch(
+            "mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0
+        ) as mock_scan:
             run_once(args)
             assert mock_scan.call_args.kwargs["categories"] == []

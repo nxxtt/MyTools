@@ -43,7 +43,9 @@ class TestCategoryMap:
 
     def test_all_categories_have_5_techniques(self) -> None:
         for cat, techs in _CATEGORY_MAP.items():
-            assert len(techs) == 5, f"Categoria {cat} tem {len(techs)} tecnicas, esperado 5"
+            assert len(techs) == 5, (
+                f"Categoria {cat} tem {len(techs)} tecnicas, esperado 5"
+            )
 
 
 # ─── Payload Lists ───────────────────────────────────────────────────────────
@@ -167,7 +169,9 @@ class TestCheckResponseContent:
         assert _check_response_content(b"OVERRIDE", ["override"]) is True
 
     def test_multiple_indicators(self) -> None:
-        assert _check_response_content(b"override applied", ["method", "override"]) is True
+        assert (
+            _check_response_content(b"override applied", ["method", "override"]) is True
+        )
 
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────

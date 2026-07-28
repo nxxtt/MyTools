@@ -462,7 +462,9 @@ async def _test_error(
                 if verify:
                     v_payload, v_indicators = verify
                     v_url = _build_inject_url(url, param, v_payload)
-                    confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                    confirmed, v_found = await verify_positive(
+                        client, v_url, v_indicators
+                    )
                     if not confirmed:
                         db = ""
                         content_match = False
@@ -523,7 +525,9 @@ async def _test_boolean_blind(
                     false_sizes.append(f_res[1])
 
             if len(true_sizes) == repeats and len(false_sizes) == repeats:
-                diffs = [abs(t - f) for t, f in zip(true_sizes, false_sizes, strict=False)]
+                diffs = [
+                    abs(t - f) for t, f in zip(true_sizes, false_sizes, strict=False)
+                ]
                 consistent = all(d > size_diff_threshold for d in diffs)
             else:
                 diffs = []
@@ -533,7 +537,11 @@ async def _test_boolean_blind(
             sz = last_true_result[1] if last_true_result else 0
             tm = last_true_result[2] if last_true_result else 0.0
 
-            details = f"Boolean diff consistente ({repeats}x): {diffs}" if consistent else "Diff inconsistente entre true/false"
+            details = (
+                f"Boolean diff consistente ({repeats}x): {diffs}"
+                if consistent
+                else "Diff inconsistente entre true/false"
+            )
 
             attempts.append(
                 _make_attempt(
@@ -690,7 +698,11 @@ async def _test_union(
                 size_diff = abs(size - b_size)
                 db = _detect_db_error(body)
                 vulnerable = (size_diff > 200) and bool(db)
-                details = f"UNION possivel: {size_diff} bytes diff" if not vulnerable else f"DB detectado via UNION: {db}"
+                details = (
+                    f"UNION possivel: {size_diff} bytes diff"
+                    if not vulnerable
+                    else f"DB detectado via UNION: {db}"
+                )
                 attempts.append(
                     _make_attempt(
                         technique="union",
@@ -752,7 +764,11 @@ async def _test_bypass(
             content_match = bool(db)
             vulnerable = content_match
 
-            details = f"Bypass DB detectado: {db}" if db else f"Bypass status {status}, Size {size}"
+            details = (
+                f"Bypass DB detectado: {db}"
+                if db
+                else f"Bypass status {status}, Size {size}"
+            )
 
             attempts.append(
                 _make_attempt(
@@ -912,14 +928,24 @@ def print_results(result: SQLiResult) -> None:
     print(color("  SQL INJECTION SCANNER", Cyber.CYAN))
     print(color("=" * 60, Cyber.CYAN))
     print(color(f"  Target: {result.target}", Cyber.WHITE))
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 
     status_color = Cyber.RED if result.overall_status == "vulnerable" else Cyber.GREEN
     print(color(f"\n  Status: {result.overall_status.upper()}", status_color))
 
     if result.vulnerable_techniques:
-        print(color(f"\n  Tecnicas vulneraveis: {', '.join(result.vulnerable_techniques)}", Cyber.RED))
+        print(
+            color(
+                f"\n  Tecnicas vulneraveis: {', '.join(result.vulnerable_techniques)}",
+                Cyber.RED,
+            )
+        )
 
     vuln_attempts = [a for a in result.attempts if a.vulnerable]
     if vuln_attempts:
@@ -931,7 +957,12 @@ def print_results(result: SQLiResult) -> None:
                 continue
             seen.add(key)
             db_info = f" (DB: {a.db_detected})" if a.db_detected else ""
-            print(color(f"    - {a.technique} via {a.injection_point}{db_info}: {a.details}", Cyber.RED))
+            print(
+                color(
+                    f"    - {a.technique} via {a.injection_point}{db_info}: {a.details}",
+                    Cyber.RED,
+                )
+            )
             print_exploit_info(a.exploit, a.tool)
 
     if result.issues:

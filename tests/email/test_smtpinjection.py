@@ -18,7 +18,14 @@ from mytools.email.smtpinjection import (
 
 class TestInjectionAttempt:
     def test_frozen(self) -> None:
-        a = InjectionAttempt(field="To", payload_name="crlf", payload="x", status="blocked", server_response="501", error="")
+        a = InjectionAttempt(
+            field="To",
+            payload_name="crlf",
+            payload="x",
+            status="blocked",
+            server_response="501",
+            error="",
+        )
         with pytest.raises(AttributeError):
             a.field = "x"  # type: ignore[misc]
 
@@ -28,7 +35,16 @@ class TestInjectionAttempt:
 
 class TestInjectionResult:
     def test_frozen(self) -> None:
-        r = InjectionResult(target="a", port=25, tls=False, banner="", ehlo_response="", attempts=[], vulnerable_fields=[], issues=[])
+        r = InjectionResult(
+            target="a",
+            port=25,
+            tls=False,
+            banner="",
+            ehlo_response="",
+            attempts=[],
+            vulnerable_fields=[],
+            issues=[],
+        )
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
 
@@ -119,7 +135,9 @@ class TestTestInjection:
 
     def test_injected(self) -> None:
         server = self._make_server()
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test"
+        )
         assert attempt.status == "injected"
 
     def test_blocked(self) -> None:
@@ -127,7 +145,9 @@ class TestTestInjection:
 
         exc = smtplib.SMTPDataError(501, b"Bad syntax")
         server = self._make_server(sendmail_exc=exc)
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test"
+        )
         assert attempt.status == "blocked"
         assert "501" in attempt.server_response
 
@@ -136,7 +156,9 @@ class TestTestInjection:
 
         exc = smtplib.SMTPDataError(554, b"Transaction failed")
         server = self._make_server(sendmail_exc=exc)
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test"
+        )
         assert attempt.status == "blocked"
         assert "554" in attempt.server_response
 
@@ -145,7 +167,9 @@ class TestTestInjection:
 
         exc = smtplib.SMTPDataError(556, b"Domain does not accept mail")
         server = self._make_server(sendmail_exc=exc)
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test"
+        )
         assert attempt.status == "blocked"
         assert "556" in attempt.server_response
 
@@ -153,13 +177,17 @@ class TestTestInjection:
         import smtplib
 
         server = self._make_server(sendmail_exc=smtplib.SMTPException("fail"))
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "Subject", "crlf_bcc", "\r\nBCC: evil@x.com")
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "Subject", "crlf_bcc", "\r\nBCC: evil@x.com"
+        )
         assert attempt.status == "error"
         assert "fail" in attempt.error
 
     def test_os_error_timeout(self) -> None:
         server = self._make_server(sendmail_exc=OSError("timed out"))
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_body", "\r\n\r\nINJECTED")
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "To", "crlf_body", "\r\n\r\nINJECTED"
+        )
         assert attempt.status == "timeout"
 
 
@@ -190,14 +218,30 @@ class TestScanSmtpInjection:
 
     @patch("mytools.email.smtpinjection._test_injection")
     @patch("mytools.email.smtpinjection._connect_smtp")
-    def test_some_injected(self, mock_connect: MagicMock, mock_inject: MagicMock) -> None:
+    def test_some_injected(
+        self, mock_connect: MagicMock, mock_inject: MagicMock
+    ) -> None:
         mock_server = MagicMock()
         mock_connect.return_value = (mock_server, "banner", "ehlo")
 
         def side_effect(server, from_a, to_a, field, pname, payload):
             if field == "To":
-                return InjectionAttempt(field=field, payload_name=pname, payload=payload, status="injected", server_response="250", error="")
-            return InjectionAttempt(field=field, payload_name=pname, payload=payload, status="blocked", server_response="501", error="")
+                return InjectionAttempt(
+                    field=field,
+                    payload_name=pname,
+                    payload=payload,
+                    status="injected",
+                    server_response="250",
+                    error="",
+                )
+            return InjectionAttempt(
+                field=field,
+                payload_name=pname,
+                payload=payload,
+                status="blocked",
+                server_response="501",
+                error="",
+            )
 
         mock_inject.side_effect = side_effect
         result = scan_smtp_injection("vuln.host", 587)
@@ -221,7 +265,11 @@ class TestPrintResults:
             tls=True,
             banner="ESMTP",
             ehlo_response="250-SIZE",
-            attempts=[InjectionAttempt("To", "crlf", "\r\nX-Injected: t", "injected", "250", "")],
+            attempts=[
+                InjectionAttempt(
+                    "To", "crlf", "\r\nX-Injected: t", "injected", "250", ""
+                )
+            ],
             vulnerable_fields=["To"],
             issues=["INJECAO DETECTADA"],
         )

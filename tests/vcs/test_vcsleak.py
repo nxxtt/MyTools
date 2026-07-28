@@ -141,7 +141,9 @@ class TestValidateContent:
         assert ok is True
 
     def test_hg_dirstate_valid(self):
-        content = b"n   644   abc123def456abc123def456abc123def456abc1   path/file.txt\n"
+        content = (
+            b"n   644   abc123def456abc123def456abc123def456abc1   path/file.txt\n"
+        )
         ok, _ = _validate_content(".hg/dirstate", content)
         assert ok is True
 
@@ -156,7 +158,9 @@ class TestValidateContent:
         assert ok is False
 
     def test_git_description_default(self):
-        content = b"Unnamed repository; edit this file 'description' to name the repository."
+        content = (
+            b"Unnamed repository; edit this file 'description' to name the repository."
+        )
         ok, _ = _validate_content(".git/description", content)
         assert ok is False
 

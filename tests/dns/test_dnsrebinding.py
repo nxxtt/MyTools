@@ -131,7 +131,9 @@ class TestCheckPrivateIps:
         assert results[0].severity == "critical"
 
     def test_cloud_metadata(self) -> None:
-        results = _check_private_ips("example.com", self._make_answers(["169.254.169.254"]))
+        results = _check_private_ips(
+            "example.com", self._make_answers(["169.254.169.254"])
+        )
         assert len(results) == 1
         assert results[0].severity == "critical"
         assert "cloud" in results[0].detail.lower()
@@ -141,7 +143,9 @@ class TestCheckPrivateIps:
         assert results == []
 
     def test_mixed(self) -> None:
-        results = _check_private_ips("example.com", self._make_answers(["8.8.8.8", "192.168.1.1"]))
+        results = _check_private_ips(
+            "example.com", self._make_answers(["8.8.8.8", "192.168.1.1"])
+        )
         assert len(results) == 1
 
 

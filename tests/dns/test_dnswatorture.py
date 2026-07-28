@@ -228,4 +228,8 @@ class TestPrintResults:
         )
         print_results(result)
         out = capsys.readouterr().out
-        assert "sobrecarregado" in out.lower() or "rate limiting" in out.lower() or "Loss rate" in out
+        assert (
+            "sobrecarregado" in out.lower()
+            or "rate limiting" in out.lower()
+            or "Loss rate" in out
+        )

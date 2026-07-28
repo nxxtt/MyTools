@@ -234,7 +234,9 @@ async def _test_registry_exposed(
                 if resp.status_code == 200:
                     registry_detected = True
 
-                    if path_info["path"] == "/v2/" or path_info["path"].startswith("/v2/_catalog"):
+                    if path_info["path"] == "/v2/" or path_info["path"].startswith(
+                        "/v2/_catalog"
+                    ):
                         try:
                             data = resp.json()
 
@@ -308,7 +310,9 @@ async def _test_docker(
 
     results: list[DockerAttackAttempt] = []
 
-    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=False, follow_redirects=True
+    ) as client:
         for tech, fn in [
             ("registry_exposed", _test_registry_exposed),
         ]:
@@ -318,12 +322,27 @@ async def _test_docker(
                 results.append(result)
 
             except Exception as exc:
-                results.append(_make_attempt(tech, "docker", "", False, "", str(exc)[:100], endpoint, endpoint, [], 0))
+                results.append(
+                    _make_attempt(
+                        tech,
+                        "docker",
+                        "",
+                        False,
+                        "",
+                        str(exc)[:100],
+                        endpoint,
+                        endpoint,
+                        [],
+                        0,
+                    )
+                )
 
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[DockerAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[DockerAttackAttempt]]]
+] = {
     "docker": _test_docker,
 }
 
@@ -336,14 +355,23 @@ def print_results(result: DockerAttackResult) -> None:
 
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
 
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
 
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
 
-    print(color("[*]", Cyber.CYAN), f"Registry detected: {'yes' if result.registry_detected else 'no'}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Registry detected: {'yes' if result.registry_detected else 'no'}",
+    )
 
     if result.repositories:
-        print(color("[*]", Cyber.CYAN), f"Repositories: {', '.join(result.repositories[:5])}")
+        print(
+            color("[*]", Cyber.CYAN),
+            f"Repositories: {', '.join(result.repositories[:5])}",
+        )
 
     print()
 
@@ -364,7 +392,10 @@ def print_results(result: DockerAttackResult) -> None:
         vuln_in_cat = [a for a in attempts if a.vulnerable]
 
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
 
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
@@ -377,10 +408,16 @@ def print_results(result: DockerAttackResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Docker Registry weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Docker Registry weaknesses detected!",
+        )
 
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Docker Registry configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Docker Registry configuration looks good",
+        )
 
     print()
 
@@ -396,7 +433,9 @@ async def run_scan(
 
     scheme = "https" if tls else "http"
 
-    endpoint = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    endpoint = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
 
     if path:
         endpoint = endpoint.rstrip("/") + path
@@ -427,7 +466,20 @@ async def run_scan(
                 all_repos.extend(a.repositories)
 
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, endpoint, [], 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error",
+                    cat,
+                    "",
+                    False,
+                    "",
+                    str(e)[:100],
+                    endpoint,
+                    endpoint,
+                    [],
+                    0,
+                )
+            )
 
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
 
@@ -468,7 +520,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("url", help="URL alvo (https://registry.target.com)")
 
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
 
     add_common_args(parser)
 

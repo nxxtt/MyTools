@@ -205,7 +205,9 @@ class TestCheckUrl:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_status_and_body(self) -> None:
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text="hello"))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="hello")
+        )
         async with httpx.AsyncClient() as client:
             status, body = await _check_url(client, "https://example.com", "/")
             assert status == 200
@@ -217,7 +219,9 @@ class TestCheckUrl:
         async def _handler(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("fail")
 
-        respx.route(method="GET", url="https://example.com/missing").mock(side_effect=_handler)
+        respx.route(method="GET", url="https://example.com/missing").mock(
+            side_effect=_handler
+        )
         async with httpx.AsyncClient() as client:
             status, body = await _check_url(client, "https://example.com", "/missing")
             assert status == 0
@@ -234,7 +238,9 @@ class TestDetectFrontendDeps:
     @pytest.mark.asyncio
     async def test_detects_jquery(self) -> None:
         html = '<script src="https://cdn.example.com/jquery-3.4.1.min.js"></script>'
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text=html))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text=html)
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         async with httpx.AsyncClient() as client:
             deps = await _detect_frontend_deps(client, "https://example.com")
@@ -246,7 +252,9 @@ class TestDetectFrontendDeps:
     @pytest.mark.asyncio
     async def test_detects_react(self) -> None:
         html = '<script src="https://cdn.example.com/react@18.2.0/umd/react.production.min.js"></script>'
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text=html))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text=html)
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         async with httpx.AsyncClient() as client:
             deps = await _detect_frontend_deps(client, "https://example.com")
@@ -257,7 +265,9 @@ class TestDetectFrontendDeps:
     @respx.mock
     @pytest.mark.asyncio
     async def test_no_deps_detected(self) -> None:
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text="<html></html>"))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="<html></html>")
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         async with httpx.AsyncClient() as client:
             deps = await _detect_frontend_deps(client, "https://example.com")
@@ -271,7 +281,9 @@ class TestDetectFrontendDeps:
         <script src="https://cdn.example.com/jquery-3.4.1.min.js"></script>
         <script src="https://cdn.example.com/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
         """
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text=html))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text=html)
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         async with httpx.AsyncClient() as client:
             deps = await _detect_frontend_deps(client, "https://example.com")
@@ -283,7 +295,9 @@ class TestDetectFrontendDeps:
     @respx.mock
     @pytest.mark.asyncio
     async def test_empty_body(self) -> None:
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text=""))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="")
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         async with httpx.AsyncClient() as client:
             deps = await _detect_frontend_deps(client, "https://example.com")
@@ -314,7 +328,9 @@ class TestDetectBackendDeps:
     @respx.mock
     @pytest.mark.asyncio
     async def test_no_backend_detected(self) -> None:
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text="hello"))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="hello")
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         async with httpx.AsyncClient() as client:
             deps = await _detect_backend_deps(client, "https://example.com")
@@ -428,7 +444,9 @@ class TestScanDependency:
     @pytest.mark.asyncio
     async def test_full_scan(self) -> None:
         html = '<script src="https://cdn.example.com/jquery-3.4.1.min.js"></script>'
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text=html))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text=html)
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         result = await scan_dependency(
             base_url="https://example.com",
@@ -441,7 +459,9 @@ class TestScanDependency:
     @respx.mock
     @pytest.mark.asyncio
     async def test_no_deps(self) -> None:
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text="<html></html>"))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="<html></html>")
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         result = await scan_dependency(
             base_url="https://example.com",
@@ -453,7 +473,9 @@ class TestScanDependency:
     @respx.mock
     @pytest.mark.asyncio
     async def test_categories_filter(self) -> None:
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text="<html></html>"))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="<html></html>")
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         result = await scan_dependency(
             base_url="https://example.com",

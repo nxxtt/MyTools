@@ -241,7 +241,10 @@ def try_zone_transfer(
 
         for name, node in zone.nodes.items():  # pyright: ignore[reportGeneralTypeIssues]
             for rdataset in node.rdatasets:
-                records.extend(f"{name} {dns.rdatatype.to_text(rdataset.rdtype)} {rdata}" for rdata in rdataset)
+                records.extend(
+                    f"{name} {dns.rdatatype.to_text(rdataset.rdtype)} {rdata}"
+                    for rdata in rdataset
+                )
 
         return XfrResult(
             domain=domain,
@@ -402,13 +405,24 @@ def _print_results(results: list[XfrResult]) -> None:
         for result in vulnerable:
             print()
 
-            print(color("  Nameserver:", Cyber.CYAN, Cyber.BOLD), color(result.nameserver, Cyber.WHITE))
+            print(
+                color("  Nameserver:", Cyber.CYAN, Cyber.BOLD),
+                color(result.nameserver, Cyber.WHITE),
+            )
 
-            print(color("  IP:", Cyber.CYAN, Cyber.BOLD), color(result.ns_ip, Cyber.WHITE))
+            print(
+                color("  IP:", Cyber.CYAN, Cyber.BOLD), color(result.ns_ip, Cyber.WHITE)
+            )
 
-            print(color("  Registros:", Cyber.CYAN, Cyber.BOLD), color(str(result.record_count), Cyber.YELLOW, Cyber.BOLD))
+            print(
+                color("  Registros:", Cyber.CYAN, Cyber.BOLD),
+                color(str(result.record_count), Cyber.YELLOW, Cyber.BOLD),
+            )
 
-            print(color("  Tempo:", Cyber.CYAN, Cyber.BOLD), color(f"{result.elapsed:.2f}s", Cyber.YELLOW))
+            print(
+                color("  Tempo:", Cyber.CYAN, Cyber.BOLD),
+                color(f"{result.elapsed:.2f}s", Cyber.YELLOW),
+            )
 
             if result.records:
                 print(color("  Primeiros registros:", Cyber.CYAN))
@@ -417,7 +431,12 @@ def _print_results(results: list[XfrResult]) -> None:
                     print(color(f"    {record}", Cyber.GRAY))
 
                 if len(result.records) > 20:
-                    print(color(f"    ... e mais {len(result.records) - 20} registros", Cyber.GRAY))
+                    print(
+                        color(
+                            f"    ... e mais {len(result.records) - 20} registros",
+                            Cyber.GRAY,
+                        )
+                    )
 
             print_exploit_info(result.exploit, result.tool)
 
@@ -492,7 +511,16 @@ def run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             rows,
-            ["domain", "nameserver", "ns_ip", "zone_transferred", "record_count", "records", "error", "elapsed"],
+            [
+                "domain",
+                "nameserver",
+                "ns_ip",
+                "zone_transferred",
+                "record_count",
+                "records",
+                "error",
+                "elapsed",
+            ],
             quiet=quiet,
         )
 

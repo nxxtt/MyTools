@@ -23,7 +23,9 @@ def _load_apk(file_path: str) -> tuple[Any, list[Any], Any]:
     try:
         from androguard.misc import AnalyzeAPK
     except ImportError as exc:
-        raise ImportError("androguard not installed: pip install androguard[full]") from exc
+        raise ImportError(
+            "androguard not installed: pip install androguard[full]"
+        ) from exc
 
     a, d_list, dx = AnalyzeAPK(file_path)
     if not d_list:
@@ -67,7 +69,9 @@ def analyze_dex_layer(file_path: str) -> dict[str, Any]:
                 "string_count": len(strings),
                 "header": header_info,
                 "classes": classes[:50],
-                "methods": [f"{m.get_class_name()}->{m.get_name()}" for m in methods[:50]],
+                "methods": [
+                    f"{m.get_class_name()}->{m.get_name()}" for m in methods[:50]
+                ],
                 "strings": strings[:100],
             }
         )
@@ -209,7 +213,14 @@ def decompile_java(
             if source and len(source.strip()) > 10:
                 lines = source.split("\n")
                 # Count methods (lines with 'public', 'private', 'protected', 'static')
-                method_count = sum(1 for line in lines if any(line.strip().startswith(kw) for kw in ("public ", "private ", "protected ", "static ")))
+                method_count = sum(
+                    1
+                    for line in lines
+                    if any(
+                        line.strip().startswith(kw)
+                        for kw in ("public ", "private ", "protected ", "static ")
+                    )
+                )
                 result_classes.append(
                     {
                         "class_name": name,

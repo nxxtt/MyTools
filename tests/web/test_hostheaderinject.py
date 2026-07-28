@@ -102,7 +102,9 @@ class TestBaseline:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        status, size, _headers, body = await _test_baseline(mock_client, "https://test.com")
+        status, size, _headers, body = await _test_baseline(
+            mock_client, "https://test.com"
+        )
         assert status == 200
         assert size == 2
         assert body == b"ok"
@@ -116,7 +118,9 @@ class TestBaseline:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        status, size, headers, body = await _test_baseline(mock_client, "https://test.com")
+        status, size, headers, body = await _test_baseline(
+            mock_client, "https://test.com"
+        )
         assert status == 0
         assert size == 0
         assert headers == {}
@@ -136,7 +140,9 @@ class TestReflected:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_reflected(mock_client, "https://test.com", "evil.attacker.com")
+        results = await _test_reflected(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
         assert len(results) == 5
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) > 0
@@ -150,7 +156,9 @@ class TestReflected:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_reflected(mock_client, "https://test.com", "evil.attacker.com")
+        results = await _test_reflected(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
         assert len(results) == 5
         assert all(r.error for r in results)
 
@@ -168,7 +176,9 @@ class TestPasswordReset:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_password_reset(mock_client, "https://test.com", "evil.attacker.com")
+        results = await _test_password_reset(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
         assert len(results) == 5
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) > 0
@@ -206,7 +216,9 @@ class TestCache:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        results = await _test_cache(mock_client, "https://test.com", "evil.attacker.com")
+        results = await _test_cache(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
         assert len(results) == 5
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) > 0

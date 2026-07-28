@@ -80,7 +80,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "businesslogic", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "businesslogic", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -89,8 +91,18 @@ _CATEGORY_MAP = _load_category_map()
 
 
 _OVERFLOW_PAYLOADS_DEFAULT: list[tuple[str, str, dict[str, str], list[str]]] = [
-    ("price_overflow", "price=999999999999", {"price": "999999999999"}, ["overflow", "total"]),
-    ("discount_overflow", "discount=999999", {"discount": "999999"}, ["discount", "total"]),
+    (
+        "price_overflow",
+        "price=999999999999",
+        {"price": "999999999999"},
+        ["overflow", "total"],
+    ),
+    (
+        "discount_overflow",
+        "discount=999999",
+        {"discount": "999999"},
+        ["discount", "total"],
+    ),
     ("quantity_overflow", "qty=999999999", {"qty": "999999999"}, ["quantity", "total"]),
     ("negative_total", "price=-1", {"price": "-1"}, ["total", "price"]),
     ("max_int", "price=2147483647", {"price": "2147483647"}, ["total", "price"]),
@@ -101,9 +113,18 @@ def _load_overflow_payloads() -> list[tuple[str, str, dict[str, str], list[str]]
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "businesslogic", default={"overflow_payloads": [list(t) for t in _OVERFLOW_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "businesslogic",
+        default={"overflow_payloads": [list(t) for t in _OVERFLOW_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("overflow_payloads", [list(t) for t in _OVERFLOW_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "overflow_payloads", [list(t) for t in _OVERFLOW_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _OVERFLOW_PAYLOADS = _load_overflow_payloads()
@@ -114,7 +135,12 @@ _NEGATIVE_QTY_PAYLOADS_DEFAULT: list[tuple[str, str, dict[str, str], list[str]]]
     ("zero_qty", "qty=0", {"qty": "0"}, ["total", "qty"]),
     ("decimal_qty", "qty=0.5", {"qty": "0.5"}, ["total", "qty"]),
     ("negative_discount", "discount=-50", {"discount": "-50"}, ["discount", "total"]),
-    ("refund_abuse", "refund=true&amount=99999", {"refund": "true", "amount": "99999"}, ["refund", "amount"]),
+    (
+        "refund_abuse",
+        "refund=true&amount=99999",
+        {"refund": "true", "amount": "99999"},
+        ["refund", "amount"],
+    ),
 ]
 
 
@@ -122,9 +148,20 @@ def _load_negative_qty_payloads() -> list[tuple[str, str, dict[str, str], list[s
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "businesslogic", default={"negative_qty_payloads": [list(t) for t in _NEGATIVE_QTY_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "businesslogic",
+        default={
+            "negative_qty_payloads": [list(t) for t in _NEGATIVE_QTY_PAYLOADS_DEFAULT]
+        },
+    )
 
-    return [tuple(x) for x in data.get("negative_qty_payloads", [list(t) for t in _NEGATIVE_QTY_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "negative_qty_payloads", [list(t) for t in _NEGATIVE_QTY_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _NEGATIVE_QTY_PAYLOADS = _load_negative_qty_payloads()
@@ -232,7 +269,9 @@ async def _test_integer_overflow_category(
 
             body = resp.text
 
-            vulnerable = resp.status_code == 200 and any(ind in body.lower() for ind in indicators)
+            vulnerable = resp.status_code == 200 and any(
+                ind in body.lower() for ind in indicators
+            )
 
             results.append(
                 BizLogicAttempt(
@@ -294,7 +333,9 @@ async def _test_negative_quantity_category(
 
             body = resp.text
 
-            vulnerable = resp.status_code == 200 and any(ind in body.lower() for ind in indicators)
+            vulnerable = resp.status_code == 200 and any(
+                ind in body.lower() for ind in indicators
+            )
 
             results.append(
                 BizLogicAttempt(
@@ -352,8 +393,18 @@ async def _test_race_condition_category(
     base = checkout_url.rstrip("/")
 
     tests = [
-        ("concurrent_checkout", concurrent_count, checkout_url, "qty=1&price=10&coupon=SAVE50"),
-        ("double_spend", concurrent_count, f"{base}/pay", "qty=1&price=10&payment_id=txn_123"),
+        (
+            "concurrent_checkout",
+            concurrent_count,
+            checkout_url,
+            "qty=1&price=10&coupon=SAVE50",
+        ),
+        (
+            "double_spend",
+            concurrent_count,
+            f"{base}/pay",
+            "qty=1&price=10&payment_id=txn_123",
+        ),
         ("race_purchase", concurrent_count, checkout_url, "qty=2&price=20"),
         ("race_refund", concurrent_count, f"{base}/refund", "order_id=123&refund=true"),
         ("race_apply", concurrent_count, f"{base}/apply", "coupon=SAVE50&qty=1"),
@@ -373,7 +424,11 @@ async def _test_race_condition_category(
 
             responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-            success_count = sum(1 for r in responses if isinstance(r, httpx.Response) and r.status_code == 200)
+            success_count = sum(
+                1
+                for r in responses
+                if isinstance(r, httpx.Response) and r.status_code == 200
+            )
 
             vulnerable = success_count > 1
 
@@ -388,7 +443,9 @@ async def _test_race_condition_category(
                     status_changed=success_count > 0,
                     size_changed=False,
                     vulnerable=vulnerable,
-                    details=f"{success_count}/{count} requests bem-sucedidos" if vulnerable else "",
+                    details=f"{success_count}/{count} requests bem-sucedidos"
+                    if vulnerable
+                    else "",
                     error="",
                     exploit="price_quantity_manipulation" if vulnerable else "",
                     tool="wfuzz",
@@ -439,7 +496,12 @@ def print_results(result: BizLogicResult) -> None:
 
     print(color(f"  Checkout:  {result.checkout_url or 'auto-detect'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:  {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:  {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:    {len(result.attempts)}", Cyber.WHITE))
 
@@ -467,10 +529,20 @@ def print_results(result: BizLogicResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade de Business Logic detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade de Business Logic detectada",
+                Cyber.GREEN,
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -493,7 +565,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
 
             b_size = len(b_body)
 
@@ -517,7 +591,9 @@ async def run_scan(
                 continue
 
             try:
-                raw = await tester(client, checkout_url or target, timeout, b_status, b_size)
+                raw = await tester(
+                    client, checkout_url or target, timeout, b_status, b_size
+                )
 
                 all_attempts.extend(raw)
 
@@ -540,7 +616,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -548,7 +626,9 @@ async def run_scan(
             issues.append("Nenhum teste de Business Logic executado")
 
         if not checkout_url:
-            issues.append("Endpoint de checkout nao detectado â€” testando URL principal")
+            issues.append(
+                "Endpoint de checkout nao detectado â€” testando URL principal"
+            )
 
         result = BizLogicResult(
             target=target,
@@ -560,12 +640,18 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
 
-        logger.info("Business Logic scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "Business Logic scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -592,7 +678,9 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   bizlogic: integer_overflow, negative_quantity, race_condition")()
+    create_banner(
+        art, "   bizlogic: integer_overflow, negative_quantity, race_condition"
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -654,7 +742,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="bizlogic> ",
         description="Business Logic Attack Detection interativo.",
         example="https://target.com/checkout -c race_condition",

@@ -65,7 +65,11 @@ _COLD_START_INDICATORS_DEFAULT: list[str] = [
 def _load_cold_start_indicators() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "serverless_attack", default={"cold_start_indicators": _COLD_START_INDICATORS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "serverless_attack",
+        default={"cold_start_indicators": _COLD_START_INDICATORS_DEFAULT},
+    )
     return data.get("cold_start_indicators", _COLD_START_INDICATORS_DEFAULT)
 
 
@@ -230,11 +234,19 @@ async def _test_cold_start_leak(
 
             resp_headers = {k.lower(): v for k, v in resp.headers.items()}
 
-            leak_signals.extend(f"header:{indicator}" for indicator in _COLD_START_INDICATORS if indicator.lower() in resp_headers)
+            leak_signals.extend(
+                f"header:{indicator}"
+                for indicator in _COLD_START_INDICATORS
+                if indicator.lower() in resp_headers
+            )
 
             body_lower = resp.text.lower()
 
-            leak_signals.extend(f"body:{sig}" for sig in _COLD_START_BODY_SIGNATURES if sig in body_lower)
+            leak_signals.extend(
+                f"body:{sig}"
+                for sig in _COLD_START_BODY_SIGNATURES
+                if sig in body_lower
+            )
 
             if timings[-1] > 3000 and i == 0:
                 leak_signals.append("slow_first_request")
@@ -256,9 +268,23 @@ async def _test_cold_start_leak(
 
     vuln = len(unique) > 0
 
-    details = f"Signals: {', '.join(unique[:5])} (avg {avg_ms:.0f}ms)" if vuln else f"No cold start signals (avg {avg_ms:.0f}ms)"
+    details = (
+        f"Signals: {', '.join(unique[:5])} (avg {avg_ms:.0f}ms)"
+        if vuln
+        else f"No cold start signals (avg {avg_ms:.0f}ms)"
+    )
 
-    return _make_attempt("cold_start_leak", "generic", "Serverless cold start info leak", vuln, details, "", url, 200, avg_ms)
+    return _make_attempt(
+        "cold_start_leak",
+        "generic",
+        "Serverless cold start info leak",
+        vuln,
+        details,
+        "",
+        url,
+        200,
+        avg_ms,
+    )
 
 
 async def _test_timeout_abuse(
@@ -296,7 +322,11 @@ async def _test_timeout_abuse(
 
             body_lower = resp.text.lower()
 
-            timeout_signals.extend(f"timeout_msg:{pattern}" for pattern in _TIMEOUT_PATTERNS if pattern.lower() in body_lower)
+            timeout_signals.extend(
+                f"timeout_msg:{pattern}"
+                for pattern in _TIMEOUT_PATTERNS
+                if pattern.lower() in body_lower
+            )
 
             if resp.status_code in (502, 503, 504):
                 timeout_signals.append(f"status:{resp.status_code}")
@@ -331,9 +361,23 @@ async def _test_timeout_abuse(
 
     vuln = len(unique) > 0
 
-    details = f"Timeout signals: {', '.join(unique[:5])} (total: {total_time:.1f}s)" if vuln else f"No timeout abuse signals (total: {total_time:.1f}s)"
+    details = (
+        f"Timeout signals: {', '.join(unique[:5])} (total: {total_time:.1f}s)"
+        if vuln
+        else f"No timeout abuse signals (total: {total_time:.1f}s)"
+    )
 
-    return _make_attempt("timeout_abuse", "generic", "Serverless timeout resource abuse", vuln, details, "", url, last_code, total_time * 1000)
+    return _make_attempt(
+        "timeout_abuse",
+        "generic",
+        "Serverless timeout resource abuse",
+        vuln,
+        details,
+        "",
+        url,
+        last_code,
+        total_time * 1000,
+    )
 
 
 async def _test_generic(
@@ -347,7 +391,9 @@ async def _test_generic(
 
     results: list[ServerlessAttackAttempt] = []
 
-    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=False, follow_redirects=True
+    ) as client:
         for tech, fn in [
             ("cold_start_leak", _test_cold_start_leak),
             ("timeout_abuse", _test_timeout_abuse),
@@ -358,12 +404,18 @@ async def _test_generic(
                 results.append(result)
 
             except Exception as exc:
-                results.append(_make_attempt(tech, "generic", "", False, "", str(exc)[:100], endpoint, 0))
+                results.append(
+                    _make_attempt(
+                        tech, "generic", "", False, "", str(exc)[:100], endpoint, 0
+                    )
+                )
 
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[ServerlessAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[ServerlessAttackAttempt]]]
+] = {
     "generic": _test_generic,
 }
 
@@ -376,7 +428,10 @@ def print_results(result: ServerlessAttackResult) -> None:
 
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
 
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
 
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
 
@@ -401,7 +456,10 @@ def print_results(result: ServerlessAttackResult) -> None:
         vuln_in_cat = [a for a in attempts if a.vulnerable]
 
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
 
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
@@ -414,10 +472,16 @@ def print_results(result: ServerlessAttackResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Serverless weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Serverless weaknesses detected!",
+        )
 
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Serverless configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Serverless configuration looks good",
+        )
 
     print()
 
@@ -433,7 +497,9 @@ async def run_scan(
 
     scheme = "https" if tls else "http"
 
-    endpoint = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    endpoint = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
 
     if path:
         endpoint = endpoint.rstrip("/") + path
@@ -454,7 +520,11 @@ async def run_scan(
             all_attempts.extend(raw)
 
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, 0
+                )
+            )
 
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
 
@@ -494,7 +564,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("url", help="URL alvo (https://target.com/api/endpoint)")
 
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
 
     add_common_args(parser)
 

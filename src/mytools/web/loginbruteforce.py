@@ -285,7 +285,9 @@ def _check_rate_limit(
         if indicator.lower() in body_lower:
             return True, indicator
 
-    if status == 403 and any(ind.lower() in body_lower for ind in ("rate limit", "throttle", "slow down")):
+    if status == 403 and any(
+        ind.lower() in body_lower for ind in ("rate limit", "throttle", "slow down")
+    ):
         return True, "HTTP 403 com indicador de rate limit"
 
     return False, ""
@@ -305,7 +307,10 @@ def _check_login_success(
     """
     if status in (301, 302, 303, 307, 308) and location:
         loc_lower = location.lower()
-        if any(ind in loc_lower for ind in ("dashboard", "account", "home", "welcome", "admin")):
+        if any(
+            ind in loc_lower
+            for ind in ("dashboard", "account", "home", "welcome", "admin")
+        ):
             return True, f"Redirect para {location}"
 
     if status == 200:
@@ -404,7 +409,9 @@ async def _test_rate_limit(
                     rate_limit_detected=detected,
                     login_success=False,
                     vulnerable=not detected,
-                    details=detail if detected else f"Request {i + 1}/{count} sem rate limit",
+                    details=detail
+                    if detected
+                    else f"Request {i + 1}/{count} sem rate limit",
                 )
             )
 
@@ -503,7 +510,9 @@ async def _test_lockout(
                     rate_limit_detected=False,
                     login_success=False,
                     vulnerable=not detected,
-                    details=detail if detected else f"Request {i + 1}/{count} sem lockout",
+                    details=detail
+                    if detected
+                    else f"Request {i + 1}/{count} sem lockout",
                 )
             )
 
@@ -605,7 +614,9 @@ async def _test_credentials(
                         rate_limit_detected=False,
                         login_success=login_ok,
                         vulnerable=login_ok,
-                        details=detail if login_ok else f"{username}:{password} - sem indicacao de sucesso",
+                        details=detail
+                        if login_ok
+                        else f"{username}:{password} - sem indicacao de sucesso",
                     )
                 )
 
@@ -680,7 +691,9 @@ async def _test_password_spray(
                     rate_limit_detected=False,
                     login_success=login_ok,
                     vulnerable=login_ok,
-                    details=detail if login_ok else f"{username}:{password} - sem indicacao de sucesso",
+                    details=detail
+                    if login_ok
+                    else f"{username}:{password} - sem indicacao de sucesso",
                 )
             )
 
@@ -847,7 +860,9 @@ async def run_scan(
                 delay=delay,
             )
             all_attempts.extend(cr_attempts)
-            weak_credentials.extend(f"{a.username}:{a.payload}" for a in cr_attempts if a.login_success)
+            weak_credentials.extend(
+                f"{a.username}:{a.payload}" for a in cr_attempts if a.login_success
+            )
 
         if category == "spray":
             print(
@@ -869,7 +884,9 @@ async def run_scan(
                 delay=delay,
             )
             all_attempts.extend(sp_attempts)
-            weak_credentials.extend(f"{a.username}:{a.payload}" for a in sp_attempts if a.login_success)
+            weak_credentials.extend(
+                f"{a.username}:{a.payload}" for a in sp_attempts if a.login_success
+            )
 
         has_vulnerable = any(a.vulnerable for a in all_attempts)
         overall = "vulnerable" if has_vulnerable else "secure"
@@ -903,15 +920,29 @@ def print_results(result: BruteForceResult) -> None:
     status_color = Cyber.RED if result.overall_status == "vulnerable" else Cyber.GREEN
     print(color(f"\n  Status: {result.overall_status.upper()}", status_color))
 
-    print(color(f"\n  Rate Limit: {'Detectado' if result.rate_limit_found else 'NAO detectado'}", Cyber.GREEN if result.rate_limit_found else Cyber.RED))
-    print(color(f"  Lockout: {'Detectado' if result.lockout_found else 'NAO detectado'}", Cyber.GREEN if result.lockout_found else Cyber.RED))
+    print(
+        color(
+            f"\n  Rate Limit: {'Detectado' if result.rate_limit_found else 'NAO detectado'}",
+            Cyber.GREEN if result.rate_limit_found else Cyber.RED,
+        )
+    )
+    print(
+        color(
+            f"  Lockout: {'Detectado' if result.lockout_found else 'NAO detectado'}",
+            Cyber.GREEN if result.lockout_found else Cyber.RED,
+        )
+    )
 
     if result.weak_credentials:
         print(color("\n  [CREDENCIAIS FRACAS]", Cyber.RED))
         for cred in result.weak_credentials:
             print(color(f"    - {cred}", Cyber.RED))
 
-    vuln_attempts = [a for a in result.attempts if a.vulnerable and a.technique in ("rate_limit", "lockout")]
+    vuln_attempts = [
+        a
+        for a in result.attempts
+        if a.vulnerable and a.technique in ("rate_limit", "lockout")
+    ]
     if vuln_attempts:
         print(color("\n  [VULNERAVEL]", Cyber.RED))
         seen: set[str] = set()

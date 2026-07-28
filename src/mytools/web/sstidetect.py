@@ -90,7 +90,11 @@ _DETECT_PAYLOADS: list[tuple[str, str, str]] = [
     ("velocity_math", "#set($x=7*7)${x}", "49"),
     ("velocity_exec", "#set($str=$class.forName('java.lang.Runtime'))", "class"),
     ("handlebars_math", "{{7*7}}", "49"),
-    ("handlebars_helper", '{{#with "s" as |s|}}{{#with "e"}}{{/with}}{{/with}}', "handlebars"),
+    (
+        "handlebars_helper",
+        '{{#with "s" as |s|}}{{#with "e"}}{{/with}}{{/with}}',
+        "handlebars",
+    ),
     ("go_math", "{{7*7}}", "49"),
     ("go_println", '{{println "test"}}', "test"),
     ("blade_math", "{{7*7}}", "49"),
@@ -156,7 +160,11 @@ _EXPLOIT_PAYLOADS: list[tuple[str, str, list[str]]] = [
 
 _BYPASS_PAYLOADS: list[tuple[str, str, str]] = [
     ("jinja2_space", "{{ 7*7 }}", "49"),
-    ("jinja2_plus", "{{7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7}}", "49"),
+    (
+        "jinja2_plus",
+        "{{7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7+7}}",
+        "49",
+    ),
     ("jinja2_string_concat", "{{'{{7*7}}'}}", "{{7*7}}"),
     ("jinja2_hex", '{{config["\\x53\\x45\\x43\\x52\\x45\\x54"]}}', "SECRET"),
     ("twig_space", "{{ 7 * 7 }}", "49"),
@@ -275,7 +283,20 @@ async def _test_baseline(
 def _extract_engine(technique: str) -> str:
     """Extrai nome da engine a partir da tecnica."""
 
-    for engine in ["jinja2", "twig", "freemarker", "mako", "pebble", "smarty", "erb", "velocity", "handlebars", "go", "blade", "razor"]:
+    for engine in [
+        "jinja2",
+        "twig",
+        "freemarker",
+        "mako",
+        "pebble",
+        "smarty",
+        "erb",
+        "velocity",
+        "handlebars",
+        "go",
+        "blade",
+        "razor",
+    ]:
         if engine in technique.lower():
             return engine
 
@@ -291,7 +312,11 @@ def _check_response(body: bytes, expected: str) -> bool:
         return True
 
     try:
-        if expected.isdigit() and int(expected) in [49, 98] and re.search(rf"\b{expected}\b", text):
+        if (
+            expected.isdigit()
+            and int(expected) in [49, 98]
+            and re.search(rf"\b{expected}\b", text)
+        ):
             return True
 
     except ValueError:
@@ -329,7 +354,10 @@ async def _test_param_ssti(
 
     for param in _PARAMS[:5]:
         for name, payload, expected in _DETECT_PAYLOADS:
-            new_params = {k: v[0] if isinstance(v, list) else v for k, v in original_params.items()}
+            new_params = {
+                k: v[0] if isinstance(v, list) else v
+                for k, v in original_params.items()
+            }
 
             new_params[param] = payload
 
@@ -351,7 +379,9 @@ async def _test_param_ssti(
                 vuln = detected
 
                 # Second-order verification for detection
-                details = f"Param {param}: {name}" + (f" -> ENGINE={engine}" if detected else "")
+                details = f"Param {param}: {name}" + (
+                    f" -> ENGINE={engine}" if detected else ""
+                )
                 if detected:
                     verify = get_verify_payload("sstidetect", "detect")
                     if verify:
@@ -360,7 +390,9 @@ async def _test_param_ssti(
                         new_v_params[param] = v_payload
                         v_new_query = urlencode(new_v_params, doseq=True)
                         v_url = urlunparse(parsed._replace(query=v_new_query))
-                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        confirmed, v_found = await verify_positive(
+                            client, v_url, v_indicators
+                        )
                         if not confirmed:
                             detected = False
                             engine = ""
@@ -383,7 +415,8 @@ async def _test_param_ssti(
                         size_changed=abs(size_test - size_base) > 50,
                         engine_detected=engine,
                         vulnerable=vuln,
-                        details=f"Param {param}: {name}" + (f" -> ENGINE={engine}" if detected else ""),
+                        details=f"Param {param}: {name}"
+                        + (f" -> ENGINE={engine}" if detected else ""),
                         error="",
                         exploit="{{7*7}}" if vuln else "",
                         tool="Tplmap",
@@ -457,7 +490,8 @@ async def _test_header_ssti(
                         size_changed=abs(size_test - size_base) > 50,
                         engine_detected=engine,
                         vulnerable=vuln,
-                        details=f"Header {header}: {name}" + (f" -> ENGINE={engine}" if detected else ""),
+                        details=f"Header {header}: {name}"
+                        + (f" -> ENGINE={engine}" if detected else ""),
                         error="",
                         exploit="{{7*7}}" if vuln else "",
                         tool="Tplmap",
@@ -532,7 +566,8 @@ async def _test_body_ssti(
                     size_changed=abs(size_test - size_base) > 50,
                     engine_detected=engine,
                     vulnerable=vuln,
-                    details=f"JSON: {name}" + (f" -> ENGINE={engine}" if detected else ""),
+                    details=f"JSON: {name}"
+                    + (f" -> ENGINE={engine}" if detected else ""),
                     error="",
                     exploit="{{7*7}}" if vuln else "",
                     tool="Tplmap",
@@ -593,7 +628,8 @@ async def _test_body_ssti(
                     size_changed=abs(size_test - size_base) > 50,
                     engine_detected=engine,
                     vulnerable=vuln,
-                    details=f"Form: {name}" + (f" -> ENGINE={engine}" if detected else ""),
+                    details=f"Form: {name}"
+                    + (f" -> ENGINE={engine}" if detected else ""),
                     error="",
                     exploit="{{7*7}}" if vuln else "",
                     tool="Tplmap",
@@ -635,7 +671,9 @@ async def _test_exploit(
 
     status_base, size_base, _ = baseline
 
-    relevant_exploits = [(n, p, ind) for n, p, ind in _EXPLOIT_PAYLOADS if any(e in n for e in engines)]
+    relevant_exploits = [
+        (n, p, ind) for n, p, ind in _EXPLOIT_PAYLOADS if any(e in n for e in engines)
+    ]
 
     if not relevant_exploits:
         return attempts
@@ -676,7 +714,8 @@ async def _test_exploit(
                     size_changed=abs(size_test - size_base) > 50,
                     engine_detected=engine,
                     vulnerable=found,
-                    details=f"Exploit {name}" + (f" -> FOUND={indicator}" if found else ""),
+                    details=f"Exploit {name}"
+                    + (f" -> FOUND={indicator}" if found else ""),
                     error="",
                     exploit="{{7*7}}" if found else "",
                     tool="Tplmap",
@@ -751,7 +790,8 @@ async def _test_bypass(
                     size_changed=abs(size_test - size_base) > 50,
                     engine_detected=engine,
                     vulnerable=detected,
-                    details=f"Bypass {name}" + (f" -> ENGINE={engine}" if detected else ""),
+                    details=f"Bypass {name}"
+                    + (f" -> ENGINE={engine}" if detected else ""),
                     error="",
                     exploit="{{7*7}}" if detected else "",
                     tool="Tplmap",
@@ -784,11 +824,17 @@ async def _test_bypass(
 def print_results(result: SSTIResult) -> None:
     """Exibe resultados formatados."""
 
-    tls_tag = color("[HTTPS]", Cyber.GREEN, Cyber.BOLD) if result.tls else color("[HTTP]", Cyber.YELLOW)
+    tls_tag = (
+        color("[HTTPS]", Cyber.GREEN, Cyber.BOLD)
+        if result.tls
+        else color("[HTTP]", Cyber.YELLOW)
+    )
 
     print(color("\n" + "=" * 60, Cyber.GRAY))
 
-    print(color("  SSTI (Server-Side Template Injection) SCANNER", Cyber.RED, Cyber.BOLD))
+    print(
+        color("  SSTI (Server-Side Template Injection) SCANNER", Cyber.RED, Cyber.BOLD)
+    )
 
     print(color("=" * 60, Cyber.GRAY))
 
@@ -796,14 +842,23 @@ def print_results(result: SSTIResult) -> None:
 
     print(color(f"  TLS:        {tls_tag}", Cyber.WHITE))
 
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_engines = result.vulnerable_engines
 
     if vuln_engines:
-        print(color(f"\n  [!] {len(vuln_engines)} ENGINES DETECTADAS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_engines)} ENGINES DETECTADAS", Cyber.RED, Cyber.BOLD
+            )
+        )
 
         for eng in vuln_engines:
             print(color(f"      [!] {eng.upper()}", Cyber.RED))
@@ -900,16 +955,30 @@ async def run_scan(
                 if isinstance(r, list):
                     all_attempts.extend(r)
 
-        engines_found = list({a.engine_detected for a in all_attempts if a.vulnerable and a.engine_detected})
+        engines_found = list(
+            {
+                a.engine_detected
+                for a in all_attempts
+                if a.vulnerable and a.engine_detected
+            }
+        )
 
         if engines_found and "exploit" in run_categories:
-            exploit_attempts = await _test_exploit(client, target, baseline, engines_found)
+            exploit_attempts = await _test_exploit(
+                client, target, baseline, engines_found
+            )
 
             all_attempts.extend(exploit_attempts)
 
-        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        blocked = [
+            a.technique for a in all_attempts if not a.vulnerable and not a.error
+        ]
 
-        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
+        issues: list[str] = [
+            f"VULN: {att.technique} - {att.details}"
+            for att in all_attempts
+            if att.vulnerable
+        ]
 
         overall = "vulnerable" if engines_found else "secure"
 
@@ -930,7 +999,11 @@ async def run_scan(
         if output_file:
             write_output(output_file, asdict(result))
 
-        logger.info("SSTI scan concluido: %d testes, engines=%s", len(all_attempts), engines_found)
+        logger.info(
+            "SSTI scan concluido: %d testes, engines=%s",
+            len(all_attempts),
+            engines_found,
+        )
 
         return 1 if engines_found else 0
 
@@ -977,7 +1050,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -1013,7 +1091,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="ssti> ",
         description="SSTI interativo.",
         example="https://target.com -c detect",

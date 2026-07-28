@@ -38,14 +38,25 @@ logger = logging.getLogger("mytools.emailsecurity")
 
 DNS_ERROR = "__DNS_ERROR__"
 
-_DEFAULT_SELECTORS_DEFAULT = ["default", "google", "selector1", "selector2", "s1", "s2", "dkim", "mail"]
+_DEFAULT_SELECTORS_DEFAULT = [
+    "default",
+    "google",
+    "selector1",
+    "selector2",
+    "s1",
+    "s2",
+    "dkim",
+    "mail",
+]
 
 
 def _load_dkim_selectors() -> list[str]:
     """Carrega DKIM selectors de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("email", "dkim_selectors", default={"selectors": _DEFAULT_SELECTORS_DEFAULT})
+    data = load_payloads(
+        "email", "dkim_selectors", default={"selectors": _DEFAULT_SELECTORS_DEFAULT}
+    )
     return data.get("selectors", _DEFAULT_SELECTORS_DEFAULT)
 
 
@@ -227,10 +238,18 @@ def scan_email_security(
             dkim_selectors.append(sel)
 
     if not dkim_selectors:
-        issues.append("Nenhum registro DKIM encontrado (seletores testados: " + ", ".join(selectors or DEFAULT_SELECTORS) + ")")
+        issues.append(
+            "Nenhum registro DKIM encontrado (seletores testados: "
+            + ", ".join(selectors or DEFAULT_SELECTORS)
+            + ")"
+        )
 
     # Critico: ausencia total, SPF +all, ou DMARC none sem SPF
-    if (not spf and not dmarc and not dkim_selectors) or (spf and spf.has_all and spf.all_qualifier == "+") or (dmarc and dmarc.policy == "none" and not spf):
+    if (
+        (not spf and not dmarc and not dkim_selectors)
+        or (spf and spf.has_all and spf.all_qualifier == "+")
+        or (dmarc and dmarc.policy == "none" and not spf)
+    ):
         status = "critical"
     elif dmarc and dmarc.policy == "malformed":
         status = "warning"
@@ -252,14 +271,22 @@ def scan_email_security(
         dmarc=dmarc,
         overall_status=status,
         issues=issues,
-        exploit=f"dig TXT {domain}" if not spf else (f"dig TXT _dmarc.{domain}" if not dmarc else ""),
+        exploit=f"dig TXT {domain}"
+        if not spf
+        else (f"dig TXT _dmarc.{domain}" if not dmarc else ""),
         tool="dig",
     )
 
 
 def print_results(result: EmailSecurityResult) -> None:
     """Exibe o relatorio de email security."""
-    print(color("\n[+] Email Security (DMARC/SPF/DKIM) — Relatorio:", Cyber.GREEN, Cyber.BOLD))
+    print(
+        color(
+            "\n[+] Email Security (DMARC/SPF/DKIM) — Relatorio:",
+            Cyber.GREEN,
+            Cyber.BOLD,
+        )
+    )
     print(f"  Dominio: {color(result.domain, Cyber.WHITE, Cyber.BOLD)}")
     print()
 
@@ -275,7 +302,11 @@ def print_results(result: EmailSecurityResult) -> None:
     print()
 
     if result.spf:
-        spf_icon = color("[!]", Cyber.RED) if result.spf.all_qualifier == "+" else color("[+]", Cyber.GREEN)
+        spf_icon = (
+            color("[!]", Cyber.RED)
+            if result.spf.all_qualifier == "+"
+            else color("[+]", Cyber.GREEN)
+        )
         print(f"  SPF: {spf_icon} {result.spf.raw[:80]}")
         if result.spf.includes:
             print(f"       Includes: {', '.join(result.spf.includes)}")
@@ -283,16 +314,24 @@ def print_results(result: EmailSecurityResult) -> None:
         print(f"  SPF: {color('[-]', Cyber.RED)} Nao encontrado")
 
     if result.dmarc:
-        dmarc_icon = color("[+]", Cyber.GREEN) if result.dmarc.policy in ("quarantine", "reject") else color("[!]", Cyber.YELLOW)
+        dmarc_icon = (
+            color("[+]", Cyber.GREEN)
+            if result.dmarc.policy in ("quarantine", "reject")
+            else color("[!]", Cyber.YELLOW)
+        )
         print(f"  DMARC: {dmarc_icon} {result.dmarc.raw[:80]}")
-        print(f"         p={result.dmarc.policy} sp={result.dmarc.sp} pct={result.dmarc.pct}")
+        print(
+            f"         p={result.dmarc.policy} sp={result.dmarc.sp} pct={result.dmarc.pct}"
+        )
         if result.dmarc.rua:
             print(f"         rua={result.dmarc.rua}")
     else:
         print(f"  DMARC: {color('[-]', Cyber.RED)} Nao encontrado")
 
     if result.dkim_selectors:
-        print(f"  DKIM: {color('[+]', Cyber.GREEN)} Seletores: {', '.join(result.dkim_selectors)}")
+        print(
+            f"  DKIM: {color('[+]', Cyber.GREEN)} Seletores: {', '.join(result.dkim_selectors)}"
+        )
     else:
         print(f"  DKIM: {color('[-]', Cyber.RED)} Nenhum seletor encontrado")
 
@@ -305,13 +344,28 @@ def print_results(result: EmailSecurityResult) -> None:
 
     print()
     if result.overall_status == "secure":
-        print(color("  [+] Email security configurado corretamente", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Email security configurado corretamente", Cyber.GREEN, Cyber.BOLD
+            )
+        )
     elif result.overall_status == "good":
         print(color("  [+] Email security razoavel — melhorias possiveis", Cyber.GREEN))
     elif result.overall_status == "warning":
-        print(color("  [!] Email security com problemas — revise a configuracao", Cyber.YELLOW))
+        print(
+            color(
+                "  [!] Email security com problemas — revise a configuracao",
+                Cyber.YELLOW,
+            )
+        )
     elif result.overall_status == "critical":
-        print(color("  [-] Email security critico — vulneravel a spoofing", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                "  [-] Email security critico — vulneravel a spoofing",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
     else:
         print(color("  [-] Nenhum registro de email security encontrado", Cyber.RED))
 
@@ -407,7 +461,9 @@ def main() -> int:
         prompt="secemail> ",
         description="Email Security interativo — verifica DMARC/SPF/DKIM.",
         example="example.com --selectors default,google",
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"
+        ),
     )
 
 

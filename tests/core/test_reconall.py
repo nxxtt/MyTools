@@ -27,7 +27,9 @@ def _domain_ns(domain: str = "example.com", **overrides: object) -> argparse.Nam
     return ns
 
 
-def _url_ns(url: str = "https://example.com", **overrides: object) -> argparse.Namespace:
+def _url_ns(
+    url: str = "https://example.com", **overrides: object
+) -> argparse.Namespace:
     """Constrói Namespace base para uma URL sem rodar run_all()."""
     parser = build_parser()
     args = parser.parse_args([url])
@@ -93,7 +95,9 @@ class TestBuildParser:
 
     def test_skip_module(self):
         parser = build_parser()
-        args = parser.parse_args(["example.com", "--skip", "dnstransfer", "--skip", "subenum"])
+        args = parser.parse_args(
+            ["example.com", "--skip", "dnstransfer", "--skip", "subenum"]
+        )
         assert "dnstransfer" in args.skip
         assert "subenum" in args.skip
 
@@ -145,14 +149,21 @@ class TestRunAll:
     def test_runs_portscanner_for_domain(self):
         parser = build_parser()
         args = parser.parse_args(["example.com", *_skip_all_except("portscanner")])
-        with patch("mytools.core.reconall.portscanner.run_once", return_value=0) as mock_fn:
+        with patch(
+            "mytools.core.reconall.portscanner.run_once", return_value=0
+        ) as mock_fn:
             result = run_all(args)
             assert result == 0
             mock_fn.assert_called_once()
 
     def test_runs_all_http_for_url(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", *_skip_all_except("dirscanner", "webrecon", "attackaudit")])
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                *_skip_all_except("dirscanner", "webrecon", "attackaudit"),
+            ]
+        )
         with (
             patch("mytools.core.reconall.dirscanner.run_once", return_value=0),
             patch("mytools.core.reconall.webrecon.run_once", return_value=0),
@@ -163,7 +174,9 @@ class TestRunAll:
 
     def test_skips_specified_modules(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", *_skip_all_except("attackaudit")])
+        args = parser.parse_args(
+            ["https://example.com", *_skip_all_except("attackaudit")]
+        )
         with (
             patch("mytools.core.reconall.attackaudit.run_once", return_value=0),
             patch("mytools.core.reconall.dirscanner.run_once") as mock_dir,
@@ -185,10 +198,18 @@ class TestRunAll:
 
     def test_passes_deep_flag(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", *_skip_all_except("dirscanner", "webrecon", "attackaudit"), "--deep"])
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                *_skip_all_except("dirscanner", "webrecon", "attackaudit"),
+                "--deep",
+            ]
+        )
         with (
             patch("mytools.core.reconall.dirscanner.run_once", return_value=0),
-            patch("mytools.core.reconall.webrecon.run_once", return_value=0) as mock_web,
+            patch(
+                "mytools.core.reconall.webrecon.run_once", return_value=0
+            ) as mock_web,
             patch("mytools.core.reconall.attackaudit.run_once", return_value=0),
         ):
             run_all(args)
@@ -198,17 +219,33 @@ class TestRunAll:
 
 class TestNamespaceConstruction:
     def test_portscanner_has_threads(self):
-        ns = _make_args("example.com", {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com",
+            {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
+            _domain_ns(),
+        )
         assert hasattr(ns, "threads")
         assert ns.threads is None
 
     def test_portscanner_has_workers(self):
-        ns = _make_args("example.com", {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com",
+            {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
+            _domain_ns(),
+        )
         assert hasattr(ns, "workers")
         assert ns.workers == 100
 
     def test_dirscanner_has_required_attrs(self):
-        ns = _make_args("https://example.com", {"url": "https://example.com", "extensions": ["php", "txt", "bak", "html"], "output": None}, _url_ns())
+        ns = _make_args(
+            "https://example.com",
+            {
+                "url": "https://example.com",
+                "extensions": ["php", "txt", "bak", "html"],
+                "output": None,
+            },
+            _url_ns(),
+        )
         for attr in (
             "user_agent",
             "proxy",
@@ -228,61 +265,136 @@ class TestNamespaceConstruction:
             assert hasattr(ns, attr), f"dirscanner missing attribute: {attr}"
 
     def test_dirscanner_extensions_is_list(self):
-        ns = _make_args("https://example.com", {"url": "https://example.com", "extensions": ["php", "txt", "bak", "html"], "output": None}, _url_ns())
+        ns = _make_args(
+            "https://example.com",
+            {
+                "url": "https://example.com",
+                "extensions": ["php", "txt", "bak", "html"],
+                "output": None,
+            },
+            _url_ns(),
+        )
         assert isinstance(ns.extensions, list)
         assert ns.extensions == ["php", "txt", "bak", "html"]
 
     def test_webrecon_has_required_attrs(self):
-        ns = _make_args("https://example.com", {"url": "https://example.com", "cve": False, "deep": False, "output": None}, _url_ns())
-        for attr in ("user_agent", "proxy", "cve", "deep", "crawl_limit", "nvd_api_key"):
+        ns = _make_args(
+            "https://example.com",
+            {"url": "https://example.com", "cve": False, "deep": False, "output": None},
+            _url_ns(),
+        )
+        for attr in (
+            "user_agent",
+            "proxy",
+            "cve",
+            "deep",
+            "crawl_limit",
+            "nvd_api_key",
+        ):
             assert hasattr(ns, attr), f"webrecon missing attribute: {attr}"
 
     def test_attackaudit_has_required_attrs(self):
         ns = _make_args(
-            "https://example.com", {"url": "https://example.com", "deep": False, "test_vulns": False, "test_methods": False, "output": None}, _url_ns()
+            "https://example.com",
+            {
+                "url": "https://example.com",
+                "deep": False,
+                "test_vulns": False,
+                "test_methods": False,
+                "output": None,
+            },
+            _url_ns(),
         )
-        for attr in ("user_agent", "proxy", "delay", "concurrency", "deep", "test_vulns", "test_methods", "paths_file", "params"):
+        for attr in (
+            "user_agent",
+            "proxy",
+            "delay",
+            "concurrency",
+            "deep",
+            "test_vulns",
+            "test_methods",
+            "paths_file",
+            "params",
+        ):
             assert hasattr(ns, attr), f"attackaudit missing attribute: {attr}"
 
     def test_subenum_has_threads(self):
-        ns = _make_args("example.com", {"domain": "example.com", "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
+        )
         assert hasattr(ns, "threads")
         assert ns.threads is None or isinstance(ns.threads, int)
 
     def test_portscanner_ports_is_list(self):
-        ns = _make_args("example.com", {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com",
+            {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
+            _domain_ns(),
+        )
         assert isinstance(ns.ports, list)
         assert all(isinstance(p, int) for p in ns.ports)
 
     def test_portscanner_default_ports_count(self):
-        ns = _make_args("example.com", {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com",
+            {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
+            _domain_ns(),
+        )
         assert len(ns.ports) == len(TOP_100_PORTS)
 
     def test_portscanner_custom_ports(self):
-        ns = _make_args("example.com", {"targets": ["example.com"], "ports": [22, 80, 443], "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com",
+            {"targets": ["example.com"], "ports": [22, 80, 443], "output": None},
+            _domain_ns(),
+        )
         assert ns.ports == [22, 80, 443]
 
     def test_http_modules_user_agent_not_none(self):
-        ns = _make_args("https://example.com", {"url": "https://example.com", "cve": False, "deep": False, "output": None}, _url_ns())
+        ns = _make_args(
+            "https://example.com",
+            {"url": "https://example.com", "cve": False, "deep": False, "output": None},
+            _url_ns(),
+        )
         assert ns.user_agent is not None
         assert "MyTools/" in ns.user_agent
 
     def test_portscanner_has_output(self):
-        ns = _make_args("example.com", {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": "results/portscanner.json"}, _domain_ns())
+        ns = _make_args(
+            "example.com",
+            {
+                "targets": ["example.com"],
+                "ports": TOP_100_PORTS,
+                "output": "results/portscanner.json",
+            },
+            _domain_ns(),
+        )
         assert ns.output is not None
         assert "portscanner" in ns.output
 
     def test_dnshistory_runs_for_domain(self):
-        ns = _make_args("example.com", {"domain": "example.com", "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
+        )
         assert ns.domain == "example.com"
 
     def test_dnshistory_runs_for_url(self):
-        ns = _make_args("example.com", {"domain": "example.com", "output": None}, _url_ns())
+        ns = _make_args(
+            "example.com", {"domain": "example.com", "output": None}, _url_ns()
+        )
         assert ns.domain == "example.com"
 
     def test_dnshistory_has_required_attrs(self):
-        ns = _make_args("example.com", {"domain": "example.com", "output": None}, _domain_ns())
-        for attr in ("source", "record_types", "dnslytics_key", "st_api_key", "viewdns_key"):
+        ns = _make_args(
+            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
+        )
+        for attr in (
+            "source",
+            "record_types",
+            "dnslytics_key",
+            "st_api_key",
+            "viewdns_key",
+        ):
             assert hasattr(ns, attr), f"dnshistory missing attribute: {attr}"
 
     def test_whoishistory_in_all_modules(self):
@@ -294,15 +406,21 @@ class TestNamespaceConstruction:
         assert "whoishistory" in args.skip
 
     def test_whoishistory_runs_for_domain(self):
-        ns = _make_args("example.com", {"domain": "example.com", "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
+        )
         assert ns.domain == "example.com"
 
     def test_whoishistory_runs_for_url(self):
-        ns = _make_args("example.com", {"domain": "example.com", "output": None}, _url_ns())
+        ns = _make_args(
+            "example.com", {"domain": "example.com", "output": None}, _url_ns()
+        )
         assert ns.domain == "example.com"
 
     def test_whoishistory_has_required_attrs(self):
-        ns = _make_args("example.com", {"domain": "example.com", "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
+        )
         for attr in ("st_api_key", "whoisxml_key", "source"):
             assert hasattr(ns, attr), f"whoishistory missing attribute: {attr}"
 
@@ -315,15 +433,21 @@ class TestNamespaceConstruction:
         assert "ipasninfo" in args.skip
 
     def test_ipasninfo_runs_for_domain(self):
-        ns = _make_args("example.com", {"ips": ["example.com"], "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com", {"ips": ["example.com"], "output": None}, _domain_ns()
+        )
         assert hasattr(ns, "ips")
 
     def test_ipasninfo_runs_for_url(self):
-        ns = _make_args("example.com", {"ips": ["example.com"], "output": None}, _url_ns())
+        ns = _make_args(
+            "example.com", {"ips": ["example.com"], "output": None}, _url_ns()
+        )
         assert hasattr(ns, "ips")
 
     def test_ipasninfo_has_required_attrs(self):
-        ns = _make_args("example.com", {"ips": ["example.com"], "output": None}, _domain_ns())
+        ns = _make_args(
+            "example.com", {"ips": ["example.com"], "output": None}, _domain_ns()
+        )
         for attr in ("ips", "output"):
             assert hasattr(ns, attr), f"ipasninfo missing attribute: {attr}"
 
@@ -336,11 +460,19 @@ class TestNamespaceConstruction:
         assert "techfingerprint" in args.skip
 
     def test_techfingerprint_runs_for_url(self):
-        ns = _make_args("https://example.com", {"urls": ["https://example.com"], "output": None}, _url_ns())
+        ns = _make_args(
+            "https://example.com",
+            {"urls": ["https://example.com"], "output": None},
+            _url_ns(),
+        )
         assert hasattr(ns, "urls")
 
     def test_techfingerprint_has_required_attrs(self):
-        ns = _make_args("https://example.com", {"urls": ["https://example.com"], "output": None}, _url_ns())
+        ns = _make_args(
+            "https://example.com",
+            {"urls": ["https://example.com"], "output": None},
+            _url_ns(),
+        )
         assert hasattr(ns, "urls")
         assert hasattr(ns, "output")
 
@@ -370,7 +502,9 @@ class TestAuthArgs:
 
     def test_header_multiple(self):
         parser = build_parser()
-        args = parser.parse_args(["example.com", "--header", "X-A: 1", "--header", "X-B: 2"])
+        args = parser.parse_args(
+            ["example.com", "--header", "X-A: 1", "--header", "X-B: 2"]
+        )
         assert args.header == ["X-A: 1", "X-B: 2"]
 
     def test_auth_defaults_none(self):
@@ -387,10 +521,21 @@ class TestAuthPropagated:
 
     def test_bearer_token_propagated_to_http_modules(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--bearer-token", "tok_abc", *_skip_all_except("webrecon", "attackaudit")])
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--bearer-token",
+                "tok_abc",
+                *_skip_all_except("webrecon", "attackaudit"),
+            ]
+        )
         with (
-            patch("mytools.core.reconall.webrecon.run_once", return_value=0) as mock_web,
-            patch("mytools.core.reconall.attackaudit.run_once", return_value=0) as mock_audit,
+            patch(
+                "mytools.core.reconall.webrecon.run_once", return_value=0
+            ) as mock_web,
+            patch(
+                "mytools.core.reconall.attackaudit.run_once", return_value=0
+            ) as mock_audit,
         ):
             run_all(args)
             for mock_fn in (mock_web, mock_audit):
@@ -399,10 +544,21 @@ class TestAuthPropagated:
 
     def test_auth_propagated_to_http_modules(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--auth", "admin:s3cret", *_skip_all_except("webrecon", "attackaudit")])
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--auth",
+                "admin:s3cret",
+                *_skip_all_except("webrecon", "attackaudit"),
+            ]
+        )
         with (
-            patch("mytools.core.reconall.webrecon.run_once", return_value=0) as mock_web,
-            patch("mytools.core.reconall.attackaudit.run_once", return_value=0) as mock_audit,
+            patch(
+                "mytools.core.reconall.webrecon.run_once", return_value=0
+            ) as mock_web,
+            patch(
+                "mytools.core.reconall.attackaudit.run_once", return_value=0
+            ) as mock_audit,
         ):
             run_all(args)
             for mock_fn in (mock_web, mock_audit):
@@ -411,16 +567,34 @@ class TestAuthPropagated:
 
     def test_cookie_propagated(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--cookie", "sid=xyz", *_skip_all_except("webrecon")])
-        with patch("mytools.core.reconall.webrecon.run_once", return_value=0) as mock_web:
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--cookie",
+                "sid=xyz",
+                *_skip_all_except("webrecon"),
+            ]
+        )
+        with patch(
+            "mytools.core.reconall.webrecon.run_once", return_value=0
+        ) as mock_web:
             run_all(args)
             ns = mock_web.call_args[0][0]
             assert ns.cookie == "sid=xyz"
 
     def test_header_propagated(self):
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "--header", "X-Custom: val", *_skip_all_except("attackaudit")])
-        with patch("mytools.core.reconall.attackaudit.run_once", return_value=0) as mock_audit:
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--header",
+                "X-Custom: val",
+                *_skip_all_except("attackaudit"),
+            ]
+        )
+        with patch(
+            "mytools.core.reconall.attackaudit.run_once", return_value=0
+        ) as mock_audit:
             run_all(args)
             ns = mock_audit.call_args[0][0]
             assert ns.header == ["X-Custom: val"]
@@ -428,7 +602,9 @@ class TestAuthPropagated:
     def test_auth_none_does_not_override_defaults(self):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", *_skip_all_except("webrecon")])
-        with patch("mytools.core.reconall.webrecon.run_once", return_value=0) as mock_web:
+        with patch(
+            "mytools.core.reconall.webrecon.run_once", return_value=0
+        ) as mock_web:
             run_all(args)
             ns = mock_web.call_args[0][0]
             assert ns.auth is None

@@ -164,7 +164,9 @@ class MobileAuditScanner(BaseScanner):
         # Run checks
         for check in checks_to_run:
             try:
-                attempt = _run_check(check, file_path, platform, idp, client_id, client_secret, jwt_token)
+                attempt = _run_check(
+                    check, file_path, platform, idp, client_id, client_secret, jwt_token
+                )
                 all_attempts.append(attempt)
                 if attempt.error:
                     issues.append(f"{check}: {attempt.error}")
@@ -191,7 +193,10 @@ class MobileAuditScanner(BaseScanner):
         print()
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Mobile API Testing")
         print(color("[*]", Cyber.CYAN), f"File: {result.target}")
-        print(color("[*]", Cyber.CYAN), f"Platform: {result.platform} ({result.file_size} bytes)")
+        print(
+            color("[*]", Cyber.CYAN),
+            f"Platform: {result.platform} ({result.file_size} bytes)",
+        )
         print()
 
         if result.issues:
@@ -202,11 +207,16 @@ class MobileAuditScanner(BaseScanner):
 
         for attempt in result.attempts:
             if attempt.vulnerable:
-                print(color("[!]", Cyber.RED, Cyber.BOLD), f"{attempt.check}: VULNERABLE")
+                print(
+                    color("[!]", Cyber.RED, Cyber.BOLD), f"{attempt.check}: VULNERABLE"
+                )
                 for finding in attempt.findings[:10]:
                     print(color("    [-]", Cyber.RED), finding)
             elif attempt.findings:
-                print(color("[*]", Cyber.CYAN), f"{attempt.check}: {len(attempt.findings)} finding(s)")
+                print(
+                    color("[*]", Cyber.CYAN),
+                    f"{attempt.check}: {len(attempt.findings)} finding(s)",
+                )
                 for finding in attempt.findings[:5]:
                     print(color("    [-]", Cyber.CYAN), finding)
             else:
@@ -214,7 +224,10 @@ class MobileAuditScanner(BaseScanner):
 
         print()
         if result.overall_status == "vulnerable":
-            print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Security issues found!")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                "VULNERABLE — Security issues found!",
+            )
         else:
             print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No issues detected")
         print()
@@ -266,11 +279,15 @@ def _run_check(
                 error=data["error"],
             )
         findings.append(f"Package: {data.get('package', '')}")
-        findings.append(f"Version: {data.get('version_name', '')} ({data.get('version_code', '')})")
+        findings.append(
+            f"Version: {data.get('version_name', '')} ({data.get('version_code', '')})"
+        )
         findings.append(f"Target SDK: {data.get('target_sdk', '')}")
         findings.append(f"Min SDK: {data.get('min_sdk', '')}")
         findings.append(f"Permissions: {data.get('permissions_count', 0)}")
-        findings.append(f"Exported: {len(data.get('activities', []))} activities, {len(data.get('services', []))} services")
+        findings.append(
+            f"Exported: {len(data.get('activities', []))} activities, {len(data.get('services', []))} services"
+        )
         if data.get("sdk_fingerprints"):
             findings.append(f"SDKs: {', '.join(data['sdk_fingerprints'])}")
         return MobileAttempt(
@@ -327,7 +344,12 @@ def _run_check(
         from mytools.mobile.apk_secrets import detect_secrets
 
         data = detect_secrets(file_path)
-        findings = [f"{f['pattern']}: {f['value'][:40]}..." if len(f["value"]) > 40 else f"{f['pattern']}: {f['value']}" for f in data.get("findings", [])]
+        findings = [
+            f"{f['pattern']}: {f['value'][:40]}..."
+            if len(f["value"]) > 40
+            else f"{f['pattern']}: {f['value']}"
+            for f in data.get("findings", [])
+        ]
         return MobileAttempt(
             technique="secrets",
             platform="android",
@@ -379,7 +401,9 @@ def _run_check(
         findings.append(f"Methods: {data['total_methods']}")
         findings.append(f"Strings: {data['total_strings']}")
         for dex in data["dex_files"]:
-            findings.append(f"  DEX#{dex['index']}: {dex['class_count']} classes, {dex['method_count']} methods")
+            findings.append(
+                f"  DEX#{dex['index']}: {dex['class_count']} classes, {dex['method_count']} methods"
+            )
         return MobileAttempt(
             technique="dex_layer",
             platform="android",
@@ -399,7 +423,9 @@ def _run_check(
         if data["truncated"]:
             findings.append("(output truncated - use class_filter to focus)")
         for m in data["methods"][:5]:
-            findings.append(f"  {m['class_name']}->{m['method_name']}: {m['instruction_count']} insns")
+            findings.append(
+                f"  {m['class_name']}->{m['method_name']}: {m['instruction_count']} insns"
+            )
         return MobileAttempt(
             technique="dalvik_disasm",
             platform="android",
@@ -407,7 +433,9 @@ def _run_check(
             file_path=file_path,
             vulnerable=False,
             findings=findings,
-            details=(f"{data['total_methods']} methods, {data['total_instructions']} instructions"),
+            details=(
+                f"{data['total_methods']} methods, {data['total_instructions']} instructions"
+            ),
         )
 
     if check == "apk_decompile":
@@ -419,7 +447,9 @@ def _run_check(
         if data["truncated"]:
             findings.append("(output truncated - use class_filter to focus)")
         for cls in data["classes"][:5]:
-            findings.append(f"  {cls['class_name']}: {cls['line_count']} lines, {cls['method_count']} methods")
+            findings.append(
+                f"  {cls['class_name']}: {cls['line_count']} lines, {cls['method_count']} methods"
+            )
         return MobileAttempt(
             technique="java_decompile",
             platform="android",
@@ -509,7 +539,12 @@ def _run_check(
         from mytools.mobile.ipa_secrets import detect_ipa_secrets
 
         data = detect_ipa_secrets(file_path)
-        findings = [f"{f['pattern']}: {f['value'][:40]}..." if len(f["value"]) > 40 else f"{f['pattern']}: {f['value']}" for f in data.get("findings", [])]
+        findings = [
+            f"{f['pattern']}: {f['value'][:40]}..."
+            if len(f["value"]) > 40
+            else f"{f['pattern']}: {f['value']}"
+            for f in data.get("findings", [])
+        ]
         return MobileAttempt(
             technique="secrets",
             platform="ios",

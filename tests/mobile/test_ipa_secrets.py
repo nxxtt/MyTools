@@ -17,7 +17,10 @@ class TestDetectIpaSecrets:
     def test_empty_ipa(self, tmp_path) -> None:
         ipa_path = tmp_path / "clean.ipa"
         with zipfile.ZipFile(str(ipa_path), "w") as zf:
-            zf.writestr("Payload/Test.app/Info.plist", plistlib.dumps({"CFBundleIdentifier": "com.test"}))
+            zf.writestr(
+                "Payload/Test.app/Info.plist",
+                plistlib.dumps({"CFBundleIdentifier": "com.test"}),
+            )
         result = detect_ipa_secrets(str(ipa_path))
         assert result["total_secrets"] == 0
 
@@ -37,7 +40,10 @@ class TestDetectIpaSecrets:
     def test_aws_key_in_binary(self, tmp_path) -> None:
         ipa_path = tmp_path / "aws.ipa"
         with zipfile.ZipFile(str(ipa_path), "w") as zf:
-            zf.writestr("Payload/Test.app/Info.plist", plistlib.dumps({"CFBundleIdentifier": "com.test"}))
+            zf.writestr(
+                "Payload/Test.app/Info.plist",
+                plistlib.dumps({"CFBundleIdentifier": "com.test"}),
+            )
             zf.writestr("Payload/Test.app/binary", b"AKIAIOSFODNN7EXAMPLE")
         result = detect_ipa_secrets(str(ipa_path))
         assert result["total_secrets"] > 0
@@ -45,8 +51,14 @@ class TestDetectIpaSecrets:
     def test_deduplication(self, tmp_path) -> None:
         ipa_path = tmp_path / "dedup.ipa"
         with zipfile.ZipFile(str(ipa_path), "w") as zf:
-            zf.writestr("Payload/Test.app/Info.plist", plistlib.dumps({"CFBundleIdentifier": "com.test"}))
-            zf.writestr("Payload/Test.app/binary", b"AKIAIOSFODNN7EXAMPLE here and AKIAIOSFODNN7EXAMPLE there")
+            zf.writestr(
+                "Payload/Test.app/Info.plist",
+                plistlib.dumps({"CFBundleIdentifier": "com.test"}),
+            )
+            zf.writestr(
+                "Payload/Test.app/binary",
+                b"AKIAIOSFODNN7EXAMPLE here and AKIAIOSFODNN7EXAMPLE there",
+            )
         result = detect_ipa_secrets(str(ipa_path))
         aws_count = sum(1 for f in result["findings"] if "AWS" in f["pattern"])
         assert aws_count == 1

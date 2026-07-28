@@ -28,7 +28,13 @@ class TestCategoryMap:
         assert len(_CATEGORY_MAP) == 5
 
     def test_categories_are_correct(self) -> None:
-        expected = {"jndi_basic", "jndi_obfuscated", "header_injection", "data_exfil", "bypass"}
+        expected = {
+            "jndi_basic",
+            "jndi_obfuscated",
+            "header_injection",
+            "data_exfil",
+            "bypass",
+        }
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_all_categories_have_5_techniques(self) -> None:
@@ -123,7 +129,9 @@ class TestBaseline:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        status, size, _headers, body = await _test_baseline(mock_client, "https://test.com")
+        status, size, _headers, body = await _test_baseline(
+            mock_client, "https://test.com"
+        )
         assert status == 200
         assert size == 2
         assert body == b"ok"
@@ -137,7 +145,9 @@ class TestBaseline:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        status, size, headers, body = await _test_baseline(mock_client, "https://test.com")
+        status, size, headers, body = await _test_baseline(
+            mock_client, "https://test.com"
+        )
         assert status == 0
         assert size == 0
         assert headers == {}
@@ -329,7 +339,14 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "jndi_basic", "jndi_obfuscated", "header_injection", "data_exfil", "bypass"]:
+        for cat in [
+            "all",
+            "jndi_basic",
+            "jndi_obfuscated",
+            "header_injection",
+            "data_exfil",
+            "bypass",
+        ]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 

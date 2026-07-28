@@ -6,7 +6,12 @@ import httpx
 import pytest
 import respx
 
-from mytools.core.utils import RateLimiter, normalize_url, parse_auth, parse_extra_headers
+from mytools.core.utils import (
+    RateLimiter,
+    normalize_url,
+    parse_auth,
+    parse_extra_headers,
+)
 from mytools.network.dirscanner import (
     DEFAULT_PATHS,
     DEFAULT_STATUSES,
@@ -27,20 +32,46 @@ from mytools.network.dirscanner import (
 
 class TestNormalizeBaseUrl:
     def test_adds_http_scheme(self):
-        assert normalize_url("example.com", default_scheme="http", ensure_trailing_slash=True) == "http://example.com/"
+        assert (
+            normalize_url(
+                "example.com", default_scheme="http", ensure_trailing_slash=True
+            )
+            == "http://example.com/"
+        )
 
     def test_keeps_https(self):
-        assert normalize_url("https://example.com", default_scheme="http", ensure_trailing_slash=True) == "https://example.com/"
+        assert (
+            normalize_url(
+                "https://example.com", default_scheme="http", ensure_trailing_slash=True
+            )
+            == "https://example.com/"
+        )
 
     def test_strips_trailing_slash_then_adds(self):
-        assert normalize_url("https://example.com/", default_scheme="http", ensure_trailing_slash=True) == "https://example.com/"
+        assert (
+            normalize_url(
+                "https://example.com/",
+                default_scheme="http",
+                ensure_trailing_slash=True,
+            )
+            == "https://example.com/"
+        )
 
     def test_preserves_path(self):
-        assert normalize_url("https://example.com/app", default_scheme="http", ensure_trailing_slash=True) == "https://example.com/app/"
+        assert (
+            normalize_url(
+                "https://example.com/app",
+                default_scheme="http",
+                ensure_trailing_slash=True,
+            )
+            == "https://example.com/app/"
+        )
 
     def test_invalid_scheme_raises(self):
         with pytest.raises(ValueError):
-            normalize_url("ftp://example.com", default_scheme="http", ensure_trailing_slash=True)
+            normalize_url(
+                "ftp://example.com", default_scheme="http", ensure_trailing_slash=True
+            )
 
     def test_empty_netloc_raises(self):
         with pytest.raises(ValueError):
@@ -159,27 +190,39 @@ class TestParseExtraHeaders:
 
 class TestMatchesFilter:
     def test_no_filter_passes(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=10, title="")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=100, words=10, title=""
+        )
         assert matches_filter(f, None, None) is True
 
     def test_size_within_range(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=500, words=10, title="")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=500, words=10, title=""
+        )
         assert matches_filter(f, (100, 1000), None) is True
 
     def test_size_outside_range(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=50, words=10, title="")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=50, words=10, title=""
+        )
         assert matches_filter(f, (100, 1000), None) is False
 
     def test_words_within_range(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=50, title="")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=100, words=50, title=""
+        )
         assert matches_filter(f, None, (10, 100)) is True
 
     def test_words_outside_range(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=5, title="")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=100, words=5, title=""
+        )
         assert matches_filter(f, None, (10, 100)) is False
 
     def test_both_filters(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=500, words=50, title="")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=500, words=50, title=""
+        )
         assert matches_filter(f, (100, 1000), (10, 100)) is True
         assert matches_filter(f, (100, 1000), (60, 100)) is False
 
@@ -320,18 +363,30 @@ class TestDefaultStatuses:
 
 class TestFindingDataclass:
     def test_creation(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T"
+        )
         assert f.status == 200
         assert f.location == ""
         assert f.method == "GET"
 
     def test_frozen(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T")
+        f = Finding(
+            url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T"
+        )
         with pytest.raises(AttributeError):
             f.status = 404  # type: ignore[reportAttributeAccessIssue]
 
     def test_custom_method(self):
-        f = Finding(url="http://x.com/a", path="/a", status=200, size=100, words=5, title="T", method="POST")
+        f = Finding(
+            url="http://x.com/a",
+            path="/a",
+            status=200,
+            size=100,
+            words=5,
+            title="T",
+            method="POST",
+        )
         assert f.method == "POST"
 
 
@@ -339,10 +394,18 @@ class TestScanPath:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_finding_on_match(self, async_client):
-        respx.get("http://example.com/admin").mock(return_value=httpx.Response(200, content=b"<title>Admin</title>", headers={"Content-Type": "text/html"}))
+        respx.get("http://example.com/admin").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"<title>Admin</title>",
+                headers={"Content-Type": "text/html"},
+            )
+        )
         client = async_client
         limiter = RateLimiter()
-        result = await scan_path(client, limiter, "http://example.com/", "admin", 5.0, {200})
+        result = await scan_path(
+            client, limiter, "http://example.com/", "admin", 5.0, {200}
+        )
         assert result is not None
         assert result.status == 200
         assert result.path == "/admin"
@@ -350,28 +413,40 @@ class TestScanPath:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_none_on_status_mismatch(self, async_client):
-        respx.get("http://example.com/admin").mock(return_value=httpx.Response(404, text="not found"))
+        respx.get("http://example.com/admin").mock(
+            return_value=httpx.Response(404, text="not found")
+        )
         client = async_client
         limiter = RateLimiter()
-        result = await scan_path(client, limiter, "http://example.com/", "admin", 5.0, {200})
+        result = await scan_path(
+            client, limiter, "http://example.com/", "admin", 5.0, {200}
+        )
         assert result is None
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_none_on_connection_error(self, async_client):
-        respx.get("http://example.com/admin").mock(side_effect=httpx.ConnectError("refused"))
+        respx.get("http://example.com/admin").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
         client = async_client
         limiter = RateLimiter()
-        result = await scan_path(client, limiter, "http://example.com/", "admin", 5.0, {200})
+        result = await scan_path(
+            client, limiter, "http://example.com/", "admin", 5.0, {200}
+        )
         assert result is None
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_custom_method(self, async_client):
-        respx.post("http://example.com/api").mock(return_value=httpx.Response(200, json={"ok": True}))
+        respx.post("http://example.com/api").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
         client = async_client
         limiter = RateLimiter()
-        result = await scan_path(client, limiter, "http://example.com/", "api", 5.0, {200}, method="POST")
+        result = await scan_path(
+            client, limiter, "http://example.com/", "api", 5.0, {200}, method="POST"
+        )
         assert result is not None
         assert result.method == "POST"
 
@@ -430,7 +505,15 @@ class TestBuildParser:
 
     def test_has_header_argument(self):
         parser = build_parser()
-        args = parser.parse_args(["http://example.com", "--header", "X-Token: abc", "--header", "X-Custom: xyz"])
+        args = parser.parse_args(
+            [
+                "http://example.com",
+                "--header",
+                "X-Token: abc",
+                "--header",
+                "X-Custom: xyz",
+            ]
+        )
         assert args.header == ["X-Token: abc", "X-Custom: xyz"]
 
     def test_has_filter_size_argument(self):
@@ -463,9 +546,13 @@ class TestScanPathEdgeCases:
     @respx.mock
     @pytest.mark.asyncio
     async def test_connection_refused_returns_none(self, async_client):
-        respx.get("https://example.com/secret").mock(side_effect=httpx.ConnectError("refused"))
+        respx.get("https://example.com/secret").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
         rl = RateLimiter(0)
-        result = await scan_path(async_client, rl, "https://example.com/", "/secret", 1.0, {200, 301})
+        result = await scan_path(
+            async_client, rl, "https://example.com/", "/secret", 1.0, {200, 301}
+        )
         assert result is None
 
     @respx.mock
@@ -476,23 +563,33 @@ class TestScanPathEdgeCases:
 
         respx.get("https://example.com/slow").mock(side_effect=handler)
         rl = RateLimiter(0)
-        result = await scan_path(async_client, rl, "https://example.com/", "/slow", 0.1, {200})
+        result = await scan_path(
+            async_client, rl, "https://example.com/", "/slow", 0.1, {200}
+        )
         assert result is None
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_empty_path_probes_root(self, async_client):
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text="root"))
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="root")
+        )
         rl = RateLimiter(0)
-        result = await scan_path(async_client, rl, "https://example.com", "", 1.0, {200})
+        result = await scan_path(
+            async_client, rl, "https://example.com", "", 1.0, {200}
+        )
         assert result is None or result.path == "/"
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_403_returns_finding_when_in_statuses(self, async_client):
-        respx.get("https://example.com/admin").mock(return_value=httpx.Response(403, text="forbidden"))
+        respx.get("https://example.com/admin").mock(
+            return_value=httpx.Response(403, text="forbidden")
+        )
         rl = RateLimiter(0)
-        result = await scan_path(async_client, rl, "https://example.com/", "/admin", 1.0, {200, 403})
+        result = await scan_path(
+            async_client, rl, "https://example.com/", "/admin", 1.0, {200, 403}
+        )
         assert result is not None
         assert result.status == 403
 
@@ -500,9 +597,13 @@ class TestScanPathEdgeCases:
     @pytest.mark.asyncio
     async def test_large_body_handled(self, async_client):
         body = "x" * 500_000
-        respx.get("https://example.com/big").mock(return_value=httpx.Response(200, text=body))
+        respx.get("https://example.com/big").mock(
+            return_value=httpx.Response(200, text=body)
+        )
         rl = RateLimiter(0)
-        result = await scan_path(async_client, rl, "https://example.com/", "/big", 5.0, {200})
+        result = await scan_path(
+            async_client, rl, "https://example.com/", "/big", 5.0, {200}
+        )
         assert result is not None
         assert result.size >= 500_000
 
@@ -559,7 +660,10 @@ class TestMain:
             dry_run=False,
             verify=False,
         )
-        with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.dirscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 0
             mock_shell.assert_called_once()
@@ -588,7 +692,10 @@ class TestMain:
             dry_run=False,
             verify=False,
         )
-        with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.dirscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1
 
@@ -618,7 +725,10 @@ class TestMain:
             dry_run=False,
             verify=False,
         )
-        with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.dirscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 0
             mock_run_once.assert_called_once()
@@ -649,6 +759,9 @@ class TestMain:
             dry_run=False,
             verify=False,
         )
-        with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
+        with patch(
+            "mytools.network.dirscanner.argparse.ArgumentParser.parse_args",
+            return_value=args,
+        ):
             result = main()
             assert result == 1

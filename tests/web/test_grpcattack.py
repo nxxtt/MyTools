@@ -102,7 +102,14 @@ class TestGrpcAttackResult:
 
 class TestCategoryMap:
     def test_all_categories_present(self) -> None:
-        expected = {"reflection", "server_streaming", "client_streaming", "bidirectional", "grpc_web", "protobuf"}
+        expected = {
+            "reflection",
+            "server_streaming",
+            "client_streaming",
+            "bidirectional",
+            "grpc_web",
+            "protobuf",
+        }
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_category_counts(self) -> None:
@@ -230,7 +237,9 @@ class TestCLI:
 
     def test_build_parser_with_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["grpc://target.com:50051", "-c", "reflection", "protobuf"])
+        args = parser.parse_args(
+            ["grpc://target.com:50051", "-c", "reflection", "protobuf"]
+        )
         assert args.categories == ["reflection", "protobuf"]
 
     def test_build_parser_all_choices(self) -> None:
@@ -252,7 +261,15 @@ async def test_category_dispatch_all_return_lists(_mock_try: object) -> None:
     respx.route().mock(return_value=httpx.Response(200, json={"data": {}}))
     reflection_info: dict[str, Any] = {"available": False, "services": [], "files": []}
     for cat, fn in _CATEGORY_DISPATCH.items():
-        result = await fn("target.com", 50051, "", 0.1, False, "grpc://target.com:50051", reflection_info)
+        result = await fn(
+            "target.com",
+            50051,
+            "",
+            0.1,
+            False,
+            "grpc://target.com:50051",
+            reflection_info,
+        )
         assert isinstance(result, list), f"{cat} did not return a list"
         assert len(result) > 0, f"{cat} returned empty list"
         for attempt in result:

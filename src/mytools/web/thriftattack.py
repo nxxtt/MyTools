@@ -135,8 +135,18 @@ class ThriftAttackResult:
 
 
 _CATEGORY_MAP: dict[str, list[str]] = {
-    "method_enumeration": ["service_enumeration", "method_discovery", "parameter_leak", "version_fingerprint"],
-    "binary_protocol": ["field_type_confusion", "collection_overflow", "string_encoding_abuse", "boolean_coercion"],
+    "method_enumeration": [
+        "service_enumeration",
+        "method_discovery",
+        "parameter_leak",
+        "version_fingerprint",
+    ],
+    "binary_protocol": [
+        "field_type_confusion",
+        "collection_overflow",
+        "string_encoding_abuse",
+        "boolean_coercion",
+    ],
 }
 
 
@@ -198,13 +208,20 @@ def _make_attempt(
     )
 
 
-async def _test_method_enumeration(host: str, port: int, timeout: float, tls: bool) -> list[ThriftAttackAttempt]:
+async def _test_method_enumeration(
+    host: str, port: int, timeout: float, tls: bool
+) -> list[ThriftAttackAttempt]:
 
     results: list[ThriftAttackAttempt] = []
 
     timeout_ms = min(int(timeout * 1000), 2000)
 
-    for tech in ("service_enumeration", "method_discovery", "parameter_leak", "version_fingerprint"):
+    for tech in (
+        "service_enumeration",
+        "method_discovery",
+        "parameter_leak",
+        "version_fingerprint",
+    ):
         try:
             if tech == "service_enumeration":
                 found: list[str] = []
@@ -213,14 +230,20 @@ async def _test_method_enumeration(host: str, port: int, timeout: float, tls: bo
                     try:
                         idl = f"namespace py {svc.lower()}_service\nservice {svc} {{ void ping(); }}\n"
 
-                        with tempfile.NamedTemporaryFile(mode="w", suffix=".thrift", delete=False) as f:
+                        with tempfile.NamedTemporaryFile(
+                            mode="w", suffix=".thrift", delete=False
+                        ) as f:
                             f.write(idl)
 
                             f.flush()
 
-                        mod = thriftpy2.load(f.name, module_name=f"{svc.lower()}_thrift")
+                        mod = thriftpy2.load(
+                            f.name, module_name=f"{svc.lower()}_thrift"
+                        )
 
-                        c = make_client(getattr(mod, svc), host=host, port=port, timeout=timeout_ms)
+                        c = make_client(
+                            getattr(mod, svc), host=host, port=port, timeout=timeout_ms
+                        )
 
                         c.ping()
 
@@ -239,7 +262,14 @@ async def _test_method_enumeration(host: str, port: int, timeout: float, tls: bo
                 det = f"Services: {', '.join(found[:5])}" if vuln else "No services"
 
             elif tech == "method_discovery":
-                methods = ["ping", "getStatus", "getData", "listMethods", "getVersion", "healthCheck"]
+                methods = [
+                    "ping",
+                    "getStatus",
+                    "getData",
+                    "listMethods",
+                    "getVersion",
+                    "healthCheck",
+                ]
 
                 found_m: list[str] = []
 
@@ -247,7 +277,12 @@ async def _test_method_enumeration(host: str, port: int, timeout: float, tls: bo
 
                 for m in methods:
                     try:
-                        c = make_client(thrift_mod.ProbeService, host=host, port=port, timeout=timeout_ms)
+                        c = make_client(
+                            thrift_mod.ProbeService,
+                            host=host,
+                            port=port,
+                            timeout=timeout_ms,
+                        )
 
                         fn = getattr(c, m, None)
 
@@ -270,7 +305,12 @@ async def _test_method_enumeration(host: str, port: int, timeout: float, tls: bo
 
             elif tech == "parameter_leak":
                 try:
-                    c = make_client(_create_probe_thrift().ProbeService, host=host, port=port, timeout=timeout_ms)
+                    c = make_client(
+                        _create_probe_thrift().ProbeService,
+                        host=host,
+                        port=port,
+                        timeout=timeout_ms,
+                    )
 
                     c.getData("nonexistent_key_abc123")
 
@@ -290,7 +330,12 @@ async def _test_method_enumeration(host: str, port: int, timeout: float, tls: bo
 
             elif tech == "version_fingerprint":
                 try:
-                    c = make_client(_create_probe_thrift().ProbeService, host=host, port=port, timeout=timeout_ms)
+                    c = make_client(
+                        _create_probe_thrift().ProbeService,
+                        host=host,
+                        port=port,
+                        timeout=timeout_ms,
+                    )
 
                     c.ping()
 
@@ -307,25 +352,53 @@ async def _test_method_enumeration(host: str, port: int, timeout: float, tls: bo
             else:
                 vuln, det = False, ""
 
-            results.append(_make_attempt(tech, "method_enumeration", tech, vuln, det, "", host, port))
+            results.append(
+                _make_attempt(
+                    tech, "method_enumeration", tech, vuln, det, "", host, port
+                )
+            )
 
         except Exception as exc:
-            results.append(_make_attempt(tech, "method_enumeration", tech, False, "", str(exc)[:100], host, port, 0))
+            results.append(
+                _make_attempt(
+                    tech,
+                    "method_enumeration",
+                    tech,
+                    False,
+                    "",
+                    str(exc)[:100],
+                    host,
+                    port,
+                    0,
+                )
+            )
 
     return results
 
 
-async def _test_binary_protocol(host: str, port: int, timeout: float, tls: bool) -> list[ThriftAttackAttempt]:
+async def _test_binary_protocol(
+    host: str, port: int, timeout: float, tls: bool
+) -> list[ThriftAttackAttempt]:
 
     results: list[ThriftAttackAttempt] = []
 
     timeout_ms = min(int(timeout * 1000), 2000)
 
-    for tech in ("field_type_confusion", "collection_overflow", "string_encoding_abuse", "boolean_coercion"):
+    for tech in (
+        "field_type_confusion",
+        "collection_overflow",
+        "string_encoding_abuse",
+        "boolean_coercion",
+    ):
         try:
             if tech == "field_type_confusion":
                 try:
-                    c = make_client(_create_probe_thrift().ProbeService, host=host, port=port, timeout=timeout_ms)
+                    c = make_client(
+                        _create_probe_thrift().ProbeService,
+                        host=host,
+                        port=port,
+                        timeout=timeout_ms,
+                    )
 
                     c.getData("test_field_type_confusion")
 
@@ -334,7 +407,10 @@ async def _test_binary_protocol(host: str, port: int, timeout: float, tls: bool)
                     c.close()
 
                 except TApplicationException as e:
-                    vuln = e.type in (TApplicationException.INVALID_MESSAGE_TYPE, TApplicationException.WRONG_METHOD_NAME)
+                    vuln = e.type in (
+                        TApplicationException.INVALID_MESSAGE_TYPE,
+                        TApplicationException.WRONG_METHOD_NAME,
+                    )
 
                     det = f"Type confusion: {e.type}"
 
@@ -345,7 +421,12 @@ async def _test_binary_protocol(host: str, port: int, timeout: float, tls: bool)
                 t0 = time.monotonic()
 
                 try:
-                    c = make_client(_create_probe_thrift().ProbeService, host=host, port=port, timeout=min(timeout_ms, 5000))
+                    c = make_client(
+                        _create_probe_thrift().ProbeService,
+                        host=host,
+                        port=port,
+                        timeout=min(timeout_ms, 5000),
+                    )
 
                     c.getData(str(["x" * 1000 for _ in range(10000)]))
 
@@ -360,13 +441,26 @@ async def _test_binary_protocol(host: str, port: int, timeout: float, tls: bool)
                 except Exception:
                     elapsed = time.monotonic() - t0
 
-                    vuln, det = elapsed > 2.0, f"Collection overflow timeout: {elapsed:.2f}s"
+                    vuln, det = (
+                        elapsed > 2.0,
+                        f"Collection overflow timeout: {elapsed:.2f}s",
+                    )
 
             elif tech == "string_encoding_abuse":
                 try:
-                    c = make_client(_create_probe_thrift().ProbeService, host=host, port=port, timeout=timeout_ms)
+                    c = make_client(
+                        _create_probe_thrift().ProbeService,
+                        host=host,
+                        port=port,
+                        timeout=timeout_ms,
+                    )
 
-                    for s in ["\xff\xfe\xfd", "A" * 100000, "\x00\x00\x00", "SELECT * FROM users"]:
+                    for s in [
+                        "\xff\xfe\xfd",
+                        "A" * 100000,
+                        "\x00\x00\x00",
+                        "SELECT * FROM users",
+                    ]:
                         with contextlib.suppress(Exception):
                             c.getData(s)
 
@@ -379,7 +473,12 @@ async def _test_binary_protocol(host: str, port: int, timeout: float, tls: bool)
 
             elif tech == "boolean_coercion":
                 try:
-                    c = make_client(_create_probe_thrift().ProbeService, host=host, port=port, timeout=timeout_ms)
+                    c = make_client(
+                        _create_probe_thrift().ProbeService,
+                        host=host,
+                        port=port,
+                        timeout=timeout_ms,
+                    )
 
                     c.isAlive()
 
@@ -396,15 +495,31 @@ async def _test_binary_protocol(host: str, port: int, timeout: float, tls: bool)
             else:
                 vuln, det = False, ""
 
-            results.append(_make_attempt(tech, "binary_protocol", tech, vuln, det, "", host, port))
+            results.append(
+                _make_attempt(tech, "binary_protocol", tech, vuln, det, "", host, port)
+            )
 
         except Exception as exc:
-            results.append(_make_attempt(tech, "binary_protocol", tech, False, "", str(exc)[:100], host, port, 0))
+            results.append(
+                _make_attempt(
+                    tech,
+                    "binary_protocol",
+                    tech,
+                    False,
+                    "",
+                    str(exc)[:100],
+                    host,
+                    port,
+                    0,
+                )
+            )
 
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[ThriftAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[ThriftAttackAttempt]]]
+] = {
     "method_enumeration": _test_method_enumeration,
     "binary_protocol": _test_binary_protocol,
 }
@@ -418,11 +533,17 @@ def print_results(result: ThriftAttackResult) -> None:
 
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
 
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
 
     print(color("[*]", Cyber.CYAN), f"Protocol: {result.protocol_detected}")
 
-    print(color("[*]", Cyber.CYAN), f"Services: {result.services_found} | Methods: {result.methods_found}")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Services: {result.services_found} | Methods: {result.methods_found}",
+    )
 
     print()
 
@@ -443,7 +564,10 @@ def print_results(result: ThriftAttackResult) -> None:
         vuln_in_cat = [a for a in attempts if a.vulnerable]
 
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
 
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
@@ -456,15 +580,23 @@ def print_results(result: ThriftAttackResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Thrift weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Thrift weaknesses detected!",
+        )
 
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Thrift configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Thrift configuration looks good",
+        )
 
     print()
 
 
-async def run_scan(target: str, categories: list[str] | None, timeout: float, output_file: str | None) -> ThriftAttackResult:
+async def run_scan(
+    target: str, categories: list[str] | None, timeout: float, output_file: str | None
+) -> ThriftAttackResult:
 
     host, _path, port, tls = _parse_url(target)
 
@@ -484,7 +616,11 @@ async def run_scan(target: str, categories: list[str] | None, timeout: float, ou
             all_attempts.extend(raw)
 
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], host, port, 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error", cat, "", False, "", str(e)[:100], host, port, 0
+                )
+            )
 
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
 
@@ -525,7 +661,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("url", help="URL alvo (thrift://target.com:9090)")
 
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
 
     add_common_args(parser)
 
@@ -536,7 +678,10 @@ def run_once(args: argparse.Namespace) -> int:
 
     result = safe_asyncio_run(
         run_scan(
-            target=args.url, categories=getattr(args, "categories", None), timeout=getattr(args, "timeout", 5.0), output_file=getattr(args, "output", None)
+            target=args.url,
+            categories=getattr(args, "categories", None),
+            timeout=getattr(args, "timeout", 5.0),
+            output_file=getattr(args, "output", None),
         )
     )
 

@@ -99,7 +99,12 @@ class TestDohScanResult:
 
 class TestDohProviders:
     def test_all_providers_present(self) -> None:
-        assert set(_DOH_PROVIDERS.keys()) == {"google", "cloudflare", "quad9", "adguard"}
+        assert set(_DOH_PROVIDERS.keys()) == {
+            "google",
+            "cloudflare",
+            "quad9",
+            "adguard",
+        }
 
     def test_provider_has_required_fields(self) -> None:
         for key, prov in _DOH_PROVIDERS.items():

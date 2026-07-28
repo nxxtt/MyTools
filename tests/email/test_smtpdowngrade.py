@@ -153,7 +153,9 @@ class TestTestPlaintextMail:
 
     def test_rejected(self) -> None:
         server = MagicMock()
-        server.ehlo.side_effect = smtpdowngrade.smtplib.SMTPResponseException(530, b"Auth required")
+        server.ehlo.side_effect = smtpdowngrade.smtplib.SMTPResponseException(
+            530, b"Auth required"
+        )
         accepted, _details = _test_plaintext_mail(server, "a@b.com", "c@d.com")
         assert accepted is False
 
@@ -180,7 +182,10 @@ class TestTestHeloDowngrade:
 
 class TestScanSmtpDowngrade:
     def test_connection_failure(self) -> None:
-        with patch("mytools.email.smtpdowngrade._connect_smtp", side_effect=ConnectionError("refused")):
+        with patch(
+            "mytools.email.smtpdowngrade._connect_smtp",
+            side_effect=ConnectionError("refused"),
+        ):
             result = scan_smtp_downgrade("mail.test.com", 587)
             assert result.overall_status == "error"
             assert result.issues
@@ -194,11 +199,22 @@ class TestScanSmtpDowngrade:
         mock_server.docmd.side_effect = smtpdowngrade.smtplib.SMTPException("fail")
 
         with (
-            patch("mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server),
-            patch("mytools.email.smtpdowngrade._get_banner", return_value="220 mail\nSTARTTLS"),
+            patch(
+                "mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._get_banner",
+                return_value="220 mail\nSTARTTLS",
+            ),
             patch("mytools.email.smtpdowngrade._check_starttls", return_value=True),
-            patch("mytools.email.smtpdowngrade._test_plaintext_mail", return_value=(False, "530")),
-            patch("mytools.email.smtpdowngrade._test_helo_downgrade", return_value=(False, "fail")),
+            patch(
+                "mytools.email.smtpdowngrade._test_plaintext_mail",
+                return_value=(False, "530"),
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._test_helo_downgrade",
+                return_value=(False, "fail"),
+            ),
         ):
             result = scan_smtp_downgrade("mail.test.com", 587)
             assert result.overall_status == "secure"
@@ -213,11 +229,22 @@ class TestScanSmtpDowngrade:
         mock_server.docmd.return_value = (234, b"Auth")
 
         with (
-            patch("mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server),
-            patch("mytools.email.smtpdowngrade._get_banner", return_value="220 mail\nSTARTTLS"),
+            patch(
+                "mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._get_banner",
+                return_value="220 mail\nSTARTTLS",
+            ),
             patch("mytools.email.smtpdowngrade._check_starttls", return_value=True),
-            patch("mytools.email.smtpdowngrade._test_plaintext_mail", return_value=(True, "250 OK")),
-            patch("mytools.email.smtpdowngrade._test_helo_downgrade", return_value=(True, "250")),
+            patch(
+                "mytools.email.smtpdowngrade._test_plaintext_mail",
+                return_value=(True, "250 OK"),
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._test_helo_downgrade",
+                return_value=(True, "250"),
+            ),
         ):
             result = scan_smtp_downgrade("mail.test.com", 587)
             assert result.overall_status == "vulnerable"
@@ -232,11 +259,19 @@ class TestScanSmtpDowngrade:
         mock_server.docmd.side_effect = smtpdowngrade.smtplib.SMTPException("fail")
 
         with (
-            patch("mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server),
+            patch(
+                "mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server
+            ),
             patch("mytools.email.smtpdowngrade._get_banner", return_value="220 mail"),
             patch("mytools.email.smtpdowngrade._check_starttls", return_value=False),
-            patch("mytools.email.smtpdowngrade._test_plaintext_mail", return_value=(True, "250")),
-            patch("mytools.email.smtpdowngrade._test_helo_downgrade", return_value=(True, "250")),
+            patch(
+                "mytools.email.smtpdowngrade._test_plaintext_mail",
+                return_value=(True, "250"),
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._test_helo_downgrade",
+                return_value=(True, "250"),
+            ),
         ):
             result = scan_smtp_downgrade("mail.test.com", 25)
             assert result.ehlo_advertises_starttls is False
@@ -250,10 +285,18 @@ class TestScanSmtpDowngrade:
         mock_server.docmd.side_effect = smtpdowngrade.smtplib.SMTPException("fail")
 
         with (
-            patch("mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server),
+            patch(
+                "mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server
+            ),
             patch("mytools.email.smtpdowngrade._get_banner", return_value="220 mail"),
-            patch("mytools.email.smtpdowngrade._test_plaintext_mail", return_value=(True, "250")),
-            patch("mytools.email.smtpdowngrade._test_helo_downgrade", return_value=(True, "250")),
+            patch(
+                "mytools.email.smtpdowngrade._test_plaintext_mail",
+                return_value=(True, "250"),
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._test_helo_downgrade",
+                return_value=(True, "250"),
+            ),
         ):
             result = scan_smtp_downgrade("mail.test.com", 25, from_addr="a@b.com")
             assert result.port == 25

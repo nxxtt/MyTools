@@ -95,28 +95,50 @@ class TestGenerateBucketNames:
 
 class TestCheckS3Response:
     def test_open_bucket(self) -> None:
-        indicators = {"open": ["ListBucketResult", "<Key>"], "exists": ["NoSuchBucket"], "access_denied": ["AccessDenied"]}
-        open_b, exists, detail = _check_s3_response(200, "<ListBucketResult><Key>file.txt</Key></ListBucketResult>", indicators)
+        indicators = {
+            "open": ["ListBucketResult", "<Key>"],
+            "exists": ["NoSuchBucket"],
+            "access_denied": ["AccessDenied"],
+        }
+        open_b, exists, detail = _check_s3_response(
+            200, "<ListBucketResult><Key>file.txt</Key></ListBucketResult>", indicators
+        )
         assert open_b is True
         assert exists is True
         assert "ABERTO" in detail
 
     def test_not_exists(self) -> None:
-        indicators = {"open": ["ListBucketResult"], "exists": ["NoSuchBucket"], "access_denied": ["AccessDenied"]}
-        open_b, exists, detail = _check_s3_response(404, "<NoSuchBucket>The bucket does not exist</NoSuchBucket>", indicators)
+        indicators = {
+            "open": ["ListBucketResult"],
+            "exists": ["NoSuchBucket"],
+            "access_denied": ["AccessDenied"],
+        }
+        open_b, exists, detail = _check_s3_response(
+            404, "<NoSuchBucket>The bucket does not exist</NoSuchBucket>", indicators
+        )
         assert open_b is False
         assert exists is False
         assert "nao existe" in detail
 
     def test_access_denied(self) -> None:
-        indicators = {"open": ["ListBucketResult"], "exists": ["NoSuchBucket"], "access_denied": ["AccessDenied"]}
-        open_b, exists, detail = _check_s3_response(403, "<AccessDenied>Access Denied</AccessDenied>", indicators)
+        indicators = {
+            "open": ["ListBucketResult"],
+            "exists": ["NoSuchBucket"],
+            "access_denied": ["AccessDenied"],
+        }
+        open_b, exists, detail = _check_s3_response(
+            403, "<AccessDenied>Access Denied</AccessDenied>", indicators
+        )
         assert open_b is False
         assert exists is True
         assert "fechado" in detail or "negado" in detail
 
     def test_unknown_status(self) -> None:
-        indicators = {"open": ["ListBucketResult"], "exists": ["NoSuchBucket"], "access_denied": ["AccessDenied"]}
+        indicators = {
+            "open": ["ListBucketResult"],
+            "exists": ["NoSuchBucket"],
+            "access_denied": ["AccessDenied"],
+        }
         open_b, exists, detail = _check_s3_response(500, "error", indicators)
         assert open_b is False
         assert exists is False
@@ -131,7 +153,9 @@ class TestCheckS3Response:
 class TestCheckGCPResponse:
     def test_open_bucket(self) -> None:
         indicators = {"open": ["items", "kind"], "not_found": ["NoSuchBucket"]}
-        open_b, exists, _detail = _check_gcp_response(200, '{"kind": "storage#objects", "items": []}', indicators)
+        open_b, exists, _detail = _check_gcp_response(
+            200, '{"kind": "storage#objects", "items": []}', indicators
+        )
         assert open_b is True
         assert exists is True
 
@@ -155,9 +179,14 @@ class TestCheckGCPResponse:
 
 class TestCheckAzureResponse:
     def test_open_container(self) -> None:
-        indicators = {"open": ["EnumerationResults", "<Blobs>"], "not_found": ["BlobNotFound"]}
+        indicators = {
+            "open": ["EnumerationResults", "<Blobs>"],
+            "not_found": ["BlobNotFound"],
+        }
         open_b, exists, _detail = _check_azure_response(
-            200, "<EnumerationResults><Blobs><Blob><Name>file.txt</Name></Blob></Blobs></EnumerationResults>", indicators
+            200,
+            "<EnumerationResults><Blobs><Blob><Name>file.txt</Name></Blob></Blobs></EnumerationResults>",
+            indicators,
         )
         assert open_b is True
         assert exists is True

@@ -22,8 +22,14 @@ from mytools.web.jwtanalysis import (
     _split_token,
 )
 
-_TOKEN_HS256 = jwt.encode({"sub": "1234", "role": "user", "exp": int(time.time()) + 3600}, "secret", algorithm="HS256")
-_TOKEN_EXPIRED = jwt.encode({"sub": "1234", "exp": int(time.time()) - 100}, "secret", algorithm="HS256")
+_TOKEN_HS256 = jwt.encode(
+    {"sub": "1234", "role": "user", "exp": int(time.time()) + 3600},
+    "secret",
+    algorithm="HS256",
+)
+_TOKEN_EXPIRED = jwt.encode(
+    {"sub": "1234", "exp": int(time.time()) - 100}, "secret", algorithm="HS256"
+)
 _TOKEN_NONE = jwt.encode({"sub": "1234"}, "", algorithm="none")
 
 

@@ -323,7 +323,9 @@ async def _test_duplicate_headers(
                     lines.append(f"{name}: {value}")
                 request = "\r\n".join(lines) + "\r\n\r\n"
                 raw_req = request
-                status, response = _send_raw(sock, request.encode("latin-1", errors="replace"), timeout)
+                status, response = _send_raw(
+                    sock, request.encode("latin-1", errors="replace"), timeout
+                )
                 vulnerable = (status != b_status) or (len(response) != b_size)
                 results.append(
                     HeaderEdgeAttempt(
@@ -389,7 +391,9 @@ async def _test_malformed_version(
         try:
             sock = _create_connection(host, port, timeout, tls)
             try:
-                status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
+                status, response = _send_raw(
+                    sock, raw_req.encode("latin-1", errors="replace"), timeout
+                )
                 vulnerable = (status != b_status) and status != 0
                 results.append(
                     HeaderEdgeAttempt(
@@ -561,7 +565,9 @@ async def _test_header_whitespace(
         try:
             sock = _create_connection(host, port, timeout, tls)
             try:
-                status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
+                status, response = _send_raw(
+                    sock, raw_req.encode("latin-1", errors="replace"), timeout
+                )
                 vulnerable = (status != b_status) and status != 0
                 results.append(
                     HeaderEdgeAttempt(
@@ -647,7 +653,9 @@ async def _test_header_case(
         try:
             sock = _create_connection(host, port, timeout, tls)
             try:
-                status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
+                status, response = _send_raw(
+                    sock, raw_req.encode("latin-1", errors="replace"), timeout
+                )
                 vulnerable = (status != b_status) and status != 0
                 results.append(
                     HeaderEdgeAttempt(
@@ -739,7 +747,9 @@ async def _test_absolute_uri(
         try:
             sock = _create_connection(host, port, timeout, tls)
             try:
-                status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
+                status, response = _send_raw(
+                    sock, raw_req.encode("latin-1", errors="replace"), timeout
+                )
                 vulnerable = (status != b_status) and status != 0
                 results.append(
                     HeaderEdgeAttempt(
@@ -866,7 +876,9 @@ async def _test_http09_request(
 
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[HeaderEdgeAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[HeaderEdgeAttempt]]]
+] = {
     "duplicate_headers": _test_duplicate_headers,
     "malformed_version": _test_malformed_version,
     "null_request_byte": _test_null_request_byte,
@@ -884,8 +896,14 @@ def print_results(result: HeaderEdgeResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Header & Parsing Edge Cases Test")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
-    print(color("[*]", Cyber.CYAN), f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Baseline: HTTP {result.baseline_status} ({result.baseline_size} bytes)",
+    )
     print()
 
     if result.issues:
@@ -901,7 +919,10 @@ def print_results(result: HeaderEdgeResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -910,9 +931,15 @@ def print_results(result: HeaderEdgeResult) -> None:
 
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Header/parsing edge cases detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Header/parsing edge cases detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No parsing anomalies detected")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — No parsing anomalies detected",
+        )
     print()
 
 

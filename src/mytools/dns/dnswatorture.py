@@ -256,8 +256,16 @@ def run_water_torture(
 
     latencies = [r.latency_ms for r in results if r.error != "timeout"]
     avg_lat = mean(latencies) if latencies else 0.0
-    p95_lat = quantiles(latencies, n=20)[18] if len(latencies) >= 20 else (max(latencies) if latencies else 0.0)
-    p99_lat = quantiles(latencies, n=100)[98] if len(latencies) >= 100 else (max(latencies) if latencies else 0.0)
+    p95_lat = (
+        quantiles(latencies, n=20)[18]
+        if len(latencies) >= 20
+        else (max(latencies) if latencies else 0.0)
+    )
+    p99_lat = (
+        quantiles(latencies, n=100)[98]
+        if len(latencies) >= 100
+        else (max(latencies) if latencies else 0.0)
+    )
 
     sent = len(results)
     loss = (timeouts / sent) if sent > 0 else 0.0
@@ -295,7 +303,9 @@ def print_results(result: WaterTortureResult) -> None:
     print(f"    Queries enviadas: {color(str(result.queries_sent), Cyber.WHITE)}")
     print(f"    NXDOMAIN: {color(str(result.nxdomain_count), Cyber.CYAN)}")
     print(f"    NOERROR: {color(str(result.noerror_count), Cyber.GREEN)}")
-    print(f"    Timeouts: {color(str(result.timeout_count), Cyber.RED if result.timeout_count > 0 else Cyber.WHITE)}")
+    print(
+        f"    Timeouts: {color(str(result.timeout_count), Cyber.RED if result.timeout_count > 0 else Cyber.WHITE)}"
+    )
     print(f"    Outros: {result.other_count}")
     print()
 
@@ -307,14 +317,30 @@ def print_results(result: WaterTortureResult) -> None:
 
     print(color("  Performance:", Cyber.YELLOW, Cyber.BOLD))
     print(f"    QPS real: {color(f'{result.qps:.1f}', Cyber.GREEN, Cyber.BOLD)}")
-    loss_color = Cyber.RED if result.loss_rate > 0.1 else (Cyber.YELLOW if result.loss_rate > 0.05 else Cyber.GREEN)
-    print(f"    Loss rate: {color(f'{result.loss_rate * 100:.1f}%', loss_color, Cyber.BOLD)}")
+    loss_color = (
+        Cyber.RED
+        if result.loss_rate > 0.1
+        else (Cyber.YELLOW if result.loss_rate > 0.05 else Cyber.GREEN)
+    )
+    print(
+        f"    Loss rate: {color(f'{result.loss_rate * 100:.1f}%', loss_color, Cyber.BOLD)}"
+    )
     print(f"    Duracao: {color(f'{result.duration_s:.1f}s', Cyber.WHITE)}")
 
     if result.loss_rate > 0.1:
-        print(color("\n  [!] Loss rate > 10% — servidor pode estar sobrecarregado ou com rate limiting", Cyber.RED))
+        print(
+            color(
+                "\n  [!] Loss rate > 10% — servidor pode estar sobrecarregado ou com rate limiting",
+                Cyber.RED,
+            )
+        )
     elif result.loss_rate > 0.05:
-        print(color("\n  [!] Loss rate > 5% — possivel rate limiting detectado", Cyber.YELLOW))
+        print(
+            color(
+                "\n  [!] Loss rate > 5% — possivel rate limiting detectado",
+                Cyber.YELLOW,
+            )
+        )
     else:
         print(color("\n  [+] Loss rate normal — servidor resistente", Cyber.GREEN))
 

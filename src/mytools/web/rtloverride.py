@@ -198,7 +198,9 @@ def _insert_rtl(url: str, rtl_char: str, position: str) -> str:
     parsed = urlparse(url)
 
     if position == "before_domain":
-        return f"{parsed.scheme}://{rtl_char}{parsed.netloc}{parsed.path}" + ("?" + parsed.query if parsed.query else "")
+        return f"{parsed.scheme}://{rtl_char}{parsed.netloc}{parsed.path}" + (
+            "?" + parsed.query if parsed.query else ""
+        )
 
     if position == "in_path":
         parts = parsed.path.split("/")
@@ -208,13 +210,17 @@ def _insert_rtl(url: str, rtl_char: str, position: str) -> str:
 
             parts.insert(mid, rtl_char)
 
-        return f"{parsed.scheme}://{parsed.netloc}{'/'.join(parts)}" + ("?" + parsed.query if parsed.query else "")
+        return f"{parsed.scheme}://{parsed.netloc}{'/'.join(parts)}" + (
+            "?" + parsed.query if parsed.query else ""
+        )
 
     if position == "in_query":
         return url + rtl_char
 
     if position == "before_path":
-        return f"{parsed.scheme}://{parsed.netloc}{rtl_char}{parsed.path}" + ("?" + parsed.query if parsed.query else "")
+        return f"{parsed.scheme}://{parsed.netloc}{rtl_char}{parsed.path}" + (
+            "?" + parsed.query if parsed.query else ""
+        )
 
     return url
 
@@ -245,10 +251,14 @@ def _insert_combining(url: str, combining_char: str) -> str:
 
     new_query = _combine_path(parsed.query) if parsed.query else ""
 
-    return f"{parsed.scheme}://{new_netloc}{new_path}" + (f"?{new_query}" if new_query else "")
+    return f"{parsed.scheme}://{new_netloc}{new_path}" + (
+        f"?{new_query}" if new_query else ""
+    )
 
 
-def _generate_variants(url: str, char_type: str = "rtl") -> list[tuple[str, str, str, str]]:
+def _generate_variants(
+    url: str, char_type: str = "rtl"
+) -> list[tuple[str, str, str, str]]:
     """Gera variantes de uma URL. Retorna (label, char, position, modified_url)."""
 
     variants: list[tuple[str, str, str, str]] = []
@@ -264,7 +274,11 @@ def _generate_variants(url: str, char_type: str = "rtl") -> list[tuple[str, str,
     char_sets: list[tuple[dict[str, str], dict[str, str]]] = []
 
     if char_type == "all":
-        char_sets = [(_RTL_CHARS, _RTL_LABELS), (_ZERO_WIDTH_CHARS, _ZERO_WIDTH_LABELS), (_COMBINING_CHARS, _COMBINING_LABELS)]
+        char_sets = [
+            (_RTL_CHARS, _RTL_LABELS),
+            (_ZERO_WIDTH_CHARS, _ZERO_WIDTH_LABELS),
+            (_COMBINING_CHARS, _COMBINING_LABELS),
+        ]
 
     elif char_type in chars_to_use:
         char_sets = [chars_to_use[char_type]]
@@ -273,7 +287,9 @@ def _generate_variants(url: str, char_type: str = "rtl") -> list[tuple[str, str,
         for key, char in chars.items():
             label = labels[key]
 
-            if char_type == "combining" or (char_type == "all" and key in _COMBINING_CHARS):
+            if char_type == "combining" or (
+                char_type == "all" and key in _COMBINING_CHARS
+            ):
                 modified = _insert_combining(url, char)
 
                 if modified != url:
@@ -387,9 +403,13 @@ def print_results(result: RTLResult) -> None:
 
     print(f"  Alvo: {color(result.target, Cyber.WHITE, Cyber.BOLD)}")
 
-    print(f"  TLS: {color('Sim' if result.tls else 'Nao', Cyber.GREEN if result.tls else Cyber.RED)}")
+    print(
+        f"  TLS: {color('Sim' if result.tls else 'Nao', Cyber.GREEN if result.tls else Cyber.RED)}"
+    )
 
-    print(f"  Baseline: {color(str(result.baseline_status), Cyber.YELLOW)} ({result.baseline_size}B)")
+    print(
+        f"  Baseline: {color(str(result.baseline_status), Cyber.YELLOW)} ({result.baseline_size}B)"
+    )
 
     print()
 
@@ -444,19 +464,39 @@ def print_results(result: RTLResult) -> None:
     print()
 
     if result.overall_status == "vulnerable":
-        print(color("[!] Status: VULNERAVEL - Servidor nao filtra caracteres RTL", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                "[!] Status: VULNERAVEL - Servidor nao filtra caracteres RTL",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
     elif result.overall_status == "blocked":
-        print(color("[+] Status: BLOQUEADO - Servidor filtra caracteres RTL", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "[+] Status: BLOQUEADO - Servidor filtra caracteres RTL",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
     else:
-        print(color("[*] Status: SEGURO - Nenhuma differenca detectada", Cyber.CYAN, Cyber.BOLD))
+        print(
+            color(
+                "[*] Status: SEGURO - Nenhuma differenca detectada",
+                Cyber.CYAN,
+                Cyber.BOLD,
+            )
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Constrói o parser de argumentos da linha de comandos."""
 
-    parser = argparse.ArgumentParser(description="RTL Override Bypass — detecta bypass via caracteres Unicode de direcao.")
+    parser = argparse.ArgumentParser(
+        description="RTL Override Bypass — detecta bypass via caracteres Unicode de direcao."
+    )
 
     add_common_args(parser)
 
@@ -485,7 +525,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Tipo de caractere: rtl, zero-width, combining, all. Padrao: rtl",
     )
 
-    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) RTLOverride/{__version__}")
+    parser.set_defaults(
+        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) RTLOverride/{__version__}"
+    )
 
     return parser
 
@@ -544,7 +586,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
         tls = url.startswith("https://")
 
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Baseline: {color(str(b_status), Cyber.YELLOW)} ({b_size}B)")
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"Baseline: {color(str(b_status), Cyber.YELLOW)} ({b_size}B)",
+        )
 
         variants = _generate_variants(url, char_type=char_type)
 
@@ -559,7 +604,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
                 continue
 
             try:
-                t_status, _, t_content, _ = await fetch(client, modified, timeout=args.timeout)
+                t_status, _, t_content, _ = await fetch(
+                    client, modified, timeout=args.timeout
+                )
 
             except FetchError:
                 t_status = 0
@@ -606,7 +653,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
         vuln_techs = sorted({a.technique for a in attempts if a.vulnerable})
 
-        blocked_techs = sorted({a.technique for a in attempts if not a.vulnerable and not a.error})
+        blocked_techs = sorted(
+            {a.technique for a in attempts if not a.vulnerable and not a.error}
+        )
 
         if vuln_techs:
             overall = "vulnerable"

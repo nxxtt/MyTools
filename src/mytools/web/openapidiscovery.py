@@ -79,7 +79,9 @@ _DEFAULT_PATHS_OPENAPI: list[str] = [
 def _load_openapi_paths() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "openapi_paths", default={"paths": _DEFAULT_PATHS_OPENAPI})
+    data = load_payloads(
+        "web", "openapi_paths", default={"paths": _DEFAULT_PATHS_OPENAPI}
+    )
     return data.get("paths", _DEFAULT_PATHS_OPENAPI)
 
 
@@ -126,7 +128,9 @@ class ApiSpecInfo:
     status: int = 0
 
 
-def _parse_openapi_v3(spec: dict[str, object]) -> tuple[str, str, str, list[str], list[EndpointInfo], list[str]]:
+def _parse_openapi_v3(
+    spec: dict[str, object],
+) -> tuple[str, str, str, list[str], list[EndpointInfo], list[str]]:
     """Extrai metadados de uma spec OpenAPI 3.x."""
     info = spec.get("info", {})
     title = str(info.get("title", "")) if isinstance(info, dict) else ""
@@ -134,7 +138,11 @@ def _parse_openapi_v3(spec: dict[str, object]) -> tuple[str, str, str, list[str]
     description = str(info.get("description", "")) if isinstance(info, dict) else ""
 
     servers_raw = spec.get("servers", [])
-    servers = [str(s.get("url", "")) for s in servers_raw if isinstance(s, dict)] if isinstance(servers_raw, list) else []
+    servers = (
+        [str(s.get("url", "")) for s in servers_raw if isinstance(s, dict)]
+        if isinstance(servers_raw, list)
+        else []
+    )
 
     endpoints: list[EndpointInfo] = []
     paths = spec.get("paths", {})
@@ -146,8 +154,16 @@ def _parse_openapi_v3(spec: dict[str, object]) -> tuple[str, str, str, list[str]
                 operation = methods.get(method)
                 if not isinstance(operation, dict):
                     continue
-                summary = str(operation.get("summary", "")) if operation.get("summary") else ""
-                tags = [str(t) for t in operation.get("tags", []) if isinstance(t, str)] if isinstance(operation.get("tags"), list) else []
+                summary = (
+                    str(operation.get("summary", ""))
+                    if operation.get("summary")
+                    else ""
+                )
+                tags = (
+                    [str(t) for t in operation.get("tags", []) if isinstance(t, str)]
+                    if isinstance(operation.get("tags"), list)
+                    else []
+                )
                 params = []
                 op_params = operation.get("parameters", [])
                 if isinstance(op_params, list):
@@ -177,7 +193,9 @@ def _parse_openapi_v3(spec: dict[str, object]) -> tuple[str, str, str, list[str]
     return title, version, description, servers, endpoints, schemas
 
 
-def _parse_openapi_v2(spec: dict[str, object]) -> tuple[str, str, str, list[str], list[EndpointInfo], list[str]]:
+def _parse_openapi_v2(
+    spec: dict[str, object],
+) -> tuple[str, str, str, list[str], list[EndpointInfo], list[str]]:
     """Extrai metadados de uma spec Swagger 2.0."""
     info = spec.get("info", {})
     title = str(info.get("title", "")) if isinstance(info, dict) else ""
@@ -185,7 +203,9 @@ def _parse_openapi_v2(spec: dict[str, object]) -> tuple[str, str, str, list[str]
     description = str(info.get("description", "")) if isinstance(info, dict) else ""
 
     host = str(spec.get("host", "")) if isinstance(spec.get("host"), str) else ""
-    base_path = str(spec.get("basePath", "")) if isinstance(spec.get("basePath"), str) else ""
+    base_path = (
+        str(spec.get("basePath", "")) if isinstance(spec.get("basePath"), str) else ""
+    )
     schemes = spec.get("schemes", ["https"])
     servers: list[str] = []
     if host:
@@ -202,8 +222,16 @@ def _parse_openapi_v2(spec: dict[str, object]) -> tuple[str, str, str, list[str]
                 operation = methods.get(method)
                 if not isinstance(operation, dict):
                     continue
-                summary = str(operation.get("summary", "")) if operation.get("summary") else ""
-                tags = [str(t) for t in operation.get("tags", []) if isinstance(t, str)] if isinstance(operation.get("tags"), list) else []
+                summary = (
+                    str(operation.get("summary", ""))
+                    if operation.get("summary")
+                    else ""
+                )
+                tags = (
+                    [str(t) for t in operation.get("tags", []) if isinstance(t, str)]
+                    if isinstance(operation.get("tags"), list)
+                    else []
+                )
                 params = []
                 op_params = operation.get("parameters", [])
                 if isinstance(op_params, list):
@@ -270,9 +298,13 @@ def parse_spec(content: bytes, content_type: str) -> ApiSpecInfo | None:
         return None
 
     if openapi.startswith("3."):
-        title, version, description, servers, endpoints, schemas = _parse_openapi_v3(spec)
+        title, version, description, servers, endpoints, schemas = _parse_openapi_v3(
+            spec
+        )
     elif swagger.startswith("2."):
-        title, version, description, servers, endpoints, schemas = _parse_openapi_v2(spec)
+        title, version, description, servers, endpoints, schemas = _parse_openapi_v2(
+            spec
+        )
     else:
         return None
 
@@ -355,7 +387,10 @@ async def scan_specs(
 
     logger.info("scan OpenAPI iniciado: %s (%d paths)", base_url, len(paths))
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+    print(
+        color("[*]", Cyber.CYAN, Cyber.BOLD),
+        f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}",
+    )
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
@@ -373,12 +408,16 @@ async def scan_specs(
         async with sem:
             if found_event.is_set():
                 return None
-            result = await probe_spec(client, rate_limiter, base_url, path, timeout, retries)
+            result = await probe_spec(
+                client, rate_limiter, base_url, path, timeout, retries
+            )
             completed += 1
             if result is not None:
                 found_event.set()
             if completed % 10 == 0 or completed == total:
-                sys.stdout.write(f"\r  Progresso: {completed}/{total} paths testados...")
+                sys.stdout.write(
+                    f"\r  Progresso: {completed}/{total} paths testados..."
+                )
                 sys.stdout.flush()
             return result
 
@@ -394,7 +433,12 @@ async def scan_specs(
         for r in results:
             if isinstance(r, ApiSpecInfo):
                 specs.append(r)
-                logger.info("spec encontrada: %s (%s, %d endpoints)", r.url, r.format, len(r.endpoints))
+                logger.info(
+                    "spec encontrada: %s (%s, %d endpoints)",
+                    r.url,
+                    r.format,
+                    len(r.endpoints),
+                )
                 print(
                     f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
                     f"{color(r.format.upper(), Cyber.YELLOW, Cyber.BOLD)} "
@@ -520,7 +564,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
     parser.add_argument(
         "--concurrency",
         type=int,
@@ -558,10 +607,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False):
         paths = _load_paths_from_args(args)
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma requisicao HTTP sera enviada.",
+        )
         for url in urls:
-            base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}",
+            )
             print(
                 color("[*]", Cyber.CYAN, Cyber.BOLD),
                 f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}",
@@ -570,7 +627,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     all_specs: list[ApiSpecInfo] = []
     for url in urls:
-        base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+        base_url = normalize_url(
+            url, default_scheme="https", ensure_trailing_slash=True
+        )
         paths = _load_paths_from_args(args)
 
         specs = await scan_specs(
@@ -599,7 +658,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             write_output(
                 out_path,
                 [asdict(s) for s in specs],
-                ["url", "format", "title", "version", "description", "servers", "schemas", "raw_size", "status", "endpoints"],
+                [
+                    "url",
+                    "format",
+                    "title",
+                    "version",
+                    "description",
+                    "servers",
+                    "schemas",
+                    "raw_size",
+                    "status",
+                    "endpoints",
+                ],
                 quiet=quiet,
             )
 
@@ -607,7 +677,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(s) for s in all_specs],
-            ["url", "format", "title", "version", "description", "servers", "schemas", "raw_size", "status", "endpoints"],
+            [
+                "url",
+                "format",
+                "title",
+                "version",
+                "description",
+                "servers",
+                "schemas",
+                "raw_size",
+                "status",
+                "endpoints",
+            ],
             quiet=quiet,
         )
     return 0

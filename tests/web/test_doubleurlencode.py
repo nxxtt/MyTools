@@ -168,7 +168,9 @@ class TestTestDoubleUrl:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_double_url(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_double_url(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) > 0
         assert all(isinstance(a, DoubleURLEncodeAttempt) for a in attempts)
 
@@ -180,7 +182,9 @@ class TestTestDoubleUrl:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_double_url(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_double_url(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         categories = {a.category for a in attempts}
         assert "url" in categories
 
@@ -197,7 +201,9 @@ class TestTestDoubleParams:
         mock_client.get.return_value = mock_resp
         mock_client.post.return_value = mock_resp
 
-        attempts = await _test_double_params(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_double_params(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) == 3
         assert all(a.category == "param" for a in attempts)
 
@@ -210,7 +216,9 @@ class TestTestDoubleParams:
         mock_client.get.return_value = mock_resp
         mock_client.post.return_value = mock_resp
 
-        attempts = await _test_double_params(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_double_params(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         techniques = {a.technique for a in attempts}
         assert "double_get" in techniques
         assert "double_post" in techniques
@@ -228,7 +236,9 @@ class TestTestDoubleTraversal:
         mock_resp.content = b"Not Found"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_double_traversal(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_double_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) > 0
         assert all(a.category == "traversal" for a in attempts)
 
@@ -244,7 +254,9 @@ class TestTestDoubleHeaders:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_double_headers(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_double_headers(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) == 3
         assert all(a.category == "header" for a in attempts)
 
@@ -260,7 +272,9 @@ class TestTestDoubleWaf:
         mock_resp.content = b"<html>OK</html>"
         mock_client.get.return_value = mock_resp
 
-        attempts = await _test_double_waf(mock_client, "https://example.com", (200, 15, b""))
+        attempts = await _test_double_waf(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
         assert len(attempts) == 3
         assert all(a.category == "waf" for a in attempts)
 
@@ -423,6 +437,9 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-dblurl"]), patch("builtins.input", side_effect=EOFError("exit")):
+        with (
+            patch("sys.argv", ["mytools-dblurl"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+        ):
             result = main()
             assert result == 0

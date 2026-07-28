@@ -143,7 +143,9 @@ class TestValidateContent:
         assert ok is True
 
     def test_framework_wp_config(self):
-        content = b"<?php\ndefine('DB_NAME', 'wordpress');\ndefine('DB_USER', 'root');\n"
+        content = (
+            b"<?php\ndefine('DB_NAME', 'wordpress');\ndefine('DB_USER', 'root');\n"
+        )
         ok, detail = _validate_content("wp-config.php", content)
         assert ok is True
         assert "DB_NAME" in detail
@@ -176,7 +178,10 @@ class TestValidateContent:
         assert ok is True
 
     def test_credentials_json(self):
-        data = {"private_key": "-----BEGIN RSA PRIVATE KEY-----", "client_email": "x@y.iam.gserviceaccount.com"}
+        data = {
+            "private_key": "-----BEGIN RSA PRIVATE KEY-----",
+            "client_email": "x@y.iam.gserviceaccount.com",
+        }
         content = json.dumps(data).encode()
         ok, detail = _validate_content("credentials.json", content)
         assert ok is True

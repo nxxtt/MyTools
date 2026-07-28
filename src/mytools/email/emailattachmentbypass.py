@@ -68,14 +68,26 @@ DEFAULT_PORTS = [25, 587, 465]
 
 
 _ATTACH_BYPASS_PAYLOADS: dict[str, tuple[str, str, bytes]] = {
-    "double_ext_php_jpg": ("shell.php.jpg", "application/octet-stream", b"<?php echo 'test'; ?>"),
+    "double_ext_php_jpg": (
+        "shell.php.jpg",
+        "application/octet-stream",
+        b"<?php echo 'test'; ?>",
+    ),
     "double_ext_php_png": ("shell.php.png", "image/png", b"<?php echo 'test'; ?>"),
     "double_ext_phtml_jpg": ("shell.phtml.jpg", "image/jpeg", b"<?php echo 'test'; ?>"),
     "double_ext_php5_jpg": ("shell.php5.jpg", "image/jpeg", b"<?php echo 'test'; ?>"),
     "mime_spoof_php_as_jpg": ("test.php", "image/jpeg", b"<?php echo 'test'; ?>"),
     "mime_spoof_php_as_png": ("test.php", "image/png", b"<?php echo 'test'; ?>"),
-    "polyglot_jpg_php": ("polyglot.jpg", "image/jpeg", b"\xff\xd8\xff\xe0<?php echo 'test'; ?>"),
-    "polyglot_png_php": ("polyglot.png", "image/png", b"\x89PNG\r\n\x1a\n<?php echo 'test'; ?>"),
+    "polyglot_jpg_php": (
+        "polyglot.jpg",
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0<?php echo 'test'; ?>",
+    ),
+    "polyglot_png_php": (
+        "polyglot.png",
+        "image/png",
+        b"\x89PNG\r\n\x1a\n<?php echo 'test'; ?>",
+    ),
     "null_byte": ("shell.php%00.jpg", "image/jpeg", b"<?php echo 'test'; ?>"),
     "case_upper": ("shell.PHP", "application/x-php", b"<?php echo 'test'; ?>"),
     "case_mixed": ("shell.PhP", "application/x-php", b"<?php echo 'test'; ?>"),
@@ -187,7 +199,11 @@ def _get_banner(server: smtplib.SMTP) -> str:
     try:
         _code, banner = server.ehlo()
 
-        return banner.decode("utf-8", errors="replace") if isinstance(banner, bytes) else str(banner)
+        return (
+            banner.decode("utf-8", errors="replace")
+            if isinstance(banner, bytes)
+            else str(banner)
+        )
 
     except smtplib.SMTPException:
         return ""
@@ -359,7 +375,9 @@ def scan_attachment_bypass(
 
     accepted = [a.technique for a in attempts if a.status == "accepted"]
 
-    blocked = [a.technique for a in attempts if a.status in ("rejected", "blocked", "error")]
+    blocked = [
+        a.technique for a in attempts if a.status in ("rejected", "blocked", "error")
+    ]
 
     if accepted:
         overall = "vulnerable"
@@ -455,12 +473,29 @@ def print_results(result: BypassResult) -> None:
         print()
 
     if result.overall_status == "vulnerable":
-        print(color(f"  [-] Servidor VULNERAVEL — {len(accepted)}/{len(result.attempts)} bypasses aceitos", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"  [-] Servidor VULNERAVEL — {len(accepted)}/{len(result.attempts)} bypasses aceitos",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
-        print(color("  [-] Remedio: whitelist de extensoes, validacao de magic bytes, scan de conteudo", Cyber.CYAN))
+        print(
+            color(
+                "  [-] Remedio: whitelist de extensoes, validacao de magic bytes, scan de conteudo",
+                Cyber.CYAN,
+            )
+        )
 
     elif result.overall_status == "secure":
-        print(color("  [+] Servidor seguro — todas as tecnicas bloqueadas", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Servidor seguro — todas as tecnicas bloqueadas",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
     else:
         print(color("  [!] Resultado inconclusivo — revisar manualmente", Cyber.YELLOW))
@@ -483,7 +518,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   attachment bypass: testa bypass de filtros de anexos (double ext, MIME spoof, polyglots)")()
+    create_banner(
+        art,
+        "   attachment bypass: testa bypass de filtros de anexos (double ext, MIME spoof, polyglots)",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -496,7 +534,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_base_args(parser)
 
-    parser.add_argument("target", nargs="?", help="Host SMTP alvo (ex: mail.example.com).")
+    parser.add_argument(
+        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+    )
 
     parser.add_argument(
         "--port",

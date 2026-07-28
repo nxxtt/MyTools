@@ -226,7 +226,9 @@ class TestCLI:
 
     def test_build_parser_with_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["thrift://target.com:9090", "-c", "method_enumeration"])
+        args = parser.parse_args(
+            ["thrift://target.com:9090", "-c", "method_enumeration"]
+        )
         assert args.categories == ["method_enumeration"]
 
     def test_build_parser_all_choices(self) -> None:

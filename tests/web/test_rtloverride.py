@@ -36,7 +36,9 @@ class TestRTLChars:
     def test_all_values_are_rtl(self) -> None:
         for key, char in _RTL_CHARS.items():
             code = ord(char)
-            assert code in (0x202E, 0x202B, 0x202D, 0x2066, 0x2067, 0x2068, 0x2069), f"{key} nao e RTL"
+            assert code in (0x202E, 0x202B, 0x202D, 0x2066, 0x2067, 0x2068, 0x2069), (
+                f"{key} nao e RTL"
+            )
 
 
 class TestInsertRTL:
@@ -244,7 +246,10 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-rtlo"]), patch("builtins.input", side_effect=EOFError("exit")):
+        with (
+            patch("sys.argv", ["mytools-rtlo"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+        ):
             result = main()
             assert result == 0
 
@@ -385,11 +390,15 @@ class TestGenerateVariantsCombining:
     """Testes para _generate_variants com combining."""
 
     def test_combining_type(self) -> None:
-        variants = _generate_variants("https://example.com/admin", char_type="combining")
+        variants = _generate_variants(
+            "https://example.com/admin", char_type="combining"
+        )
         assert len(variants) > 0
 
     def test_combining_inserts_marks(self) -> None:
-        variants = _generate_variants("https://example.com/admin", char_type="combining")
+        variants = _generate_variants(
+            "https://example.com/admin", char_type="combining"
+        )
         assert any("\u0300" in v[3] for v in variants)
 
     def test_all_type_includes_combining(self) -> None:

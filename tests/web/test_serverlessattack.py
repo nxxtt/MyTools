@@ -131,12 +131,24 @@ class TestParseUrl:
 
 class TestMakeAttempt:
     def test_creation(self) -> None:
-        a = _make_attempt("cold_start_leak", "generic", "desc", True, "details", "", "url", 200, 1500.0)
+        a = _make_attempt(
+            "cold_start_leak",
+            "generic",
+            "desc",
+            True,
+            "details",
+            "",
+            "url",
+            200,
+            1500.0,
+        )
         assert a.vulnerable is True
         assert a.timing_ms == 1500.0
 
     def test_no_timing(self) -> None:
-        a = _make_attempt("cold_start_leak", "generic", "desc", False, "details", "", "url", 200)
+        a = _make_attempt(
+            "cold_start_leak", "generic", "desc", False, "details", "", "url", 200
+        )
         assert a.timing_ms == 0.0
 
 
@@ -206,7 +218,11 @@ class TestCLI:
 @respx.mock
 async def test_category_dispatch_all_return_lists() -> None:
     """All category dispatchers should return a list."""
-    respx.route().mock(return_value=httpx.Response(200, json={"status": "ok"}, headers={"content-type": "application/json"}))
+    respx.route().mock(
+        return_value=httpx.Response(
+            200, json={"status": "ok"}, headers={"content-type": "application/json"}
+        )
+    )
     for cat, fn in _CATEGORY_DISPATCH.items():
         result = await fn("target.com", 443, "", 0.1, True, "https://target.com")
         assert isinstance(result, list), f"{cat} did not return a list"

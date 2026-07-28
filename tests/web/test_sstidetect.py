@@ -535,7 +535,10 @@ class TestMain:
     """Testes para main."""
 
     def test_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-sstdetect"]), patch("mytools.web.sstidetect.run_main_loop", return_value=1) as mock_loop:
+        with (
+            patch("sys.argv", ["mytools-sstdetect"]),
+            patch("mytools.web.sstidetect.run_main_loop", return_value=1) as mock_loop,
+        ):
             result = main()
             assert result == 1
             mock_loop.assert_called_once()

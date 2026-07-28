@@ -34,7 +34,9 @@ from mytools.email.emaillinktracking import (
 
 class TestTrackingAttempt:
     def test_frozen(self) -> None:
-        a = TrackingAttempt(technique="pixel_1x1", status="detected", details="found", error="")
+        a = TrackingAttempt(
+            technique="pixel_1x1", status="detected", details="found", error=""
+        )
         with pytest.raises(AttributeError):
             a.technique = "x"  # type: ignore[misc]
 
@@ -190,7 +192,9 @@ class TestDetectors:
         assert status == "not_detected"
 
     def test_pixel_css_detected(self) -> None:
-        status, _ = _detect_pixel_css("", "background-image:url('https://track.example.com/bg.gif')")
+        status, _ = _detect_pixel_css(
+            "", "background-image:url('https://track.example.com/bg.gif')"
+        )
         assert status == "detected"
 
     def test_pixel_css_not_detected(self) -> None:
@@ -206,15 +210,21 @@ class TestDetectors:
         assert status == "not_detected"
 
     def test_link_rewrite_not_detected(self) -> None:
-        status, _ = _detect_link_rewrite("https://legit.com/page", "250 OK", '<a href="https://legit.com/page">')
+        status, _ = _detect_link_rewrite(
+            "https://legit.com/page", "250 OK", '<a href="https://legit.com/page">'
+        )
         assert status == "not_detected"
 
     def test_link_rewrite_detected_redirect(self) -> None:
-        status, _ = _detect_link_rewrite("https://legit.com/page", "redirect to destination", "")
+        status, _ = _detect_link_rewrite(
+            "https://legit.com/page", "redirect to destination", ""
+        )
         assert status == "detected"
 
     def test_link_rewrite_detected_tracking(self) -> None:
-        status, _ = _detect_link_rewrite("https://legit.com/page", "tracking pixel added", "")
+        status, _ = _detect_link_rewrite(
+            "https://legit.com/page", "tracking pixel added", ""
+        )
         assert status == "detected"
 
     def test_link_rewrite_not_detected_best_effort(self) -> None:
@@ -273,7 +283,9 @@ class TestDetectors:
         assert status == "not_detected"
 
     def test_css_tracking_detected(self) -> None:
-        status, _ = _detect_css_tracking('background:url("https://track.example.com/t.gif")')
+        status, _ = _detect_css_tracking(
+            'background:url("https://track.example.com/t.gif")'
+        )
         assert status == "detected"
 
     def test_css_tracking_not_detected(self) -> None:
@@ -281,7 +293,9 @@ class TestDetectors:
         assert status == "not_detected"
 
     def test_font_fingerprint_detected(self) -> None:
-        status, _ = _detect_font_fingerprint('@font-face{src:url("https://track.example.com/f.woff")}')
+        status, _ = _detect_font_fingerprint(
+            '@font-face{src:url("https://track.example.com/f.woff")}'
+        )
         assert status == "detected"
 
     def test_font_fingerprint_not_detected(self) -> None:

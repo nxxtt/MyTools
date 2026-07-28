@@ -179,7 +179,9 @@ class TestBuildRequest:
         assert req.endswith(b"\r\n\r\n")
 
     def test_with_extra_headers(self) -> None:
-        req = _build_request("GET", "/", "example.com", extra_headers=[("X-Test", "val")])
+        req = _build_request(
+            "GET", "/", "example.com", extra_headers=[("X-Test", "val")]
+        )
         assert b"X-Test: val" in req
 
     def test_with_body(self) -> None:
@@ -209,7 +211,10 @@ class TestCreateConnection:
             mock_sock = MagicMock()
             mock_conn.return_value = mock_sock
             mock_ctx = MagicMock()
-            with patch("mytools.web.headeredge.ssl.create_default_context", return_value=mock_ctx):
+            with patch(
+                "mytools.web.headeredge.ssl.create_default_context",
+                return_value=mock_ctx,
+            ):
                 mock_ctx.wrap_socket.return_value = MagicMock()
                 _create_connection("example.com", 443, 5.0, tls=True)
                 mock_ctx.wrap_socket.assert_called_once()
@@ -254,7 +259,10 @@ class TestSendRaw:
 
 class TestGetBaseline:
     def test_returns_status_and_size(self) -> None:
-        with patch("mytools.web.headeredge._create_connection") as mock_conn, patch("mytools.web.headeredge._send_raw") as mock_send:
+        with (
+            patch("mytools.web.headeredge._create_connection") as mock_conn,
+            patch("mytools.web.headeredge._send_raw") as mock_send,
+        ):
             mock_sock = MagicMock()
             mock_conn.return_value = mock_sock
             mock_send.return_value = (200, b"HTTP/1.1 200 OK\r\n\r\nbody")
@@ -263,7 +271,9 @@ class TestGetBaseline:
             assert size == 23
 
     def test_handles_connection_error(self) -> None:
-        with patch("mytools.web.headeredge._create_connection", side_effect=OSError("fail")):
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
             status, size = _get_baseline("example.com", 80, "/", 5.0, False)
             assert status == 0
             assert size == 0
@@ -278,7 +288,9 @@ class TestDuplicateHeaders:
         with patch("mytools.web.headeredge._create_connection") as mock_conn:
             mock_sock = MagicMock()
             mock_conn.return_value = mock_sock
-            mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"
+            mock_sock.recv.return_value = (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"
+            )
             results = await _test_duplicate_headers(
                 "example.com",
                 80,
@@ -293,7 +305,9 @@ class TestDuplicateHeaders:
 
     @pytest.mark.asyncio
     async def test_handles_exception(self) -> None:
-        with patch("mytools.web.headeredge._create_connection", side_effect=OSError("fail")):
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
             results = await _test_duplicate_headers(
                 "example.com",
                 80,

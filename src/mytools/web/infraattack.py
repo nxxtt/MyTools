@@ -63,7 +63,11 @@ _TERRAFORM_STATE_PATHS_DEFAULT: list[str] = [
 def _load_terraform_paths() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "infra_attack", default={"terraform_state_paths": _TERRAFORM_STATE_PATHS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "infra_attack",
+        default={"terraform_state_paths": _TERRAFORM_STATE_PATHS_DEFAULT},
+    )
     return data.get("terraform_state_paths", _TERRAFORM_STATE_PATHS_DEFAULT)
 
 
@@ -288,10 +292,18 @@ async def _test_terraform_state_leak(
             if resp.status_code == 200:
                 try:
                     data = resp.json()
-                    if "resources" in data or "terraform_version" in data or "serial" in data:
+                    if (
+                        "resources" in data
+                        or "terraform_version" in data
+                        or "serial" in data
+                    ):
                         leaked_files.append(state_path)
                         body = json.dumps(data)
-                        secrets_found.extend(pattern for pattern in _TERRAFORM_SECRET_PATTERNS if re.search(pattern, body, re.IGNORECASE))
+                        secrets_found.extend(
+                            pattern
+                            for pattern in _TERRAFORM_SECRET_PATTERNS
+                            if re.search(pattern, body, re.IGNORECASE)
+                        )
                 except json.JSONDecodeError, ValueError:
                     if "terraform" in resp.text.lower():
                         leaked_files.append(state_path)
@@ -303,7 +315,17 @@ async def _test_terraform_state_leak(
     details = f"Files: {len(leaked_files)}"
     if unique_secrets:
         details += f", Secrets: {', '.join(unique_secrets[:5])}"
-    return _make_attempt("terraform_state_leak", "infrastructure", "Terraform state file leak", vuln, details, "", url, "terraform", last_code)
+    return _make_attempt(
+        "terraform_state_leak",
+        "infrastructure",
+        "Terraform state file leak",
+        vuln,
+        details,
+        "",
+        url,
+        "terraform",
+        last_code,
+    )
 
 
 async def _test_vault_exposed(
@@ -334,7 +356,17 @@ async def _test_vault_exposed(
     details = f"Vault: {'detected' if vault_detected else 'not found'}"
     if accessible:
         details += f", {len(accessible)} accessible ({', '.join(accessible[:3])})"
-    return _make_attempt("vault_exposed", "infrastructure", "HashiCorp Vault exposed", vuln, details, "", url, "vault", last_code)
+    return _make_attempt(
+        "vault_exposed",
+        "infrastructure",
+        "HashiCorp Vault exposed",
+        vuln,
+        details,
+        "",
+        url,
+        "vault",
+        last_code,
+    )
 
 
 async def _test_cicd_pipeline_leak(
@@ -352,15 +384,39 @@ async def _test_cicd_pipeline_leak(
             last_code = resp.status_code
             if resp.status_code == 200 and len(resp.text) > 10:
                 lower = resp.text.lower()
-                keywords = ("stages:", "jobs:", "pipeline", "script:", "image:", "services:", "before_script:", "deploy:", "build:")
+                keywords = (
+                    "stages:",
+                    "jobs:",
+                    "pipeline",
+                    "script:",
+                    "image:",
+                    "services:",
+                    "before_script:",
+                    "deploy:",
+                    "build:",
+                )
                 if any(kw in lower for kw in keywords):
                     found_pipelines.append(path_info["desc"])
         except Exception:
             pass
 
     vuln = len(found_pipelines) > 0
-    details = f"Pipelines: {', '.join(found_pipelines[:5])}" if vuln else "No exposed pipelines"
-    return _make_attempt("cicd_pipeline_leak", "infrastructure", "CI/CD pipeline file leak", vuln, details, "", url, "cicd", last_code)
+    details = (
+        f"Pipelines: {', '.join(found_pipelines[:5])}"
+        if vuln
+        else "No exposed pipelines"
+    )
+    return _make_attempt(
+        "cicd_pipeline_leak",
+        "infrastructure",
+        "CI/CD pipeline file leak",
+        vuln,
+        details,
+        "",
+        url,
+        "cicd",
+        last_code,
+    )
 
 
 async def _test_cicd_secret_detection(
@@ -388,10 +444,22 @@ async def _test_cicd_secret_detection(
         all_secrets.extend(f"{pipeline}:{s}" for s in secrets)
 
     vuln = len(all_secrets) > 0
-    details = f"Secrets: {len(all_secrets)} found" if vuln else "No secrets in pipelines"
+    details = (
+        f"Secrets: {len(all_secrets)} found" if vuln else "No secrets in pipelines"
+    )
     if all_secrets:
         details += f" ({', '.join(all_secrets[:5])})"
-    return _make_attempt("cicd_secret_detection", "infrastructure", "CI/CD secret detection", vuln, details, "", url, "cicd", last_code)
+    return _make_attempt(
+        "cicd_secret_detection",
+        "infrastructure",
+        "CI/CD secret detection",
+        vuln,
+        details,
+        "",
+        url,
+        "cicd",
+        last_code,
+    )
 
 
 async def _test_elastic_exposed(
@@ -428,7 +496,17 @@ async def _test_elastic_exposed(
     details = f"Elastic/Kibana: {'detected' if elastic_detected else 'not found'}"
     if accessible:
         details += f", {len(accessible)} accessible ({', '.join(accessible[:3])})"
-    return _make_attempt("elastic_exposed", "infrastructure", "Elastic/Kibana exposed", vuln, details, "", url, "elastic", last_code)
+    return _make_attempt(
+        "elastic_exposed",
+        "infrastructure",
+        "Elastic/Kibana exposed",
+        vuln,
+        details,
+        "",
+        url,
+        "elastic",
+        last_code,
+    )
 
 
 async def _test_redis_mongo_unauth(
@@ -456,9 +534,14 @@ async def _test_redis_mongo_unauth(
                     sock.send(probe)
                     response = sock.recv(1024)
                     response_str = response.decode("utf-8", errors="ignore").lower()
-                    if svc_name == "Redis" and ("redis_version" in response_str or "connected_clients" in response_str):
+                    if svc_name == "Redis" and (
+                        "redis_version" in response_str
+                        or "connected_clients" in response_str
+                    ):
                         services_found.append(f"Redis:{svc_port}")
-                    elif svc_name == "MongoDB" and ("ismaster" in response_str or "ok" in response_str):
+                    elif svc_name == "MongoDB" and (
+                        "ismaster" in response_str or "ok" in response_str
+                    ):
                         services_found.append(f"MongoDB:{svc_port}")
                 except Exception:
                     pass
@@ -467,8 +550,22 @@ async def _test_redis_mongo_unauth(
             pass
 
     vuln = len(services_found) > 0
-    details = f"Unauth services: {', '.join(services_found)}" if vuln else "No unauth Redis/MongoDB found"
-    return _make_attempt("redis_mongo_unauth", "infrastructure", "Redis/MongoDB unauth access", vuln, details, "", url, "database", last_code)
+    details = (
+        f"Unauth services: {', '.join(services_found)}"
+        if vuln
+        else "No unauth Redis/MongoDB found"
+    )
+    return _make_attempt(
+        "redis_mongo_unauth",
+        "infrastructure",
+        "Redis/MongoDB unauth access",
+        vuln,
+        details,
+        "",
+        url,
+        "database",
+        last_code,
+    )
 
 
 async def _test_debug_endpoints(
@@ -486,14 +583,40 @@ async def _test_debug_endpoints(
             last_code = resp.status_code
             if resp.status_code == 200 and len(resp.text) > 50:
                 lower = resp.text.lower()
-                if any(kw in lower for kw in ("debug", "actuator", "adminer", "phpmyadmin", "pprof", "console", "stack", "trace")):
+                if any(
+                    kw in lower
+                    for kw in (
+                        "debug",
+                        "actuator",
+                        "adminer",
+                        "phpmyadmin",
+                        "pprof",
+                        "console",
+                        "stack",
+                        "trace",
+                    )
+                ):
                     found_endpoints.append(path_info["desc"])
         except Exception:
             pass
 
     vuln = len(found_endpoints) > 0
-    details = f"Debug endpoints: {', '.join(found_endpoints[:5])}" if vuln else "No exposed debug endpoints"
-    return _make_attempt("debug_endpoints", "infrastructure", "Exposed debug endpoints", vuln, details, "", url, "debug", last_code)
+    details = (
+        f"Debug endpoints: {', '.join(found_endpoints[:5])}"
+        if vuln
+        else "No exposed debug endpoints"
+    )
+    return _make_attempt(
+        "debug_endpoints",
+        "infrastructure",
+        "Exposed debug endpoints",
+        vuln,
+        details,
+        "",
+        url,
+        "debug",
+        last_code,
+    )
 
 
 async def _test_debug_mode_detection(
@@ -510,7 +633,11 @@ async def _test_debug_mode_detection(
         headers_str = " ".join(f"{k}: {v}" for k, v in resp.headers.items())
         combined = resp.text + " " + headers_str
 
-        detected_modes.extend(sig_info["desc"] for sig_info in _DEBUG_MODE_SIGNATURES if re.search(sig_info["pattern"], combined, re.IGNORECASE))
+        detected_modes.extend(
+            sig_info["desc"]
+            for sig_info in _DEBUG_MODE_SIGNATURES
+            if re.search(sig_info["pattern"], combined, re.IGNORECASE)
+        )
     except Exception:
         pass
 
@@ -521,15 +648,29 @@ async def _test_debug_mode_detection(
             resp = await client.get(full_url)
             if resp.status_code == 200:
                 detected_modes.extend(
-                    f"{sig_info['desc']} ({path})" for sig_info in _DEBUG_MODE_SIGNATURES if re.search(sig_info["pattern"], resp.text, re.IGNORECASE)
+                    f"{sig_info['desc']} ({path})"
+                    for sig_info in _DEBUG_MODE_SIGNATURES
+                    if re.search(sig_info["pattern"], resp.text, re.IGNORECASE)
                 )
         except Exception:
             pass
 
     unique = list(set(detected_modes))
     vuln = len(unique) > 0
-    details = f"Debug modes: {', '.join(unique[:5])}" if vuln else "No debug mode detected"
-    return _make_attempt("debug_mode_detection", "infrastructure", "Debug mode detection", vuln, details, "", url, "debug", last_code)
+    details = (
+        f"Debug modes: {', '.join(unique[:5])}" if vuln else "No debug mode detected"
+    )
+    return _make_attempt(
+        "debug_mode_detection",
+        "infrastructure",
+        "Debug mode detection",
+        vuln,
+        details,
+        "",
+        url,
+        "debug",
+        last_code,
+    )
 
 
 async def _test_infrastructure(
@@ -541,7 +682,9 @@ async def _test_infrastructure(
     endpoint: str,
 ) -> list[InfraAttackAttempt]:
     results: list[InfraAttackAttempt] = []
-    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=False, follow_redirects=True
+    ) as client:
         for tech, fn in [
             ("terraform_state_leak", _test_terraform_state_leak),
             ("vault_exposed", _test_vault_exposed),
@@ -556,11 +699,25 @@ async def _test_infrastructure(
                 result = await fn(endpoint, timeout, client)
                 results.append(result)
             except Exception as exc:
-                results.append(_make_attempt(tech, "infrastructure", "", False, "", str(exc)[:100], endpoint, "unknown", 0))
+                results.append(
+                    _make_attempt(
+                        tech,
+                        "infrastructure",
+                        "",
+                        False,
+                        "",
+                        str(exc)[:100],
+                        endpoint,
+                        "unknown",
+                        0,
+                    )
+                )
     return results
 
 
-_CATEGORY_DISPATCH: dict[str, Callable[..., Coroutine[Any, Any, list[InfraAttackAttempt]]]] = {
+_CATEGORY_DISPATCH: dict[
+    str, Callable[..., Coroutine[Any, Any, list[InfraAttackAttempt]]]
+] = {
     "infrastructure": _test_infrastructure,
 }
 
@@ -569,7 +726,10 @@ def print_results(result: InfraAttackResult) -> None:
     print()
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), "Infrastructure Attack Testing")
     print(color("[*]", Cyber.CYAN), f"Target: {result.target}")
-    print(color("[*]", Cyber.CYAN), f"Host: {result.host}:{result.port} (TLS: {result.tls})")
+    print(
+        color("[*]", Cyber.CYAN),
+        f"Host: {result.host}:{result.port} (TLS: {result.tls})",
+    )
     print(color("[*]", Cyber.CYAN), f"Endpoint: {result.endpoint}")
     print(color("[*]", Cyber.CYAN), f"Service: {result.service_detected}")
     print(color("[*]", Cyber.CYAN), f"Techniques: {result.techniques_count}")
@@ -585,7 +745,10 @@ def print_results(result: InfraAttackResult) -> None:
     for cat, attempts in categories.items():
         vuln_in_cat = [a for a in attempts if a.vulnerable]
         if vuln_in_cat:
-            print(color("[!]", Cyber.RED, Cyber.BOLD), f"{cat}: {len(vuln_in_cat)} vulnerable(s)")
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                f"{cat}: {len(vuln_in_cat)} vulnerable(s)",
+            )
             for a in vuln_in_cat:
                 print(color("    [-]", Cyber.RED), f"{a.technique}: {a.details}")
                 print_exploit_info(a.exploit, a.tool)
@@ -593,9 +756,15 @@ def print_results(result: InfraAttackResult) -> None:
             print(color("[+]", Cyber.GREEN), f"{cat}: secure")
     print()
     if result.overall_status == "vulnerable":
-        print(color("[!]", Cyber.RED, Cyber.BOLD), "VULNERABLE — Infrastructure weaknesses detected!")
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            "VULNERABLE — Infrastructure weaknesses detected!",
+        )
     else:
-        print(color("[+]", Cyber.GREEN, Cyber.BOLD), "SECURE — Infrastructure configuration looks good")
+        print(
+            color("[+]", Cyber.GREEN, Cyber.BOLD),
+            "SECURE — Infrastructure configuration looks good",
+        )
     print()
 
 
@@ -607,7 +776,9 @@ async def run_scan(
 ) -> InfraAttackResult:
     host, path, port, tls = _parse_url(target)
     scheme = "https" if tls else "http"
-    endpoint = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    endpoint = (
+        f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
+    )
     if path:
         endpoint = endpoint.rstrip("/") + path
     service_detected = "unknown"
@@ -624,7 +795,19 @@ async def run_scan(
             if services:
                 service_detected = max(set(services), key=services.count)
         except Exception as e:
-            all_attempts.append(_make_attempt(f"{cat}_error", cat, "", False, "", str(e)[:100], endpoint, "unknown", 0))
+            all_attempts.append(
+                _make_attempt(
+                    f"{cat}_error",
+                    cat,
+                    "",
+                    False,
+                    "",
+                    str(e)[:100],
+                    endpoint,
+                    "unknown",
+                    0,
+                )
+            )
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
     issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
@@ -654,7 +837,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Infrastructure Attack Testing — Terraform, Vault, CI/CD, Elastic, Redis/MongoDB, Debug",
     )
     parser.add_argument("url", help="URL alvo (https://target.com)")
-    parser.add_argument("-c", "--categories", nargs="+", choices=list(_CATEGORY_MAP.keys()), help="Categorias para testar")
+    parser.add_argument(
+        "-c",
+        "--categories",
+        nargs="+",
+        choices=list(_CATEGORY_MAP.keys()),
+        help="Categorias para testar",
+    )
     add_common_args(parser)
     return parser
 

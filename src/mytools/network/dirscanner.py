@@ -106,7 +106,9 @@ def _load_dir_paths() -> list[str]:
     """Carrega dir scanner paths de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("network", "dir_scanner", default={"paths": _DEFAULT_PATHS_DEFAULT})
+    data = load_payloads(
+        "network", "dir_scanner", default={"paths": _DEFAULT_PATHS_DEFAULT}
+    )
     return data.get("paths", _DEFAULT_PATHS_DEFAULT)
 
 
@@ -256,7 +258,12 @@ def _generate_unicode_variations(path: str) -> list[str]:
     return variations
 
 
-def load_paths(wordlist: str | None, extensions: list[str], case_variation: bool = False, unicode_norm: bool = False) -> list[str]:
+def load_paths(
+    wordlist: str | None,
+    extensions: list[str],
+    case_variation: bool = False,
+    unicode_norm: bool = False,
+) -> list[str]:
     """Carrega caminhos da wordlist ou lista padrao e aplica extensoes."""
     raw_paths = _read_wordlist(wordlist) if wordlist else list(DEFAULT_PATHS)
 
@@ -316,7 +323,14 @@ async def scan_path(
     await rate_limiter.wait()
 
     try:
-        status, headers, content, _ = await fetch(client, full_url, timeout=timeout, method=method, max_retries=retries, rate_limiter=rate_limiter)
+        status, headers, content, _ = await fetch(
+            client,
+            full_url,
+            timeout=timeout,
+            method=method,
+            max_retries=retries,
+            rate_limiter=rate_limiter,
+        )
     except FetchError:
         return None
 
@@ -324,7 +338,11 @@ async def scan_path(
         return None
 
     content_type = headers.get("content-type", "")
-    text = content.decode("utf-8", errors="replace") if "text/html" in content_type.lower() else ""
+    text = (
+        content.decode("utf-8", errors="replace")
+        if "text/html" in content_type.lower()
+        else ""
+    )
     return Finding(
         url=full_url,
         path="/" + path,
@@ -360,7 +378,9 @@ async def scan_target(
     client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
 
     logger.info("scan iniciado: %s (%d paths)", base_url, len(paths))
-    logger.debug("method=%s, concurrency=%d, statuses=%s", method, concurrency, statuses)
+    logger.debug(
+        "method=%s, concurrency=%d, statuses=%s", method, concurrency, statuses
+    )
 
     if auth_headers:
         client.headers.update(auth_headers)
@@ -383,10 +403,21 @@ async def scan_target(
     async def _limited_scan(path: str) -> Finding | None:
         nonlocal completed
         async with sem:
-            result = await scan_path(client, rate_limiter, base_url, path, timeout, statuses, method, retries=retries)
+            result = await scan_path(
+                client,
+                rate_limiter,
+                base_url,
+                path,
+                timeout,
+                statuses,
+                method,
+                retries=retries,
+            )
             completed += 1
             if completed % 20 == 0 or completed == total_paths:
-                sys.stdout.write(f"\r  Progresso: {completed}/{total_paths} paths testados...")
+                sys.stdout.write(
+                    f"\r  Progresso: {completed}/{total_paths} paths testados..."
+                )
                 sys.stdout.flush()
             return result
 
@@ -403,7 +434,9 @@ async def scan_target(
         spa_skip_indices = detect_spa_fallback(non_null, lambda r: (r.size, r.words))
         if spa_skip_indices:
             spa_skip = {non_null[i].url for i in spa_skip_indices}
-            logger.debug("SPA detectado: %d/%d findings ignorados", len(spa_skip), len(non_null))
+            logger.debug(
+                "SPA detectado: %d/%d findings ignorados", len(spa_skip), len(non_null)
+            )
 
         findings: list[Finding] = []
         for result in results:
@@ -420,7 +453,9 @@ async def scan_target(
             if result.title:
                 details.append(f"title={result.title}")
             suffix = f" | {' | '.join(details)}" if details else ""
-            logger.info("[+] %d %7dB %s%s", result.status, result.size, result.url, suffix)
+            logger.info(
+                "[+] %d %7dB %s%s", result.status, result.size, result.url, suffix
+            )
     finally:
         await client.aclose()
 
@@ -433,14 +468,27 @@ async def scan_target(
 def print_dir_table(findings: list[Finding]) -> None:
     """Imprime tabela formatada dos achados do scan."""
     if not findings:
-        print(color("Nenhum diretorio/arquivo encontrado com os filtros atuais.", Cyber.RED))
+        print(
+            color(
+                "Nenhum diretorio/arquivo encontrado com os filtros atuais.", Cyber.RED
+            )
+        )
         return
 
     headers = ("STATUS", "SIZE", "WORDS", "METHOD", "PATH", "TITLE/LOCATION")
     rows = []
     for item in findings:
         extra = item.location or item.title
-        rows.append((str(item.status), str(item.size), str(item.words), item.method, item.path, extra))
+        rows.append(
+            (
+                str(item.status),
+                str(item.size),
+                str(item.words),
+                item.method,
+                item.path,
+                extra,
+            )
+        )
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         return [
@@ -463,12 +511,25 @@ def print_dir_table(findings: list[Finding]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(description="Directory/file scanner HTTP rapido para laboratorios e hosts autorizados.")
+    parser = argparse.ArgumentParser(
+        description="Directory/file scanner HTTP rapido para laboratorios e hosts autorizados."
+    )
     add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
-    parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
-    parser.add_argument("-w", "--wordlist", help="Wordlist customizada, um path por linha.")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        help="Diretorio para salvos individuais (hostname.json).",
+    )
+    parser.add_argument(
+        "-w", "--wordlist", help="Wordlist customizada, um path por linha."
+    )
     parser.add_argument(
         "-x",
         "--extensions",
@@ -518,16 +579,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Gera variantes Unicode (circled, full-width) para cada path da wordlist",
     )
-    parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) DirScanner/{__version__}")
+    parser.set_defaults(
+        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) DirScanner/{__version__}"
+    )
     return parser
 
 
-async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -> list[Finding]:
+async def _run_single(
+    url: str, args: argparse.Namespace, quiet: bool = False
+) -> list[Finding]:
     """Executa scan em uma unica URL."""
     extra_headers = parse_extra_headers(args.header) if args.header else {}
     cookie_headers = {"Cookie": args.cookie} if args.cookie else {}
     base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
-    paths = load_paths(args.wordlist, args.extensions, case_variation=getattr(args, "case_variation", False), unicode_norm=getattr(args, "unicode_norm", False))
+    paths = load_paths(
+        args.wordlist,
+        args.extensions,
+        case_variation=getattr(args, "case_variation", False),
+        unicode_norm=getattr(args, "unicode_norm", False),
+    )
     findings = await scan_target(
         base_url=base_url,
         paths=paths,
@@ -540,7 +610,9 @@ async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -
         requests_per_second=args.delay,
         method=args.method,
         auth_headers=args.auth,
-        extra_headers={**extra_headers, **cookie_headers} if cookie_headers or extra_headers else None,
+        extra_headers={**extra_headers, **cookie_headers}
+        if cookie_headers or extra_headers
+        else None,
         size_range=args.filter_size,
         words_range=args.filter_words,
         retries=args.retries,
@@ -562,13 +634,23 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False):
         paths = load_paths(
-            args.wordlist, args.extensions, case_variation=getattr(args, "case_variation", False), unicode_norm=getattr(args, "unicode_norm", False)
+            args.wordlist,
+            args.extensions,
+            case_variation=getattr(args, "case_variation", False),
+            unicode_norm=getattr(args, "unicode_norm", False),
         )
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
-            base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
+            base_url = normalize_url(
+                url, default_scheme="http", ensure_trailing_slash=True
+            )
             logger.info("Alvo: %s", base_url)
-            logger.info("Paths: %d | Method: %s | Concurrency: %d", len(paths), args.method, args.concurrency)
+            logger.info(
+                "Paths: %d | Method: %s | Concurrency: %d",
+                len(paths),
+                args.method,
+                args.concurrency,
+            )
             logger.info("Status: %s", ",".join(map(str, sorted(args.status))))
         return 0
 
@@ -582,7 +664,16 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             write_output(
                 out_path,
                 [asdict(f) for f in findings],
-                ["url", "path", "status", "size", "words", "title", "location", "method"],
+                [
+                    "url",
+                    "path",
+                    "status",
+                    "size",
+                    "words",
+                    "title",
+                    "location",
+                    "method",
+                ],
                 quiet=quiet,
             )
 

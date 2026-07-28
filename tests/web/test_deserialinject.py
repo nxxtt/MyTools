@@ -392,7 +392,9 @@ class TestTestPython:
         mock_resp.content = b"pickle"
         mock_client.post.return_value = mock_resp
 
-        results = await _test_python(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_python(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
@@ -402,7 +404,9 @@ class TestTestPython:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
-        results = await _test_python(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_python(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -418,7 +422,9 @@ class TestTestDetect:
         mock_resp.content = b"admin"
         mock_client.post.return_value = mock_resp
 
-        results = await _test_detect(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
@@ -428,7 +434,9 @@ class TestTestDetect:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
-        results = await _test_detect(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -444,7 +452,9 @@ class TestTestBypass:
         mock_resp.content = b"admin"
         mock_client.post.return_value = mock_resp
 
-        results = await _test_bypass(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_bypass(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
@@ -454,7 +464,9 @@ class TestTestBypass:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
-        results = await _test_bypass(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_bypass(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -539,13 +551,21 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_returns_int(self) -> None:
-        with patch("sys.argv", ["mytools-deserial"]), patch("mytools.web.deserialinject.run_main_loop", return_value=0) as mock_loop:
+        with (
+            patch("sys.argv", ["mytools-deserial"]),
+            patch(
+                "mytools.web.deserialinject.run_main_loop", return_value=0
+            ) as mock_loop,
+        ):
             result = main()
             assert isinstance(result, int)
             mock_loop.assert_called_once()
 
     def test_main_passes_args(self) -> None:
-        with patch("sys.argv", ["mytools-deserial", "https://example.com"]), patch("mytools.web.deserialinject.run_main_loop", return_value=0):
+        with (
+            patch("sys.argv", ["mytools-deserial", "https://example.com"]),
+            patch("mytools.web.deserialinject.run_main_loop", return_value=0),
+        ):
             result = main()
             assert result == 0
 
@@ -663,14 +683,18 @@ class TestTestDotnet:
         mock_resp.status_code = 200
         mock_resp.content = b"admin"
         mock_client.post.return_value = mock_resp
-        results = await _test_dotnet(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_dotnet(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.ConnectError("fail")
-        results = await _test_dotnet(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_dotnet(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -685,14 +709,18 @@ class TestTestNodejs:
         mock_resp.status_code = 200
         mock_resp.content = b"admin"
         mock_client.post.return_value = mock_resp
-        results = await _test_nodejs(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_nodejs(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
 
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.ConnectError("fail")
-        results = await _test_nodejs(mock_client, "https://example.com", (200, 100, b""))
+        results = await _test_nodejs(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
         assert len(results) > 0
         assert all(r.error for r in results)
 
@@ -791,12 +819,16 @@ class TestIntegration:
         args.output = None
         args.verbose = False
 
-        with patch("mytools.web.deserialinject.safe_asyncio_run", return_value=0) as mock_run:
+        with patch(
+            "mytools.web.deserialinject.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             from mytools.web.deserialinject import run_once
 
             result = run_once(args)
             assert result == 0
-            mock_run.assert_called_once()
+            mock_scan.assert_called_once()
 
     def test_run_once_no_category(self) -> None:
         args = MagicMock()
@@ -807,7 +839,11 @@ class TestIntegration:
         args.output = None
         args.verbose = False
 
-        with patch("mytools.web.deserialinject.safe_asyncio_run", return_value=0):
+        with patch(
+            "mytools.web.deserialinject.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ):
             from mytools.web.deserialinject import run_once
 
             result = run_once(args)

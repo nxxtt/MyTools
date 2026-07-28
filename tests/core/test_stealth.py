@@ -25,7 +25,14 @@ class TestProxyPool:
     def test_round_robin(self):
         pool = ProxyPool(["http://p1:8080", "http://p2:8080", "http://p3:8080"])
         results = [pool.get_sync() for _ in range(6)]
-        assert results == ["http://p1:8080", "http://p2:8080", "http://p3:8080", "http://p1:8080", "http://p2:8080", "http://p3:8080"]
+        assert results == [
+            "http://p1:8080",
+            "http://p2:8080",
+            "http://p3:8080",
+            "http://p1:8080",
+            "http://p2:8080",
+            "http://p3:8080",
+        ]
 
     def test_mark_dead_removes_from_pool(self):
         pool = ProxyPool(["http://p1:8080", "http://p2:8080"])
@@ -270,7 +277,16 @@ class TestDetectModuleType:
     def test_returns_string(self):
         result = _detect_module_type()
         assert isinstance(result, str)
-        assert result in {"web", "dns", "email", "osint", "network", "vcs", "config", "core"}
+        assert result in {
+            "web",
+            "dns",
+            "email",
+            "osint",
+            "network",
+            "vcs",
+            "config",
+            "core",
+        }
 
 
 class TestAddStealthArgs:

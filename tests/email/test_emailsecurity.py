@@ -22,7 +22,14 @@ class TestSpfRecord:
     """Testes do dataclass SpfRecord."""
 
     def test_frozen(self) -> None:
-        r = SpfRecord(raw="v=spf1 ~all", version="spf1", mechanisms=[], has_all=True, all_qualifier="~", includes=[])
+        r = SpfRecord(
+            raw="v=spf1 ~all",
+            version="spf1",
+            mechanisms=[],
+            has_all=True,
+            all_qualifier="~",
+            includes=[],
+        )
         with pytest.raises(AttributeError):
             r.raw = "x"  # type: ignore[misc]
 
@@ -34,7 +41,9 @@ class TestDmarcRecord:
     """Testes do dataclass DmarcRecord."""
 
     def test_frozen(self) -> None:
-        r = DmarcRecord(raw="v=DMARC1; p=reject", policy="reject", sp="reject", rua="", pct=100)
+        r = DmarcRecord(
+            raw="v=DMARC1; p=reject", policy="reject", sp="reject", rua="", pct=100
+        )
         with pytest.raises(AttributeError):
             r.raw = "x"  # type: ignore[misc]
 

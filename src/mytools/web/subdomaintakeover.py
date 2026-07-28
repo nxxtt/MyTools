@@ -170,7 +170,9 @@ _SERVICES_DEFAULT: dict[str, dict[str, Any]] = {}
 def _load_services() -> dict[str, Any]:
     from mytools.data import load_payloads
 
-    return load_payloads("web", "subdomain_takeover", default={"services": _SERVICES_DEFAULT})
+    return load_payloads(
+        "web", "subdomain_takeover", default={"services": _SERVICES_DEFAULT}
+    )
 
 
 def _get_services() -> dict[str, dict[str, Any]]:
@@ -215,7 +217,13 @@ def _resolve_a(subdomain: str, timeout: float = 5.0) -> list[str]:
     try:
         answers = resolver.resolve(subdomain, "A")
         ips.extend(str(rdata) for rdata in answers)
-    except dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers, dns.resolver.Timeout, dns.exception.DNSException:
+    except (
+        dns.resolver.NoAnswer,
+        dns.resolver.NXDOMAIN,
+        dns.resolver.NoNameservers,
+        dns.resolver.Timeout,
+        dns.exception.DNSException,
+    ):
         pass
     return ips
 
@@ -269,7 +277,9 @@ def _enumerate_crtsh(domain: str, timeout: float = 10.0) -> list[str]:
                 },
             )
             if resp.status_code == 429:
-                logger.warning("crt.sh rate limited (tentativa %d/%d)", attempt + 1, max_retries)
+                logger.warning(
+                    "crt.sh rate limited (tentativa %d/%d)", attempt + 1, max_retries
+                )
                 if attempt < max_retries - 1:
                     import time
 
@@ -282,16 +292,25 @@ def _enumerate_crtsh(domain: str, timeout: float = 10.0) -> list[str]:
                 name = entry.get("name_value", "")
                 for line in name.splitlines():
                     line = line.strip().lower()
-                    if (line.endswith(f".{domain}") or line == domain) and not line.startswith("*"):
+                    if (
+                        line.endswith(f".{domain}") or line == domain
+                    ) and not line.startswith("*"):
                         subs.add(line)
             logger.info("crt.sh retornou %d subdominios para %s", len(subs), domain)
             return sorted(subs)
         except httpx.TimeoutException:
             logger.warning("crt.sh timeout (tentativa %d/%d)", attempt + 1, max_retries)
         except httpx.HTTPStatusError as e:
-            logger.warning("crt.sh HTTP %d (tentativa %d/%d)", e.response.status_code, attempt + 1, max_retries)
+            logger.warning(
+                "crt.sh HTTP %d (tentativa %d/%d)",
+                e.response.status_code,
+                attempt + 1,
+                max_retries,
+            )
         except Exception as e:
-            logger.warning("crt.sh erro: %s (tentativa %d/%d)", e, attempt + 1, max_retries)
+            logger.warning(
+                "crt.sh erro: %s (tentativa %d/%d)", e, attempt + 1, max_retries
+            )
 
     logger.warning("crt.sh indisponivel, usando wordlist apenas")
     return []
@@ -318,7 +337,9 @@ def _enumerate_subdomains(
 # ---------------------------------------------------------------------------
 
 
-def _match_service(cname_target: str, services: dict[str, dict[str, Any]]) -> tuple[str, str] | None:
+def _match_service(
+    cname_target: str, services: dict[str, dict[str, Any]]
+) -> tuple[str, str] | None:
     """Verifica se CNAME target corresponde a um servico conhecido.
 
     Retorna (service_name, cname_suffix) ou None.
@@ -540,11 +561,15 @@ def print_results(result: TakeoverResult) -> None:
     print(color("=" * 60, Cyber.GRAY))
     print(color(f"  Dominio:       {result.target}", Cyber.CYAN))
     print(color(f"  Subdominios:   {result.subdomains_scanned} escaneados", Cyber.GRAY))
-    print(color(f"  Dangling:      {result.dangling_cnames} CNAMEs pendentes", Cyber.GRAY))
+    print(
+        color(f"  Dangling:      {result.dangling_cnames} CNAMEs pendentes", Cyber.GRAY)
+    )
 
     vuln = [a for a in result.attempts if a.vulnerable]
     if vuln:
-        print(color(f"\n  [!] {len(vuln)} SUBDOMINIOS VULNERAVEIS", Cyber.RED, Cyber.BOLD))
+        print(
+            color(f"\n  [!] {len(vuln)} SUBDOMINIOS VULNERAVEIS", Cyber.RED, Cyber.BOLD)
+        )
         for a in vuln:
             print(color(f"      {a.subdomain}", Cyber.RED))
             print(color(f"        CNAME:  {a.cname_target}", Cyber.WHITE))
@@ -552,11 +577,20 @@ def print_results(result: TakeoverResult) -> None:
             print(color(f"        HTTP:   {a.http_status}", Cyber.WHITE))
             print(color(f"        Match:  {a.details}", Cyber.YELLOW))
     else:
-        print(color("\n  [+] Nenhum subdomain takeover detectado", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "\n  [+] Nenhum subdomain takeover detectado", Cyber.GREEN, Cyber.BOLD
+            )
+        )
 
     non_vuln = [a for a in result.attempts if not a.vulnerable]
     if non_vuln:
-        print(color(f"\n  [*] {len(non_vuln)} CNAMEs para servicos conhecidos (sem match HTTP)", Cyber.GRAY))
+        print(
+            color(
+                f"\n  [*] {len(non_vuln)} CNAMEs para servicos conhecidos (sem match HTTP)",
+                Cyber.GRAY,
+            )
+        )
 
     print(color("=" * 60, Cyber.GRAY))
 
@@ -643,7 +677,9 @@ def main() -> int:
         prompt="subtakeover> ",
         description="Subdomain takeover interativo.",
         example="example.com",
-        contextual_help=("Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20 --json-output"),
+        contextual_help=(
+            "Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20 --json-output"
+        ),
     )
 
 

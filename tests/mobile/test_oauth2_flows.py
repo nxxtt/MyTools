@@ -90,8 +90,16 @@ class TestValidateJwt:
         import base64
         import json
 
-        header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).rstrip(b"=").decode()
-        payload = base64.urlsafe_b64encode(json.dumps({"sub": "123"}).encode()).rstrip(b"=").decode()
+        header = (
+            base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        payload = (
+            base64.urlsafe_b64encode(json.dumps({"sub": "123"}).encode())
+            .rstrip(b"=")
+            .decode()
+        )
         token = f"{header}.{payload}."
         result = validate_jwt(token)
         assert any("none" in w.lower() for w in result.get("warnings", []))

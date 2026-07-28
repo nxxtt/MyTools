@@ -94,7 +94,14 @@ class TestCategoryMap:
         assert len(_CATEGORY_MAP) == 6
 
     def test_categories(self) -> None:
-        expected = {"cms_detect", "wp_version", "wp_plugins", "wp_themes", "wp_users", "joomla_info"}
+        expected = {
+            "cms_detect",
+            "wp_version",
+            "wp_plugins",
+            "wp_themes",
+            "wp_users",
+            "joomla_info",
+        }
         assert set(_CATEGORY_MAP.keys()) == expected
 
     def test_each_has_one_technique(self) -> None:
@@ -109,7 +116,14 @@ class TestCategoryMap:
 
 class TestCmsSignatures:
     def test_has_all_cms(self) -> None:
-        expected = {"wordpress", "joomla", "drupal", "magento", "prestashop", "opencart"}
+        expected = {
+            "wordpress",
+            "joomla",
+            "drupal",
+            "magento",
+            "prestashop",
+            "opencart",
+        }
         assert set(_CMS_SIGNATURES.keys()) == expected
 
     def test_wordbook_has_detect_paths(self) -> None:
@@ -135,7 +149,9 @@ class TestCheckPath:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_status_and_body(self) -> None:
-        respx.get("https://example.com/test").mock(return_value=httpx.Response(200, text="hello"))
+        respx.get("https://example.com/test").mock(
+            return_value=httpx.Response(200, text="hello")
+        )
         async with httpx.AsyncClient() as client:
             status, body = await _check_path(client, "https://example.com", "/test")
             assert status == 200
@@ -147,7 +163,9 @@ class TestCheckPath:
         async def _handler(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("fail")
 
-        respx.route(method="GET", url="https://example.com/missing").mock(side_effect=_handler)
+        respx.route(method="GET", url="https://example.com/missing").mock(
+            side_effect=_handler
+        )
         async with httpx.AsyncClient() as client:
             status, body = await _check_path(client, "https://example.com", "/missing")
             assert status == 0
@@ -163,8 +181,12 @@ class TestDetectCms:
     @respx.mock
     @pytest.mark.asyncio
     async def test_detects_wordbook(self) -> None:
-        respx.get("https://example.com/wp-login.php").mock(return_value=httpx.Response(200, text="login"))
-        respx.get("https://example.com/wp-admin/").mock(return_value=httpx.Response(302, text="redirect"))
+        respx.get("https://example.com/wp-login.php").mock(
+            return_value=httpx.Response(200, text="login")
+        )
+        respx.get("https://example.com/wp-admin/").mock(
+            return_value=httpx.Response(302, text="redirect")
+        )
         async with httpx.AsyncClient() as client:
             cms = await _detect_cms(client, "https://example.com")
             assert cms == "wordpress"
@@ -178,7 +200,9 @@ class TestDetectCms:
         respx.route(method="GET", url="https://example.com/wp-admin/").mock(
             return_value=httpx.Response(404, text="not found"),
         )
-        respx.route(method="GET").mock(return_value=httpx.Response(404, text="not found"))
+        respx.route(method="GET").mock(
+            return_value=httpx.Response(404, text="not found")
+        )
         async with httpx.AsyncClient() as client:
             cms = await _detect_cms(client, "https://example.com")
             assert cms == ""
@@ -193,7 +217,9 @@ class TestDetectWpVersion:
     @respx.mock
     @pytest.mark.asyncio
     async def test_detects_from_readme(self) -> None:
-        respx.get("https://example.com/readme.html").mock(return_value=httpx.Response(200, text="<h1>Welcome</h1>Version 6.4.2</p>"))
+        respx.get("https://example.com/readme.html").mock(
+            return_value=httpx.Response(200, text="<h1>Welcome</h1>Version 6.4.2</p>")
+        )
         async with httpx.AsyncClient() as client:
             version, evidence = await _detect_wp_version(client, "https://example.com")
             assert version == "6.4.2"
@@ -202,8 +228,14 @@ class TestDetectWpVersion:
     @respx.mock
     @pytest.mark.asyncio
     async def test_detects_from_generator(self) -> None:
-        respx.get("https://example.com/readme.html").mock(return_value=httpx.Response(404, text=""))
-        respx.get("https://example.com/").mock(return_value=httpx.Response(200, text='<meta name="generator" content="WordPress 6.3.1" />'))
+        respx.get("https://example.com/readme.html").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(
+                200, text='<meta name="generator" content="WordPress 6.3.1" />'
+            )
+        )
         async with httpx.AsyncClient() as client:
             version, evidence = await _detect_wp_version(client, "https://example.com")
             assert version == "6.3.1"
@@ -215,9 +247,13 @@ class TestDetectWpVersion:
         async def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404, text="")
 
-        respx.route(method="GET", url="https://example.com/readme.html").mock(side_effect=_handler)
+        respx.route(method="GET", url="https://example.com/readme.html").mock(
+            side_effect=_handler
+        )
         respx.route(method="GET", url="https://example.com/").mock(side_effect=_handler)
-        respx.route(method="GET", url="https://example.com/wp-includes/version.php").mock(side_effect=_handler)
+        respx.route(
+            method="GET", url="https://example.com/wp-includes/version.php"
+        ).mock(side_effect=_handler)
         async with httpx.AsyncClient() as client:
             version, _evidence = await _detect_wp_version(client, "https://example.com")
             assert version == ""
@@ -227,9 +263,15 @@ class TestDetectWpPlugins:
     @respx.mock
     @pytest.mark.asyncio
     async def test_finds_plugins(self) -> None:
-        respx.get("https://example.com/wp-content/plugins/akismet/readme.txt").mock(return_value=httpx.Response(200, text="=== Akismet ==="))
-        respx.get("https://example.com/wp-content/plugins/wordfence/readme.txt").mock(return_value=httpx.Response(200, text="=== Wordfence ==="))
-        respx.get("https://example.com/wp-content/plugins/nonexistent/readme.txt").mock(return_value=httpx.Response(404, text=""))
+        respx.get("https://example.com/wp-content/plugins/akismet/readme.txt").mock(
+            return_value=httpx.Response(200, text="=== Akismet ===")
+        )
+        respx.get("https://example.com/wp-content/plugins/wordfence/readme.txt").mock(
+            return_value=httpx.Response(200, text="=== Wordfence ===")
+        )
+        respx.get("https://example.com/wp-content/plugins/nonexistent/readme.txt").mock(
+            return_value=httpx.Response(404, text="")
+        )
         async with httpx.AsyncClient() as client:
             plugins = await _detect_wp_plugins(
                 client,
@@ -244,8 +286,14 @@ class TestDetectWpPlugins:
         async def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404, text="")
 
-        respx.route(method="GET", url="https://example.com/wp-content/plugins/akismet/readme.txt").mock(side_effect=_handler)
-        respx.route(method="GET", url="https://example.com/wp-content/plugins/wordfence/readme.txt").mock(side_effect=_handler)
+        respx.route(
+            method="GET",
+            url="https://example.com/wp-content/plugins/akismet/readme.txt",
+        ).mock(side_effect=_handler)
+        respx.route(
+            method="GET",
+            url="https://example.com/wp-content/plugins/wordfence/readme.txt",
+        ).mock(side_effect=_handler)
         async with httpx.AsyncClient() as client:
             plugins = await _detect_wp_plugins(
                 client,
@@ -259,8 +307,12 @@ class TestDetectWpThemes:
     @respx.mock
     @pytest.mark.asyncio
     async def test_finds_theme(self) -> None:
-        respx.get("https://example.com/wp-content/themes/astra/style.css").mock(return_value=httpx.Response(200, text="/* Theme Name: Astra */"))
-        respx.get("https://example.com/wp-content/themes/nonexistent/style.css").mock(return_value=httpx.Response(404, text=""))
+        respx.get("https://example.com/wp-content/themes/astra/style.css").mock(
+            return_value=httpx.Response(200, text="/* Theme Name: Astra */")
+        )
+        respx.get("https://example.com/wp-content/themes/nonexistent/style.css").mock(
+            return_value=httpx.Response(404, text="")
+        )
         async with httpx.AsyncClient() as client:
             themes = await _detect_wp_themes(
                 client,
@@ -275,8 +327,13 @@ class TestDetectWpThemes:
         async def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404, text="")
 
-        respx.route(method="GET", url="https://example.com/wp-content/themes/astra/style.css").mock(side_effect=_handler)
-        respx.route(method="GET", url="https://example.com/wp-content/themes/generatepress/style.css").mock(side_effect=_handler)
+        respx.route(
+            method="GET", url="https://example.com/wp-content/themes/astra/style.css"
+        ).mock(side_effect=_handler)
+        respx.route(
+            method="GET",
+            url="https://example.com/wp-content/themes/generatepress/style.css",
+        ).mock(side_effect=_handler)
         async with httpx.AsyncClient() as client:
             themes = await _detect_wp_themes(
                 client,
@@ -290,9 +347,15 @@ class TestDetectWpUsers:
     @respx.mock
     @pytest.mark.asyncio
     async def test_finds_users_via_rest_api(self) -> None:
-        respx.get("https://example.com/?author=1").mock(return_value=httpx.Response(200, text=""))
-        respx.get("https://example.com/?author=2").mock(return_value=httpx.Response(200, text=""))
-        respx.get("https://example.com/?author=3").mock(return_value=httpx.Response(200, text=""))
+        respx.get("https://example.com/?author=1").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        respx.get("https://example.com/?author=2").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        respx.get("https://example.com/?author=3").mock(
+            return_value=httpx.Response(200, text="")
+        )
         respx.get("https://example.com/wp-json/wp/v2/users").mock(
             return_value=httpx.Response(
                 200,
@@ -319,9 +382,15 @@ class TestDetectJoomlaInfo:
     @respx.mock
     @pytest.mark.asyncio
     async def test_detects_version(self) -> None:
-        respx.get("https://example.com/language/en-GB/en-GB.xml").mock(return_value=httpx.Response(200, text="<version>4.3.0</version>"))
-        respx.get("https://example.com/administrator/manifests/files/joomla.xml").mock(return_value=httpx.Response(404, text=""))
-        respx.get("https://example.com/administrator/components/com_hikashop/").mock(return_value=httpx.Response(404, text=""))
+        respx.get("https://example.com/language/en-GB/en-GB.xml").mock(
+            return_value=httpx.Response(200, text="<version>4.3.0</version>")
+        )
+        respx.get("https://example.com/administrator/manifests/files/joomla.xml").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/administrator/components/com_hikashop/").mock(
+            return_value=httpx.Response(404, text="")
+        )
         async with httpx.AsyncClient() as client:
             version, _extensions = await _detect_joomla_info(
                 client,
@@ -336,11 +405,19 @@ class TestDetectJoomlaInfo:
         async def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404, text="")
 
-        respx.route(method="GET", url="https://example.com/language/en-GB/install.xml").mock(side_effect=_handler)
-        respx.route(method="GET", url="https://example.com/administrator/manifests/files/joomla.xml").mock(
+        respx.route(
+            method="GET", url="https://example.com/language/en-GB/install.xml"
+        ).mock(side_effect=_handler)
+        respx.route(
+            method="GET",
+            url="https://example.com/administrator/manifests/files/joomla.xml",
+        ).mock(
             side_effect=_handler,
         )
-        respx.route(method="GET", url="https://example.com/administrator/components/com_hikashop/").mock(
+        respx.route(
+            method="GET",
+            url="https://example.com/administrator/components/com_hikashop/",
+        ).mock(
             side_effect=_handler,
         )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
@@ -364,17 +441,31 @@ class TestScanCmsFingerprint:
     @pytest.mark.asyncio
     async def test_wordpress_full_scan(self) -> None:
         # CMS detect
-        respx.get("https://example.com/wp-login.php").mock(return_value=httpx.Response(200, text="login"))
-        respx.get("https://example.com/wp-admin/").mock(return_value=httpx.Response(302, text="redirect"))
+        respx.get("https://example.com/wp-login.php").mock(
+            return_value=httpx.Response(200, text="login")
+        )
+        respx.get("https://example.com/wp-admin/").mock(
+            return_value=httpx.Response(302, text="redirect")
+        )
         # WP version
-        respx.get("https://example.com/readme.html").mock(return_value=httpx.Response(200, text="Version 6.4.2"))
+        respx.get("https://example.com/readme.html").mock(
+            return_value=httpx.Response(200, text="Version 6.4.2")
+        )
         # WP plugins
-        respx.get("https://example.com/wp-content/plugins/akismet/readme.txt").mock(return_value=httpx.Response(200, text="Akismet"))
+        respx.get("https://example.com/wp-content/plugins/akismet/readme.txt").mock(
+            return_value=httpx.Response(200, text="Akismet")
+        )
         # WP themes
-        respx.get("https://example.com/wp-content/themes/astra/style.css").mock(return_value=httpx.Response(200, text="/* Theme Name: Astra */"))
+        respx.get("https://example.com/wp-content/themes/astra/style.css").mock(
+            return_value=httpx.Response(200, text="/* Theme Name: Astra */")
+        )
         # WP users
-        respx.get("https://example.com/?author=1").mock(return_value=httpx.Response(200, text=""))
-        respx.get("https://example.com/wp-json/wp/v2/users").mock(return_value=httpx.Response(200, text=json.dumps([{"name": "admin"}])))
+        respx.get("https://example.com/?author=1").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        respx.get("https://example.com/wp-json/wp/v2/users").mock(
+            return_value=httpx.Response(200, text=json.dumps([{"name": "admin"}]))
+        )
         # Fallback for all other routes (must be LAST)
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
 
@@ -394,8 +485,12 @@ class TestScanCmsFingerprint:
         async def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404, text="")
 
-        respx.route(method="GET", url="https://example.com/wp-login.php").mock(side_effect=_handler)
-        respx.route(method="GET", url="https://example.com/wp-admin/").mock(side_effect=_handler)
+        respx.route(method="GET", url="https://example.com/wp-login.php").mock(
+            side_effect=_handler
+        )
+        respx.route(method="GET", url="https://example.com/wp-admin/").mock(
+            side_effect=_handler
+        )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
         result = await scan_cms_fingerprint(
             base_url="https://example.com",
@@ -421,7 +516,9 @@ class TestBuildParser:
 
     def test_has_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://example.com", "-c", "cms_detect", "wp_version"])
+        args = parser.parse_args(
+            ["https://example.com", "-c", "cms_detect", "wp_version"]
+        )
         assert args.categories == ["cms_detect", "wp_version"]
 
     def test_plugin_limit(self) -> None:

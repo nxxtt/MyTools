@@ -101,7 +101,9 @@ class TestBaseline:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        status, size, _headers, body = await _test_baseline(mock_client, "https://test.com")
+        status, size, _headers, body = await _test_baseline(
+            mock_client, "https://test.com"
+        )
         assert status == 200
         assert size == 2
         assert body == b"ok"
@@ -115,7 +117,9 @@ class TestBaseline:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        status, size, headers, body = await _test_baseline(mock_client, "https://test.com")
+        status, size, headers, body = await _test_baseline(
+            mock_client, "https://test.com"
+        )
         assert status == 0
         assert size == 0
         assert headers == {}
@@ -306,7 +310,14 @@ class TestBuildParser:
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        for cat in ["all", "user_agent", "referer", "custom_header", "url_path", "bypass"]:
+        for cat in [
+            "all",
+            "user_agent",
+            "referer",
+            "custom_header",
+            "url_path",
+            "bypass",
+        ]:
             args = parser.parse_args(["https://test.com", "-c", cat])
             assert args.category == cat
 

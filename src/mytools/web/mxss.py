@@ -176,8 +176,17 @@ _ENTITY_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_entity_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "mxss", default={"entity_payloads": [list(t) for t in _ENTITY_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("entity_payloads", [list(t) for t in _ENTITY_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "mxss",
+        default={"entity_payloads": [list(t) for t in _ENTITY_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "entity_payloads", [list(t) for t in _ENTITY_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _ENTITY_PAYLOADS = _load_entity_payloads()
@@ -237,8 +246,17 @@ _NAMESPACE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_namespace_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "mxss", default={"namespace_payloads": [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("namespace_payloads", [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "mxss",
+        default={"namespace_payloads": [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "namespace_payloads", [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _NAMESPACE_PAYLOADS = _load_namespace_payloads()
@@ -298,8 +316,17 @@ _MATHML_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_mathml_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "mxss", default={"mathml_payloads": [list(t) for t in _MATHML_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("mathml_payloads", [list(t) for t in _MATHML_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "mxss",
+        default={"mathml_payloads": [list(t) for t in _MATHML_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "mathml_payloads", [list(t) for t in _MATHML_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _MATHML_PAYLOADS = _load_mathml_payloads()
@@ -365,8 +392,17 @@ _RAWTEXT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_rawtext_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "mxss", default={"rawtext_payloads": [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("rawtext_payloads", [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "mxss",
+        default={"rawtext_payloads": [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "rawtext_payloads", [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _RAWTEXT_PAYLOADS = _load_rawtext_payloads()
@@ -420,8 +456,17 @@ _COMMENT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_comment_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "mxss", default={"comment_payloads": [list(t) for t in _COMMENT_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("comment_payloads", [list(t) for t in _COMMENT_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "mxss",
+        default={"comment_payloads": [list(t) for t in _COMMENT_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "comment_payloads", [list(t) for t in _COMMENT_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _COMMENT_PAYLOADS = _load_comment_payloads()
@@ -463,8 +508,17 @@ _TEMPLATE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_template_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "mxss", default={"template_payloads": [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("template_payloads", [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "mxss",
+        default={"template_payloads": [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "template_payloads", [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _TEMPLATE_PAYLOADS = _load_template_payloads()
@@ -512,8 +566,17 @@ _ENCODING_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 def _load_encoding_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "mxss", default={"encoding_payloads": [list(t) for t in _ENCODING_PAYLOADS_DEFAULT]})
-    return [tuple(x) for x in data.get("encoding_payloads", [list(t) for t in _ENCODING_PAYLOADS_DEFAULT])]
+    data = load_payloads(
+        "web",
+        "mxss",
+        default={"encoding_payloads": [list(t) for t in _ENCODING_PAYLOADS_DEFAULT]},
+    )
+    return [
+        tuple(x)
+        for x in data.get(
+            "encoding_payloads", [list(t) for t in _ENCODING_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _ENCODING_PAYLOADS = _load_encoding_payloads()
@@ -638,7 +701,9 @@ async def _test_mxss_category(
         test_url = _inject_payload(url, param, payload)
 
         try:
-            t_status, _t_headers, t_body, _t_raw = await fetch(client, test_url, timeout=timeout)
+            t_status, _t_headers, t_body, _t_raw = await fetch(
+                client, test_url, timeout=timeout
+            )
             t_size = len(t_body)
             body_str = t_body.decode(errors="replace")
 
@@ -649,7 +714,11 @@ async def _test_mxss_category(
             status_changed = t_status != b_status
             size_changed = abs(t_size - b_size) > 50
 
-            vulnerable = bool(entity_info["decoded_reflected"]) or (reflected and bool(entity_info["entities_decoded"])) or (reflected and bool(namespace_ctxs))
+            vulnerable = (
+                bool(entity_info["decoded_reflected"])
+                or (reflected and bool(entity_info["entities_decoded"]))
+                or (reflected and bool(namespace_ctxs))
+            )
 
             details = ""
             if entity_info["decoded_reflected"]:
@@ -718,7 +787,12 @@ def print_results(result: MXSSResult) -> None:
     print(color("\n--- Mutation XSS (mXSS) Detection ---", Cyber.CYAN, Cyber.BOLD))
     print(color(f"  Alvo:         {result.target}", Cyber.WHITE))
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
     print(color(f"  Vulneraveis:  {len(vuln)}", Cyber.GREEN if vuln else Cyber.GRAY))
     print(color(f"  Bloqueados:   {len(blocked)}", Cyber.GRAY))
@@ -737,13 +811,27 @@ def print_results(result: MXSSResult) -> None:
             if a.entities_decoded:
                 print(color("      Entidades: decodificadas (mXSS)", Cyber.YELLOW))
             if a.namespace_contexts:
-                print(color(f"      Namespaces: {', '.join(a.namespace_contexts)}", Cyber.WHITE))
+                print(
+                    color(
+                        f"      Namespaces: {', '.join(a.namespace_contexts)}",
+                        Cyber.WHITE,
+                    )
+                )
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
             print_exploit_info(a.exploit, a.tool)
-        print(color(f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(vuln)} vulneraveis de {len(result.attempts)} testes",
+                Cyber.WHITE,
+            )
+        )
     else:
-        print(color("\n  [+] Nenhuma vulnerabilidade de Mutation XSS detectada", Cyber.GREEN))
+        print(
+            color(
+                "\n  [+] Nenhuma vulnerabilidade de Mutation XSS detectada", Cyber.GREEN
+            )
+        )
 
     if result.issues:
         print(color("\n  [!] Observacoes:", Cyber.YELLOW))
@@ -763,7 +851,9 @@ async def run_scan(
 
     async with create_async_client(timeout=timeout) as client:
         try:
-            b_status, _b_headers, b_body, _b_raw = await fetch(client, target, timeout=timeout)
+            b_status, _b_headers, b_body, _b_raw = await fetch(
+                client, target, timeout=timeout
+            )
             b_size = len(b_body)
         except Exception as e:
             print(color(f"Erro ao acessar {target}: {e}", Cyber.RED))
@@ -776,11 +866,15 @@ async def run_scan(
             payloads = _ALL_PAYLOADS.get(cat, [])
             if payloads:
                 all_attempts.extend(
-                    await _test_mxss_category(client, target, timeout, b_status, b_size, payloads, cat),
+                    await _test_mxss_category(
+                        client, target, timeout, b_status, b_size, payloads, cat
+                    ),
                 )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
         issues: list[str] = []
 
         if not all_attempts:
@@ -788,7 +882,9 @@ async def run_scan(
 
         decoded_vulns = [a for a in all_attempts if a.vulnerable and a.entities_decoded]
         if decoded_vulns:
-            issues.append(f"{len(decoded_vulns)} payloads com entidades decodificadas detectados")
+            issues.append(
+                f"{len(decoded_vulns)} payloads com entidades decodificadas detectados"
+            )
 
         result = MXSSResult(
             target=target,
@@ -799,7 +895,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -826,7 +924,10 @@ def banner_art() -> None:
    |____|\__, |  |_|  |_|\___/ |____/_/   \_\_|
          |___/
 """
-    create_banner(art, "   mxss: entity_decode, namespace_switch, mathml_inject, rawtext, comment, template, encoding")()
+    create_banner(
+        art,
+        "   mxss: entity_decode, namespace_switch, mathml_inject, rawtext, comment, template, encoding",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -850,7 +951,16 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--category",
         default="all",
-        choices=["all", "entity_decode", "namespace_switch", "mathml_inject", "rawtext_abuse", "comment_parse", "template_deprecated", "encoding_tricks"],
+        choices=[
+            "all",
+            "entity_decode",
+            "namespace_switch",
+            "mathml_inject",
+            "rawtext_abuse",
+            "comment_parse",
+            "template_deprecated",
+            "encoding_tricks",
+        ],
         help="Categoria de testes (default: todas)",
     )
     add_common_args(parser)
@@ -879,7 +989,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="mxss> ",
         description="Mutation XSS interativo.",
         example="https://target.com -c entity_decode",

@@ -134,7 +134,10 @@ class TestPrintResults:
 class TestScanDnssec:
     """Testes da funcao scan_dnssec com mocks."""
 
-    @patch("mytools.dns.dnssecvalidation._evaluate_algorithm_strength", return_value="strong")
+    @patch(
+        "mytools.dns.dnssecvalidation._evaluate_algorithm_strength",
+        return_value="strong",
+    )
     @patch("mytools.dns.dnssecvalidation._check_nsec", return_value=[])
     @patch("mytools.dns.dnssecvalidation._check_rrsig")
     @patch("mytools.dns.dnssecvalidation._check_ds")
@@ -147,15 +150,24 @@ class TestScanDnssec:
         mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
-        mock_dnskey.return_value = (True, [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")])
+        mock_dnskey.return_value = (
+            True,
+            [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")],
+        )
         mock_ds.return_value = (True, [DnssecCheck("ds_record", "pass", "1 DS", "low")])
-        mock_rrsig.return_value = (True, [DnssecCheck("rrsig_expiry", "pass", "1 valida", "low")])
+        mock_rrsig.return_value = (
+            True,
+            [DnssecCheck("rrsig_expiry", "pass", "1 valida", "low")],
+        )
 
         result = scan_dnssec("example.com")
         assert result.overall_status == "secure"
         assert result.chain_valid is True
 
-    @patch("mytools.dns.dnssecvalidation._evaluate_algorithm_strength", return_value="unknown")
+    @patch(
+        "mytools.dns.dnssecvalidation._evaluate_algorithm_strength",
+        return_value="unknown",
+    )
     @patch("mytools.dns.dnssecvalidation._check_nsec", return_value=[])
     @patch("mytools.dns.dnssecvalidation._check_rrsig")
     @patch("mytools.dns.dnssecvalidation._check_ds")
@@ -168,15 +180,26 @@ class TestScanDnssec:
         mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
-        mock_dnskey.return_value = (False, [DnssecCheck("dnskey", "missing", "Nenhum", "high")])
-        mock_ds.return_value = (False, [DnssecCheck("ds_record", "missing", "Nenhum", "medium")])
-        mock_rrsig.return_value = (False, [DnssecCheck("rrsig", "missing", "Nenhum", "high")])
+        mock_dnskey.return_value = (
+            False,
+            [DnssecCheck("dnskey", "missing", "Nenhum", "high")],
+        )
+        mock_ds.return_value = (
+            False,
+            [DnssecCheck("ds_record", "missing", "Nenhum", "medium")],
+        )
+        mock_rrsig.return_value = (
+            False,
+            [DnssecCheck("rrsig", "missing", "Nenhum", "high")],
+        )
 
         result = scan_dnssec("test.com")
         assert result.overall_status == "unsigned"
         assert result.chain_valid is False
 
-    @patch("mytools.dns.dnssecvalidation._evaluate_algorithm_strength", return_value="weak")
+    @patch(
+        "mytools.dns.dnssecvalidation._evaluate_algorithm_strength", return_value="weak"
+    )
     @patch("mytools.dns.dnssecvalidation._check_nsec", return_value=[])
     @patch("mytools.dns.dnssecvalidation._check_rrsig")
     @patch("mytools.dns.dnssecvalidation._check_ds")
@@ -189,9 +212,15 @@ class TestScanDnssec:
         mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
-        mock_dnskey.return_value = (True, [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")])
+        mock_dnskey.return_value = (
+            True,
+            [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")],
+        )
         mock_ds.return_value = (True, [DnssecCheck("ds_record", "pass", "1 DS", "low")])
-        mock_rrsig.return_value = (True, [DnssecCheck("rrsig_expiry", "pass", "1 valida", "low")])
+        mock_rrsig.return_value = (
+            True,
+            [DnssecCheck("rrsig_expiry", "pass", "1 valida", "low")],
+        )
 
         result = scan_dnssec("weak.com")
         assert result.algorithm_strength == "weak"
@@ -229,7 +258,11 @@ class TestAlgorithmSets:
         assert 8 in MEDIUM_ALGORITHMS
 
     def test_no_overlap_between_sets(self) -> None:
-        from mytools.dns.dnssecvalidation import MEDIUM_ALGORITHMS, STRONG_ALGORITHMS, WEAK_ALGORITHMS
+        from mytools.dns.dnssecvalidation import (
+            MEDIUM_ALGORITHMS,
+            STRONG_ALGORITHMS,
+            WEAK_ALGORITHMS,
+        )
 
         assert set() == WEAK_ALGORITHMS & MEDIUM_ALGORITHMS
         assert set() == WEAK_ALGORITHMS & STRONG_ALGORITHMS

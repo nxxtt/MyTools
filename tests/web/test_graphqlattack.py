@@ -318,7 +318,9 @@ class TestCLI:
 
     def test_build_parser_with_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["https://target.com/graphql", "-c", "introspection", "depth_abuse"])
+        args = parser.parse_args(
+            ["https://target.com/graphql", "-c", "introspection", "depth_abuse"]
+        )
         assert args.categories == ["introspection", "depth_abuse"]
 
     def test_build_parser_all_choices(self) -> None:
@@ -340,10 +342,25 @@ class TestCLI:
 )
 async def test_category_dispatch_all_return_lists(_mock_exec: object) -> None:
     """All category dispatchers should return a list."""
-    respx.route().mock(return_value=httpx.Response(200, json={"data": {"__typename": "Query"}}))
-    schema_info = {"types": ["User (OBJECT)"], "query_type": "Query", "mutation_type": "", "subscription_type": ""}
+    respx.route().mock(
+        return_value=httpx.Response(200, json={"data": {"__typename": "Query"}})
+    )
+    schema_info = {
+        "types": ["User (OBJECT)"],
+        "query_type": "Query",
+        "mutation_type": "",
+        "subscription_type": "",
+    }
     for cat, fn in _CATEGORY_DISPATCH.items():
-        result = await fn("target.com", 443, "/graphql", 5.0, True, "https://target.com/graphql", schema_info)
+        result = await fn(
+            "target.com",
+            443,
+            "/graphql",
+            5.0,
+            True,
+            "https://target.com/graphql",
+            schema_info,
+        )
         assert isinstance(result, list), f"{cat} did not return a list"
         assert len(result) > 0, f"{cat} returned empty list"
         for attempt in result:

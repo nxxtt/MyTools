@@ -109,7 +109,9 @@ def _load_address_bypass() -> dict[str, list[str]]:
     """Carrega email address bypass categories de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("email", "address_bypass", default={"categories": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "email", "address_bypass", default={"categories": _CATEGORY_MAP_DEFAULT}
+    )
     return data.get("categories", _CATEGORY_MAP_DEFAULT)
 
 
@@ -220,7 +222,11 @@ def _get_banner(server: smtplib.SMTP) -> str:
     try:
         _code, banner = server.ehlo()
 
-        return banner.decode("utf-8", errors="replace") if isinstance(banner, bytes) else str(banner)
+        return (
+            banner.decode("utf-8", errors="replace")
+            if isinstance(banner, bytes)
+            else str(banner)
+        )
 
     except smtplib.SMTPException:
         return ""
@@ -387,7 +393,11 @@ def scan_address_bypass(
 def print_results(result: AddressResult) -> None:
     """Exibe o relatorio de Email Address Quoting Bypass."""
 
-    print(color("\n[+] Email Address Quoting Bypass — Relatorio:", Cyber.GREEN, Cyber.BOLD))
+    print(
+        color(
+            "\n[+] Email Address Quoting Bypass — Relatorio:", Cyber.GREEN, Cyber.BOLD
+        )
+    )
 
     print(f"  Target: {color(result.target, Cyber.WHITE, Cyber.BOLD)}:{result.port}")
 
@@ -442,14 +452,36 @@ def print_results(result: AddressResult) -> None:
         print()
 
     if result.overall_status == "vulnerable":
-        print(color(f"  [-] Servidor VULNERAVEL — {len(result.accepted_techniques)}/{len(result.attempts)} enderecos citados aceitos", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                f"  [-] Servidor VULNERAVEL — {len(result.accepted_techniques)}/{len(result.attempts)} enderecos citados aceitos",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
-        print(color("  [-] Risco: bypass de blocklists, misrouting (CVE-2025-13033), filter evasion", Cyber.CYAN))
+        print(
+            color(
+                "  [-] Risco: bypass de blocklists, misrouting (CVE-2025-13033), filter evasion",
+                Cyber.CYAN,
+            )
+        )
 
-        print(color("  [-] Remedio: rejeitar enderecos com local-parts citados no RCPT TO", Cyber.CYAN))
+        print(
+            color(
+                "  [-] Remedio: rejeitar enderecos com local-parts citados no RCPT TO",
+                Cyber.CYAN,
+            )
+        )
 
     elif result.overall_status == "secure":
-        print(color("  [+] Servidor seguro — todos os enderecos citados bloqueados", Cyber.GREEN, Cyber.BOLD))
+        print(
+            color(
+                "  [+] Servidor seguro — todos os enderecos citados bloqueados",
+                Cyber.GREEN,
+                Cyber.BOLD,
+            )
+        )
 
     else:
         print(color("  [!] Resultado inconclusivo — revisar manualmente", Cyber.YELLOW))
@@ -472,7 +504,10 @@ def banner_art() -> None:
 
 """
 
-    create_banner(art, "   address bypass: testa bypass de blocklists via local-parts citados (RFC 5321/5322)")()
+    create_banner(
+        art,
+        "   address bypass: testa bypass de blocklists via local-parts citados (RFC 5321/5322)",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -485,7 +520,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_base_args(parser)
 
-    parser.add_argument("target", nargs="?", help="Host SMTP alvo (ex: mail.example.com).")
+    parser.add_argument(
+        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+    )
 
     parser.add_argument(
         "--port",
@@ -529,9 +566,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 1
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma conexao SMTP sera feita.")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma conexao SMTP sera feita.",
+        )
 
-        print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Target: {color(target, Cyber.WHITE, Cyber.BOLD)}:{args.port}")
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"Target: {color(target, Cyber.WHITE, Cyber.BOLD)}:{args.port}",
+        )
 
         return 0
 

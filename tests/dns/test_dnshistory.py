@@ -1,6 +1,6 @@
 import argparse
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -98,7 +98,12 @@ class TestParseDnslytics:
         data = {
             "status": "succeed",
             "data": {
-                "spf": [{"record": "v=spf1 include:_spf.example.com ~all", "updatedate": "2023-07-01"}],
+                "spf": [
+                    {
+                        "record": "v=spf1 include:_spf.example.com ~all",
+                        "updatedate": "2023-07-01",
+                    }
+                ],
             },
         }
         result = _parse_dnslytics(json.dumps(data).encode(), "example.com")
@@ -148,7 +153,10 @@ class TestParseSecuritytrails:
                     "first_seen": "2021-01-01",
                     "last_seen": None,
                     "organizations": [],
-                    "values": [{"host": "ns1.example.com"}, {"host": "ns2.example.com"}],
+                    "values": [
+                        {"host": "ns1.example.com"},
+                        {"host": "ns2.example.com"},
+                    ],
                 },
             ],
         }
@@ -172,7 +180,12 @@ class TestParseViewdns:
         data = {
             "response": {
                 "records": [
-                    {"ip": "104.18.42.197", "lastseen": "2024-09-20", "owner": "Cloudflare", "location": "US"},
+                    {
+                        "ip": "104.18.42.197",
+                        "lastseen": "2024-09-20",
+                        "owner": "Cloudflare",
+                        "location": "US",
+                    },
                 ],
             },
         }
@@ -211,7 +224,9 @@ class TestBuildParser:
 
     def test_has_source_multiple(self):
         parser = build_parser()
-        args = parser.parse_args(["example.com", "--source", "dnslytics", "--source", "securitytrails"])
+        args = parser.parse_args(
+            ["example.com", "--source", "dnslytics", "--source", "securitytrails"]
+        )
         assert args.source == ["dnslytics", "securitytrails"]
 
     def test_has_st_api_key(self):
@@ -320,8 +335,15 @@ class TestRunOnce:
             log_file=None,
         )
         records = [
-            DnsHistoryRecord(record_type="a", value="1.2.3.4", last_seen="2024-01-01", source="dnslytics"),
-            DnsHistoryRecord(record_type="ns", value="ns1.example.com", source="dnslytics"),
+            DnsHistoryRecord(
+                record_type="a",
+                value="1.2.3.4",
+                last_seen="2024-01-01",
+                source="dnslytics",
+            ),
+            DnsHistoryRecord(
+                record_type="ns", value="ns1.example.com", source="dnslytics"
+            ),
         ]
         with patch("mytools.dns.dnshistory.run_history", return_value=records):
             result = run_once(args)
@@ -336,10 +358,9 @@ class TestRunHistory:
         result = run_history("example.com", sources=[])
         assert result == []
 
-    @patch("mytools.dns.dnshistory._query_all_sources", new_callable=MagicMock)
-    @patch("mytools.core.utils.safe_asyncio_run")
-    def test_calls_with_correct_sources(self, mock_run, mock_async):
-        mock_run.return_value = [
+    @patch("mytools.dns.dnshistory._query_all_sources", new_callable=AsyncMock)
+    def test_calls_with_correct_sources(self, mock_async):
+        mock_async.return_value = [
             DnsHistoryRecord(record_type="a", value="1.2.3.4", source="test"),
         ]
         result = run_history("example.com", sources=["dnslytics"])

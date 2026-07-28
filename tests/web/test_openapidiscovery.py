@@ -196,7 +196,9 @@ class TestParseSpec:
         assert result.format == "json"
 
     def test_valid_yaml(self):
-        data = b"openapi: '3.0.0'\ninfo:\n  title: YAML API\n  version: '1.0'\npaths: {}"
+        data = (
+            b"openapi: '3.0.0'\ninfo:\n  title: YAML API\n  version: '1.0'\npaths: {}"
+        )
         result = parse_spec(data, "application/x-yaml")
         assert result is not None
         assert result.format == "yaml"
@@ -213,7 +215,13 @@ class TestParseSpec:
         assert parse_spec(data, "application/json") is None
 
     def test_guesses_json_from_content(self):
-        data = json.dumps({"openapi": "3.0.0", "info": {"title": "Guess", "version": "1"}, "paths": {}}).encode()
+        data = json.dumps(
+            {
+                "openapi": "3.0.0",
+                "info": {"title": "Guess", "version": "1"},
+                "paths": {},
+            }
+        ).encode()
         result = parse_spec(data, "text/plain")
         assert result is not None
         assert result.title == "Guess"
@@ -349,7 +357,11 @@ class TestParseSpecEdgeCases:
         assert version == ""
 
     def test_v2_without_host(self):
-        spec = {"swagger": "2.0", "info": {"title": "NoHost", "version": "1"}, "paths": {}}
+        spec = {
+            "swagger": "2.0",
+            "info": {"title": "NoHost", "version": "1"},
+            "paths": {},
+        }
         _title, _version, _desc, servers, _endpoints, _schemas = _parse_openapi_v2(spec)
         assert servers == []
 
@@ -362,7 +374,13 @@ class TestParseSpecEdgeCases:
         assert parse_spec(b"[1,2,3]", "application/json") is None
 
     def test_v2_with_no_schemes(self):
-        spec = {"swagger": "2.0", "host": "x.com", "basePath": "/api", "info": {"title": "", "version": ""}, "paths": {}}
+        spec = {
+            "swagger": "2.0",
+            "host": "x.com",
+            "basePath": "/api",
+            "info": {"title": "", "version": ""},
+            "paths": {},
+        }
         _, _, _, servers, _, _ = _parse_openapi_v2(spec)
         assert len(servers) == 1
         assert "https://" in servers[0]

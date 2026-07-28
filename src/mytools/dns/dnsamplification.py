@@ -165,7 +165,9 @@ def _query_record(
 
         response_bytes = len(answer.response.to_wire())
 
-        amp_factor = round(response_bytes / request_bytes, 2) if request_bytes > 0 else 0.0
+        amp_factor = (
+            round(response_bytes / request_bytes, 2) if request_bytes > 0 else 0.0
+        )
 
         return RecordAmplification(
             record_type=record_type,
@@ -262,7 +264,11 @@ def scan_amplification(
 
     recursion = _check_recursion(nameserver, domain, timeout)
 
-    amp_values = [r.amplification_factor for r in records if r.success and r.amplification_factor > 0]
+    amp_values = [
+        r.amplification_factor
+        for r in records
+        if r.success and r.amplification_factor > 0
+    ]
 
     max_amp = max(amp_values) if amp_values else 0.0
 
@@ -287,7 +293,9 @@ def scan_amplification(
 def print_results(result: AmplificationResult) -> None:
     """Exibe o relatorio de amplificacao de forma colorida."""
 
-    print(color("\n[+] DNS Amplification Detection — Relatorio:", Cyber.GREEN, Cyber.BOLD))
+    print(
+        color("\n[+] DNS Amplification Detection — Relatorio:", Cyber.GREEN, Cyber.BOLD)
+    )
 
     print(f"  Dominio: {color(result.domain, Cyber.WHITE, Cyber.BOLD)}")
 
@@ -307,9 +315,13 @@ def print_results(result: AmplificationResult) -> None:
 
     print(f"  Severidade: {color(result.severity.upper(), *sev_color)}")
 
-    print(f"  Recursao: {color('SIM', Cyber.RED) if result.recursion_available else color('NAO', Cyber.GREEN)}")
+    print(
+        f"  Recursao: {color('SIM', Cyber.RED) if result.recursion_available else color('NAO', Cyber.GREEN)}"
+    )
 
-    print(f"  Open Resolver: {color('SIM', Cyber.RED, Cyber.BOLD) if result.is_open_resolver else color('NAO', Cyber.GREEN)}")
+    print(
+        f"  Open Resolver: {color('SIM', Cyber.RED, Cyber.BOLD) if result.is_open_resolver else color('NAO', Cyber.GREEN)}"
+    )
 
     print()
 
@@ -317,7 +329,11 @@ def print_results(result: AmplificationResult) -> None:
 
     for rec in result.records:
         if rec.success:
-            amp_color = Cyber.RED if rec.amplification_factor >= 5.0 else (Cyber.YELLOW if rec.amplification_factor >= 2.0 else Cyber.GREEN)
+            amp_color = (
+                Cyber.RED
+                if rec.amplification_factor >= 5.0
+                else (Cyber.YELLOW if rec.amplification_factor >= 2.0 else Cyber.GREEN)
+            )
 
             print(
                 f"    {rec.record_type:>4}: {color(f'{rec.response_bytes:>6} bytes', Cyber.WHITE)} | "
@@ -325,26 +341,52 @@ def print_results(result: AmplificationResult) -> None:
             )
 
         else:
-            print(f"    {rec.record_type:>4}: {color('FALHA', Cyber.RED)} ({rec.error})")
+            print(
+                f"    {rec.record_type:>4}: {color('FALHA', Cyber.RED)} ({rec.error})"
+            )
 
     print()
 
     print(f"  Request estimado: {color(f'{result.request_size} bytes', Cyber.WHITE)}")
 
-    print(f"  Amplificacao max: {color(f'{result.max_amplification:.1f}x', Cyber.RED if result.max_amplification >= 5.0 else Cyber.WHITE, Cyber.BOLD)}")
+    print(
+        f"  Amplificacao max: {color(f'{result.max_amplification:.1f}x', Cyber.RED if result.max_amplification >= 5.0 else Cyber.WHITE, Cyber.BOLD)}"
+    )
 
     if result.is_open_resolver:
-        print(color("\n  [!] SERVIDOR ABERTO — pode ser abusado para amplificacao DDoS!", Cyber.RED, Cyber.BOLD))
+        print(
+            color(
+                "\n  [!] SERVIDOR ABERTO — pode ser abusado para amplificacao DDoS!",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        )
 
-        print(color("  [!] Recomendacao: desabilitar recursao ou restringir acesso", Cyber.YELLOW))
+        print(
+            color(
+                "  [!] Recomendacao: desabilitar recursao ou restringir acesso",
+                Cyber.YELLOW,
+            )
+        )
 
     elif result.recursion_available and result.max_amplification >= 2.0:
-        print(color("\n  [!] Recursao habilitada com amplificacao potencial", Cyber.YELLOW))
+        print(
+            color(
+                "\n  [!] Recursao habilitada com amplificacao potencial", Cyber.YELLOW
+            )
+        )
 
-        print(color("  [!] Considere restringir recursao a redes internas", Cyber.YELLOW))
+        print(
+            color("  [!] Considere restringir recursao a redes internas", Cyber.YELLOW)
+        )
 
     elif result.max_amplification >= 5.0:
-        print(color("\n  [!] Alta amplificacao detectada, mas recursao desabilitada", Cyber.YELLOW))
+        print(
+            color(
+                "\n  [!] Alta amplificacao detectada, mas recursao desabilitada",
+                Cyber.YELLOW,
+            )
+        )
 
     else:
         print(color("\n  [+] Servidor seguro — baixa amplificacao", Cyber.GREEN))
@@ -382,7 +424,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_base_args(parser)
 
-    parser.add_argument("domain", nargs="?", help="Dominio ou IP do nameserver a auditar.")
+    parser.add_argument(
+        "domain", nargs="?", help="Dominio ou IP do nameserver a auditar."
+    )
 
     parser.add_argument(
         "--nameserver",
@@ -429,7 +473,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
         return 0
 
-    record_types = [rt.strip().upper() for rt in args.record_types.split(",") if rt.strip()]
+    record_types = [
+        rt.strip().upper() for rt in args.record_types.split(",") if rt.strip()
+    ]
 
     result = scan_amplification(
         domain=domain,
@@ -445,7 +491,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(result)],
-            ["domain", "nameserver", "recursion_available", "is_open_resolver", "max_amplification", "severity", "request_size"],
+            [
+                "domain",
+                "nameserver",
+                "recursion_available",
+                "is_open_resolver",
+                "max_amplification",
+                "severity",
+                "request_size",
+            ],
             quiet=quiet,
         )
 
@@ -469,7 +523,9 @@ def main() -> int:
         prompt="amp> ",
         description="DNS Amplification Detection interativo.",
         example="example.com --record-types ANY,TXT,MX",
-        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types ANY,TXT,MX"),
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types ANY,TXT,MX"
+        ),
     )
 
 

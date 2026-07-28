@@ -70,7 +70,12 @@ def test_csp_bypass_payloads_count() -> None:
 
 def test_all_payloads_have_four_elements() -> None:
     all_lists = (
-        _INJECTION_PAYLOADS + _DATA_EXTRACTION_PAYLOADS + _ATTRIBUTE_LEAK_PAYLOADS + _SELECTOR_ABUSE_PAYLOADS + _TOKEN_EXFIL_PAYLOADS + _CSP_BYPASS_PAYLOADS
+        _INJECTION_PAYLOADS
+        + _DATA_EXTRACTION_PAYLOADS
+        + _ATTRIBUTE_LEAK_PAYLOADS
+        + _SELECTOR_ABUSE_PAYLOADS
+        + _TOKEN_EXFIL_PAYLOADS
+        + _CSP_BYPASS_PAYLOADS
     )
     for p in all_lists:
         assert len(p) == 4, f"Payload {p[0]} should have 4 elements"
@@ -254,7 +259,12 @@ def test_no_duplicate_payload_names_across_lists() -> None:
 
 def test_all_payloads_have_indicators() -> None:
     all_lists = (
-        _INJECTION_PAYLOADS + _DATA_EXTRACTION_PAYLOADS + _ATTRIBUTE_LEAK_PAYLOADS + _SELECTOR_ABUSE_PAYLOADS + _TOKEN_EXFIL_PAYLOADS + _CSP_BYPASS_PAYLOADS
+        _INJECTION_PAYLOADS
+        + _DATA_EXTRACTION_PAYLOADS
+        + _ATTRIBUTE_LEAK_PAYLOADS
+        + _SELECTOR_ABUSE_PAYLOADS
+        + _TOKEN_EXFIL_PAYLOADS
+        + _CSP_BYPASS_PAYLOADS
     )
     for p in all_lists:
         assert len(p[3]) >= 1, f"Payload {p[0]} must have at least 1 indicator"

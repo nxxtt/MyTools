@@ -111,7 +111,13 @@ class TestAnalyzeSpoofing:
             domain="good.com",
             spf=SpfRecord("v=spf1 -all", "spf1", [], True, "-", []),
             dkim_selectors=["default"],
-            dmarc=DmarcRecord("v=DMARC1; p=reject; rua=mailto:d@example.com", "reject", "reject", "mailto:d@example.com", 100),
+            dmarc=DmarcRecord(
+                "v=DMARC1; p=reject; rua=mailto:d@example.com",
+                "reject",
+                "reject",
+                "mailto:d@example.com",
+                100,
+            ),
             overall_status="secure",
             issues=[],
         )
@@ -209,7 +215,9 @@ class TestAnalyzeSpoofing:
             domain="q.com",
             spf=SpfRecord("v=spf1 -all", "spf1", [], True, "-", []),
             dkim_selectors=["default"],
-            dmarc=DmarcRecord("v=DMARC1; p=quarantine", "quarantine", "quarantine", "", 100),
+            dmarc=DmarcRecord(
+                "v=DMARC1; p=quarantine", "quarantine", "quarantine", "", 100
+            ),
             overall_status="good",
             issues=[],
         )
@@ -270,5 +278,12 @@ class TestEmailSecurityResult:
     def test_spoof_uses_base_result(self) -> None:
         from mytools.email.emailsecurity import EmailSecurityResult as ESR
 
-        r = ESR(domain="x", spf=None, dkim_selectors=[], dmarc=None, overall_status="critical", issues=[])
+        r = ESR(
+            domain="x",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="critical",
+            issues=[],
+        )
         assert r.domain == "x"

@@ -55,11 +55,41 @@ logger = logging.getLogger("mytools.methodoverride")
 
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-    "header": ["x_method_override", "x_http_method", "x_method", "x_http_method_override", "custom_header"],
-    "param": ["underscore_method", "double_underscore", "method_param", "override_param", "m_param"],
-    "body": ["json_method", "form_method", "xml_method", "json_override", "form_override"],
-    "bypass": ["case_mixed", "double_encode", "null_terminate", "unicode_method", "whitespace"],
-    "verb": ["delete_via_get", "put_via_get", "patch_via_get", "options_via_get", "trace_via_get"],
+    "header": [
+        "x_method_override",
+        "x_http_method",
+        "x_method",
+        "x_http_method_override",
+        "custom_header",
+    ],
+    "param": [
+        "underscore_method",
+        "double_underscore",
+        "method_param",
+        "override_param",
+        "m_param",
+    ],
+    "body": [
+        "json_method",
+        "form_method",
+        "xml_method",
+        "json_override",
+        "form_override",
+    ],
+    "bypass": [
+        "case_mixed",
+        "double_encode",
+        "null_terminate",
+        "unicode_method",
+        "whitespace",
+    ],
+    "verb": [
+        "delete_via_get",
+        "put_via_get",
+        "patch_via_get",
+        "options_via_get",
+        "trace_via_get",
+    ],
 }
 
 
@@ -67,7 +97,9 @@ def _load_category_map() -> dict[str, list[str]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "methodoverride", default={"category_map": _CATEGORY_MAP_DEFAULT})
+    data = load_payloads(
+        "web", "methodoverride", default={"category_map": _CATEGORY_MAP_DEFAULT}
+    )
 
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -111,9 +143,18 @@ def _load_header_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "methodoverride", default={"header_payloads": [list(t) for t in _HEADER_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "methodoverride",
+        default={"header_payloads": [list(t) for t in _HEADER_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("header_payloads", [list(t) for t in _HEADER_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "header_payloads", [list(t) for t in _HEADER_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _HEADER_PAYLOADS = _load_header_payloads()
@@ -162,9 +203,16 @@ def _load_param_payloads() -> list[tuple[str, str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "methodoverride", default={"param_payloads": [list(t) for t in _PARAM_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "methodoverride",
+        default={"param_payloads": [list(t) for t in _PARAM_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("param_payloads", [list(t) for t in _PARAM_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("param_payloads", [list(t) for t in _PARAM_PAYLOADS_DEFAULT])
+    ]
 
 
 _PARAM_PAYLOADS = _load_param_payloads()
@@ -213,9 +261,16 @@ def _load_body_payloads() -> list[tuple[str, str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "methodoverride", default={"body_payloads": [list(t) for t in _BODY_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "methodoverride",
+        default={"body_payloads": [list(t) for t in _BODY_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("body_payloads", [list(t) for t in _BODY_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("body_payloads", [list(t) for t in _BODY_PAYLOADS_DEFAULT])
+    ]
 
 
 _BODY_PAYLOADS = _load_body_payloads()
@@ -259,9 +314,18 @@ def _load_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "methodoverride", default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "methodoverride",
+        default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get(
+            "bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]
+        )
+    ]
 
 
 _BYPASS_PAYLOADS = _load_bypass_payloads()
@@ -305,9 +369,16 @@ def _load_verb_payloads() -> list[tuple[str, str, str, list[str]]]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "methodoverride", default={"verb_payloads": [list(t) for t in _VERB_PAYLOADS_DEFAULT]})
+    data = load_payloads(
+        "web",
+        "methodoverride",
+        default={"verb_payloads": [list(t) for t in _VERB_PAYLOADS_DEFAULT]},
+    )
 
-    return [tuple(x) for x in data.get("verb_payloads", [list(t) for t in _VERB_PAYLOADS_DEFAULT])]
+    return [
+        tuple(x)
+        for x in data.get("verb_payloads", [list(t) for t in _VERB_PAYLOADS_DEFAULT])
+    ]
 
 
 _VERB_PAYLOADS = _load_verb_payloads()
@@ -331,7 +402,9 @@ def _load_sensitive_paths() -> list[str]:
 
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "methodoverride", default={"sensitive_paths": _SENSITIVE_PATHS_DEFAULT})
+    data = load_payloads(
+        "web", "methodoverride", default={"sensitive_paths": _SENSITIVE_PATHS_DEFAULT}
+    )
 
     return data.get("sensitive_paths", _SENSITIVE_PATHS_DEFAULT)
 
@@ -465,7 +538,9 @@ async def _test_header(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_override_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_override_response(
+                    resp.content, resp.status_code, b_status
+                )
 
                 if vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
@@ -486,7 +561,9 @@ async def _test_header(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, header={header_name}: {header_value}" if vulnerable else "",
+                        details=f"path={path}, header={header_name}: {header_value}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -532,7 +609,9 @@ async def _test_param(
 
                 resp = await client.get(test_url, follow_redirects=True)
 
-                vulnerable = _check_override_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_override_response(
+                    resp.content, resp.status_code, b_status
+                )
 
                 if vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
@@ -553,7 +632,9 @@ async def _test_param(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, param={param_name}={param_value}" if vulnerable else "",
+                        details=f"path={path}, param={param_name}={param_value}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -592,7 +673,13 @@ async def _test_body(
 
     results: list[OverrideAttempt] = []
 
-    for technique, field_name, override_method, content_type, indicators in _BODY_PAYLOADS:
+    for (
+        technique,
+        field_name,
+        override_method,
+        content_type,
+        indicators,
+    ) in _BODY_PAYLOADS:
         for path in _SENSITIVE_PATHS[:4]:
             try:
                 test_url = url.rstrip("/") + path
@@ -608,7 +695,9 @@ async def _test_body(
                     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
                 else:
-                    body = f"<root><{field_name}>{override_method}</{field_name}></root>"
+                    body = (
+                        f"<root><{field_name}>{override_method}</{field_name}></root>"
+                    )
 
                     headers = {"Content-Type": "application/xml"}
 
@@ -619,7 +708,9 @@ async def _test_body(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_override_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_override_response(
+                    resp.content, resp.status_code, b_status
+                )
 
                 if vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
@@ -640,7 +731,9 @@ async def _test_body(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, {content_type}={field_name}={override_method}" if vulnerable else "",
+                        details=f"path={path}, {content_type}={field_name}={override_method}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -690,7 +783,9 @@ async def _test_bypass(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_override_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_override_response(
+                    resp.content, resp.status_code, b_status
+                )
 
                 if vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
@@ -711,7 +806,9 @@ async def _test_bypass(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, bypass={header_name}: {header_value!r}" if vulnerable else "",
+                        details=f"path={path}, bypass={header_name}: {header_value!r}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -761,7 +858,9 @@ async def _test_verb(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_override_response(resp.content, resp.status_code, b_status)
+                vulnerable = _check_override_response(
+                    resp.content, resp.status_code, b_status
+                )
 
                 if vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
@@ -782,7 +881,9 @@ async def _test_verb(
                         status_changed=resp.status_code != b_status,
                         size_changed=len(resp.content) != b_size,
                         vulnerable=vulnerable,
-                        details=f"path={path}, verb={override_method}" if vulnerable else "",
+                        details=f"path={path}, verb={override_method}"
+                        if vulnerable
+                        else "",
                         error="",
                     )
                 )
@@ -825,7 +926,12 @@ def print_results(result: OverrideResult) -> None:
 
     print(color(f"  TLS:          {'sim' if result.tls else 'nao'}", Cyber.WHITE))
 
-    print(color(f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)", Cyber.WHITE))
+    print(
+        color(
+            f"  Baseline:     {result.baseline_status} ({result.baseline_size} bytes)",
+            Cyber.WHITE,
+        )
+    )
 
     print(color(f"  Testes:       {len(result.attempts)}", Cyber.WHITE))
 
@@ -850,16 +956,27 @@ def print_results(result: OverrideResult) -> None:
 
             print(color(f"    [{a.category}] {a.technique}", Cyber.GREEN))
 
-            print(color(f"      Header: {a.header_name}: {a.header_value}", Cyber.WHITE))
+            print(
+                color(f"      Header: {a.header_name}: {a.header_value}", Cyber.WHITE)
+            )
 
-            print(color(f"      Status: {a.status_baseline} -> {a.status_test}", Cyber.WHITE))
+            print(
+                color(
+                    f"      Status: {a.status_baseline} -> {a.status_test}", Cyber.WHITE
+                )
+            )
 
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
 
             print_exploit_info(a.exploit, a.tool)
 
-        print(color(f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis", Cyber.WHITE))
+        print(
+            color(
+                f"\n  Total: {len(result.attempts)} testes, {len(vuln)} vulneraveis",
+                Cyber.WHITE,
+            )
+        )
 
     else:
         print(color("\n  [-] Nenhuma Method Override detectada", Cyber.YELLOW))
@@ -910,7 +1027,9 @@ async def run_scan(
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
-        blocked_techs = list({a.technique for a in all_attempts if not a.vulnerable and not a.error})
+        blocked_techs = list(
+            {a.technique for a in all_attempts if not a.vulnerable and not a.error}
+        )
 
         issues: list[str] = []
 
@@ -926,7 +1045,9 @@ async def run_scan(
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
             issues=issues,
-            overall_status="vulnerable" if vuln_techs else ("safe" if blocked_techs else "unknown"),
+            overall_status="vulnerable"
+            if vuln_techs
+            else ("safe" if blocked_techs else "unknown"),
         )
 
         print_results(result)
@@ -1023,7 +1144,9 @@ def main() -> int:
         parser=build_parser(),
         banner_fn=banner_art,
         run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None) or getattr(a, "target", None)),
+        has_target=lambda a: bool(
+            getattr(a, "url", None) or getattr(a, "target", None)
+        ),
         prompt="methodoverride> ",
         description="HTTP Method Override interativo.",
         example="https://target.com -c header",

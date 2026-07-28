@@ -83,7 +83,9 @@ _DEFAULT_SCRIPT_PATHS_DATA: list[str] = [
 def _load_sourcemap_paths() -> list[str]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "sourcemap_paths", default={"script_paths": _DEFAULT_SCRIPT_PATHS_DATA})
+    data = load_payloads(
+        "web", "sourcemap_paths", default={"script_paths": _DEFAULT_SCRIPT_PATHS_DATA}
+    )
     return data.get("script_paths", _DEFAULT_SCRIPT_PATHS_DATA)
 
 
@@ -170,10 +172,18 @@ def parse_source_map(content: bytes) -> SourceMapInfo | None:
         return None
 
     raw_sources = data.get("sources", [])
-    sources: list[str] = [s for s in raw_sources if isinstance(s, str)] if isinstance(raw_sources, list) else []
+    sources: list[str] = (
+        [s for s in raw_sources if isinstance(s, str)]
+        if isinstance(raw_sources, list)
+        else []
+    )
 
     raw_names = data.get("names", [])
-    names: list[str] = [n for n in raw_names if isinstance(n, str)] if isinstance(raw_names, list) else []
+    names: list[str] = (
+        [n for n in raw_names if isinstance(n, str)]
+        if isinstance(raw_names, list)
+        else []
+    )
 
     return SourceMapInfo(
         url="",
@@ -247,7 +257,11 @@ async def _fetch_page(
         return ""
 
     content_type = header_get(_headers, "content-type").lower()
-    if "html" in content_type or "text" in content_type or content.strip().startswith(b"<"):
+    if (
+        "html" in content_type
+        or "text" in content_type
+        or content.strip().startswith(b"<")
+    ):
         return content.decode("utf-8", errors="replace")
     return ""
 
@@ -271,7 +285,10 @@ async def scan_sourcemaps(
 
     logger.info("scan sourcemap iniciado: %s", base_url)
 
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+    print(
+        color("[*]", Cyber.CYAN, Cyber.BOLD),
+        f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}",
+    )
 
     sem = asyncio.Semaphore(concurrency)
     all_map_urls: list[tuple[str, str]] = []  # (map_url, js_url)
@@ -292,7 +309,10 @@ async def scan_sourcemaps(
                         seen_maps.add(map_url)
                         all_map_urls.append((map_url, js_url))
         else:
-            print(color("[!]", Cyber.YELLOW, Cyber.BOLD), "Nao foi possivel buscar a pagina principal")
+            print(
+                color("[!]", Cyber.YELLOW, Cyber.BOLD),
+                "Nao foi possivel buscar a pagina principal",
+            )
 
     # Path probing
     paths = custom_paths if custom_paths else DEFAULT_SCRIPT_PATHS
@@ -320,17 +340,23 @@ async def scan_sourcemaps(
     async def _limited_probe(map_url: str, js_url: str) -> SourceMapInfo | None:
         nonlocal completed
         async with sem:
-            result = await _probe_map(client, rate_limiter, map_url, js_url, timeout, retries)
+            result = await _probe_map(
+                client, rate_limiter, map_url, js_url, timeout, retries
+            )
             async with completed_lock:
                 completed += 1
                 if completed % 20 == 0 or completed == total:
-                    sys.stdout.write(f"\r  Progresso: {completed}/{total} candidatos testados...")
+                    sys.stdout.write(
+                        f"\r  Progresso: {completed}/{total} candidatos testados..."
+                    )
                     sys.stdout.flush()
             return result
 
     try:
         async with asyncio.TaskGroup() as tg:
-            futures = [tg.create_task(_limited_probe(mu, ju)) for mu, ju in all_map_urls]
+            futures = [
+                tg.create_task(_limited_probe(mu, ju)) for mu, ju in all_map_urls
+            ]
         results = [f.result() for f in futures]
 
         sys.stdout.write("\r" + " " * 60 + "\r")
@@ -340,7 +366,9 @@ async def scan_sourcemaps(
         for r in results:
             if isinstance(r, SourceMapInfo):
                 maps.append(r)
-                logger.info("Source map encontrado: %s (sources=%d)", r.url, r.sources_count)
+                logger.info(
+                    "Source map encontrado: %s (sources=%d)", r.url, r.sources_count
+                )
                 print(
                     f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
                     f"{color(f'{r.raw_size}B', Cyber.YELLOW)} "
@@ -419,7 +447,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     add_http_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="target_list",
+        help="Arquivo com URLs alvo (uma por linha).",
+    )
     parser.add_argument(
         "--concurrency",
         type=int,
@@ -461,15 +494,25 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     urls = resolve_target_urls(args)
 
     if getattr(args, "dry_run", False):
-        print(color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhuma requisicao HTTP sera enviada.")
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma requisicao HTTP sera enviada.",
+        )
         for url in urls:
-            base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}",
+            )
         return 0
 
     all_maps: list[SourceMapInfo] = []
     for url in urls:
-        base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
+        base_url = normalize_url(
+            url, default_scheme="https", ensure_trailing_slash=True
+        )
         custom_paths = _load_paths_from_args(args)
 
         maps = await scan_sourcemaps(
@@ -498,7 +541,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             write_output(
                 out_path,
                 [asdict(m) for m in maps],
-                ["url", "js_url", "status", "raw_size", "sources_count", "names_count", "sources"],
+                [
+                    "url",
+                    "js_url",
+                    "status",
+                    "raw_size",
+                    "sources_count",
+                    "names_count",
+                    "sources",
+                ],
                 quiet=quiet,
             )
 
@@ -506,7 +557,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(m) for m in all_maps],
-            ["url", "js_url", "status", "raw_size", "sources_count", "names_count", "sources"],
+            [
+                "url",
+                "js_url",
+                "status",
+                "raw_size",
+                "sources_count",
+                "names_count",
+                "sources",
+            ],
             quiet=quiet,
         )
     return 0
