@@ -151,6 +151,7 @@ mytools-bruteforce = "mytools.web.loginbruteforce:main"
 mytools-bucket = "mytools.web.cloudbucketenum:main"
 mytools-restfuzz = "mytools.web.restapifuzz:main"
 mytools-mobile = "mytools.mobile.mobile_audit:main"
+mytools-depscan = "mytools.web.depscanner:main"
 
 [tool.poetry]
 packages = [

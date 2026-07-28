@@ -160,6 +160,8 @@ Isso instala os comandos CLI:
 | `mytools-batch` | Batch Scanner (multi-target) |
 | `mytools-restfuzz` | REST API Fuzzer (auth bypass, content-type, HATEOAS) |
 | `mytools-mobile` | Mobile API Testing (Android/iOS) |
+| `mytools-cmsfp` | CMS Fingerprinting (WordPress, Joomla, Drupal) |
+| `mytools-depscan` | Dependency Scanner (libs + CVE + outdated) |
 | `mytools-analysis` | Attack Path Visualization & Exploit Suggestions |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
@@ -1387,6 +1389,38 @@ mytools-mobile oauth2 --idp https://auth.example.com --client-id abc123
 - `oauth2_test` — PKCE flow parameters (requer rede)
 - `jwt_validate` — Decode + validação JWT
 
+### 112. CMS Fingerprinting (`mytools-cmsfp`)
+Deteccao ativa de CMS, plugins, temas e usuarios via probing de paths, headers e HTML. Suporta WordPress, Joomla, Drupal, Magento, PrestaShop, OpenCart.
+
+```bash
+mytools-cmsfp https://example.com
+mytools-cmsfp https://example.com -c cms_detect wp_version wp_plugins
+mytools-cmsfp https://example.com --plugin-limit 20 --theme-limit 10
+```
+
+**Checks:**
+- `cms_detect` — Identificar CMS via paths caracteristicos
+- `wp_version` — Versao do WordPress (readme.html, generator meta)
+- `wp_plugins` — Enumerar plugins WordPress
+- `wp_themes` — Enumerar temas WordPress
+- `wp_users` — Enumerar usuarios WP (REST API + author pages)
+- `joomla_info` — Versao + extensoes Joomla
+
+### 113. Dependency Scanner (`mytools-depscan`)
+Deteccao de bibliotecas front-end/back-end + verificacao CVE + versoes desatualizadas. Inspirado em retire.js / WPScan lite. Suporta sourcemap probing para resolver versoes.
+
+```bash
+mytools-depscan https://example.com
+mytools-depscan https://example.com -c frontend_deps cve_check
+mytools-depscan https://example.com -o deps.json
+```
+
+**Checks:**
+- `frontend_deps` — Detectar libs front-end de HTML (script/link tags + sourcemaps)
+- `backend_deps` — Detectar libs back-end (headers, cookies, manifests, error pages)
+- `cve_check` — Verificar CVEs conhecidas (database offline)
+- `outdated_check` — Verificar versoes desatualizadas
+
 ---
 
 ## Flags
@@ -1846,6 +1880,8 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-batch targets.txt` | Batch Scanner (multi-target) |
 | `mytools-restfuzz https://api.example.com` | REST API Fuzzer |
 | `mytools-restfuzz https://api.example.com -c auth_bypass` | Auth bypass testing |
+| `mytools-cmsfp https://example.com` | CMS Fingerprinting |
+| `mytools-depscan https://example.com` | Dependency Scanner |
 | `mytools-analysis findings.json` | Attack path visualization |
 | `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 

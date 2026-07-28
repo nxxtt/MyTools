@@ -1,0 +1,424 @@
+# dependency_scan.yaml — Used by depscanner.py for dependency detection + CVE checking
+# Frontend: ~30 libraries with regex patterns, latest_known, and CVE ranges
+# Backend: ~15 libraries with header/cookie/error/manifest patterns + CVEs
+
+frontend_libraries:
+  jquery:
+    patterns:
+      - '/jquery[@. -]([\d]+\.[\d]+\.[\d]+)'
+      - '/jquery\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)'
+      - '/jquery([\d]+\.[\d]+\.[\d]+)'
+    latest_known: "3.7.1"
+    cves:
+      - id: "CVE-2020-11022"
+        affected: "<3.5.0"
+        severity: "medium"
+        description: "XSS in jQuery.htmlPrefilter"
+      - id: "CVE-2020-11023"
+        affected: "<3.5.0"
+        severity: "medium"
+        description: "XSS in jQuery.extend"
+
+  bootstrap:
+    patterns:
+      - '/bootstrap[@. -]([\d]+\.[\d]+\.[\d]+)'
+      - '/bootstrap\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)'
+    latest_known: "5.3.3"
+    cves:
+      - id: "CVE-2024-6531"
+        affected: "<5.3.3"
+        severity: "medium"
+        description: "XSS in data-bs-toggle attributes"
+
+  react:
+    patterns:
+      - '/react@([\d]+\.[\d]+\.[\d]+)'
+      - '/react\.production\.min\.js'
+    sourcemap: true
+    latest_known: "18.3.1"
+    cves:
+      - id: "CVE-2024-2858"
+        affected: "<18.2.0"
+        severity: "medium"
+        description: "Server-Side Rendering DoS"
+
+  vue:
+    patterns:
+      - '/vue@([\d]+\.[\d]+\.[\d]+)'
+      - '/vue\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)'
+      - '/vue\.runtime\.min\.js'
+    sourcemap: true
+    latest_known: "3.5.13"
+    cves:
+      - id: "CVE-2024-7384"
+        affected: "<3.4.38"
+        severity: "medium"
+        description: "XSS via template compilation"
+
+  angular:
+    patterns:
+      - '/angular[@. -]([\d]+\.[\d]+\.[\d]+)'
+      - 'ng-version="([\d.]+)"'
+      - '/angular\.min\.js'
+    sourcemap: true
+    latest_known: "18.2.0"
+    cves:
+      - id: "CVE-2024-29180"
+        affected: "<17.3.0"
+        severity: "high"
+        description: "XSS in JIT compilation"
+
+  lodash:
+    patterns:
+      - '/lodash@([\d]+\.[\d]+\.[\d]+)'
+      - '/lodash\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)'
+    latest_known: "4.17.21"
+    cves:
+      - id: "CVE-2021-23337"
+        affected: "<4.17.21"
+        severity: "high"
+        description: "Command injection via template"
+      - id: "CVE-2020-28500"
+        affected: "<4.17.21"
+        severity: "medium"
+        description: "ReDoS in toNumber, trim"
+
+  moment:
+    patterns:
+      - '/moment@([\d]+\.[\d]+\.[\d]+)'
+      - '/moment\.min\.js'
+    latest_known: "2.30.1"
+    cves:
+      - id: "CVE-2022-24785"
+        affected: "<2.29.2"
+        severity: "high"
+        description: "Path traversal in locale handling"
+      - id: "CVE-2022-31129"
+        affected: "<2.29.4"
+        severity: "high"
+        description: "ReDoS in date parsing"
+
+  axios:
+    patterns:
+      - '/axios@([\d]+\.[\d]+\.[\d]+)'
+      - '/axios\.min\.js'
+    latest_known: "1.7.9"
+    cves:
+      - id: "CVE-2024-39338"
+        affected: "<1.7.4"
+        severity: "high"
+        description: "Server-Side Request Forgery"
+
+  backbone:
+    patterns:
+      - '/backbone@([\d]+\.[\d]+\.[\d]+)'
+      - '/backbone\.min\.js'
+    latest_known: "1.6.0"
+    cves: []
+
+  ember:
+    patterns:
+      - '/ember@([\d]+\.[\d]+\.[\d]+)'
+      - '/ember\.min\.js'
+    latest_known: "5.12.0"
+    cves: []
+
+  handlebars:
+    patterns:
+      - '/handlebars@([\d]+\.[\d]+\.[\d]+)'
+      - '/handlebars\.min\.js'
+    latest_known: "4.7.8"
+    cves:
+      - id: "CVE-2021-23369"
+        affected: "<4.7.7"
+        severity: "critical"
+        description: "Remote Code Execution"
+      - id: "CVE-2021-23383"
+        affected: "<4.7.7"
+        severity: "high"
+        description: "Prototype Pollution"
+
+  mustache:
+    patterns:
+      - '/mustache@([\d]+\.[\d]+\.[\d]+)'
+      - '/mustache\.min\.js'
+    latest_known: "4.2.0"
+    cves: []
+
+  underscore:
+    patterns:
+      - '/underscore@([\d]+\.[\d]+\.[\d]+)'
+      - '/underscore\.min\.js'
+    latest_known: "1.13.7"
+    cves: []
+
+  three:
+    patterns:
+      - '/three@([\d]+\.[\d]+\.[\d]+)'
+      - '/three\.min\.js'
+    latest_known: "0.170.0"
+    cves: []
+
+  d3:
+    patterns:
+      - '/d3@([\d]+\.[\d]+\.[\d]+)'
+      - '/d3\.min\.js'
+    latest_known: "7.9.0"
+    cves: []
+
+  chart_js:
+    patterns:
+      - '/chart\.js@([\d]+\.[\d]+\.[\d]+)'
+      - '/chart\.min\.js'
+    latest_known: "4.4.7"
+    cves: []
+
+  select2:
+    patterns:
+      - '/select2@([\d]+\.[\d]+\.[\d]+)'
+      - '/select2\.min\.js'
+    latest_known: "4.1.0"
+    cves: []
+
+  slick:
+    patterns:
+      - '/slick@([\d]+\.[\d]+\.[\d]+)'
+      - '/slick\.min\.js'
+    latest_known: "1.8.1"
+    cves: []
+
+  swiper:
+    patterns:
+      - '/swiper@([\d]+\.[\d]+\.[\d]+)'
+      - '/swiper\.min\.js'
+    latest_known: "11.1.14"
+    cves: []
+
+  gsap:
+    patterns:
+      - '/gsap@([\d]+\.[\d]+\.[\d]+)'
+      - '/gsap\.min\.js'
+    latest_known: "3.12.5"
+    cves: []
+
+  popper:
+    patterns:
+      - '/popper\.js@([\d]+\.[\d]+\.[\d]+)'
+      - '/popper\.min\.js'
+    latest_known: "2.11.8"
+    cves: []
+
+  dayjs:
+    patterns:
+      - '/dayjs@([\d]+\.[\d]+\.[\d]+)'
+      - '/dayjs\.min\.js'
+    latest_known: "1.11.13"
+    cves: []
+
+  alpine:
+    patterns:
+      - '/alpinejs@([\d]+\.[\d]+\.[\d]+)'
+      - '/alpine\.min\.js'
+    latest_known: "3.14.3"
+    cves: []
+
+  htmx:
+    patterns:
+      - '/htmx@([\d]+\.[\d]+\.[\d]+)'
+      - '/htmx\.min\.js'
+    latest_known: "2.0.4"
+    cves: []
+
+  tailwind:
+    patterns:
+      - '/tailwindcss@([\d]+\.[\d]+\.[\d]+)'
+    latest_known: "3.4.16"
+    cves: []
+
+  font_awesome:
+    patterns:
+      - '/font-awesome[@/](\d+\.[\d]+\.[\d]+)'
+      - '/fontawesome[@/](\d+\.[\d]+\.[\d]+)'
+    latest_known: "6.7.2"
+    cves: []
+
+  animate_css:
+    patterns:
+      - '/animate\.css@([\d]+\.[\d]+\.[\d]+)'
+    latest_known: "4.1.1"
+    cves: []
+
+  bulma:
+    patterns:
+      - '/bulma@([\d]+\.[\d]+\.[\d]+)'
+      - '/bulma\.min\.css'
+    latest_known: "1.0.2"
+    cves: []
+
+  materialize:
+    patterns:
+      - '/materialize@([\d]+\.[\d]+\.[\d]+)'
+      - '/materialize\.min\.js'
+    latest_known: "1.0.0"
+    cves: []
+
+  normalize:
+    patterns:
+      - '/normalize\.css@([\d]+\.[\d]+\.[\d]+)'
+    latest_known: "8.0.1"
+    cves: []
+
+backend_libraries:
+  express:
+    headers: ['X-Powered-By: Express']
+    cookies: ['connect.sid']
+    error_patterns: ['at Layer.handle', 'at Router.handle']
+    manifest_paths: ['/package.json']
+    manifest_key_pattern: '"express":\s*"(\\^?\\d+\\.\\d+\\.\\d+)"'
+    latest_known: "4.21.0"
+    cves:
+      - id: "CVE-2024-29041"
+        affected: "<4.19.2"
+        severity: "high"
+        description: "Open redirect via URL parsing"
+
+  laravel:
+    headers: ['X-Powered-By: Laravel']
+    cookies: ['laravel_session', 'XSRF-TOKEN']
+    manifest_paths: ['/composer.json']
+    manifest_key_pattern: '"laravel/framework":\s*"(\\^?\\d+\\.\\d+\\.\\d+)"'
+    latest_known: "11.28.1"
+    cves:
+      - id: "CVE-2024-13918"
+        affected: "<11.31.0"
+        severity: "high"
+        description: "Blade template injection"
+
+  django:
+    headers: ['X-Frame-Options: DENY']
+    cookies: ['csrftoken', 'sessionid']
+    error_patterns: ['Django Debug Page', 'You are seeing this error because you have DEBUG = True']
+    manifest_paths: ['/requirements.txt']
+    manifest_key_pattern: 'Django==([\d.]+)'
+    latest_known: "5.1.4"
+    cves:
+      - id: "CVE-2024-47995"
+        affected: "<5.1.1"
+        severity: "medium"
+        description: "Denial of service via SQL column"
+
+  rails:
+    headers: ['X-Powered-By: Phusion Passenger']
+    cookies: ['_rails_session']
+    error_patterns: ['Action Controller', 'Rails.root:']
+    manifest_paths: ['/Gemfile.lock']
+    manifest_key_pattern: 'rails \(([\d.]+)\)'
+    latest_known: "7.2.2"
+    cves:
+      - id: "CVE-2024-47887"
+        affected: "<7.2.1"
+        severity: "high"
+        description: "Denial of Service via Accept header"
+
+  spring_boot:
+    headers: ['X-Application-Context']
+    cookies: ['JSESSIONID']
+    error_patterns: ['Whitelabel Error Page', 'There was an unexpected error']
+    manifest_paths: ['/actuator/env']
+    manifest_key_pattern: '"spring-boot":\s*{[^}]*"version":\s*"([\d.]+)"'
+    latest_known: "3.3.5"
+    cves:
+      - id: "CVE-2024-38014"
+        affected: "<3.3.3"
+        severity: "high"
+        description: "Privilege escalation via Maven plugins"
+
+  nextjs:
+    cookies: ['__next_preview_data', '__next_data_proto']
+    paths: ['/_next/static/', '/_next/data/']
+    error_patterns: ['_next/static', 'Next.js']
+    manifest_paths: ['/package.json']
+    manifest_key_pattern: '"next":\s*"(\\^?\\d+\\.\\d+\\.\\d+)"'
+    latest_known: "14.2.18"
+    cves:
+      - id: "CVE-2024-34351"
+        affected: "<14.1.1"
+        severity: "high"
+        description: "SSRF via host header"
+
+  nuxt:
+    cookies: ['_nuxt']
+    paths: ['/_nuxt/static/', '/_nuxt/']
+    error_patterns: ['_nuxt', 'Nuxt.js']
+    manifest_paths: ['/package.json']
+    manifest_key_pattern: '"nuxt":\s*"(\\^?\\d+\\.\\d+\\.\\d+)"'
+    latest_known: "3.13.2"
+    cves: []
+
+  aspnet:
+    headers: ['X-Powered-By: ASP.NET', 'X-AspNet-Version']
+    cookies: ['ASP.NET_SessionId', '.ASPXAUTH']
+    error_patterns: ['Server Error in', 'Unhandled exception']
+    manifest_paths: []
+    latest_known: "9.0.0"
+    cves: []
+
+  php:
+    headers: ['X-Powered-By: PHP']
+    cookies: ['PHPSESSID']
+    error_patterns: ['PHP Fatal error', 'PHP Warning']
+    manifest_paths: ['/composer.json']
+    manifest_key_pattern: '"php":\s*"(\\^?\\d+\\.\\d+)"'
+    latest_known: "8.3.14"
+    cves: []
+
+  flask:
+    headers: ['Server: Werkzeug']
+    cookies: ['session=ey']
+    error_patterns: ['Werkzeug Debugger', 'Traceback (most recent call last)']
+    manifest_paths: ['/requirements.txt']
+    manifest_key_pattern: 'Flask==([\d.]+)'
+    latest_known: "3.1.0"
+    cves: []
+
+  nginx:
+    headers: ['Server: nginx']
+    cookies: []
+    error_patterns: []
+    manifest_paths: []
+    latest_known: "1.27.3"
+    cves: []
+
+  apache:
+    headers: ['Server: Apache']
+    cookies: []
+    error_patterns: ['Apache Server at', 'Apache/']
+    manifest_paths: []
+    latest_known: "2.4.62"
+    cves: []
+
+  ruby_sinatra:
+    headers: ['X-Powered-By: Sinatra']
+    cookies: ['rack.session']
+    error_patterns: ['Sinatra::Application']
+    manifest_paths: ['/Gemfile.lock']
+    manifest_key_pattern: 'sinatra \(([\d.]+)\)'
+    latest_known: "4.1.1"
+    cves: []
+
+  fastify:
+    headers: ['X-Powered-By: fastify']
+    cookies: ['fastify-session']
+    error_patterns: []
+    manifest_paths: ['/package.json']
+    manifest_key_pattern: '"fastify":\s*"(\\^?\\d+\\.\\d+\\.\\d+)"'
+    latest_known: "5.1.0"
+    cves: []
+
+  koa:
+    cookies: ['koa:sess']
+    error_patterns: []
+    manifest_paths: ['/package.json']
+    manifest_key_pattern: '"koa":\s*"(\\^?\\d+\\.\\d+\\.\\d+)"'
+    latest_known: "2.15.3"
+    cves: []
