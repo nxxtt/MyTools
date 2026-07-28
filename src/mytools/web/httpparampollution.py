@@ -15,6 +15,7 @@ Fluxo:
   4. Classifica: vulnerable, blocked, error
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import json
 import logging
@@ -215,14 +216,23 @@ _BYPASS_PAYLOADS: list[tuple[str, str, str, str, list[str]]] = [
 ]
 
 _SENSITIVE_PATHS: list[str] = [
-    "/admin", "/login", "/api/user", "/api/data", "/settings",
-    "/dashboard", "/profile", "/upload", "/search", "/api/config",
+    "/admin",
+    "/login",
+    "/api/user",
+    "/api/data",
+    "/settings",
+    "/dashboard",
+    "/profile",
+    "/upload",
+    "/search",
+    "/api/config",
 ]
 
 
 @dataclass(frozen=True, slots=True)
 class HPPAttempt:
     """Tentativa individual de HTTP Parameter Pollution."""
+
     technique: str
     category: str
     param_name: str
@@ -244,6 +254,7 @@ class HPPAttempt:
 @dataclass(frozen=True, slots=True)
 class HPPResult:
     """Resultado consolidado do scan de HTTP Parameter Pollution."""
+
     target: str
     baseline_status: int
     baseline_size: int
@@ -302,41 +313,45 @@ async def _test_query(
                 vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
-                results.append(HPPAttempt(
-                exploit="duplicate_param_payload",
-                tool="wfuzz",
-                    technique=technique,
-                    category="query",
-                    param_name=param_name,
-                    payload=query_payload,
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=resp.status_code,
-                    size_baseline=b_size,
-                    size_test=len(resp.content),
-                    status_changed=resp.status_code != b_status,
-                    size_changed=len(resp.content) != b_size,
-                    vulnerable=vulnerable,
-                    details=f"path={path}, query={query_payload}" if vulnerable else "",
-                    error="",
-                ))
+                results.append(
+                    HPPAttempt(
+                        exploit="duplicate_param_payload",
+                        tool="wfuzz",
+                        technique=technique,
+                        category="query",
+                        param_name=param_name,
+                        payload=query_payload,
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=resp.status_code,
+                        size_baseline=b_size,
+                        size_test=len(resp.content),
+                        status_changed=resp.status_code != b_status,
+                        size_changed=len(resp.content) != b_size,
+                        vulnerable=vulnerable,
+                        details=f"path={path}, query={query_payload}" if vulnerable else "",
+                        error="",
+                    )
+                )
             except httpx.RequestError as e:
-                results.append(HPPAttempt(
-                    technique=technique,
-                    category="query",
-                    param_name=param_name,
-                    payload=query_payload,
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    HPPAttempt(
+                        technique=technique,
+                        category="query",
+                        param_name=param_name,
+                        payload=query_payload,
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(e)[:100],
+                    )
+                )
     return results
 
 
@@ -362,41 +377,45 @@ async def _test_body(
                 vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
-                results.append(HPPAttempt(
-                exploit="duplicate_param_payload",
-                tool="wfuzz",
-                    technique=technique,
-                    category="body",
-                    param_name=param_name,
-                    payload=body_payload,
-                    method="POST",
-                    status_baseline=b_status,
-                    status_test=resp.status_code,
-                    size_baseline=b_size,
-                    size_test=len(resp.content),
-                    status_changed=resp.status_code != b_status,
-                    size_changed=len(resp.content) != b_size,
-                    vulnerable=vulnerable,
-                    details=f"path={path}, body={body_payload}" if vulnerable else "",
-                    error="",
-                ))
+                results.append(
+                    HPPAttempt(
+                        exploit="duplicate_param_payload",
+                        tool="wfuzz",
+                        technique=technique,
+                        category="body",
+                        param_name=param_name,
+                        payload=body_payload,
+                        method="POST",
+                        status_baseline=b_status,
+                        status_test=resp.status_code,
+                        size_baseline=b_size,
+                        size_test=len(resp.content),
+                        status_changed=resp.status_code != b_status,
+                        size_changed=len(resp.content) != b_size,
+                        vulnerable=vulnerable,
+                        details=f"path={path}, body={body_payload}" if vulnerable else "",
+                        error="",
+                    )
+                )
             except httpx.RequestError as e:
-                results.append(HPPAttempt(
-                    technique=technique,
-                    category="body",
-                    param_name=param_name,
-                    payload=body_payload,
-                    method="POST",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    HPPAttempt(
+                        technique=technique,
+                        category="body",
+                        param_name=param_name,
+                        payload=body_payload,
+                        method="POST",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(e)[:100],
+                    )
+                )
     return results
 
 
@@ -421,41 +440,45 @@ async def _test_header(
                 vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
-                results.append(HPPAttempt(
-                exploit="duplicate_param_payload",
-                tool="wfuzz",
-                    technique=technique,
-                    category="header",
-                    param_name=header_name,
-                    payload=header_value,
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=resp.status_code,
-                    size_baseline=b_size,
-                    size_test=len(resp.content),
-                    status_changed=resp.status_code != b_status,
-                    size_changed=len(resp.content) != b_size,
-                    vulnerable=vulnerable,
-                    details=f"path={path}, header={header_name}: {header_value}" if vulnerable else "",
-                    error="",
-                ))
+                results.append(
+                    HPPAttempt(
+                        exploit="duplicate_param_payload",
+                        tool="wfuzz",
+                        technique=technique,
+                        category="header",
+                        param_name=header_name,
+                        payload=header_value,
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=resp.status_code,
+                        size_baseline=b_size,
+                        size_test=len(resp.content),
+                        status_changed=resp.status_code != b_status,
+                        size_changed=len(resp.content) != b_size,
+                        vulnerable=vulnerable,
+                        details=f"path={path}, header={header_name}: {header_value}" if vulnerable else "",
+                        error="",
+                    )
+                )
             except httpx.RequestError as e:
-                results.append(HPPAttempt(
-                    technique=technique,
-                    category="header",
-                    param_name=header_name,
-                    payload=header_value,
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    HPPAttempt(
+                        technique=technique,
+                        category="header",
+                        param_name=header_name,
+                        payload=header_value,
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(e)[:100],
+                    )
+                )
     return results
 
 
@@ -482,41 +505,45 @@ async def _test_json(
                 vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
-                results.append(HPPAttempt(
-                exploit="duplicate_param_payload",
-                tool="wfuzz",
-                    technique=technique,
-                    category="json",
-                    param_name=field_name,
-                    payload=json.dumps(field_value),
-                    method="POST",
-                    status_baseline=b_status,
-                    status_test=resp.status_code,
-                    size_baseline=b_size,
-                    size_test=len(resp.content),
-                    status_changed=resp.status_code != b_status,
-                    size_changed=len(resp.content) != b_size,
-                    vulnerable=vulnerable,
-                    details=f"path={path}, json={field_name}={json.dumps(field_value)}" if vulnerable else "",
-                    error="",
-                ))
+                results.append(
+                    HPPAttempt(
+                        exploit="duplicate_param_payload",
+                        tool="wfuzz",
+                        technique=technique,
+                        category="json",
+                        param_name=field_name,
+                        payload=json.dumps(field_value),
+                        method="POST",
+                        status_baseline=b_status,
+                        status_test=resp.status_code,
+                        size_baseline=b_size,
+                        size_test=len(resp.content),
+                        status_changed=resp.status_code != b_status,
+                        size_changed=len(resp.content) != b_size,
+                        vulnerable=vulnerable,
+                        details=f"path={path}, json={field_name}={json.dumps(field_value)}" if vulnerable else "",
+                        error="",
+                    )
+                )
             except httpx.RequestError as e:
-                results.append(HPPAttempt(
-                    technique=technique,
-                    category="json",
-                    param_name=field_name,
-                    payload=json.dumps(field_value),
-                    method="POST",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    HPPAttempt(
+                        technique=technique,
+                        category="json",
+                        param_name=field_name,
+                        payload=json.dumps(field_value),
+                        method="POST",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(e)[:100],
+                    )
+                )
     return results
 
 
@@ -537,41 +564,45 @@ async def _test_bypass(
                 vulnerable = _check_hpp_response(resp.content, resp.status_code, b_status)
                 if not vulnerable:
                     vulnerable = _check_response_content(resp.content, indicators)
-                results.append(HPPAttempt(
-                exploit="duplicate_param_payload",
-                tool="wfuzz",
-                    technique=technique,
-                    category="bypass",
-                    param_name=param_name,
-                    payload=payload,
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=resp.status_code,
-                    size_baseline=b_size,
-                    size_test=len(resp.content),
-                    status_changed=resp.status_code != b_status,
-                    size_changed=len(resp.content) != b_size,
-                    vulnerable=vulnerable,
-                    details=f"path={path}, bypass={payload}" if vulnerable else "",
-                    error="",
-                ))
+                results.append(
+                    HPPAttempt(
+                        exploit="duplicate_param_payload",
+                        tool="wfuzz",
+                        technique=technique,
+                        category="bypass",
+                        param_name=param_name,
+                        payload=payload,
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=resp.status_code,
+                        size_baseline=b_size,
+                        size_test=len(resp.content),
+                        status_changed=resp.status_code != b_status,
+                        size_changed=len(resp.content) != b_size,
+                        vulnerable=vulnerable,
+                        details=f"path={path}, bypass={payload}" if vulnerable else "",
+                        error="",
+                    )
+                )
             except httpx.RequestError as e:
-                results.append(HPPAttempt(
-                    technique=technique,
-                    category="bypass",
-                    param_name=param_name,
-                    payload=payload,
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    HPPAttempt(
+                        technique=technique,
+                        category="bypass",
+                        param_name=param_name,
+                        payload=payload,
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(e)[:100],
+                    )
+                )
     return results
 
 
@@ -666,7 +697,8 @@ async def run_scan(
         print_results(result)
         logger.info(
             "HPP scan concluido: %d testes, %d vulneraveis",
-            len(all_attempts), len(vuln_techs),
+            len(all_attempts),
+            len(vuln_techs),
         )
 
         if output_file:
@@ -704,7 +736,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para o scan")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         default="all",
         choices=["all", "query", "body", "header", "json", "bypass"],
         help="Categoria de testes (default: todas)",

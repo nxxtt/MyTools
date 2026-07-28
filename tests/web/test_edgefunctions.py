@@ -26,18 +26,30 @@ from mytools.web.edgefunctions import (
 class TestEdgeFunctionAttempt:
     def test_creation(self) -> None:
         a = EdgeFunctionAttempt(
-            technique="azure_settings_leak", category="cloud_providers",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="https://target.com", provider="azure", response_code=200,
+            technique="azure_settings_leak",
+            category="cloud_providers",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://target.com",
+            provider="azure",
+            response_code=200,
         )
         assert a.technique == "azure_settings_leak"
         assert a.provider == "azure"
 
     def test_frozen(self) -> None:
         a = EdgeFunctionAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            provider="p", response_code=200,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            provider="p",
+            response_code=200,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -46,19 +58,34 @@ class TestEdgeFunctionAttempt:
 class TestEdgeFunctionResult:
     def test_creation(self) -> None:
         r = EdgeFunctionResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", provider_detected="vercel",
-            techniques_count=5, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            provider_detected="vercel",
+            techniques_count=5,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.provider_detected == "vercel"
 
     def test_frozen(self) -> None:
         r = EdgeFunctionResult(
-            target="t", host="h", port=443, tls=True, endpoint="e",
-            provider_detected="p", techniques_count=0, attempts=[],
-            vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            endpoint="e",
+            provider_detected="p",
+            techniques_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.host = "changed"  # type: ignore[misc]
@@ -82,6 +109,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -158,10 +186,17 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = EdgeFunctionResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", provider_detected="unknown",
-            techniques_count=5, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            provider_detected="unknown",
+            techniques_count=5,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -170,15 +205,28 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = EdgeFunctionAttempt(
-            technique="azure_settings_leak", category="cloud_providers", description="desc",
-            vulnerable=True, details="leak found", error="",
-            endpoint="https://target.com", provider="azure", response_code=200,
+            technique="azure_settings_leak",
+            category="cloud_providers",
+            description="desc",
+            vulnerable=True,
+            details="leak found",
+            error="",
+            endpoint="https://target.com",
+            provider="azure",
+            response_code=200,
         )
         r = EdgeFunctionResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", provider_detected="azure",
-            techniques_count=5, attempts=[a], vulnerable_techniques=["azure_settings_leak"],
-            issues=["Test issue"], overall_status="vulnerable",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            provider_detected="azure",
+            techniques_count=5,
+            attempts=[a],
+            vulnerable_techniques=["azure_settings_leak"],
+            issues=["Test issue"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

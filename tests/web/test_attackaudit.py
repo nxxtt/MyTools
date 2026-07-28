@@ -219,20 +219,42 @@ class TestTLSVersionResult:
 class TestAuditResultDataclass:
     def test_creation(self):
         r = AuditResult(
-            target="https://example.com", final_url="https://example.com", status=200,
-            title="", ip="1.2.3.4", tls_subject="example.com", tls_issuer="Let's Encrypt",
-            tls_not_after="Dec 31", allowed_methods=["GET"], forms=0, password_inputs=0,
-            probes=[], findings=[], risk_score=0, elapsed=1.0,
+            target="https://example.com",
+            final_url="https://example.com",
+            status=200,
+            title="",
+            ip="1.2.3.4",
+            tls_subject="example.com",
+            tls_issuer="Let's Encrypt",
+            tls_not_after="Dec 31",
+            allowed_methods=["GET"],
+            forms=0,
+            password_inputs=0,
+            probes=[],
+            findings=[],
+            risk_score=0,
+            elapsed=1.0,
         )
         assert r.status == 200
         assert r.risk_score == 0
 
     def test_optional_tls_versions(self):
         r = AuditResult(
-            target="https://example.com", final_url="https://example.com", status=200,
-            title="", ip="", tls_subject="", tls_issuer="",
-            tls_not_after="", allowed_methods=[], forms=0, password_inputs=0,
-            probes=[], findings=[], risk_score=0, elapsed=1.0,
+            target="https://example.com",
+            final_url="https://example.com",
+            status=200,
+            title="",
+            ip="",
+            tls_subject="",
+            tls_issuer="",
+            tls_not_after="",
+            allowed_methods=[],
+            forms=0,
+            password_inputs=0,
+            probes=[],
+            findings=[],
+            risk_score=0,
+            elapsed=1.0,
         )
         assert r.tls_versions == []
         assert r.xss_reflected is False
@@ -366,23 +388,20 @@ class TestBuildFindingsPhase7:
 
     def test_xss_reflected_finding(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
-                                  xss_reflected=True, xss_evidence="refletido em html_body")
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", xss_reflected=True, xss_evidence="refletido em html_body")
         xss = [f for f in findings if f.category == "xss"]
         assert len(xss) == 1
         assert xss[0].severity == "high"
 
     def test_no_xss_no_finding(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
-                                  xss_reflected=False)
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", xss_reflected=False)
         xss = [f for f in findings if f.category == "xss"]
         assert len(xss) == 0
 
     def test_sqli_error_finding(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
-                                  sqli_databases=["mysql"])
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", sqli_databases=["mysql"])
         sqli = [f for f in findings if f.category == "sqli"]
         assert len(sqli) == 1
         assert sqli[0].severity == "critical"
@@ -390,8 +409,7 @@ class TestBuildFindingsPhase7:
 
     def test_sqli_multiple_databases(self):
         parser = PageParser()
-        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com",
-                                  sqli_databases=["mysql", "postgresql"])
+        findings = build_findings("https://example.com", 200, {}, parser, [], [], "example.com", sqli_databases=["mysql", "postgresql"])
         sqli = [f for f in findings if f.category == "sqli"]
         assert len(sqli) == 1
         assert "mysql" in sqli[0].evidence
@@ -469,7 +487,7 @@ class TestErrorInfoPatterns:
 
 class TestAnalyzeErrorResponse:
     def test_java_stack_trace(self):
-        body = 'java.lang.NullPointerException\n\tat com.app.Main(Main.java:42)'
+        body = "java.lang.NullPointerException\n\tat com.app.Main(Main.java:42)"
         findings = analyze_error_response(body)
         assert any(f.category == "info_leak" and "stack_trace" in f.item for f in findings)
 
@@ -479,43 +497,43 @@ class TestAnalyzeErrorResponse:
         assert any("stack_trace" in f.item for f in findings)
 
     def test_php_fatal_error(self):
-        body = 'Fatal error: Uncaught Exception in /var/www/app.php on line 42'
+        body = "Fatal error: Uncaught Exception in /var/www/app.php on line 42"
         findings = analyze_error_response(body)
         assert any("stack_trace" in f.item for f in findings)
 
     def test_framework_version_nginx(self):
-        body = 'nginx/1.18.0 (Ubuntu)'
+        body = "nginx/1.18.0 (Ubuntu)"
         findings = analyze_error_response(body)
         assert any("framework_version" in f.item for f in findings)
 
     def test_internal_path(self):
-        body = 'Error reading file /var/www/html/config.php'
+        body = "Error reading file /var/www/html/config.php"
         findings = analyze_error_response(body)
         assert any("internal_path" in f.item for f in findings)
 
     def test_database_error(self):
-        body = 'MySQL error: Connection refused'
+        body = "MySQL error: Connection refused"
         findings = analyze_error_response(body)
         assert any("database_error" in f.item for f in findings)
 
     def test_config_leak_aws_key(self):
-        body = 'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE'
+        body = "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE"
         findings = analyze_error_response(body)
         assert any("config_leak" in f.item for f in findings)
         assert any(f.severity == "critical" for f in findings if "config_leak" in f.item)
 
     def test_config_leak_jdbc(self):
-        body = 'jdbc:mysql://localhost:3306/mydb'
+        body = "jdbc:mysql://localhost:3306/mydb"
         findings = analyze_error_response(body)
         assert any("config_leak" in f.item for f in findings)
 
     def test_clean_body_no_findings(self):
-        body = '<html><body>Hello World</body></html>'
+        body = "<html><body>Hello World</body></html>"
         findings = analyze_error_response(body)
         assert len(findings) == 0
 
     def test_multiple_categories(self):
-        body = 'Traceback (most recent call last):\nnginx/1.18.0\n/var/www/app.py'
+        body = "Traceback (most recent call last):\nnginx/1.18.0\n/var/www/app.py"
         findings = analyze_error_response(body)
         categories = [f.item for f in findings]
         assert any("stack_trace" in c for c in categories)
@@ -603,7 +621,7 @@ class TestAnalyzeHeadersFindings:
 
     def test_verbose_error_headers_structure(self):
         assert isinstance(_VERBOSE_ERROR_HEADERS, dict)
-        for (sev, cat, rec) in _VERBOSE_ERROR_HEADERS.values():
+        for sev, cat, rec in _VERBOSE_ERROR_HEADERS.values():
             assert sev in ("low", "medium", "high", "critical", "info")
             assert cat in ("fingerprint", "info_leak")
             assert isinstance(rec, str)
@@ -679,14 +697,14 @@ class TestAnalyzeHiddenFields:
 
     def test_sensitive_structure(self):
         assert isinstance(_SENSITIVE_HIDDEN_FIELDS, dict)
-        for (sev, cat, patterns) in _SENSITIVE_HIDDEN_FIELDS.values():
+        for sev, cat, patterns in _SENSITIVE_HIDDEN_FIELDS.values():
             assert sev in ("low", "medium", "high", "critical", "info")
             assert cat in ("exposure", "info_leak")
             assert len(patterns) > 0
 
     def test_value_patterns_structure(self):
         assert isinstance(_SENSITIVE_VALUE_PATTERNS, dict)
-        for (sev, cat, _pattern) in _SENSITIVE_VALUE_PATTERNS.values():
+        for sev, cat, _pattern in _SENSITIVE_VALUE_PATTERNS.values():
             assert sev in ("low", "medium", "high", "critical", "info")
             assert cat in ("exposure", "info_leak")
 
@@ -742,6 +760,7 @@ class TestCheckXSSReflection:
         def handler(request):
             url = str(request.url)
             from urllib.parse import parse_qs, urlparse
+
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("q", [""])[0]
@@ -838,8 +857,14 @@ class TestBuildParser:
 
 class TestSecurityHeadersConstant:
     def test_has_all_expected(self):
-        expected = {"strict-transport-security", "content-security-policy", "x-frame-options",
-                    "x-content-type-options", "referrer-policy", "permissions-policy"}
+        expected = {
+            "strict-transport-security",
+            "content-security-policy",
+            "x-frame-options",
+            "x-content-type-options",
+            "referrer-policy",
+            "permissions-policy",
+        }
         assert set(SECURITY_HEADERS_RECS.keys()) == expected
 
     def test_values_are_strings(self):
@@ -997,20 +1022,42 @@ class TestBuildFindingsMethodResults:
 class TestAuditResultMethodResults:
     def test_default_none(self):
         r = AuditResult(
-            target="https://example.com", final_url="https://example.com", status=200,
-            title="", ip="", tls_subject="", tls_issuer="",
-            tls_not_after="", allowed_methods=[], forms=0, password_inputs=0,
-            probes=[], findings=[], risk_score=0, elapsed=1.0,
+            target="https://example.com",
+            final_url="https://example.com",
+            status=200,
+            title="",
+            ip="",
+            tls_subject="",
+            tls_issuer="",
+            tls_not_after="",
+            allowed_methods=[],
+            forms=0,
+            password_inputs=0,
+            probes=[],
+            findings=[],
+            risk_score=0,
+            elapsed=1.0,
         )
         assert r.method_results == []
 
     def test_with_method_results(self):
         mr = [MethodResult("https://example.com/api", "PUT", 200, 500)]
         r = AuditResult(
-            target="https://example.com", final_url="https://example.com", status=200,
-            title="", ip="", tls_subject="", tls_issuer="",
-            tls_not_after="", allowed_methods=[], forms=0, password_inputs=0,
-            probes=[], findings=[], risk_score=0, elapsed=1.0,
+            target="https://example.com",
+            final_url="https://example.com",
+            status=200,
+            title="",
+            ip="",
+            tls_subject="",
+            tls_issuer="",
+            tls_not_after="",
+            allowed_methods=[],
+            forms=0,
+            password_inputs=0,
+            probes=[],
+            findings=[],
+            risk_score=0,
+            elapsed=1.0,
             method_results=mr,
         )
         assert r.method_results is not None
@@ -1059,7 +1106,7 @@ class TestCheckSQLiErrorsEdgeCases:
     @respx.mock
     @pytest.mark.asyncio
     async def test_postgresql_error_detected(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="ERROR: syntax error at or near \"1\""))
+        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text='ERROR: syntax error at or near "1"'))
         result = await check_sqli_errors(async_client, "https://example.com/page?id=1", 5.0)
         assert any("postgresql" in r for r in result) or len(result) > 0
 
@@ -1106,15 +1153,14 @@ class TestCheckXSSWithCustomParams:
         def handler(request):
             url = str(request.url)
             from urllib.parse import parse_qs, urlparse
+
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("search", [""])[0]
             return httpx.Response(200, text=f"<html><body>Results: {marker}</body></html>")
 
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
-        reflected, evidence = await check_xss_reflection(
-            async_client, "https://example.com/search", 5.0, inject_params=["search"]
-        )
+        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/search", 5.0, inject_params=["search"])
         assert reflected is True
         assert "param=search" in evidence
 
@@ -1124,15 +1170,14 @@ class TestCheckXSSWithCustomParams:
         def handler(request):
             url = str(request.url)
             from urllib.parse import parse_qs, urlparse
+
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("user", [""])[0]
             return httpx.Response(200, text=f"<html>Hello {marker}</html>")
 
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
-        reflected, evidence = await check_xss_reflection(
-            async_client, "https://example.com/profile?user=1", 5.0
-        )
+        reflected, evidence = await check_xss_reflection(async_client, "https://example.com/profile?user=1", 5.0)
         assert reflected is True
         assert "param=user" in evidence
 
@@ -1142,15 +1187,14 @@ class TestCheckXSSWithCustomParams:
         def handler(request):
             url = str(request.url)
             from urllib.parse import parse_qs, urlparse
+
             parsed = urlparse(url)
             params = parse_qs(parsed.query)
             marker = params.get("q", [""])[0]
             return httpx.Response(200, text=f"<html>{marker}</html>")
 
         respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
-        reflected, _evidence = await check_xss_reflection(
-            async_client, "https://example.com", 5.0
-        )
+        reflected, _evidence = await check_xss_reflection(async_client, "https://example.com", 5.0)
         assert reflected is True
 
 
@@ -1158,34 +1202,22 @@ class TestCheckSQLiWithCustomParams:
     @respx.mock
     @pytest.mark.asyncio
     async def test_custom_param_sqli(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(
-            return_value=httpx.Response(200, text="You have an error in your SQL syntax")
-        )
-        result = await check_sqli_errors(
-            async_client, "https://example.com/page?search=test", 5.0, inject_params=["search"]
-        )
+        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="You have an error in your SQL syntax"))
+        result = await check_sqli_errors(async_client, "https://example.com/page?search=test", 5.0, inject_params=["search"])
         assert "mysql" in result
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_auto_detect_from_url(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(
-            return_value=httpx.Response(200, text="You have an error in your SQL syntax")
-        )
-        result = await check_sqli_errors(
-            async_client, "https://example.com/page?item=1", 5.0
-        )
+        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="You have an error in your SQL syntax"))
+        result = await check_sqli_errors(async_client, "https://example.com/page?item=1", 5.0)
         assert "mysql" in result
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_no_params_fallback(self, async_client):
-        respx.route(url__regex=r"https://example\.com.*").mock(
-            return_value=httpx.Response(200, text="Normal page")
-        )
-        result = await check_sqli_errors(
-            async_client, "https://example.com/page", 5.0
-        )
+        respx.route(url__regex=r"https://example\.com.*").mock(return_value=httpx.Response(200, text="Normal page"))
+        result = await check_sqli_errors(async_client, "https://example.com/page", 5.0)
         assert result == []
 
 
@@ -1233,13 +1265,32 @@ class TestMain:
     def test_no_target_shells_interactive(self, mock_shell):
         mock_shell.return_value = 0
         from mytools.web.attackaudit import main
+
         args = argparse.Namespace(
-            url=None, target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, test_vulns=False, test_methods=False,
-            paths_file=None, params=None, retries=3, dry_run=False,
-            verify=False, proxy=None, auth=None, bearer_token=None,
-            cookie=None, header=[], delay=0.0, cve=False, nvd_api_key=None,
+            url=None,
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            test_vulns=False,
+            test_methods=False,
+            paths_file=None,
+            params=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
+            delay=0.0,
+            cve=False,
+            nvd_api_key=None,
         )
         with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -1248,13 +1299,32 @@ class TestMain:
 
     def test_quiet_without_output_returns_1(self):
         from mytools.web.attackaudit import main
+
         args = argparse.Namespace(
-            url="https://example.com", target_list=None, quiet=True, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, test_vulns=False, test_methods=False,
-            paths_file=None, params=None, retries=3, dry_run=False,
-            verify=False, proxy=None, auth=None, bearer_token=None,
-            cookie=None, header=[], delay=0.0, cve=False, nvd_api_key=None,
+            url="https://example.com",
+            target_list=None,
+            quiet=True,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            test_vulns=False,
+            test_methods=False,
+            paths_file=None,
+            params=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
+            delay=0.0,
+            cve=False,
+            nvd_api_key=None,
         )
         with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -1264,13 +1334,32 @@ class TestMain:
     def test_valid_url_calls_run_once(self, mock_run_once):
         mock_run_once.return_value = 0
         from mytools.web.attackaudit import main
+
         args = argparse.Namespace(
-            url="https://example.com", target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, test_vulns=False, test_methods=False,
-            paths_file=None, params=None, retries=3, dry_run=False,
-            verify=False, proxy=None, auth=None, bearer_token=None,
-            cookie=None, header=[], delay=0.0, cve=False, nvd_api_key=None,
+            url="https://example.com",
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            test_vulns=False,
+            test_methods=False,
+            paths_file=None,
+            params=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
+            delay=0.0,
+            cve=False,
+            nvd_api_key=None,
         )
         with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -1281,13 +1370,32 @@ class TestMain:
     def test_exception_returns_1(self, mock_run_once):
         mock_run_once.side_effect = RuntimeError("fail")
         from mytools.web.attackaudit import main
+
         args = argparse.Namespace(
-            url="https://example.com", target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, test_vulns=False, test_methods=False,
-            paths_file=None, params=None, retries=3, dry_run=False,
-            verify=False, proxy=None, auth=None, bearer_token=None,
-            cookie=None, header=[], delay=0.0, cve=False, nvd_api_key=None,
+            url="https://example.com",
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            test_vulns=False,
+            test_methods=False,
+            paths_file=None,
+            params=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
+            delay=0.0,
+            cve=False,
+            nvd_api_key=None,
         )
         with patch("mytools.web.attackaudit.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -1382,10 +1490,10 @@ class TestAnalyzeJsContent:
         assert len(findings) == 0
 
     def test_multiple_secrets(self):
-        js = '''
+        js = """
         const google = "AIzaSyD_example_key_35_chars_padding000";
         const token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
-        '''
+        """
         findings = analyze_js_content(js, "test.js")
         secret_items = [f for f in findings if f.category == "exposure"]
         assert len(secret_items) >= 2
@@ -1407,7 +1515,7 @@ class TestAnalyzeJsContent:
         assert any("inline" in f.evidence for f in findings)
 
     def test_endpoint_limit(self):
-        js = ' '.join(f'fetch("/api/{i}")' for i in range(20))
+        js = " ".join(f'fetch("/api/{i}")' for i in range(20))
         findings = analyze_js_content(js, "test.js")
         endpoint_findings = [f for f in findings if f.category == "info_leak"]
         assert len(endpoint_findings) <= 5
@@ -1422,7 +1530,7 @@ class TestAnalyzeJsContent:
 class TestPageParserInlineScripts:
     def test_captures_inline_script(self):
         parser = PageParser()
-        parser.feed('<html><script>var x = 1;</script></html>')
+        parser.feed("<html><script>var x = 1;</script></html>")
         assert len(parser.inline_scripts) == 1
         assert "var x = 1;" in parser.inline_scripts[0]
 
@@ -1440,7 +1548,7 @@ class TestPageParserInlineScripts:
 
     def test_empty_inline_script(self):
         parser = PageParser()
-        parser.feed('<script></script>')
+        parser.feed("<script></script>")
         assert len(parser.inline_scripts) == 0
 
     def test_script_content_truncated(self):
@@ -1452,8 +1560,7 @@ class TestPageParserInlineScripts:
 
 class TestUrlParamNames:
     def test_has_expected_keys(self):
-        expected = {"api_key", "apikey", "key", "token", "access_token",
-                    "bearer", "auth_token", "secret", "password", "session_id"}
+        expected = {"api_key", "apikey", "key", "token", "access_token", "bearer", "auth_token", "secret", "password", "session_id"}
         assert set(_URL_PARAM_NAMES.keys()) == expected
 
     def test_values_are_tuples(self):
@@ -1527,30 +1634,35 @@ class TestExtractSessionId:
     def test_php_session(self):
         raw = {"set-cookie": ["PHPSESSID=abc123def456; Path=/"]}
         from mytools.web.attackaudit import _extract_session_id
+
         result = _extract_session_id(raw)
         assert "PHPSESSID=abc123def456" in result
 
     def test_jsessionid(self):
         raw = {"set-cookie": ["JSESSIONID=node0abc123; Path=/"]}
         from mytools.web.attackaudit import _extract_session_id
+
         result = _extract_session_id(raw)
         assert "JSESSIONID=node0abc123" in result
 
     def test_asp_session(self):
         raw = {"set-cookie": ["ASP.NET_SessionId=abc123; Path=/"]}
         from mytools.web.attackaudit import _extract_session_id
+
         result = _extract_session_id(raw)
         assert "ASP.NET_SessionId=abc123" in result
 
     def test_no_session_cookie(self):
         raw = {"set-cookie": ["theme=dark; Path=/"]}
         from mytools.web.attackaudit import _extract_session_id
+
         result = _extract_session_id(raw)
         assert result == ""
 
     def test_empty_headers(self):
         raw: dict[str, list[str]] = {}
         from mytools.web.attackaudit import _extract_session_id
+
         result = _extract_session_id(raw)
         assert result == ""
 
@@ -1559,11 +1671,15 @@ class TestCheckSessionFixation:
     @pytest.mark.asyncio
     async def test_vulnerable_fixation(self):
         from mytools.web.attackaudit import check_session_fixation
+
         async with httpx.AsyncClient() as client:
             with patch("mytools.web.attackaudit.fetch") as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"ok", {"set-cookie": ["PHPSESSID=abc123; Path=/"]})
                 vuln, details = await check_session_fixation(
-                    client, "https://test.com", "/login", timeout=5.0,
+                    client,
+                    "https://test.com",
+                    "/login",
+                    timeout=5.0,
                 )
                 assert vuln is True
                 assert "fixo" in details.lower()
@@ -1571,11 +1687,15 @@ class TestCheckSessionFixation:
     @pytest.mark.asyncio
     async def test_no_session_id(self):
         from mytools.web.attackaudit import check_session_fixation
+
         async with httpx.AsyncClient() as client:
             with patch("mytools.web.attackaudit.fetch") as mock_fetch:
                 mock_fetch.return_value = (200, {}, b"ok", {"set-cookie": ["theme=dark"]})
                 vuln, details = await check_session_fixation(
-                    client, "https://test.com", "/login", timeout=5.0,
+                    client,
+                    "https://test.com",
+                    "/login",
+                    timeout=5.0,
                 )
                 assert vuln is False
                 assert "nenhum session" in details.lower()
@@ -1583,18 +1703,24 @@ class TestCheckSessionFixation:
     @pytest.mark.asyncio
     async def test_session_changed(self):
         from mytools.web.attackaudit import check_session_fixation
+
         async with httpx.AsyncClient() as client:
             with patch("mytools.web.attackaudit.fetch") as mock_fetch:
                 call_count = 0
+
                 def side_effect(*args, **kwargs):
                     nonlocal call_count
                     call_count += 1
                     if call_count == 1:
                         return (200, {}, b"ok", {"set-cookie": ["PHPSESSID=abc123; Path=/"]})
                     return (200, {}, b"ok", {"set-cookie": ["PHPSESSID=xyz789; Path=/"]})
+
                 mock_fetch.side_effect = side_effect
                 vuln, details = await check_session_fixation(
-                    client, "https://test.com", "/login", timeout=5.0,
+                    client,
+                    "https://test.com",
+                    "/login",
+                    timeout=5.0,
                 )
                 assert vuln is False
                 assert "alterou" in details.lower()

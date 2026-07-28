@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Deserialization Injection."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -224,10 +225,20 @@ class TestDeserialAttempt:
 
     def test_immutable(self) -> None:
         attempt = DeserialAttempt(
-            technique="test", category="php", payload="p",
-            param="data", method="post_json", status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100, status_changed=False,
-            size_changed=False, vulnerable=False, details="", error="",
+            technique="test",
+            category="php",
+            payload="p",
+            param="data",
+            method="post_json",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             attempt.technique = "changed"  # type: ignore[misc]
@@ -253,9 +264,15 @@ class TestDeserialResult:
 
     def test_immutable(self) -> None:
         result = DeserialResult(
-            target="t", baseline_status=200, baseline_size=100,
-            tls=True, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.target = "changed"  # type: ignore[misc]
@@ -302,6 +319,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -328,6 +346,7 @@ class TestTestPHP:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
@@ -353,6 +372,7 @@ class TestTestJava:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
@@ -378,6 +398,7 @@ class TestTestPython:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
@@ -403,6 +424,7 @@ class TestTestDetect:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
@@ -428,6 +450,7 @@ class TestTestBypass:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
@@ -447,11 +470,19 @@ class TestPrintResults:
             tls=True,
             attempts=[
                 DeserialAttempt(
-                    technique="php_basic", category="php",
-                    payload='O:4:"User":1:{s:4:"name";s:6:"admin";}', param="data",
-                    method="post_json", status_baseline=200, status_test=200,
-                    size_baseline=100, size_test=200, status_changed=False,
-                    size_changed=True, vulnerable=True, details="admin found",
+                    technique="php_basic",
+                    category="php",
+                    payload='O:4:"User":1:{s:4:"name";s:6:"admin";}',
+                    param="data",
+                    method="post_json",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=False,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="admin found",
                     error="",
                 ),
             ],
@@ -508,19 +539,15 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_returns_int(self) -> None:
-        with patch("sys.argv", ["mytools-deserial"]), \
-             patch("mytools.web.deserialinject.run_main_loop", return_value=0) as mock_loop:
+        with patch("sys.argv", ["mytools-deserial"]), patch("mytools.web.deserialinject.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert isinstance(result, int)
             mock_loop.assert_called_once()
 
     def test_main_passes_args(self) -> None:
-        with patch("sys.argv", ["mytools-deserial", "https://example.com"]), \
-             patch("mytools.web.deserialinject.run_main_loop", return_value=0):
+        with patch("sys.argv", ["mytools-deserial", "https://example.com"]), patch("mytools.web.deserialinject.run_main_loop", return_value=0):
             result = main()
             assert result == 0
-
-
 
 
 class TestRubyPayloads:
@@ -766,6 +793,7 @@ class TestIntegration:
 
         with patch("mytools.web.deserialinject.safe_asyncio_run", return_value=0) as mock_run:
             from mytools.web.deserialinject import run_once
+
             result = run_once(args)
             assert result == 0
             mock_run.assert_called_once()
@@ -781,5 +809,6 @@ class TestIntegration:
 
         with patch("mytools.web.deserialinject.safe_asyncio_run", return_value=0):
             from mytools.web.deserialinject import run_once
+
             result = run_once(args)
             assert result == 0

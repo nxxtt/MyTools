@@ -238,10 +238,19 @@ class TestBuildParser:
 class TestRunOnce:
     def test_returns_zero(self, capsys):
         args = argparse.Namespace(
-            domain="example.com", source=None, dnslytics_key=None,
-            st_api_key=None, viewdns_key=None, record_types=None,
-            timeout=5.0, dry_run=False, output=None, verbose=False,
-            quiet=False, color=None, log_file=None,
+            domain="example.com",
+            source=None,
+            dnslytics_key=None,
+            st_api_key=None,
+            viewdns_key=None,
+            record_types=None,
+            timeout=5.0,
+            dry_run=False,
+            output=None,
+            verbose=False,
+            quiet=False,
+            color=None,
+            log_file=None,
         )
         with patch("mytools.dns.dnshistory.run_history", return_value=[]):
             result = run_once(args)
@@ -249,10 +258,19 @@ class TestRunOnce:
 
     def test_dry_run(self, caplog):
         args = argparse.Namespace(
-            domain="example.com", source=["dnslytics"], dnslytics_key=None,
-            st_api_key=None, viewdns_key=None, record_types=None,
-            timeout=5.0, dry_run=True, output=None, verbose=False,
-            quiet=False, color=None, log_file=None,
+            domain="example.com",
+            source=["dnslytics"],
+            dnslytics_key=None,
+            st_api_key=None,
+            viewdns_key=None,
+            record_types=None,
+            timeout=5.0,
+            dry_run=True,
+            output=None,
+            verbose=False,
+            quiet=False,
+            color=None,
+            log_file=None,
         )
         with caplog.at_level("WARNING", logger="mytools.dnshistory"):
             result = run_once(args)
@@ -262,23 +280,44 @@ class TestRunOnce:
     def test_saves_output(self, capsys, tmp_path):
         out_file = str(tmp_path / "history.json")
         args = argparse.Namespace(
-            domain="example.com", source=None, dnslytics_key=None,
-            st_api_key=None, viewdns_key=None, record_types=None,
-            timeout=5.0, dry_run=False, output=out_file, verbose=False,
-            quiet=False, color=None, log_file=None,
+            domain="example.com",
+            source=None,
+            dnslytics_key=None,
+            st_api_key=None,
+            viewdns_key=None,
+            record_types=None,
+            timeout=5.0,
+            dry_run=False,
+            output=out_file,
+            verbose=False,
+            quiet=False,
+            color=None,
+            log_file=None,
         )
-        with patch("mytools.dns.dnshistory.run_history", return_value=[
-            DnsHistoryRecord(record_type="a", value="1.2.3.4", source="test"),
-        ]):
+        with patch(
+            "mytools.dns.dnshistory.run_history",
+            return_value=[
+                DnsHistoryRecord(record_type="a", value="1.2.3.4", source="test"),
+            ],
+        ):
             result = run_once(args)
         assert result == 0
 
     def test_with_records_prints_table(self, capsys):
         args = argparse.Namespace(
-            domain="example.com", source=None, dnslytics_key=None,
-            st_api_key=None, viewdns_key=None, record_types=None,
-            timeout=5.0, dry_run=False, output=None, verbose=False,
-            quiet=False, color=None, log_file=None,
+            domain="example.com",
+            source=None,
+            dnslytics_key=None,
+            st_api_key=None,
+            viewdns_key=None,
+            record_types=None,
+            timeout=5.0,
+            dry_run=False,
+            output=None,
+            verbose=False,
+            quiet=False,
+            color=None,
+            log_file=None,
         )
         records = [
             DnsHistoryRecord(record_type="a", value="1.2.3.4", last_seen="2024-01-01", source="dnslytics"),
@@ -325,6 +364,7 @@ class TestMain:
     def test_no_domain_shells_interactive(self):
         with patch("mytools.dns.dnshistory.run_main_loop", return_value=0) as mock_loop:
             from mytools.dns.dnshistory import main
+
             with patch("sys.argv", ["mytools-dnshistory"]):
                 result = main()
             assert result == 0
@@ -334,6 +374,7 @@ class TestMain:
         with patch("mytools.dns.dnshistory.run_main_loop"):
             with patch("mytools.dns.dnshistory.run_once", return_value=0) as mock_run:
                 from mytools.dns.dnshistory import main
+
                 with patch("sys.argv", ["mytools-dnshistory", "example.com"]):
                     result = main()
             assert result == 0

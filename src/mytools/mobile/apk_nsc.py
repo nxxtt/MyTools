@@ -101,12 +101,14 @@ def analyze_nsc(file_path: str) -> dict[str, Any]:
             "trust_user_ca": trust_user_ca,
             "trust_system_ca": trust_system_ca,
             "findings": findings,
-            "risk_score": sum([
-                2 if has_cleartext else 0,
-                2 if debug_overrides else 0,
-                3 if trust_user_ca else 0,
-                1 if has_pins else 0,
-            ]),
+            "risk_score": sum(
+                [
+                    2 if has_cleartext else 0,
+                    2 if debug_overrides else 0,
+                    3 if trust_user_ca else 0,
+                    1 if has_pins else 0,
+                ]
+            ),
         }
 
     except Exception as e:

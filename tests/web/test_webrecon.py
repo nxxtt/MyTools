@@ -114,9 +114,7 @@ class TestProbeStatus:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_status_on_success(self, async_client):
-        respx.get("http://example.com/robots.txt").mock(
-            return_value=httpx.Response(200, text="User-agent: *")
-        )
+        respx.get("http://example.com/robots.txt").mock(return_value=httpx.Response(200, text="User-agent: *"))
         client = async_client
         result = await probe_status(client, "http://example.com/robots.txt", 5.0)
         assert result == 200
@@ -124,9 +122,7 @@ class TestProbeStatus:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_none_on_error(self, async_client):
-        respx.get("http://example.com/robots.txt").mock(
-            side_effect=httpx.ConnectError("refused")
-        )
+        respx.get("http://example.com/robots.txt").mock(side_effect=httpx.ConnectError("refused"))
         client = async_client
         result = await probe_status(client, "http://example.com/robots.txt", 5.0)
         assert result is None
@@ -135,21 +131,39 @@ class TestProbeStatus:
 class TestReconResultDataclass:
     def test_creation(self):
         r = ReconResult(
-            url="https://example.com", status=200, final_url="https://example.com",
-            title="Test", server="nginx", powered_by="", content_type="text/html",
-            content_length=100, redirect="", security_headers_present=["x-frame-options"],
-            security_headers_missing=["content-security-policy"], robots_status=200,
-            sitemap_status=404, elapsed=1.0,
+            url="https://example.com",
+            status=200,
+            final_url="https://example.com",
+            title="Test",
+            server="nginx",
+            powered_by="",
+            content_type="text/html",
+            content_length=100,
+            redirect="",
+            security_headers_present=["x-frame-options"],
+            security_headers_missing=["content-security-policy"],
+            robots_status=200,
+            sitemap_status=404,
+            elapsed=1.0,
         )
         assert r.status == 200
         assert len(r.security_headers_present) == 1
 
     def test_frozen(self):
         r = ReconResult(
-            url="https://example.com", status=200, final_url="https://example.com",
-            title="", server="", powered_by="", content_type="text/html",
-            content_length=0, redirect="", security_headers_present=[],
-            security_headers_missing=[], robots_status=None, sitemap_status=None,
+            url="https://example.com",
+            status=200,
+            final_url="https://example.com",
+            title="",
+            server="",
+            powered_by="",
+            content_type="text/html",
+            content_length=0,
+            redirect="",
+            security_headers_present=[],
+            security_headers_missing=[],
+            robots_status=None,
+            sitemap_status=None,
             elapsed=0.0,
         )
         with pytest.raises(AttributeError):
@@ -194,11 +208,11 @@ class TestDetectTechnologies:
         assert "Bootstrap" in tech["libraries"]
 
     def test_react_by_body(self):
-        tech = detect_technologies({}, '<script>__REACT_DEVTOOLS_GLOBAL_HOOK__</script>', "https://example.com")
+        tech = detect_technologies({}, "<script>__REACT_DEVTOOLS_GLOBAL_HOOK__</script>", "https://example.com")
         assert "React" in tech["libraries"]
 
     def test_vue_by_body(self):
-        tech = detect_technologies({}, '<script>Vue.__vue__</script>', "https://example.com")
+        tech = detect_technologies({}, "<script>Vue.__vue__</script>", "https://example.com")
         assert "Vue.js" in tech["libraries"]
 
     def test_angular_by_body(self):
@@ -236,7 +250,7 @@ class TestDetectTechnologies:
         assert tech["libraries"] == []
 
     def test_shopify_by_body(self):
-        tech = detect_technologies({}, '<script>Shopify.theme</script>', "https://example.com")
+        tech = detect_technologies({}, "<script>Shopify.theme</script>", "https://example.com")
         assert "Shopify" in tech["cms"]
 
     def test_aspnet_by_header(self):
@@ -449,8 +463,12 @@ class TestCVEFindingDataclass:
 
     def test_frozen(self):
         f = CVEFinding(
-            cve_id="CVE-2021-44228", description="Log4j RCE",
-            score=10.0, severity="CRITICAL", technology="Apache", version="2.14",
+            cve_id="CVE-2021-44228",
+            description="Log4j RCE",
+            score=10.0,
+            severity="CRITICAL",
+            technology="Apache",
+            version="2.14",
         )
         with pytest.raises(AttributeError):
             f.score = 5.0  # type: ignore[reportAttributeAccessIssue]
@@ -469,18 +487,12 @@ class TestLookupCves:
                     "cve": {
                         "id": "CVE-2021-44228",
                         "descriptions": [{"lang": "en", "value": "Apache Log4j2 RCE"}],
-                        "metrics": {
-                            "cvssMetricV31": [
-                                {"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}
-                            ]
-                        },
+                        "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}]},
                     }
                 }
             ],
         }
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
-            return_value=httpx.Response(200, json=mock_response)
-        )
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(200, json=mock_response))
         findings = await lookup_cves([("Apache", "2.4.41")])
         assert len(findings) == 1
         assert findings[0].cve_id == "CVE-2021-44228"
@@ -503,9 +515,7 @@ class TestLookupCves:
                 }
             ],
         }
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
-            return_value=httpx.Response(200, json=mock_response)
-        )
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(200, json=mock_response))
         findings = await lookup_cves([("Apache", "2.4.41"), ("Apache", "2.4.41")])
         assert len(findings) == 1
 
@@ -566,7 +576,7 @@ class TestDetectWaf:
         assert "ModSecurity" in waf
 
     def test_modsecurity_by_body(self):
-        waf = detect_waf({}, '<html><body>mod_security error</body></html>', "https://example.com")
+        waf = detect_waf({}, "<html><body>mod_security error</body></html>", "https://example.com")
         assert "ModSecurity" in waf
 
     def test_fortinet_by_header(self):
@@ -672,12 +682,8 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_crawls_internal_links(self, async_client):
-        respx.get("http://example.com/contact").mock(
-            return_value=httpx.Response(200, text='<html><p>Email: info@example.com</p></html>')
-        )
-        respx.get("http://example.com/about").mock(
-            return_value=httpx.Response(200, text='<html><p>No emails here</p></html>')
-        )
+        respx.get("http://example.com/contact").mock(return_value=httpx.Response(200, text="<html><p>Email: info@example.com</p></html>"))
+        respx.get("http://example.com/about").mock(return_value=httpx.Response(200, text="<html><p>No emails here</p></html>"))
         client = async_client
         body = '<html><a href="/contact">Contact</a> <a href="/about">About</a></html>'
         emails = await crawl_internal_links(client, "http://example.com", body, 5.0, max_links=2)
@@ -694,9 +700,7 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_respects_max_links(self, async_client):
-        respx.get("http://example.com/a").mock(
-            return_value=httpx.Response(200, text='<html><p>a@test.com</p></html>')
-        )
+        respx.get("http://example.com/a").mock(return_value=httpx.Response(200, text="<html><p>a@test.com</p></html>"))
         body = '<html><a href="/a">A</a> <a href="/b">B</a> <a href="/c">C</a></html>'
         client = async_client
         emails = await crawl_internal_links(client, "http://example.com", body, 5.0, max_links=1)
@@ -707,9 +711,7 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_handles_fetch_error(self, async_client):
-        respx.get("http://example.com/broken").mock(
-            side_effect=httpx.ConnectError("refused")
-        )
+        respx.get("http://example.com/broken").mock(side_effect=httpx.ConnectError("refused"))
         body = '<html><a href="/broken">Broken</a></html>'
         client = async_client
         emails = await crawl_internal_links(client, "http://example.com", body, 5.0)
@@ -725,9 +727,7 @@ class TestCrawlInternalLinks:
     @pytest.mark.asyncio
     @respx.mock
     async def test_deduplicates_urls(self, async_client):
-        respx.get("http://example.com/page").mock(
-            return_value=httpx.Response(200, text='<html><p>x@y.com</p></html>')
-        )
+        respx.get("http://example.com/page").mock(return_value=httpx.Response(200, text="<html><p>x@y.com</p></html>"))
         body = '<html><a href="/page">P1</a> <a href="/page">P2</a></html>'
         client = async_client
         emails = await crawl_internal_links(client, "http://example.com", body, 5.0)
@@ -799,6 +799,7 @@ class TestFormatDate:
 
     def test_datetime_returns_iso(self):
         from datetime import datetime
+
         dt = datetime(2024, 1, 15, 10, 30, 0)
         assert _format_date(dt) == "2024-01-15T10:30:00"
 
@@ -807,6 +808,7 @@ class TestFormatDate:
 
     def test_list_returns_first(self):
         from datetime import datetime
+
         dt1 = datetime(2024, 1, 15)
         dt2 = datetime(2024, 6, 20)
         assert _format_date([dt1, dt2]) == "2024-01-15T00:00:00"
@@ -852,6 +854,7 @@ class TestRunWhois:
         import unittest.mock
 
         import whois as _whois
+
         with unittest.mock.patch.object(_whois, "whois", side_effect=Exception("connection refused")):
             result = await run_whois("nonexistent.invalid")
             assert result is None
@@ -866,6 +869,7 @@ class TestRunWhois:
         import unittest.mock
 
         import whois as _whois
+
         mock_w = unittest.mock.MagicMock()
         mock_w.registrar = "Test Registrar"
         mock_w.name = "Test Owner"
@@ -891,27 +895,21 @@ class TestProbeStatusEdgeCases:
     @pytest.mark.asyncio
     @respx.mock
     async def test_timeout_returns_none(self, async_client):
-        respx.get("http://example.com/robots.txt").mock(
-            side_effect=httpx.TimeoutException("timeout")
-        )
+        respx.get("http://example.com/robots.txt").mock(side_effect=httpx.TimeoutException("timeout"))
         result = await probe_status(async_client, "http://example.com/robots.txt", 0.1)
         assert result is None
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_403_returns_status(self, async_client):
-        respx.get("http://example.com/forbidden").mock(
-            return_value=httpx.Response(403)
-        )
+        respx.get("http://example.com/forbidden").mock(return_value=httpx.Response(403))
         result = await probe_status(async_client, "http://example.com/forbidden", 5.0)
         assert result == 403
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_500_returns_status(self, async_client):
-        respx.get("http://example.com/error").mock(
-            return_value=httpx.Response(500)
-        )
+        respx.get("http://example.com/error").mock(return_value=httpx.Response(500))
         result = await probe_status(async_client, "http://example.com/error", 5.0)
         assert result == 500
 
@@ -920,27 +918,21 @@ class TestCrawlInternalLinksEdgeCases:
     @pytest.mark.asyncio
     @respx.mock
     async def test_connection_refused_returns_empty(self, async_client):
-        respx.get("http://example.com/").mock(
-            side_effect=httpx.ConnectError("refused")
-        )
+        respx.get("http://example.com/").mock(side_effect=httpx.ConnectError("refused"))
         result = await crawl_internal_links(async_client, "http://example.com", "<html></html>", timeout=1.0)
         assert result == []
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_timeout_returns_empty(self, async_client):
-        respx.get("http://example.com/").mock(
-            side_effect=httpx.TimeoutException("timeout")
-        )
+        respx.get("http://example.com/").mock(side_effect=httpx.TimeoutException("timeout"))
         result = await crawl_internal_links(async_client, "http://example.com", "<html></html>", timeout=0.1)
         assert result == []
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_malformed_html_handled(self, async_client):
-        respx.get("http://example.com/page").mock(
-            return_value=httpx.Response(200, text="Contact: admin@example.com")
-        )
+        respx.get("http://example.com/page").mock(return_value=httpx.Response(200, text="Contact: admin@example.com"))
         body = "<html><body><a href='/page'>link</a></body></html>"
         result = await crawl_internal_links(async_client, "http://example.com", body, timeout=5.0)
         assert "admin@example.com" in result
@@ -956,9 +948,7 @@ class TestLookupCvesEdgeCases:
     @pytest.mark.asyncio
     @respx.mock
     async def test_connection_error_returns_empty(self):
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
-            side_effect=httpx.ConnectError("refused")
-        )
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(side_effect=httpx.ConnectError("refused"))
         result = await lookup_cves([("nginx", "1.21.0")])
         assert result == []
 
@@ -996,12 +986,28 @@ class TestMain:
     def test_no_target_shells_interactive(self, mock_shell):
         mock_shell.return_value = 0
         from mytools.web.webrecon import main
+
         args = argparse.Namespace(
-            url=None, target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, cve=False, nvd_api_key=None, crawl_limit=10,
-            retries=3, dry_run=False, verify=False, proxy=None,
-            auth=None, bearer_token=None, cookie=None, header=[],
+            url=None,
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            cve=False,
+            nvd_api_key=None,
+            crawl_limit=10,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
         )
         with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -1010,12 +1016,28 @@ class TestMain:
 
     def test_quiet_without_output_returns_1(self):
         from mytools.web.webrecon import main
+
         args = argparse.Namespace(
-            url="https://example.com", target_list=None, quiet=True, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, cve=False, nvd_api_key=None, crawl_limit=10,
-            retries=3, dry_run=False, verify=False, proxy=None,
-            auth=None, bearer_token=None, cookie=None, header=[],
+            url="https://example.com",
+            target_list=None,
+            quiet=True,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            cve=False,
+            nvd_api_key=None,
+            crawl_limit=10,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
         )
         with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -1025,12 +1047,28 @@ class TestMain:
     def test_valid_url_calls_run_once(self, mock_run_once):
         mock_run_once.return_value = 0
         from mytools.web.webrecon import main
+
         args = argparse.Namespace(
-            url="https://example.com", target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, cve=False, nvd_api_key=None, crawl_limit=10,
-            retries=3, dry_run=False, verify=False, proxy=None,
-            auth=None, bearer_token=None, cookie=None, header=[],
+            url="https://example.com",
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            cve=False,
+            nvd_api_key=None,
+            crawl_limit=10,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
         )
         with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -1041,12 +1079,28 @@ class TestMain:
     def test_exception_returns_1(self, mock_run_once):
         mock_run_once.side_effect = RuntimeError("fail")
         from mytools.web.webrecon import main
+
         args = argparse.Namespace(
-            url="https://example.com", target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            deep=False, cve=False, nvd_api_key=None, crawl_limit=10,
-            retries=3, dry_run=False, verify=False, proxy=None,
-            auth=None, bearer_token=None, cookie=None, header=[],
+            url="https://example.com",
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            deep=False,
+            cve=False,
+            nvd_api_key=None,
+            crawl_limit=10,
+            retries=3,
+            dry_run=False,
+            verify=False,
+            proxy=None,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=[],
         )
         with patch("mytools.web.webrecon.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()

@@ -62,19 +62,41 @@ logger = logging.getLogger("mytools.restapifuzz")
 # ---------------------------------------------------------------------------
 
 _OPENAPI_PROBE_PATHS_DEFAULT: list[str] = [
-    "/openapi.json", "/openapi.yaml", "/swagger.json", "/swagger.yaml",
-    "/api-docs", "/api/docs", "/docs", "/v1/openapi.json",
-    "/v2/openapi.json", "/api/openapi.json",
+    "/openapi.json",
+    "/openapi.yaml",
+    "/swagger.json",
+    "/swagger.yaml",
+    "/api-docs",
+    "/api/docs",
+    "/docs",
+    "/v1/openapi.json",
+    "/v2/openapi.json",
+    "/api/openapi.json",
 ]
 
 _FALLBACK_ENDPOINTS_DEFAULT: list[str] = [
-    "/api", "/users", "/products", "/orders", "/auth",
-    "/login", "/register", "/search",
+    "/api",
+    "/users",
+    "/products",
+    "/orders",
+    "/auth",
+    "/login",
+    "/register",
+    "/search",
 ]
 
 _AUTH_BEARER_TOKENS_DEFAULT: list[str] = [
-    "", "null", "undefined", "false", "0", "admin", "test",
-    "token", "Bearer ", "Bearer null", "Bearer undefined",
+    "",
+    "null",
+    "undefined",
+    "false",
+    "0",
+    "admin",
+    "test",
+    "token",
+    "Bearer ",
+    "Bearer null",
+    "Bearer undefined",
 ]
 
 _AUTH_HEADERS_DEFAULT: list[tuple[str, str]] = [
@@ -99,9 +121,14 @@ _AUTH_COOKIES_DEFAULT: list[tuple[str, str]] = [
 ]
 
 _CONTENT_TYPE_SWITCH_DEFAULT: list[str] = [
-    "application/xml", "text/xml", "application/x-www-form-urlencoded",
-    "multipart/form-data", "text/plain", "application/json",
-    "application/vnd.api+json", "application/hal+json",
+    "application/xml",
+    "text/xml",
+    "application/x-www-form-urlencoded",
+    "multipart/form-data",
+    "text/plain",
+    "application/json",
+    "application/vnd.api+json",
+    "application/hal+json",
     "application/ld+json",
 ]
 
@@ -114,34 +141,62 @@ _CONTENT_TYPE_CHARSET_DEFAULT: list[str] = [
 ]
 
 _CONTENT_TYPE_BOUNDARY_DEFAULT: list[str] = [
-    "------WebKitFormBoundary", "------=_Part_",
-    "boundary=----", '"', "'", "\r\n\r\n", "%0d%0a%0d%0a",
+    "------WebKitFormBoundary",
+    "------=_Part_",
+    "boundary=----",
+    '"',
+    "'",
+    "\r\n\r\n",
+    "%0d%0a%0d%0a",
 ]
 
 _VERSION_PREFIXES_DEFAULT: list[str] = ["", "/api", "/v", "/api/v"]
 
 _VERSIONS_DEFAULT: list[str] = [
-    "1", "2", "3", "4", "5", "0", "1.0", "2.0",
-    "beta", "latest", "stable", "draft",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "0",
+    "1.0",
+    "2.0",
+    "beta",
+    "latest",
+    "stable",
+    "draft",
 ]
 
 _VERSION_SUFFIXES_DEFAULT: list[str] = ["", "/", ".json", ".xml"]
 
 _HATEOAS_METHOD_OVERRIDE_DEFAULT: list[str] = [
-    "_method", "X-HTTP-Method-Override", "X-HTTP-Method", "X-Method-Override",
+    "_method",
+    "X-HTTP-Method-Override",
+    "X-HTTP-Method",
+    "X-Method-Override",
 ]
 
 _HATEOAS_FORMAT_PARAMS_DEFAULT: list[str] = [
-    "_format", "format", "output", "response_format",
+    "_format",
+    "format",
+    "output",
+    "response_format",
 ]
 
 _HATEOAS_REST_VERBS_DEFAULT: list[str] = [
-    "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "TRACE", "CONNECT",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+    "HEAD",
+    "TRACE",
+    "CONNECT",
 ]
 
 
 def _load_payloads() -> dict[str, object]:
     from mytools.data import load_payloads
+
     return load_payloads("web", "rest_api_fuzz", default={})
 
 
@@ -158,11 +213,7 @@ def _get_str_list(key: str, default: list[str]) -> list[str]:
 
 def _get_tuple_list(key: str, default: list[tuple[str, str]]) -> list[tuple[str, str]]:
     raw = _get_list(key, default)
-    result = [
-        (str(item[0]), str(item[1]))
-        for item in raw
-        if isinstance(item, list) and len(item) >= 2
-    ]
+    result = [(str(item[0]), str(item[1])) for item in raw if isinstance(item, list) and len(item) >= 2]
     return result if result else default
 
 
@@ -213,7 +264,8 @@ class RestFuzzResult:
 
 
 async def _probe_openapi(
-    client: httpx.AsyncClient, base_url: str,
+    client: httpx.AsyncClient,
+    base_url: str,
 ) -> list[str] | None:
     """Tenta detectar endpoints via OpenAPI/Swagger spec."""
     probe_paths = _get_str_list("openapi_probe_paths", _OPENAPI_PROBE_PATHS_DEFAULT)
@@ -237,7 +289,7 @@ async def _probe_openapi(
             if endpoints:
                 logger.info("OpenAPI spec encontrado em %s: %d endpoints", path, len(endpoints))
                 return endpoints
-        except (json.JSONDecodeError, httpx.RequestError):
+        except json.JSONDecodeError, httpx.RequestError:
             continue
 
     return None
@@ -266,7 +318,8 @@ def _get_endpoints(
 
 
 async def _test_endpoint_baseline(
-    client: httpx.AsyncClient, url: str,
+    client: httpx.AsyncClient,
+    url: str,
 ) -> tuple[int, int, str]:
     """Envia GET para endpoint e retorna (status, size, content_type)."""
     try:
@@ -304,143 +357,150 @@ async def _test_auth_bypass(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (401, 403)
-            details = (
-                f"Auth bypass: {b_status}->{t_status}" if vulnerable
-                else f"Status {t_status}"
+            details = f"Auth bypass: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"bearer_{token or 'empty'}",
+                    category="auth_bypass",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=f"Authorization: {token}",
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    content_type_changed=False,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    exploit=f"curl -H 'Authorization: {token}' '{url}'" if vulnerable else "",
+                    tool="curl" if vulnerable else "",
+                )
             )
-            attempts.append(RestFuzzAttempt(
-                technique=f"bearer_{token or 'empty'}",
-                category="auth_bypass",
-                endpoint=endpoint,
-                url=url,
-                payload=f"Authorization: {token}",
-                method="GET",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                content_type_changed=False,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-                exploit=f"curl -H 'Authorization: {token}' '{url}'" if vulnerable else "",
-                tool="curl" if vulnerable else "",
-            ))
         except httpx.RequestError as exc:
-            attempts.append(RestFuzzAttempt(
-                technique=f"bearer_{token or 'empty'}",
-                category="auth_bypass",
-                endpoint=endpoint,
-                url=url,
-                payload=f"Authorization: {token}",
-                method="GET",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                content_type_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"bearer_{token or 'empty'}",
+                    category="auth_bypass",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=f"Authorization: {token}",
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    content_type_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     auth_headers = _get_tuple_list("auth_headers", _AUTH_HEADERS_DEFAULT)
     for hdr_name, hdr_value in auth_headers:
         try:
             resp = await client.get(
-                url, headers={hdr_name: hdr_value}, follow_redirects=False,
+                url,
+                headers={hdr_name: hdr_value},
+                follow_redirects=False,
             )
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (401, 403)
-            details = (
-                f"Auth bypass: {b_status}->{t_status}" if vulnerable
-                else f"Status {t_status}"
+            details = f"Auth bypass: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"header_{hdr_name}",
+                    category="auth_bypass",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=f"{hdr_name}: {hdr_value}",
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    content_type_changed=False,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    exploit=f"curl -H '{hdr_name}: {hdr_value}' '{url}'" if vulnerable else "",
+                    tool="curl" if vulnerable else "",
+                )
             )
-            attempts.append(RestFuzzAttempt(
-                technique=f"header_{hdr_name}",
-                category="auth_bypass",
-                endpoint=endpoint,
-                url=url,
-                payload=f"{hdr_name}: {hdr_value}",
-                method="GET",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                content_type_changed=False,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-                exploit=f"curl -H '{hdr_name}: {hdr_value}' '{url}'" if vulnerable else "",
-                tool="curl" if vulnerable else "",
-            ))
         except httpx.RequestError as exc:
-            attempts.append(RestFuzzAttempt(
-                technique=f"header_{hdr_name}",
-                category="auth_bypass",
-                endpoint=endpoint,
-                url=url,
-                payload=f"{hdr_name}: {hdr_value}",
-                method="GET",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                content_type_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"header_{hdr_name}",
+                    category="auth_bypass",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=f"{hdr_name}: {hdr_value}",
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    content_type_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     auth_cookies = _get_tuple_list("auth_cookies", _AUTH_COOKIES_DEFAULT)
     for cookie_name, cookie_value in auth_cookies:
         try:
             resp = await client.get(
-                url, cookies={cookie_name: cookie_value}, follow_redirects=False,
+                url,
+                cookies={cookie_name: cookie_value},
+                follow_redirects=False,
             )
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (401, 403)
-            details = (
-                f"Auth bypass: {b_status}->{t_status}" if vulnerable
-                else f"Status {t_status}"
+            details = f"Auth bypass: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"cookie_{cookie_name}",
+                    category="auth_bypass",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=f"Cookie: {cookie_name}={cookie_value}",
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    content_type_changed=False,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    exploit=f"curl -b '{cookie_name}={cookie_value}' '{url}'" if vulnerable else "",
+                    tool="curl" if vulnerable else "",
+                )
             )
-            attempts.append(RestFuzzAttempt(
-                technique=f"cookie_{cookie_name}",
-                category="auth_bypass",
-                endpoint=endpoint,
-                url=url,
-                payload=f"Cookie: {cookie_name}={cookie_value}",
-                method="GET",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                content_type_changed=False,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-                exploit=f"curl -b '{cookie_name}={cookie_value}' '{url}'" if vulnerable else "",
-                tool="curl" if vulnerable else "",
-            ))
         except httpx.RequestError as exc:
-            attempts.append(RestFuzzAttempt(
-                technique=f"cookie_{cookie_name}",
-                category="auth_bypass",
-                endpoint=endpoint,
-                url=url,
-                payload=f"Cookie: {cookie_name}={cookie_value}",
-                method="GET",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                content_type_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"cookie_{cookie_name}",
+                    category="auth_bypass",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=f"Cookie: {cookie_name}={cookie_value}",
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    content_type_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -477,7 +537,8 @@ async def _test_content_type(
                 body = '{"test":1}'
 
             resp = await client.post(
-                url, content=body,
+                url,
+                content=body,
                 headers={"Content-Type": ct},
                 follow_redirects=False,
             )
@@ -485,144 +546,149 @@ async def _test_content_type(
             t_size = len(resp.content)
             ct_changed = resp.headers.get("content-type", "") != b_ct
             vulnerable = t_status == 200 and b_status in (400, 415, 422)
-            details = (
-                f"Accepted {ct}: {b_status}->{t_status}" if vulnerable
-                else f"Status {t_status}, CT changed: {ct_changed}"
+            details = f"Accepted {ct}: {b_status}->{t_status}" if vulnerable else f"Status {t_status}, CT changed: {ct_changed}"
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"ct_switch_{ct.split('/')[1].split(';')[0]}",
+                    category="content_type",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=ct,
+                    method="POST",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    content_type_changed=ct_changed,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    exploit=f"curl -X POST -H 'Content-Type: {ct}' -d '{body[:50]}' '{url}'" if vulnerable else "",
+                    tool="curl" if vulnerable else "",
+                )
             )
-            attempts.append(RestFuzzAttempt(
-                technique=f"ct_switch_{ct.split('/')[1].split(';')[0]}",
-                category="content_type",
-                endpoint=endpoint,
-                url=url,
-                payload=ct,
-                method="POST",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                content_type_changed=ct_changed,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-                exploit=f"curl -X POST -H 'Content-Type: {ct}' -d '{body[:50]}' '{url}'" if vulnerable else "",
-                tool="curl" if vulnerable else "",
-            ))
         except httpx.RequestError as exc:
-            attempts.append(RestFuzzAttempt(
-                technique=f"ct_switch_{ct.split('/')[1].split(';')[0]}",
-                category="content_type",
-                endpoint=endpoint,
-                url=url,
-                payload=ct,
-                method="POST",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                content_type_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"ct_switch_{ct.split('/')[1].split(';')[0]}",
+                    category="content_type",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=ct,
+                    method="POST",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    content_type_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     charsets = _get_str_list("content_type_charset", _CONTENT_TYPE_CHARSET_DEFAULT)
     for ct in charsets:
         try:
             resp = await client.post(
-                url, content='{"test":1}',
+                url,
+                content='{"test":1}',
                 headers={"Content-Type": ct},
                 follow_redirects=False,
             )
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status == 200 and b_status in (400, 415, 422)
-            details = (
-                f"Charset accepted: {b_status}->{t_status}" if vulnerable
-                else f"Status {t_status}"
+            details = f"Charset accepted: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"ct_charset_{ct.split('charset=')[1] if 'charset=' in ct else ct}",
+                    category="content_type",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=ct,
+                    method="POST",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    content_type_changed=False,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
             )
-            attempts.append(RestFuzzAttempt(
-                technique=f"ct_charset_{ct.split('charset=')[1] if 'charset=' in ct else ct}",
-                category="content_type",
-                endpoint=endpoint,
-                url=url,
-                payload=ct,
-                method="POST",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                content_type_changed=False,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
         except httpx.RequestError as exc:
-            attempts.append(RestFuzzAttempt(
-                technique=f"ct_charset_{ct.split('charset=')[1] if 'charset=' in ct else ct}",
-                category="content_type",
-                endpoint=endpoint,
-                url=url,
-                payload=ct,
-                method="POST",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                content_type_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"ct_charset_{ct.split('charset=')[1] if 'charset=' in ct else ct}",
+                    category="content_type",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=ct,
+                    method="POST",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    content_type_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     boundaries = _get_str_list("content_type_boundary", _CONTENT_TYPE_BOUNDARY_DEFAULT)
     for boundary in boundaries:
         ct = f"multipart/form-data; boundary={boundary}"
         try:
             resp = await client.post(
-                url, content=f"--{boundary}--",
+                url,
+                content=f"--{boundary}--",
                 headers={"Content-Type": ct},
                 follow_redirects=False,
             )
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status == 200 and b_status in (400, 415, 422)
-            details = (
-                f"Boundary accepted: {b_status}->{t_status}" if vulnerable
-                else f"Status {t_status}"
+            details = f"Boundary accepted: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"ct_boundary_{boundary[:20]}",
+                    category="content_type",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=ct,
+                    method="POST",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    content_type_changed=False,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
             )
-            attempts.append(RestFuzzAttempt(
-                technique=f"ct_boundary_{boundary[:20]}",
-                category="content_type",
-                endpoint=endpoint,
-                url=url,
-                payload=ct,
-                method="POST",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                content_type_changed=False,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
         except httpx.RequestError as exc:
-            attempts.append(RestFuzzAttempt(
-                technique=f"ct_boundary_{boundary[:20]}",
-                category="content_type",
-                endpoint=endpoint,
-                url=url,
-                payload=ct,
-                method="POST",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                content_type_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"ct_boundary_{boundary[:20]}",
+                    category="content_type",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=ct,
+                    method="POST",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    content_type_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -656,49 +722,47 @@ async def _test_version_enum(
                     resp = await client.get(url, follow_redirects=False)
                     t_status = resp.status_code
                     t_size = len(resp.content)
-                    vulnerable = (
-                        t_status in (200, 201, 202, 204)
-                        and b_status in (404, 405)
+                    vulnerable = t_status in (200, 201, 202, 204) and b_status in (404, 405)
+                    details = f"Version found: {versioned_endpoint} ({t_status})" if vulnerable else f"Status {t_status}"
+                    attempts.append(
+                        RestFuzzAttempt(
+                            technique=f"version_{prefix}{version}{suffix}",
+                            category="version_enum",
+                            endpoint=versioned_endpoint,
+                            url=url,
+                            payload=versioned_endpoint,
+                            method="GET",
+                            status_baseline=b_status,
+                            status_test=t_status,
+                            size_baseline=b_size,
+                            size_test=t_size,
+                            content_type_changed=False,
+                            vulnerable=vulnerable,
+                            details=details,
+                            error="",
+                            exploit=f"curl '{url}'" if vulnerable else "",
+                            tool="curl" if vulnerable else "",
+                        )
                     )
-                    details = (
-                        f"Version found: {versioned_endpoint} ({t_status})"
-                        if vulnerable else f"Status {t_status}"
-                    )
-                    attempts.append(RestFuzzAttempt(
-                        technique=f"version_{prefix}{version}{suffix}",
-                        category="version_enum",
-                        endpoint=versioned_endpoint,
-                        url=url,
-                        payload=versioned_endpoint,
-                        method="GET",
-                        status_baseline=b_status,
-                        status_test=t_status,
-                        size_baseline=b_size,
-                        size_test=t_size,
-                        content_type_changed=False,
-                        vulnerable=vulnerable,
-                        details=details,
-                        error="",
-                        exploit=f"curl '{url}'" if vulnerable else "",
-                        tool="curl" if vulnerable else "",
-                    ))
                 except httpx.RequestError as exc:
-                    attempts.append(RestFuzzAttempt(
-                        technique=f"version_{prefix}{version}{suffix}",
-                        category="version_enum",
-                        endpoint=versioned_endpoint,
-                        url=url,
-                        payload=versioned_endpoint,
-                        method="GET",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        content_type_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(exc),
-                    ))
+                    attempts.append(
+                        RestFuzzAttempt(
+                            technique=f"version_{prefix}{version}{suffix}",
+                            category="version_enum",
+                            endpoint=versioned_endpoint,
+                            url=url,
+                            payload=versioned_endpoint,
+                            method="GET",
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            content_type_changed=False,
+                            vulnerable=False,
+                            details="",
+                            error=str(exc),
+                        )
+                    )
 
     return attempts
 
@@ -723,64 +787,65 @@ async def _test_hateoas(
         return attempts
 
     method_overrides = _get_str_list(
-        "hateoas_method_override", _HATEOAS_METHOD_OVERRIDE_DEFAULT,
+        "hateoas_method_override",
+        _HATEOAS_METHOD_OVERRIDE_DEFAULT,
     )
     for override_header in method_overrides:
         for method in ("PUT", "DELETE", "PATCH"):
             try:
                 resp = await client.request(
-                    method, url,
+                    method,
+                    url,
                     headers={override_header: method},
                     follow_redirects=False,
                 )
                 t_status = resp.status_code
                 t_size = len(resp.content)
-                vulnerable = (
-                    t_status in (200, 201, 202, 204)
-                    and b_status in (405, 404)
+                vulnerable = t_status in (200, 201, 202, 204) and b_status in (405, 404)
+                details = f"Method override accepted: {override_header}={method}" if vulnerable else f"Status {t_status}"
+                attempts.append(
+                    RestFuzzAttempt(
+                        technique=f"hateoas_override_{override_header}",
+                        category="hateoas",
+                        endpoint=endpoint,
+                        url=url,
+                        payload=f"{override_header}: {method}",
+                        method=method,
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        content_type_changed=False,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                        exploit=f"curl -X {method} -H '{override_header}: {method}' '{url}'" if vulnerable else "",
+                        tool="curl" if vulnerable else "",
+                    )
                 )
-                details = (
-                    f"Method override accepted: {override_header}={method}"
-                    if vulnerable else f"Status {t_status}"
-                )
-                attempts.append(RestFuzzAttempt(
-                    technique=f"hateoas_override_{override_header}",
-                    category="hateoas",
-                    endpoint=endpoint,
-                    url=url,
-                    payload=f"{override_header}: {method}",
-                    method=method,
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    content_type_changed=False,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                    exploit=f"curl -X {method} -H '{override_header}: {method}' '{url}'" if vulnerable else "",
-                    tool="curl" if vulnerable else "",
-                ))
             except httpx.RequestError as exc:
-                attempts.append(RestFuzzAttempt(
-                    technique=f"hateoas_override_{override_header}",
-                    category="hateoas",
-                    endpoint=endpoint,
-                    url=url,
-                    payload=f"{override_header}: {method}",
-                    method=method,
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    content_type_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    RestFuzzAttempt(
+                        technique=f"hateoas_override_{override_header}",
+                        category="hateoas",
+                        endpoint=endpoint,
+                        url=url,
+                        payload=f"{override_header}: {method}",
+                        method=method,
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        content_type_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     format_params = _get_str_list(
-        "hateoas_format_params", _HATEOAS_FORMAT_PARAMS_DEFAULT,
+        "hateoas_format_params",
+        _HATEOAS_FORMAT_PARAMS_DEFAULT,
     )
     for param in format_params:
         for fmt_value in ("json", "xml", "yaml", "csv", "text"):
@@ -795,43 +860,44 @@ async def _test_hateoas(
                 t_size = len(resp.content)
                 ct_changed = resp.headers.get("content-type", "") != _b_ct
                 vulnerable = ct_changed and t_status in (200, 201, 202, 204)
-                details = (
-                    f"Format param changed CT: {param}={fmt_value}"
-                    if vulnerable else f"Status {t_status}"
+                details = f"Format param changed CT: {param}={fmt_value}" if vulnerable else f"Status {t_status}"
+                attempts.append(
+                    RestFuzzAttempt(
+                        technique=f"hateoas_format_{param}",
+                        category="hateoas",
+                        endpoint=endpoint,
+                        url=test_url,
+                        payload=f"{param}={fmt_value}",
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        content_type_changed=ct_changed,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                    )
                 )
-                attempts.append(RestFuzzAttempt(
-                    technique=f"hateoas_format_{param}",
-                    category="hateoas",
-                    endpoint=endpoint,
-                    url=test_url,
-                    payload=f"{param}={fmt_value}",
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    content_type_changed=ct_changed,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                ))
             except httpx.RequestError as exc:
-                attempts.append(RestFuzzAttempt(
-                    technique=f"hateoas_format_{param}",
-                    category="hateoas",
-                    endpoint=endpoint,
-                    url=url,
-                    payload=f"{param}={fmt_value}",
-                    method="GET",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    content_type_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    RestFuzzAttempt(
+                        technique=f"hateoas_format_{param}",
+                        category="hateoas",
+                        endpoint=endpoint,
+                        url=url,
+                        payload=f"{param}={fmt_value}",
+                        method="GET",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        content_type_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     rest_verbs = _get_str_list("hateoas_rest_verbs", _HATEOAS_REST_VERBS_DEFAULT)
     for verb in rest_verbs:
@@ -840,45 +906,46 @@ async def _test_hateoas(
             t_status = resp.status_code
             t_size = len(resp.content)
             vulnerable = t_status in (200, 201, 202, 204) and b_status in (405, 404)
-            details = (
-                f"Verb {verb} accepted: {b_status}->{t_status}"
-                if vulnerable else f"Status {t_status}"
+            details = f"Verb {verb} accepted: {b_status}->{t_status}" if vulnerable else f"Status {t_status}"
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"hateoas_verb_{verb.lower()}",
+                    category="hateoas",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=verb,
+                    method=verb,
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    content_type_changed=False,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    exploit=f"curl -X {verb} '{url}'" if vulnerable else "",
+                    tool="curl" if vulnerable else "",
+                )
             )
-            attempts.append(RestFuzzAttempt(
-                technique=f"hateoas_verb_{verb.lower()}",
-                category="hateoas",
-                endpoint=endpoint,
-                url=url,
-                payload=verb,
-                method=verb,
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                content_type_changed=False,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-                exploit=f"curl -X {verb} '{url}'" if vulnerable else "",
-                tool="curl" if vulnerable else "",
-            ))
         except httpx.RequestError as exc:
-            attempts.append(RestFuzzAttempt(
-                technique=f"hateoas_verb_{verb.lower()}",
-                category="hateoas",
-                endpoint=endpoint,
-                url=url,
-                payload=verb,
-                method=verb,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                content_type_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                RestFuzzAttempt(
+                    technique=f"hateoas_verb_{verb.lower()}",
+                    category="hateoas",
+                    endpoint=endpoint,
+                    url=url,
+                    payload=verb,
+                    method=verb,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    content_type_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -1052,7 +1119,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", nargs="?", help="URL base da API (https://api.example.com)")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=["auth_bypass", "content_type", "version_enum", "hateoas", "all"],
         default=["all"],

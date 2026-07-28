@@ -75,7 +75,7 @@ class TestLoginFormParser:
         assert parser.forms[0]["method"] == "POST"
 
     def test_parse_no_form(self) -> None:
-        html = '<html><body>No form here</body></html>'
+        html = "<html><body>No form here</body></html>"
         parser = _LoginFormParser()
         parser.feed(html)
         assert len(parser.forms) == 0
@@ -118,7 +118,7 @@ class TestDetectForm:
         assert result is None
 
     def test_no_form(self) -> None:
-        html = '<html><body>no form</body></html>'
+        html = "<html><body>no form</body></html>"
         result = _detect_form(html, "https://example.com")
         assert result is None
 
@@ -217,10 +217,18 @@ class TestCheckLoginSuccess:
 class TestBruteForceAttempt:
     def test_frozen(self) -> None:
         attempt = BruteForceAttempt(
-            technique="rate_limit", category="rate_limit", url="http://x",
-            username="admin", payload="test", status_code=200,
-            response_size=100, response_time=0.1, lockout_detected=False,
-            rate_limit_detected=False, login_success=False, vulnerable=True,
+            technique="rate_limit",
+            category="rate_limit",
+            url="http://x",
+            username="admin",
+            payload="test",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            lockout_detected=False,
+            rate_limit_detected=False,
+            login_success=False,
+            vulnerable=True,
             details="no rate limit",
         )
         with pytest.raises(AttributeError):
@@ -228,20 +236,36 @@ class TestBruteForceAttempt:
 
     def test_slots(self) -> None:
         attempt = BruteForceAttempt(
-            technique="rate_limit", category="rate_limit", url="http://x",
-            username="admin", payload="test", status_code=200,
-            response_size=100, response_time=0.1, lockout_detected=False,
-            rate_limit_detected=False, login_success=False, vulnerable=True,
+            technique="rate_limit",
+            category="rate_limit",
+            url="http://x",
+            username="admin",
+            payload="test",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            lockout_detected=False,
+            rate_limit_detected=False,
+            login_success=False,
+            vulnerable=True,
             details="no rate limit",
         )
         assert not hasattr(attempt, "__dict__")
 
     def test_asdict(self) -> None:
         attempt = BruteForceAttempt(
-            technique="rate_limit", category="rate_limit", url="http://x",
-            username="admin", payload="test", status_code=200,
-            response_size=100, response_time=0.1, lockout_detected=False,
-            rate_limit_detected=False, login_success=False, vulnerable=True,
+            technique="rate_limit",
+            category="rate_limit",
+            url="http://x",
+            username="admin",
+            payload="test",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            lockout_detected=False,
+            rate_limit_detected=False,
+            login_success=False,
+            vulnerable=True,
             details="no rate limit",
         )
         d = asdict(attempt)
@@ -252,18 +276,28 @@ class TestBruteForceAttempt:
 class TestBruteForceResult:
     def test_frozen(self) -> None:
         result = BruteForceResult(
-            target="http://x", login_url="http://x/login",
-            attempts=[], rate_limit_found=False, lockout_found=False,
-            weak_credentials=[], issues=[], overall_status="secure",
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=False,
+            lockout_found=False,
+            weak_credentials=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.target = "http://y"  # type: ignore[misc]
 
     def test_asdict(self) -> None:
         result = BruteForceResult(
-            target="http://x", login_url="http://x/login",
-            attempts=[], rate_limit_found=True, lockout_found=False,
-            weak_credentials=[], issues=[], overall_status="vulnerable",
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=True,
+            lockout_found=False,
+            weak_credentials=[],
+            issues=[],
+            overall_status="vulnerable",
         )
         d = asdict(result)
         assert d["rate_limit_found"] is True
@@ -325,9 +359,13 @@ class TestBuildParser:
 class TestPrintResults:
     def test_secure_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BruteForceResult(
-            target="http://x", login_url="http://x/login",
-            attempts=[], rate_limit_found=True, lockout_found=True,
-            weak_credentials=[], issues=["Rate limit detectado"],
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=True,
+            lockout_found=True,
+            weak_credentials=[],
+            issues=["Rate limit detectado"],
             overall_status="secure",
         )
         print_results(result)
@@ -337,8 +375,11 @@ class TestPrintResults:
 
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BruteForceResult(
-            target="http://x", login_url="http://x/login",
-            attempts=[], rate_limit_found=False, lockout_found=False,
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=False,
+            lockout_found=False,
             weak_credentials=["admin:password"],
             issues=["Rate limiting NAO detectado"],
             overall_status="vulnerable",

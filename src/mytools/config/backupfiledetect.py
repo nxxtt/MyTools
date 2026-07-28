@@ -10,6 +10,7 @@ Fluxo:
   2. Valida o conteudo retornado para confirmar backup real
   3. Exibe resumo colorido e salva output detalhado
 """
+
 import argparse
 import asyncio
 import logging
@@ -138,11 +139,21 @@ _ORIG_TMP_PATHS_DEFAULT: list[str] = [
     "app.js.orig",
 ]
 
-_SQL_KEYWORDS_DEFAULT: frozenset[str] = frozenset({
-    "CREATE TABLE", "INSERT INTO", "DROP TABLE", "ALTER TABLE",
-    "CREATE DATABASE", "USE ", "VALUES", "SET NAMES",
-    "PRIMARY KEY", "FOREIGN KEY", "AUTO_INCREMENT",
-})
+_SQL_KEYWORDS_DEFAULT: frozenset[str] = frozenset(
+    {
+        "CREATE TABLE",
+        "INSERT INTO",
+        "DROP TABLE",
+        "ALTER TABLE",
+        "CREATE DATABASE",
+        "USE ",
+        "VALUES",
+        "SET NAMES",
+        "PRIMARY KEY",
+        "FOREIGN KEY",
+        "AUTO_INCREMENT",
+    }
+)
 
 
 def _load_backup_paths() -> None:
@@ -153,15 +164,19 @@ def _load_backup_paths() -> None:
     global ARCHIVE_PATHS, ORIG_TMP_PATHS, ALL_TYPES, ALL_PATHS
     global SQL_KEYWORDS
 
-    data = load_payloads("config", "backup_file_detect", default={
-        "bak": _BAK_PATHS_DEFAULT,
-        "swp": _SWP_PATHS_DEFAULT,
-        "tilde": _TILDE_PATHS_DEFAULT,
-        "sql": _SQL_DUMP_PATHS_DEFAULT,
-        "archive": _ARCHIVE_PATHS_DEFAULT,
-        "orig_tmp": _ORIG_TMP_PATHS_DEFAULT,
-        "sql_keywords": list(_SQL_KEYWORDS_DEFAULT),
-    })
+    data = load_payloads(
+        "config",
+        "backup_file_detect",
+        default={
+            "bak": _BAK_PATHS_DEFAULT,
+            "swp": _SWP_PATHS_DEFAULT,
+            "tilde": _TILDE_PATHS_DEFAULT,
+            "sql": _SQL_DUMP_PATHS_DEFAULT,
+            "archive": _ARCHIVE_PATHS_DEFAULT,
+            "orig_tmp": _ORIG_TMP_PATHS_DEFAULT,
+            "sql_keywords": list(_SQL_KEYWORDS_DEFAULT),
+        },
+    )
 
     BAK_PATHS = data.get("bak", _BAK_PATHS_DEFAULT)
     SWP_PATHS = data.get("swp", _SWP_PATHS_DEFAULT)
@@ -302,8 +317,12 @@ async def _probe_path(
     # HEAD pre-check
     try:
         head_status, head_headers, _, _ = await fetch(
-            client, full_url, timeout=timeout, method="HEAD",
-            max_retries=1, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="HEAD",
+            max_retries=1,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -330,8 +349,12 @@ async def _probe_path(
     await rate_limiter.wait()
     try:
         status, _headers, content, _ = await fetch(
-            client, full_url, timeout=timeout, method="GET",
-            max_retries=retries, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="GET",
+            max_retries=retries,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -381,7 +404,8 @@ async def scan_backups(
 
     logger.info(
         "Paths: %d | Concurrency: %d",
-        total, concurrency,
+        total,
+        concurrency,
     )
 
     sem = asyncio.Semaphore(concurrency)

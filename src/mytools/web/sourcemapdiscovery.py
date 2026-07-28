@@ -12,6 +12,7 @@ Fluxo:
   4. Parse do JSON do source map para extrair sources, names
   5. Exibe resumo colorido e salva output detalhado
 """
+
 import argparse
 import asyncio
 import json
@@ -49,22 +50,39 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.sourcemapdiscovery")
 
 _DEFAULT_SCRIPT_PATHS_DATA: list[str] = [
-    "static/js/app.js", "static/js/main.js", "static/js/bundle.js",
-    "dist/js/app.js", "dist/js/main.js", "dist/bundle.js",
-    "assets/js/app.js", "assets/js/main.js",
-    "js/app.js", "js/main.js", "js/bundle.js",
-    "build/bundle.js", "build/static/js/main.js",
+    "static/js/app.js",
+    "static/js/main.js",
+    "static/js/bundle.js",
+    "dist/js/app.js",
+    "dist/js/main.js",
+    "dist/bundle.js",
+    "assets/js/app.js",
+    "assets/js/main.js",
+    "js/app.js",
+    "js/main.js",
+    "js/bundle.js",
+    "build/bundle.js",
+    "build/static/js/main.js",
     "public/static/js/app.js",
     "_next/static/chunks/pages/_app.js",
     "_nuxt/dist/app/client.js",
     "wp-content/themes/flavor/assets/js/app.js",
-    "vendor.js", "app.min.js", "main.min.js", "bundle.min.js",
-    "index.js", "app.js", "main.js", "bundle.js", "chunk.js", "runtime.js",
+    "vendor.js",
+    "app.min.js",
+    "main.min.js",
+    "bundle.min.js",
+    "index.js",
+    "app.js",
+    "main.js",
+    "bundle.js",
+    "chunk.js",
+    "runtime.js",
 ]
 
 
 def _load_sourcemap_paths() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "sourcemap_paths", default={"script_paths": _DEFAULT_SCRIPT_PATHS_DATA})
     return data.get("script_paths", _DEFAULT_SCRIPT_PATHS_DATA)
 
@@ -179,8 +197,12 @@ async def _probe_map(
 
     try:
         status, _headers, content, _ = await fetch(
-            client, map_url, timeout=timeout, method="GET",
-            max_retries=retries, rate_limiter=rate_limiter,
+            client,
+            map_url,
+            timeout=timeout,
+            method="GET",
+            max_retries=retries,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -214,8 +236,12 @@ async def _fetch_page(
     await rate_limiter.wait()
     try:
         _status, _headers, content, _ = await fetch(
-            client, url, timeout=timeout, method="GET",
-            max_retries=retries, rate_limiter=rate_limiter,
+            client,
+            url,
+            timeout=timeout,
+            method="GET",
+            max_retries=retries,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return ""
@@ -285,8 +311,7 @@ async def scan_sourcemaps(
 
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Candidatos: {color(str(total), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
+        f"Candidatos: {color(str(total), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
     )
 
     completed = 0
@@ -318,8 +343,8 @@ async def scan_sourcemaps(
                 logger.info("Source map encontrado: %s (sources=%d)", r.url, r.sources_count)
                 print(
                     f"{color('[+]', Cyber.GREEN, Cyber.BOLD)} "
-                    f"{color(f"{r.raw_size}B", Cyber.YELLOW)} "
-                    f"{color(f"{r.sources_count} sources", Cyber.WHITE)} "
+                    f"{color(f'{r.raw_size}B', Cyber.YELLOW)} "
+                    f"{color(f'{r.sources_count} sources', Cyber.WHITE)} "
                     f"{color(r.url, Cyber.CYAN)}"
                 )
     finally:
@@ -328,8 +353,7 @@ async def scan_sourcemaps(
     elapsed = time.monotonic() - started
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Source maps encontrados: {color(str(len(maps)), Cyber.GREEN, Cyber.BOLD)}",
+        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. Source maps encontrados: {color(str(len(maps)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return maps
 
@@ -343,13 +367,16 @@ def print_results(maps: list[SourceMapInfo]) -> None:
     print(color("\n  Source Maps Encontrados", Cyber.CYAN, Cyber.BOLD))
 
     hdrs = ("TAMANHO", "SOURCES", "NAMES", "JS ORIGINAL", "URL")
-    rows = [(
-        f"{m.raw_size}",
-        str(m.sources_count),
-        str(m.names_count),
-        m.js_url or "-",
-        m.url,
-    ) for m in maps]
+    rows = [
+        (
+            f"{m.raw_size}",
+            str(m.sources_count),
+            str(m.names_count),
+            m.js_url or "-",
+            m.url,
+        )
+        for m in maps
+    ]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         return [
@@ -381,7 +408,7 @@ def print_sources_detail(maps: list[SourceMapInfo]) -> None:
         for s in m.sources[:30]:
             print(f"    {color('-', Cyber.GRAY)} {s}")
         if len(m.sources) > 30:
-            print(f"    {color(f"... +{len(m.sources) - 30} mais", Cyber.GRAY)}")
+            print(f"    {color(f'... +{len(m.sources) - 30} mais', Cyber.GRAY)}")
 
 
 def build_parser() -> argparse.ArgumentParser:

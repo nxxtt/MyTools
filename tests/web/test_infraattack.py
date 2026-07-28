@@ -25,18 +25,30 @@ from mytools.web.infraattack import (
 class TestInfraAttackAttempt:
     def test_creation(self) -> None:
         a = InfraAttackAttempt(
-            technique="terraform_state_leak", category="infrastructure",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="https://target.com", service_type="terraform", response_code=200,
+            technique="terraform_state_leak",
+            category="infrastructure",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://target.com",
+            service_type="terraform",
+            response_code=200,
         )
         assert a.technique == "terraform_state_leak"
         assert a.service_type == "terraform"
 
     def test_frozen(self) -> None:
         a = InfraAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            service_type="s", response_code=200,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            service_type="s",
+            response_code=200,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -45,9 +57,16 @@ class TestInfraAttackAttempt:
 class TestInfraAttackResult:
     def test_creation(self) -> None:
         r = InfraAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", service_detected="unknown",
-            techniques_count=8, attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            service_detected="unknown",
+            techniques_count=8,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         assert r.overall_status == "secure"
@@ -55,9 +74,17 @@ class TestInfraAttackResult:
 
     def test_frozen(self) -> None:
         r = InfraAttackResult(
-            target="t", host="h", port=443, tls=True, endpoint="e",
-            service_detected="s", techniques_count=0, attempts=[],
-            vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            endpoint="e",
+            service_detected="s",
+            techniques_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.host = "changed"  # type: ignore[misc]
@@ -69,9 +96,14 @@ class TestCategoryMap:
 
     def test_infrastructure_techniques(self) -> None:
         expected = {
-            "terraform_state_leak", "vault_exposed", "cicd_pipeline_leak",
-            "cicd_secret_detection", "elastic_exposed", "redis_mongo_unauth",
-            "debug_endpoints", "debug_mode_detection",
+            "terraform_state_leak",
+            "vault_exposed",
+            "cicd_pipeline_leak",
+            "cicd_secret_detection",
+            "elastic_exposed",
+            "redis_mongo_unauth",
+            "debug_endpoints",
+            "debug_mode_detection",
         }
         assert set(_CATEGORY_MAP["infrastructure"]) == expected
 
@@ -85,13 +117,14 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
 
 class TestExtractSecrets:
     def test_finds_password(self) -> None:
-        body = 'password=secret123'
+        body = "password=secret123"
         found = _extract_secrets(body)
         assert len(found) > 0
 
@@ -106,7 +139,7 @@ class TestExtractSecrets:
         assert found == []
 
     def test_filters_short_values(self) -> None:
-        body = 'password=x'
+        body = "password=x"
         found = _extract_secrets(body)
         assert found == []
 
@@ -141,9 +174,16 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = InfraAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", service_detected="unknown",
-            techniques_count=8, attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            service_detected="unknown",
+            techniques_count=8,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         print_results(r)
@@ -153,15 +193,28 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = InfraAttackAttempt(
-            technique="terraform_state_leak", category="infrastructure", description="desc",
-            vulnerable=True, details="state file found", error="",
-            endpoint="https://target.com", service_type="terraform", response_code=200,
+            technique="terraform_state_leak",
+            category="infrastructure",
+            description="desc",
+            vulnerable=True,
+            details="state file found",
+            error="",
+            endpoint="https://target.com",
+            service_type="terraform",
+            response_code=200,
         )
         r = InfraAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", service_detected="terraform",
-            techniques_count=8, attempts=[a], vulnerable_techniques=["terraform_state_leak"],
-            issues=["Test issue"], overall_status="vulnerable",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            service_detected="terraform",
+            techniques_count=8,
+            attempts=[a],
+            vulnerable_techniques=["terraform_state_leak"],
+            issues=["Test issue"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

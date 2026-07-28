@@ -171,22 +171,26 @@ class TestParseOpenapiV2:
 
 class TestParseSpec:
     def test_valid_openapi3_json(self):
-        data = json.dumps({
-            "openapi": "3.0.0",
-            "info": {"title": "Test", "version": "1.0"},
-            "paths": {},
-        }).encode()
+        data = json.dumps(
+            {
+                "openapi": "3.0.0",
+                "info": {"title": "Test", "version": "1.0"},
+                "paths": {},
+            }
+        ).encode()
         result = parse_spec(data, "application/json")
         assert result is not None
         assert result.format == "json"
         assert result.title == "Test"
 
     def test_valid_swagger2_json(self):
-        data = json.dumps({
-            "swagger": "2.0",
-            "info": {"title": "S2", "version": "2.0"},
-            "paths": {},
-        }).encode()
+        data = json.dumps(
+            {
+                "swagger": "2.0",
+                "info": {"title": "S2", "version": "2.0"},
+                "paths": {},
+            }
+        ).encode()
         result = parse_spec(data, "application/json")
         assert result is not None
         assert result.format == "json"
@@ -215,11 +219,13 @@ class TestParseSpec:
         assert result.title == "Guess"
 
     def test_description_truncated(self):
-        data = json.dumps({
-            "openapi": "3.0.0",
-            "info": {"title": "X", "version": "1", "description": "x" * 500},
-            "paths": {},
-        }).encode()
+        data = json.dumps(
+            {
+                "openapi": "3.0.0",
+                "info": {"title": "X", "version": "1", "description": "x" * 500},
+                "paths": {},
+            }
+        ).encode()
         result = parse_spec(data, "application/json")
         assert result is not None
         assert len(result.description) == 200

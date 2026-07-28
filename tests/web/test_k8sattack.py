@@ -24,18 +24,30 @@ from mytools.web.k8sattack import (
 class TestK8sAttackAttempt:
     def test_creation(self) -> None:
         a = K8sAttackAttempt(
-            technique="api_enumeration", category="kubernetes",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="https://target.com:6443", api_version="v1.28.0", response_code=200,
+            technique="api_enumeration",
+            category="kubernetes",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://target.com:6443",
+            api_version="v1.28.0",
+            response_code=200,
         )
         assert a.technique == "api_enumeration"
         assert a.api_version == "v1.28.0"
 
     def test_frozen(self) -> None:
         a = K8sAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            api_version="", response_code=200,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            api_version="",
+            response_code=200,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -44,9 +56,16 @@ class TestK8sAttackAttempt:
 class TestK8sAttackResult:
     def test_creation(self) -> None:
         r = K8sAttackResult(
-            target="https://target.com:6443", host="target.com", port=6443, tls=True,
-            endpoint="https://target.com:6443", k8s_detected=False,
-            api_versions=[], attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://target.com:6443",
+            host="target.com",
+            port=6443,
+            tls=True,
+            endpoint="https://target.com:6443",
+            k8s_detected=False,
+            api_versions=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         assert r.overall_status == "secure"
@@ -54,9 +73,17 @@ class TestK8sAttackResult:
 
     def test_frozen(self) -> None:
         r = K8sAttackResult(
-            target="t", host="h", port=6443, tls=True, endpoint="e",
-            k8s_detected=False, api_versions=[], attempts=[],
-            vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=6443,
+            tls=True,
+            endpoint="e",
+            k8s_detected=False,
+            api_versions=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.host = "changed"  # type: ignore[misc]
@@ -79,6 +106,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -139,9 +167,16 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = K8sAttackResult(
-            target="https://target.com:6443", host="target.com", port=6443, tls=True,
-            endpoint="https://target.com:6443", k8s_detected=False,
-            api_versions=[], attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://target.com:6443",
+            host="target.com",
+            port=6443,
+            tls=True,
+            endpoint="https://target.com:6443",
+            k8s_detected=False,
+            api_versions=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         print_results(r)
@@ -151,15 +186,28 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = K8sAttackAttempt(
-            technique="api_enumeration", category="kubernetes", description="desc",
-            vulnerable=True, details="leak found", error="",
-            endpoint="https://target.com:6443", api_version="v1.28.3", response_code=200,
+            technique="api_enumeration",
+            category="kubernetes",
+            description="desc",
+            vulnerable=True,
+            details="leak found",
+            error="",
+            endpoint="https://target.com:6443",
+            api_version="v1.28.3",
+            response_code=200,
         )
         r = K8sAttackResult(
-            target="https://target.com:6443", host="target.com", port=6443, tls=True,
-            endpoint="https://target.com:6443", k8s_detected=True,
-            api_versions=["v1.28.3"], attempts=[a], vulnerable_techniques=["api_enumeration"],
-            issues=["Test issue"], overall_status="vulnerable",
+            target="https://target.com:6443",
+            host="target.com",
+            port=6443,
+            tls=True,
+            endpoint="https://target.com:6443",
+            k8s_detected=True,
+            api_versions=["v1.28.3"],
+            attempts=[a],
+            vulnerable_techniques=["api_enumeration"],
+            issues=["Test issue"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

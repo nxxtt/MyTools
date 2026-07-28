@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Log Injection."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,18 +45,30 @@ class TestMarker:
 class TestLogInjectAttempt:
     def test_frozen(self) -> None:
         a = LogInjectAttempt(
-            technique="test", category="user_agent", header_name="User-Agent",
-            payload="test", status=200, size=100,
-            vulnerable=True, details="test", error="",
+            technique="test",
+            category="user_agent",
+            header_name="User-Agent",
+            payload="test",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         a = LogInjectAttempt(
-            technique="test", category="user_agent", header_name="User-Agent",
-            payload="test", status=200, size=100,
-            vulnerable=True, details="test", error="",
+            technique="test",
+            category="user_agent",
+            header_name="User-Agent",
+            payload="test",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
@@ -63,9 +76,13 @@ class TestLogInjectAttempt:
 class TestLogInjectResult:
     def test_frozen(self) -> None:
         r = LogInjectResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -92,6 +109,7 @@ class TestBaseline:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -125,6 +143,7 @@ class TestUserAgent:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -213,15 +232,24 @@ class TestBypass:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = LogInjectResult(
-            target="https://test.com", tls=True,
-            attempts=[LogInjectAttempt(
-                technique="ua_crlf", category="user_agent",
-                header_name="User-Agent", payload="test",
-                status=200, size=100,
-                vulnerable=True, details="User-Agent refletido", error="",
-            )],
+            target="https://test.com",
+            tls=True,
+            attempts=[
+                LogInjectAttempt(
+                    technique="ua_crlf",
+                    category="user_agent",
+                    header_name="User-Agent",
+                    payload="test",
+                    status=200,
+                    size=100,
+                    vulnerable=True,
+                    details="User-Agent refletido",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["ua_crlf"],
-            blocked_techniques=[], issues=[],
+            blocked_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -231,9 +259,13 @@ class TestPrintResults:
 
     def test_no_vulns_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = LogInjectResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -241,8 +273,11 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = LogInjectResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
             issues=["Nenhum teste retornou resultado claro"],
             overall_status="unknown",
         )
@@ -282,5 +317,6 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
         from mytools.web.loginjection import run_once
+
         result = run_once(args)
         assert result == 0

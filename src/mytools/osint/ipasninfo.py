@@ -11,6 +11,7 @@ Fluxo principal:
   3. Para batch (100+ IPs), usa ip-api.com/batch
   4. Consolida e exibe tabela ou salva JSON
 """
+
 import argparse
 import asyncio
 import json
@@ -154,20 +155,22 @@ def _parse_ipapi_batch(body: bytes) -> list[IpAsnInfo]:
     for item in items:
         if item.get("status") != "success":
             continue
-        results.append(IpAsnInfo(
-            ip=item.get("query", ""),
-            asn=item.get("as", "").split(" ", 1)[0] if item.get("as") else "",
-            org=item.get("org", ""),
-            isp=item.get("isp", ""),
-            country=item.get("country", ""),
-            country_code=item.get("countryCode", ""),
-            city=item.get("city", ""),
-            is_hosting=item.get("hosting", False),
-            is_proxy=item.get("proxy", False),
-            source="ipapi",
-            exploit=f"https://bgp.he.net/ip/{item.get('query', '')}" if item.get("as") else "",
-            tool="bgp.he.net",
-        ))
+        results.append(
+            IpAsnInfo(
+                ip=item.get("query", ""),
+                asn=item.get("as", "").split(" ", 1)[0] if item.get("as") else "",
+                org=item.get("org", ""),
+                isp=item.get("isp", ""),
+                country=item.get("country", ""),
+                country_code=item.get("countryCode", ""),
+                city=item.get("city", ""),
+                is_hosting=item.get("hosting", False),
+                is_proxy=item.get("proxy", False),
+                source="ipapi",
+                exploit=f"https://bgp.he.net/ip/{item.get('query', '')}" if item.get("as") else "",
+                tool="bgp.he.net",
+            )
+        )
 
     return results
 
@@ -217,13 +220,13 @@ async def _query_batch(ips: list[str], timeout: float) -> list[IpAsnInfo]:
 
         # Processa em lotes de 100
         for i in range(0, len(ips), 100):
-            batch = ips[i:i + 100]
+            batch = ips[i : i + 100]
             url = "http://ip-api.com/batch?fields=query,as,asname,isp,org,country,countryCode,city,hosting,proxy"
             try:
                 resp = await client.post(url, content=json.dumps(batch).encode(), timeout=timeout)
                 if resp.status_code == 200:
                     results.extend(_parse_ipapi_batch(resp.content))
-            except (httpx.RequestError, httpx.HTTPStatusError):
+            except httpx.RequestError, httpx.HTTPStatusError:
                 logger.debug("ip-api.com batch falhou para lote %d-%d", i, i + len(batch))
 
             # Respeitar rate limit do batch (15 req/min)
@@ -294,16 +297,19 @@ def _print_results(results: list[IpAsnInfo]) -> None:
 
     print_table(
         headers=("IP", "ASN", "Org", "ISP", "Country", "City", "Hosting", "Proxy"),
-        rows=[(
-            r.ip,
-            r.asn or "-",
-            (r.org or "-")[:25],
-            (r.isp or "-")[:25],
-            f"{r.country_code} ({r.country[:15]})" if r.country_code else "-",
-            (r.city or "-")[:15],
-            "Yes" if r.is_hosting else "-",
-            "Yes" if r.is_proxy else "-",
-        ) for r in results],
+        rows=[
+            (
+                r.ip,
+                r.asn or "-",
+                (r.org or "-")[:25],
+                (r.isp or "-")[:25],
+                f"{r.country_code} ({r.country[:15]})" if r.country_code else "-",
+                (r.city or "-")[:15],
+                "Yes" if r.is_hosting else "-",
+                "Yes" if r.is_proxy else "-",
+            )
+            for r in results
+        ],
         column_styles=[
             (Cyber.WHITE,),
             (Cyber.YELLOW + Cyber.BOLD,),
@@ -368,7 +374,7 @@ def run_once(args: argparse.Namespace) -> int:
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"IPs: {color(str(len(results)), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Elapsed: {color(f"{elapsed:.1f}s", Cyber.YELLOW)} | "
+        f"Elapsed: {color(f'{elapsed:.1f}s', Cyber.YELLOW)} | "
         f"Mode: {color('auto', Cyber.WHITE, Cyber.BOLD)}",
     )
 

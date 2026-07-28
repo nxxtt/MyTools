@@ -89,8 +89,21 @@ def _check_timing(time_baseline: float, time_test: float) -> bool:
 # ---------------------------------------------------------------------------
 
 _CMD_PARAMS_DEFAULT: list[str] = [
-    "cmd", "exec", "command", "query", "input", "ping", "host",
-    "ip", "file", "path", "name", "data", "run", "execute", "shell",
+    "cmd",
+    "exec",
+    "command",
+    "query",
+    "input",
+    "ping",
+    "host",
+    "ip",
+    "file",
+    "path",
+    "name",
+    "data",
+    "run",
+    "execute",
+    "shell",
 ]
 
 _OS_COMMAND_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
@@ -123,12 +136,14 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
 
 def _load_cmd_params() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "cmdinject", default={"cmd_params": _CMD_PARAMS_DEFAULT})
     return data.get("cmd_params", _CMD_PARAMS_DEFAULT)
 
 
 def _load_os_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "cmdinject", default={"os_command_payloads": _OS_COMMAND_PAYLOADS_DEFAULT})
     raw = data.get("os_command_payloads", _OS_COMMAND_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
@@ -136,6 +151,7 @@ def _load_os_payloads() -> list[tuple[str, str]]:
 
 def _load_blind_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "cmdinject", default={"blind_payloads": _BLIND_PAYLOADS_DEFAULT})
     raw = data.get("blind_payloads", _BLIND_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
@@ -143,6 +159,7 @@ def _load_blind_payloads() -> list[tuple[str, str]]:
 
 def _load_bypass_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "cmdinject", default={"bypass_payloads": _BYPASS_PAYLOADS_DEFAULT})
     raw = data.get("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
@@ -204,7 +221,8 @@ class CmdInjectResult:
 
 
 async def _test_baseline(
-    client: httpx.AsyncClient, url: str,
+    client: httpx.AsyncClient,
+    url: str,
 ) -> tuple[int, int, bytes, float]:
     """Envia requisicao baseline para obter resposta de referencia."""
     start = time.monotonic()
@@ -317,11 +335,7 @@ async def _test_os_command(
                 status_changed = t_status != b_status
                 vulnerable = content_match
 
-                details = (
-                    f"Content: {content_type}" if content_match
-                    else f"Status {b_status}->{t_status}" if status_changed
-                    else "Sem mudanca"
-                )
+                details = f"Content: {content_type}" if content_match else f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca"
 
                 # Second-order verification for content-based detection
                 if content_match:
@@ -338,46 +352,50 @@ async def _test_os_command(
                         else:
                             details += f" [2nd-order confirmed: {v_found}]"
 
-                attempts.append(_make_attempt(
-                    technique=technique,
-                    category="os_command",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    b_status=b_status,
-                    t_status=t_status,
-                    b_size=b_size,
-                    t_size=t_size,
-                    t_time=t_time,
-                    b_time=b_time,
-                    content_match=content_match,
-                    content_type=content_type,
-                    timing_match=timing_match,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique=technique,
+                        category="os_command",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        b_status=b_status,
+                        t_status=t_status,
+                        b_size=b_size,
+                        t_size=t_size,
+                        t_time=t_time,
+                        b_time=b_time,
+                        content_match=content_match,
+                        content_type=content_type,
+                        timing_match=timing_match,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                    )
+                )
 
             except httpx.RequestError as exc:
-                attempts.append(_make_attempt(
-                    technique=technique,
-                    category="os_command",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    b_status=b_status,
-                    t_status=0,
-                    b_size=b_size,
-                    t_size=0,
-                    t_time=0.0,
-                    b_time=b_time,
-                    content_match=False,
-                    content_type="none",
-                    timing_match=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique=technique,
+                        category="os_command",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        b_status=b_status,
+                        t_status=0,
+                        b_size=b_size,
+                        t_size=0,
+                        t_time=0.0,
+                        b_time=b_time,
+                        content_match=False,
+                        content_type="none",
+                        timing_match=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -411,51 +429,52 @@ async def _test_blind(
 
                 vulnerable = timing_match
 
-                details = (
-                    f"Timing: {b_time:.1f}s->{t_time:.1f}s" if timing_match
-                    else "Sem delay"
+                details = f"Timing: {b_time:.1f}s->{t_time:.1f}s" if timing_match else "Sem delay"
+
+                attempts.append(
+                    _make_attempt(
+                        technique=technique,
+                        category="blind",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        b_status=b_status,
+                        t_status=t_status,
+                        b_size=b_size,
+                        t_size=t_size,
+                        t_time=t_time,
+                        b_time=b_time,
+                        content_match=content_match,
+                        content_type=content_type,
+                        timing_match=timing_match,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                    )
                 )
 
-                attempts.append(_make_attempt(
-                    technique=technique,
-                    category="blind",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    b_status=b_status,
-                    t_status=t_status,
-                    b_size=b_size,
-                    t_size=t_size,
-                    t_time=t_time,
-                    b_time=b_time,
-                    content_match=content_match,
-                    content_type=content_type,
-                    timing_match=timing_match,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                ))
-
             except httpx.RequestError as exc:
-                attempts.append(_make_attempt(
-                    technique=technique,
-                    category="blind",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    b_status=b_status,
-                    t_status=0,
-                    b_size=b_size,
-                    t_size=0,
-                    t_time=0.0,
-                    b_time=b_time,
-                    content_match=False,
-                    content_type="none",
-                    timing_match=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique=technique,
+                        category="blind",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        b_status=b_status,
+                        t_status=0,
+                        b_size=b_size,
+                        t_size=0,
+                        t_time=0.0,
+                        b_time=b_time,
+                        content_match=False,
+                        content_type="none",
+                        timing_match=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -489,10 +508,7 @@ async def _test_bypass(
 
                 vulnerable = content_match
 
-                details = (
-                    f"Content: {content_type}" if content_match
-                    else "Sem mudanca"
-                )
+                details = f"Content: {content_type}" if content_match else "Sem mudanca"
 
                 # Second-order verification for content-based detection
                 if content_match:
@@ -509,46 +525,50 @@ async def _test_bypass(
                         else:
                             details += f" [2nd-order confirmed: {v_found}]"
 
-                attempts.append(_make_attempt(
-                    technique=technique,
-                    category="bypass",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    b_status=b_status,
-                    t_status=t_status,
-                    b_size=b_size,
-                    t_size=t_size,
-                    t_time=t_time,
-                    b_time=b_time,
-                    content_match=content_match,
-                    content_type=content_type,
-                    timing_match=timing_match,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique=technique,
+                        category="bypass",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        b_status=b_status,
+                        t_status=t_status,
+                        b_size=b_size,
+                        t_size=t_size,
+                        t_time=t_time,
+                        b_time=b_time,
+                        content_match=content_match,
+                        content_type=content_type,
+                        timing_match=timing_match,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                    )
+                )
 
             except httpx.RequestError as exc:
-                attempts.append(_make_attempt(
-                    technique=technique,
-                    category="bypass",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    b_status=b_status,
-                    t_status=0,
-                    b_size=b_size,
-                    t_size=0,
-                    t_time=0.0,
-                    b_time=b_time,
-                    content_match=False,
-                    content_type="none",
-                    timing_match=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    _make_attempt(
+                        technique=technique,
+                        category="bypass",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        b_status=b_status,
+                        t_status=0,
+                        b_size=b_size,
+                        t_size=0,
+                        t_time=0.0,
+                        b_time=b_time,
+                        content_match=False,
+                        content_type="none",
+                        timing_match=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -739,7 +759,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", nargs="?", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=["os_command", "blind", "bypass", "all"],
         default="all",
         help="Categoria de testes (default: all)",

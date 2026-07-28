@@ -163,7 +163,7 @@ def _recv_events(
     sock.settimeout(timeout)
     try:
         data = sock.recv(65535)
-    except (TimeoutError, OSError):
+    except TimeoutError, OSError:
         return []
     if not data:
         return []
@@ -202,7 +202,7 @@ def _collect_server_settings(
     sock.settimeout(timeout)
     try:
         data = sock.recv(65535)
-    except (TimeoutError, OSError):
+    except TimeoutError, OSError:
         return {}
     if not data:
         return {}
@@ -270,31 +270,35 @@ async def _test_h2_downgrade(
             alpn = sock.selected_alpn_protocol()
             h2_ok = alpn == "h2"
             details = f"ALPN negotiated: {alpn}"
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="alpn_downgrade",
-                category="h2_downgrade",
-                description="Testa se server aceita downgrade via ALPN",
-                h2_supported=h2_ok,
-                settings_observed=server_settings,
-                vulnerable=not h2_ok,
-                details=details,
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="alpn_downgrade",
+                    category="h2_downgrade",
+                    description="Testa se server aceita downgrade via ALPN",
+                    h2_supported=h2_ok,
+                    settings_observed=server_settings,
+                    vulnerable=not h2_ok,
+                    details=details,
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="alpn_downgrade",
-            category="h2_downgrade",
-            description="Testa se server aceita downgrade via ALPN",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="alpn_downgrade",
+                category="h2_downgrade",
+                description="Testa se server aceita downgrade via ALPN",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 129b: HTTP/1.1 request em conexao h2
     try:
@@ -321,31 +325,35 @@ async def _test_h2_downgrade(
                     for k, v in ev.headers:
                         if k == ":status":
                             status = int(v)
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="http1_on_h2",
-                category="h2_downgrade",
-                description="Envia HTTP/1.1 user-agent em conexao h2",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=status == 0,
-                details=f"Status: {status}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="http1_on_h2",
+                    category="h2_downgrade",
+                    description="Envia HTTP/1.1 user-agent em conexao h2",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=status == 0,
+                    details=f"Status: {status}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="http1_on_h2",
-            category="h2_downgrade",
-            description="Envia HTTP/1.1 user-agent em conexao h2",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="http1_on_h2",
+                category="h2_downgrade",
+                description="Envia HTTP/1.1 user-agent em conexao h2",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 129c: CONNECT method abuse
     try:
@@ -369,31 +377,35 @@ async def _test_h2_downgrade(
                     for k, v in ev.headers:
                         if k == ":status":
                             status = int(v)
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="connect_abuse",
-                category="h2_downgrade",
-                description="CONNECT method em conexao h2",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=status in (200, 201),
-                details=f"CONNECT status: {status}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="connect_abuse",
+                    category="h2_downgrade",
+                    description="CONNECT method em conexao h2",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=status in (200, 201),
+                    details=f"CONNECT status: {status}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="connect_abuse",
-            category="h2_downgrade",
-            description="CONNECT method em conexao h2",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="connect_abuse",
+                category="h2_downgrade",
+                description="CONNECT method em conexao h2",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 129d: Upgrade h2c
     try:
@@ -407,29 +419,33 @@ async def _test_h2_downgrade(
                 timeout=timeout,
             )
             upgraded = resp.status_code == 101
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="upgrade_h2c",
+                    category="h2_downgrade",
+                    description="Testa Upgrade: h2c em conexao HTTP/1.1",
+                    h2_supported=upgraded,
+                    settings_observed=server_settings,
+                    vulnerable=upgraded,
+                    details=f"Upgrade status: {resp.status_code}",
+                    error="",
+                )
+            )
+    except Exception as e:
+        results.append(
+            HTTP2Attempt(
                 technique="upgrade_h2c",
                 category="h2_downgrade",
                 description="Testa Upgrade: h2c em conexao HTTP/1.1",
-                h2_supported=upgraded,
-                settings_observed=server_settings,
-                vulnerable=upgraded,
-                details=f"Upgrade status: {resp.status_code}",
-                error="",
-            ))
-    except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="upgrade_h2c",
-            category="h2_downgrade",
-            description="Testa Upgrade: h2c em conexao HTTP/1.1",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     return results
 
@@ -473,16 +489,18 @@ async def _test_h2_fingerprint(
 
     # 130a: settings_analysis
     server_id = _fingerprint_server(server_settings)
-    results.append(HTTP2Attempt(
-        technique="settings_analysis",
-        category="h2_fingerprint",
-        description="Analisa SETTINGS do server para fingerprint",
-        h2_supported=bool(server_settings),
-        settings_observed=server_settings,
-        vulnerable=False,
-        details=f"Server fingerprint: {server_id}",
-        error="",
-    ))
+    results.append(
+        HTTP2Attempt(
+            technique="settings_analysis",
+            category="h2_fingerprint",
+            description="Analisa SETTINGS do server para fingerprint",
+            h2_supported=bool(server_settings),
+            settings_observed=server_settings,
+            vulnerable=False,
+            details=f"Server fingerprint: {server_id}",
+            error="",
+        )
+    )
 
     # 130b: window_update_pattern
     try:
@@ -496,29 +514,33 @@ async def _test_h2_fingerprint(
                 for ev in events:
                     if isinstance(ev, h2.events.WindowUpdated):
                         window_updates += 1
-            results.append(HTTP2Attempt(
-                technique="window_update_pattern",
-                category="h2_fingerprint",
-                description="Analisa padroes de WINDOW_UPDATE",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=False,
-                details=f"WINDOW_UPDATEs received: {window_updates}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    technique="window_update_pattern",
+                    category="h2_fingerprint",
+                    description="Analisa padroes de WINDOW_UPDATE",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=False,
+                    details=f"WINDOW_UPDATEs received: {window_updates}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="window_update_pattern",
-            category="h2_fingerprint",
-            description="Analisa padroes de WINDOW_UPDATE",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="window_update_pattern",
+                category="h2_fingerprint",
+                description="Analisa padroes de WINDOW_UPDATE",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 130c: preface_probe
     try:
@@ -532,50 +554,52 @@ async def _test_h2_fingerprint(
             sock.settimeout(timeout)
             data = sock.recv(65535)
             has_settings = b"\x00\x00\x00\x04\x00\x00\x00\x00\x00" in data
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="preface_probe",
-                category="h2_fingerprint",
-                description="Envia preface customizado e analisa resposta",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=has_settings,
-                details=f"Response size: {len(data)} bytes, has SETTINGS: {has_settings}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="preface_probe",
+                    category="h2_fingerprint",
+                    description="Envia preface customizado e analisa resposta",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=has_settings,
+                    details=f"Response size: {len(data)} bytes, has SETTINGS: {has_settings}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="preface_probe",
-            category="h2_fingerprint",
-            description="Envia preface customizado e analisa resposta",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="preface_probe",
+                category="h2_fingerprint",
+                description="Envia preface customizado e analisa resposta",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 130d: settings_softdetect
     max_streams = server_settings.get("MAX_CONCURRENT_STREAMS")
     max_frame = server_settings.get("MAX_FRAME_SIZE")
     header_table = server_settings.get("HEADER_TABLE_SIZE")
-    results.append(HTTP2Attempt(
-        technique="settings_softdetect",
-        category="h2_fingerprint",
-        description="Compara defaults de SETTINGS por implementacao",
-        h2_supported=bool(server_settings),
-        settings_observed=server_settings,
-        vulnerable=False,
-        details=(
-            f"MAX_CONCURRENT_STREAMS={max_streams}, "
-            f"MAX_FRAME_SIZE={max_frame}, "
-            f"HEADER_TABLE_SIZE={header_table}"
-        ),
-        error="",
-    ))
+    results.append(
+        HTTP2Attempt(
+            technique="settings_softdetect",
+            category="h2_fingerprint",
+            description="Compara defaults de SETTINGS por implementacao",
+            h2_supported=bool(server_settings),
+            settings_observed=server_settings,
+            vulnerable=False,
+            details=(f"MAX_CONCURRENT_STREAMS={max_streams}, MAX_FRAME_SIZE={max_frame}, HEADER_TABLE_SIZE={header_table}"),
+            error="",
+        )
+    )
 
     return results
 
@@ -620,31 +644,35 @@ async def _test_h2_stream_abuse(
                     errors += 1
                     break
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="concurrent_flood",
-                category="h2_stream_abuse",
-                description="Abre streams alem do limite MAX_CONCURRENT_STREAMS",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=opened > max_streams,
-                details=f"Opened {opened}/{max_streams + 5} streams, errors: {errors}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="concurrent_flood",
+                    category="h2_stream_abuse",
+                    description="Abre streams alem do limite MAX_CONCURRENT_STREAMS",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=opened > max_streams,
+                    details=f"Opened {opened}/{max_streams + 5} streams, errors: {errors}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="concurrent_flood",
-            category="h2_stream_abuse",
-            description="Abre streams alem do limite MAX_CONCURRENT_STREAMS",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="concurrent_flood",
+                category="h2_stream_abuse",
+                description="Abre streams alem do limite MAX_CONCURRENT_STREAMS",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 131b: half_open_streams
     try:
@@ -669,31 +697,35 @@ async def _test_h2_stream_abuse(
                 except Exception:
                     break
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="half_open_streams",
-                category="h2_stream_abuse",
-                description="Abre streams sem enviar DATA (half-closed local)",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=half_open > 0,
-                details=f"Half-open streams: {half_open}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="half_open_streams",
+                    category="h2_stream_abuse",
+                    description="Abre streams sem enviar DATA (half-closed local)",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=half_open > 0,
+                    details=f"Half-open streams: {half_open}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="half_open_streams",
-            category="h2_stream_abuse",
-            description="Abre streams sem enviar DATA (half-closed local)",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="half_open_streams",
+                category="h2_stream_abuse",
+                description="Abre streams sem enviar DATA (half-closed local)",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 131c: resource_exhaustion (rapid open/close)
     try:
@@ -721,31 +753,35 @@ async def _test_h2_stream_abuse(
                     cycles += 1
                 except Exception:
                     break
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="resource_exhaustion",
-                category="h2_stream_abuse",
-                description="Criacao/destruicao rapida de streams",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=cycles > 20,
-                details=f"Rapid cycles: {cycles} in {time.monotonic() - t0:.1f}s",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="resource_exhaustion",
+                    category="h2_stream_abuse",
+                    description="Criacao/destruicao rapida de streams",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=cycles > 20,
+                    details=f"Rapid cycles: {cycles} in {time.monotonic() - t0:.1f}s",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="resource_exhaustion",
-            category="h2_stream_abuse",
-            description="Criacao/destruicao rapida de streams",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="resource_exhaustion",
+                category="h2_stream_abuse",
+                description="Criacao/destruicao rapida de streams",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 131d: large_header_stream
     try:
@@ -775,31 +811,35 @@ async def _test_h2_stream_abuse(
                             status = int(v)
                 if isinstance(ev, h2.events.StreamReset):
                     status = -1
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="large_header_stream",
-                category="h2_stream_abuse",
-                description="Envia stream com header de 8KB",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=status in (0, -1),
-                details=f"Status: {status}, header size: 8192 bytes",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="large_header_stream",
+                    category="h2_stream_abuse",
+                    description="Envia stream com header de 8KB",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=status in (0, -1),
+                    details=f"Status: {status}, header size: 8192 bytes",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="large_header_stream",
-            category="h2_stream_abuse",
-            description="Envia stream com header de 8KB",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="large_header_stream",
+                category="h2_stream_abuse",
+                description="Envia stream com header de 8KB",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     return results
 
@@ -839,31 +879,35 @@ async def _test_h2_reset_attack(
             sock.sendall(conn.data_to_send())
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="rst_after_headers",
-                category="h2_reset_attack",
-                description="RST_STREAM imediatamente apos HEADERS",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=True,
-                details="RST_STREAM sent after HEADERS on stream " + str(sid),
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="rst_after_headers",
+                    category="h2_reset_attack",
+                    description="RST_STREAM imediatamente apos HEADERS",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=True,
+                    details="RST_STREAM sent after HEADERS on stream " + str(sid),
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="rst_after_headers",
-            category="h2_reset_attack",
-            description="RST_STREAM imediatamente apos HEADERS",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="rst_after_headers",
+                category="h2_reset_attack",
+                description="RST_STREAM imediatamente apos HEADERS",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 132b: rst_data_partial
     try:
@@ -887,31 +931,35 @@ async def _test_h2_reset_attack(
             sock.sendall(conn.data_to_send())
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="rst_data_partial",
-                category="h2_reset_attack",
-                description="RST_STREAM apos HEADERS + DATA parcial",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=True,
-                details=f"Partial DATA (100/1000 bytes) then RST on stream {sid}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="rst_data_partial",
+                    category="h2_reset_attack",
+                    description="RST_STREAM apos HEADERS + DATA parcial",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=True,
+                    details=f"Partial DATA (100/1000 bytes) then RST on stream {sid}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="rst_data_partial",
-            category="h2_reset_attack",
-            description="RST_STREAM apos HEADERS + DATA parcial",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="rst_data_partial",
+                category="h2_reset_attack",
+                description="RST_STREAM apos HEADERS + DATA parcial",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 132c: rst_selective
     try:
@@ -936,31 +984,35 @@ async def _test_h2_reset_attack(
             for sid in stream_ids[::2]:
                 conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="rst_selective",
-                category="h2_reset_attack",
-                description="RST seletivo de streams em conexao multiplexada",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=True,
-                details=f"Reset streams {stream_ids[::2]} of {stream_ids}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="rst_selective",
+                    category="h2_reset_attack",
+                    description="RST seletivo de streams em conexao multiplexada",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=True,
+                    details=f"Reset streams {stream_ids[::2]} of {stream_ids}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="rst_selective",
-            category="h2_reset_attack",
-            description="RST seletivo de streams em conexao multiplexada",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="rst_selective",
+                category="h2_reset_attack",
+                description="RST seletivo de streams em conexao multiplexada",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 132d: rst_timing_window
     try:
@@ -986,31 +1038,35 @@ async def _test_h2_reset_attack(
             await asyncio.sleep(0.05)
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="rst_timing_window",
-                category="h2_reset_attack",
-                description="RST com timing para explorar gap de processamento",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=True,
-                details=f"Delayed RST with XXE payload on stream {sid}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="rst_timing_window",
+                    category="h2_reset_attack",
+                    description="RST com timing para explorar gap de processamento",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=True,
+                    details=f"Delayed RST with XXE payload on stream {sid}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="rst_timing_window",
-            category="h2_reset_attack",
-            description="RST com timing para explorar gap de processamento",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="rst_timing_window",
+                category="h2_reset_attack",
+                description="RST com timing para explorar gap de processamento",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     return results
 
@@ -1055,7 +1111,9 @@ async def _test_h2_settings_abuse(
     for technique, settings_dict, desc in abuse_settings:
         try:
             sock, conn = _create_h2_connection(
-                host, port, timeout,
+                host,
+                port,
+                timeout,
                 validate_outbound=False,
                 normalize_outbound=False,
             )
@@ -1064,40 +1122,38 @@ async def _test_h2_settings_abuse(
                 conn.update_settings(settings_dict)
                 sock.sendall(conn.data_to_send())
                 events = _recv_events(sock, conn, timeout)
-                got_goaway = any(
-                    isinstance(ev, h2.events.ConnectionTerminated)
-                    for ev in events
-                )
-                got_ack = any(
-                    isinstance(ev, h2.events.SettingsAcknowledged)
-                    for ev in events
-                )
+                got_goaway = any(isinstance(ev, h2.events.ConnectionTerminated) for ev in events)
+                got_ack = any(isinstance(ev, h2.events.SettingsAcknowledged) for ev in events)
                 vulnerable = got_ack and not got_goaway
-                results.append(HTTP2Attempt(
-                exploit="h2_rapid_reset_command",
-                tool="h2load",
-                    technique=technique,
-                    category="h2_settings_abuse",
-                    description=f"Enviado SETTINGS: {desc}",
-                    h2_supported=True,
-                    settings_observed=server_settings,
-                    vulnerable=vulnerable,
-                    details=f"ACK: {got_ack}, GOAWAY: {got_goaway}",
-                    error="",
-                ))
+                results.append(
+                    HTTP2Attempt(
+                        exploit="h2_rapid_reset_command",
+                        tool="h2load",
+                        technique=technique,
+                        category="h2_settings_abuse",
+                        description=f"Enviado SETTINGS: {desc}",
+                        h2_supported=True,
+                        settings_observed=server_settings,
+                        vulnerable=vulnerable,
+                        details=f"ACK: {got_ack}, GOAWAY: {got_goaway}",
+                        error="",
+                    )
+                )
             finally:
                 sock.close()
         except Exception as e:
-            results.append(HTTP2Attempt(
-                technique=technique,
-                category="h2_settings_abuse",
-                description=f"Enviado SETTINGS: {desc}",
-                h2_supported=False,
-                settings_observed={},
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+            results.append(
+                HTTP2Attempt(
+                    technique=technique,
+                    category="h2_settings_abuse",
+                    description=f"Enviado SETTINGS: {desc}",
+                    h2_supported=False,
+                    settings_observed={},
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -1137,35 +1193,36 @@ async def _test_h2_priority_attack(
             )
             sock.sendall(conn.data_to_send())
             events = _recv_events(sock, conn, timeout)
-            got_response = any(
-                isinstance(ev, h2.events.ResponseReceived)
-                for ev in events
+            got_response = any(isinstance(ev, h2.events.ResponseReceived) for ev in events)
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="exclusive_flag",
+                    category="h2_priority_attack",
+                    description="PRIORITY com exclusive=True para monopolizar bandwidth",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=got_response,
+                    details=f"Exclusive priority on stream {sid}, response: {got_response}",
+                    error="",
+                )
             )
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="exclusive_flag",
-                category="h2_priority_attack",
-                description="PRIORITY com exclusive=True para monopolizar bandwidth",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=got_response,
-                details=f"Exclusive priority on stream {sid}, response: {got_response}",
-                error="",
-            ))
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="exclusive_flag",
-            category="h2_priority_attack",
-            description="PRIORITY com exclusive=True para monopolizar bandwidth",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="exclusive_flag",
+                category="h2_priority_attack",
+                description="PRIORITY com exclusive=True para monopolizar bandwidth",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 134b: deep_tree
     try:
@@ -1190,36 +1247,42 @@ async def _test_h2_priority_attack(
                 prev_sid = sid
             sock.sendall(conn.data_to_send())
             events = _recv_events(sock, conn, timeout)
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="deep_tree",
-                category="h2_priority_attack",
-                description="Arvore de dependencia profunda (10 niveis)",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=True,
-                details="Deep priority tree: 10 levels, weights=1",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="deep_tree",
+                    category="h2_priority_attack",
+                    description="Arvore de dependencia profunda (10 niveis)",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=True,
+                    details="Deep priority tree: 10 levels, weights=1",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="deep_tree",
-            category="h2_priority_attack",
-            description="Arvore de dependencia profunda (10 niveis)",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="deep_tree",
+                category="h2_priority_attack",
+                description="Arvore de dependencia profunda (10 niveis)",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 134c: circular_dep
     try:
         sock, conn = _create_h2_connection(
-            host, port, timeout,
+            host,
+            port,
+            timeout,
             validate_outbound=False,
         )
         try:
@@ -1251,31 +1314,35 @@ async def _test_h2_priority_attack(
                 priority_depends_on=sid1,
             )
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="circular_dep",
-                category="h2_priority_attack",
-                description="Tenta criar dependencia circular de prioridade",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=True,
-                details=f"Circular: stream {sid1} depends on {sid2} and vice versa",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="circular_dep",
+                    category="h2_priority_attack",
+                    description="Tenta criar dependencia circular de prioridade",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=True,
+                    details=f"Circular: stream {sid1} depends on {sid2} and vice versa",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="circular_dep",
-            category="h2_priority_attack",
-            description="Tenta criar dependencia circular de prioridade",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="circular_dep",
+                category="h2_priority_attack",
+                description="Tenta criar dependencia circular de prioridade",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 134d: weight_extreme
     try:
@@ -1307,31 +1374,35 @@ async def _test_h2_priority_attack(
                 priority_weight=1,
             )
             sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="weight_extreme",
-                category="h2_priority_attack",
-                description="PRIORITY com weights extremos (256 vs 1)",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=True,
-                details=f"High priority stream {sid_high} (weight=256) vs low {sid_low} (weight=1)",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="weight_extreme",
+                    category="h2_priority_attack",
+                    description="PRIORITY com weights extremos (256 vs 1)",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=True,
+                    details=f"High priority stream {sid_high} (weight=256) vs low {sid_low} (weight=1)",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="weight_extreme",
-            category="h2_priority_attack",
-            description="PRIORITY com weights extremos (256 vs 1)",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="weight_extreme",
+                category="h2_priority_attack",
+                description="PRIORITY com weights extremos (256 vs 1)",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     return results
 
@@ -1353,51 +1424,49 @@ async def _test_h2_push_abuse(
     # 135a: settings_enable_push
     try:
         sock, conn = _create_h2_connection(
-            host, port, timeout,
+            host,
+            port,
+            timeout,
             validate_outbound=False,
             normalize_outbound=False,
         )
         try:
             _drain_settings(sock, conn, timeout)
-            conn.update_settings(
-                {h2.settings.SettingCodes.ENABLE_PUSH: 1}
-            )
+            conn.update_settings({h2.settings.SettingCodes.ENABLE_PUSH: 1})
             sock.sendall(conn.data_to_send())
             events = _recv_events(sock, conn, timeout)
-            got_goaway = any(
-                isinstance(ev, h2.events.ConnectionTerminated)
-                for ev in events
-            )
-            got_ack = any(
-                isinstance(ev, h2.events.SettingsAcknowledged)
-                for ev in events
-            )
+            got_goaway = any(isinstance(ev, h2.events.ConnectionTerminated) for ev in events)
+            got_ack = any(isinstance(ev, h2.events.SettingsAcknowledged) for ev in events)
             vulnerable = got_ack and not got_goaway
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="settings_enable_push",
-                category="h2_push_abuse",
-                description="Envia SETTINGS com ENABLE_PUSH=1 (proibido RFC 9113)",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=vulnerable,
-                details=f"ACK: {got_ack}, GOAWAY: {got_goaway}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="settings_enable_push",
+                    category="h2_push_abuse",
+                    description="Envia SETTINGS com ENABLE_PUSH=1 (proibido RFC 9113)",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=vulnerable,
+                    details=f"ACK: {got_ack}, GOAWAY: {got_goaway}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="settings_enable_push",
-            category="h2_push_abuse",
-            description="Envia SETTINGS com ENABLE_PUSH=1 (proibido RFC 9113)",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="settings_enable_push",
+                category="h2_push_abuse",
+                description="Envia SETTINGS com ENABLE_PUSH=1 (proibido RFC 9113)",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 135b: rst_consumption
     try:
@@ -1436,31 +1505,35 @@ async def _test_h2_push_abuse(
                             except Exception:
                                 pass
                 sock.sendall(conn.data_to_send())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="rst_consumption",
-                category="h2_push_abuse",
-                description="Recebe PUSH_PROMISE e envia RST_STREAM imediatamente",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=push_count > 0,
-                details=f"Pushes received: {push_count}, RSTs sent: {rst_count}",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="rst_consumption",
+                    category="h2_push_abuse",
+                    description="Recebe PUSH_PROMISE e envia RST_STREAM imediatamente",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=push_count > 0,
+                    details=f"Pushes received: {push_count}, RSTs sent: {rst_count}",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="rst_consumption",
-            category="h2_push_abuse",
-            description="Recebe PUSH_PROMISE e envia RST_STREAM imediatamente",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="rst_consumption",
+                category="h2_push_abuse",
+                description="Recebe PUSH_PROMISE e envia RST_STREAM imediatamente",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 135c: amplification
     try:
@@ -1496,31 +1569,35 @@ async def _test_h2_push_abuse(
                         push_count += 1
                     if isinstance(ev, h2.events.DataReceived):
                         total_data += len(ev.data)
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="amplification",
-                category="h2_push_abuse",
-                description="Multiplas requests para testar push amplification",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=push_count > 0,
-                details=f"Pushes: {push_count}, data received: {total_data} bytes",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="amplification",
+                    category="h2_push_abuse",
+                    description="Multiplas requests para testar push amplification",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=push_count > 0,
+                    details=f"Pushes: {push_count}, data received: {total_data} bytes",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="amplification",
-            category="h2_push_abuse",
-            description="Multiplas requests para testar push amplification",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="amplification",
+                category="h2_push_abuse",
+                description="Multiplas requests para testar push amplification",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # 135d: path_manipulation
     try:
@@ -1550,31 +1627,35 @@ async def _test_h2_push_abuse(
                         for k, v in ev.headers:
                             if k == ":path":
                                 push_paths.append(v if isinstance(v, str) else v.decode())
-            results.append(HTTP2Attempt(
-            exploit="h2_rapid_reset_command",
-            tool="h2load",
-                technique="path_manipulation",
-                category="h2_push_abuse",
-                description="Analisa paths fornecidos via PUSH_PROMISE",
-                h2_supported=True,
-                settings_observed=server_settings,
-                vulnerable=len(push_paths) > 0,
-                details=f"Push paths: {push_paths}" if push_paths else "No push paths received",
-                error="",
-            ))
+            results.append(
+                HTTP2Attempt(
+                    exploit="h2_rapid_reset_command",
+                    tool="h2load",
+                    technique="path_manipulation",
+                    category="h2_push_abuse",
+                    description="Analisa paths fornecidos via PUSH_PROMISE",
+                    h2_supported=True,
+                    settings_observed=server_settings,
+                    vulnerable=len(push_paths) > 0,
+                    details=f"Push paths: {push_paths}" if push_paths else "No push paths received",
+                    error="",
+                )
+            )
         finally:
             sock.close()
     except Exception as e:
-        results.append(HTTP2Attempt(
-            technique="path_manipulation",
-            category="h2_push_abuse",
-            description="Analisa paths fornecidos via PUSH_PROMISE",
-            h2_supported=False,
-            settings_observed={},
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+        results.append(
+            HTTP2Attempt(
+                technique="path_manipulation",
+                category="h2_push_abuse",
+                description="Analisa paths fornecidos via PUSH_PROMISE",
+                h2_supported=False,
+                settings_observed={},
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     return results
 
@@ -1684,23 +1765,22 @@ async def run_scan(
             raw = await tester(host, port, path, timeout, tls, server_settings)
             all_attempts.extend(raw)
         except Exception as e:
-            all_attempts.append(HTTP2Attempt(
-                technique=f"{cat}_error",
-                category=cat,
-                description=f"Error testing {cat}",
-                h2_supported=h2_supported,
-                settings_observed=server_settings,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+            all_attempts.append(
+                HTTP2Attempt(
+                    technique=f"{cat}_error",
+                    category=cat,
+                    description=f"Error testing {cat}",
+                    h2_supported=h2_supported,
+                    settings_observed=server_settings,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     # Classifica resultados
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    issue_techs = [
-        a.technique for a in all_attempts
-        if a.error and not a.vulnerable
-    ]
+    issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
 
     overall = "vulnerable" if vuln_techs else "secure"
@@ -1736,7 +1816,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",

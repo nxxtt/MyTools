@@ -1,4 +1,5 @@
 """Testes do modulo secondorder.py — Verificacao de Segunda Ordem."""
+
 from __future__ import annotations
 
 import httpx

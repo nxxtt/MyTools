@@ -26,8 +26,12 @@ from mytools.web.attackanalysis import (
 class TestAttackNode:
     def test_creation(self) -> None:
         node = AttackNode(
-            id="vuln_0", label="XSS\n(critical)", severity="critical",
-            category="xss", module="xssvectors", exploit="curl <TARGET>",
+            id="vuln_0",
+            label="XSS\n(critical)",
+            severity="critical",
+            category="xss",
+            module="xssvectors",
+            exploit="curl <TARGET>",
         )
         assert node.id == "vuln_0"
         assert node.severity == "critical"
@@ -35,8 +39,11 @@ class TestAttackNode:
 
     def test_frozen(self) -> None:
         node = AttackNode(
-            id="v", label="l", severity="info",
-            category="c", module="m",
+            id="v",
+            label="l",
+            severity="info",
+            category="c",
+            module="m",
         )
         with pytest.raises(AttributeError):
             node.id = "changed"  # type: ignore[misc]
@@ -46,8 +53,11 @@ class TestAttackNode:
 
     def test_default_exploit(self) -> None:
         node = AttackNode(
-            id="v", label="l", severity="info",
-            category="c", module="m",
+            id="v",
+            label="l",
+            severity="info",
+            category="c",
+            module="m",
         )
         assert node.exploit == ""
 
@@ -67,10 +77,15 @@ class TestAttackEdge:
 class TestAttackGraph:
     def test_creation(self) -> None:
         graph = AttackGraph(
-            nodes=[], edges=[], target="test.com",
+            nodes=[],
+            edges=[],
+            target="test.com",
             total_vulnerabilities=5,
-            critical_count=1, high_count=2,
-            medium_count=1, low_count=1, info_count=0,
+            critical_count=1,
+            high_count=2,
+            medium_count=1,
+            low_count=1,
+            info_count=0,
         )
         assert graph.target == "test.com"
         assert graph.total_vulnerabilities == 5
@@ -78,10 +93,15 @@ class TestAttackGraph:
 
     def test_frozen(self) -> None:
         graph = AttackGraph(
-            nodes=[], edges=[], target="t",
+            nodes=[],
+            edges=[],
+            target="t",
             total_vulnerabilities=0,
-            critical_count=0, high_count=0,
-            medium_count=0, low_count=0, info_count=0,
+            critical_count=0,
+            high_count=0,
+            medium_count=0,
+            low_count=0,
+            info_count=0,
         )
         with pytest.raises(AttributeError):
             graph.target = "changed"  # type: ignore[misc]
@@ -236,9 +256,14 @@ class TestRunOnceLogging:
 
     def test_file_not_found_logs_error(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         import argparse
+
         args = argparse.Namespace(
             findings_file=str(tmp_path / "missing.json"),
-            target="test.com", output=None, png=None, svg=None, dot=None,
+            target="test.com",
+            output=None,
+            png=None,
+            svg=None,
+            dot=None,
         )
         with caplog.at_level("ERROR"):
             result = run_once(args)
@@ -247,11 +272,16 @@ class TestRunOnceLogging:
 
     def test_invalid_json_logs_error(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         import argparse
+
         bad = tmp_path / "bad.json"
         bad.write_text("not json {{{", encoding="utf-8")
         args = argparse.Namespace(
             findings_file=str(bad),
-            target="test.com", output=None, png=None, svg=None, dot=None,
+            target="test.com",
+            output=None,
+            png=None,
+            svg=None,
+            dot=None,
         )
         with caplog.at_level("ERROR"):
             result = run_once(args)
@@ -260,12 +290,16 @@ class TestRunOnceLogging:
 
     def test_png_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         import argparse
+
         findings = tmp_path / "findings.json"
         findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
         args = argparse.Namespace(
             findings_file=str(findings),
-            target="test.com", output=None,
-            png=str(tmp_path / "out.png"), svg=None, dot=None,
+            target="test.com",
+            output=None,
+            png=str(tmp_path / "out.png"),
+            svg=None,
+            dot=None,
         )
         with caplog.at_level("INFO", logger="mytools.attackanalysis"):
             result = run_once(args)
@@ -274,12 +308,16 @@ class TestRunOnceLogging:
 
     def test_svg_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         import argparse
+
         findings = tmp_path / "findings.json"
         findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
         args = argparse.Namespace(
             findings_file=str(findings),
-            target="test.com", output=None,
-            png=None, svg=str(tmp_path / "out.svg"), dot=None,
+            target="test.com",
+            output=None,
+            png=None,
+            svg=str(tmp_path / "out.svg"),
+            dot=None,
         )
         with caplog.at_level("INFO", logger="mytools.attackanalysis"):
             result = run_once(args)
@@ -288,12 +326,16 @@ class TestRunOnceLogging:
 
     def test_dot_saved_logs_info(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         import argparse
+
         findings = tmp_path / "findings.json"
         findings.write_text('[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8")
         args = argparse.Namespace(
             findings_file=str(findings),
-            target="test.com", output=None,
-            png=None, svg=None, dot=str(tmp_path / "out.dot"),
+            target="test.com",
+            output=None,
+            png=None,
+            svg=None,
+            dot=str(tmp_path / "out.dot"),
         )
         with caplog.at_level("INFO", logger="mytools.attackanalysis"):
             result = run_once(args)
@@ -304,6 +346,7 @@ class TestRunOnceLogging:
 class TestJsonOutput:
     def test_json_output_high_severity(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         import argparse
+
         findings = tmp_path / "findings.json"
         findings.write_text(
             '[{"severity": "high", "category": "xss", "item": "XSS Reflected", "exploit": "curl <TARGET>"}]',
@@ -311,7 +354,11 @@ class TestJsonOutput:
         )
         args = argparse.Namespace(
             findings_file=str(findings),
-            target="test.com", output=None, png=None, svg=None, dot=None,
+            target="test.com",
+            output=None,
+            png=None,
+            svg=None,
+            dot=None,
             json_output=True,
         )
         result = run_once(args)
@@ -323,6 +370,7 @@ class TestJsonOutput:
 
     def test_json_output_low_severity(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         import argparse
+
         findings = tmp_path / "findings.json"
         findings.write_text(
             '[{"severity": "low", "category": "info", "item": "Info Leak"}]',
@@ -330,7 +378,11 @@ class TestJsonOutput:
         )
         args = argparse.Namespace(
             findings_file=str(findings),
-            target="test.com", output=None, png=None, svg=None, dot=None,
+            target="test.com",
+            output=None,
+            png=None,
+            svg=None,
+            dot=None,
             json_output=True,
         )
         result = run_once(args)
@@ -341,11 +393,16 @@ class TestJsonOutput:
 
     def test_json_output_no_print_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         import argparse
+
         findings = tmp_path / "findings.json"
-        findings.write_text('[]', encoding="utf-8")
+        findings.write_text("[]", encoding="utf-8")
         args = argparse.Namespace(
             findings_file=str(findings),
-            target="test.com", output=None, png=None, svg=None, dot=None,
+            target="test.com",
+            output=None,
+            png=None,
+            svg=None,
+            dot=None,
             json_output=True,
         )
         run_once(args)

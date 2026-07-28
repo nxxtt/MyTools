@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Header Injection via URL params."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,18 +45,32 @@ class TestMarker:
 class TestHeaderInjectAttempt:
     def test_frozen(self) -> None:
         a = HeaderInjectAttempt(
-            technique="test", category="param_reflected", param_name="X-Injected",
-            param_value="test", injected_header="", status=200, size=100,
-            vulnerable=True, details="test", error="",
+            technique="test",
+            category="param_reflected",
+            param_name="X-Injected",
+            param_value="test",
+            injected_header="",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         a = HeaderInjectAttempt(
-            technique="test", category="param_reflected", param_name="X-Injected",
-            param_value="test", injected_header="", status=200, size=100,
-            vulnerable=True, details="test", error="",
+            technique="test",
+            category="param_reflected",
+            param_name="X-Injected",
+            param_value="test",
+            injected_header="",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
@@ -63,9 +78,13 @@ class TestHeaderInjectAttempt:
 class TestHeaderInjectResult:
     def test_frozen(self) -> None:
         r = HeaderInjectResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -92,6 +111,7 @@ class TestBaseline:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -125,6 +145,7 @@ class TestParamReflected:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -162,7 +183,7 @@ class TestRedirectHeader:
         mock_resp = MagicMock()
         mock_resp.status_code = 302
         mock_resp.content = b""
-        mock_resp.headers = {"location": f"http://evil.com/?{ _MARKER}"}
+        mock_resp.headers = {"location": f"http://evil.com/?{_MARKER}"}
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(return_value=mock_resp)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -215,15 +236,25 @@ class TestBypass:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = HeaderInjectResult(
-            target="https://test.com", tls=True,
-            attempts=[HeaderInjectAttempt(
-                technique="x_injected", category="param_reflected",
-                param_name="X-Injected", param_value="test",
-                injected_header="", status=200, size=100,
-                vulnerable=True, details="Header injetado", error="",
-            )],
+            target="https://test.com",
+            tls=True,
+            attempts=[
+                HeaderInjectAttempt(
+                    technique="x_injected",
+                    category="param_reflected",
+                    param_name="X-Injected",
+                    param_value="test",
+                    injected_header="",
+                    status=200,
+                    size=100,
+                    vulnerable=True,
+                    details="Header injetado",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["x_injected"],
-            blocked_techniques=[], issues=[],
+            blocked_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -233,9 +264,13 @@ class TestPrintResults:
 
     def test_no_vulns_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = HeaderInjectResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -243,8 +278,11 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = HeaderInjectResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
             issues=["Nenhum teste retornou resultado claro"],
             overall_status="unknown",
         )
@@ -284,5 +322,6 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
         from mytools.web.headerinject import run_once
+
         result = run_once(args)
         assert result == 0

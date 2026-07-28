@@ -11,6 +11,7 @@ Fluxo principal:
   3. Consolida, ordena por data e exibe tabela
   4. Salva saida em JSON se --output especificado
 """
+
 import argparse
 import contextlib
 import json
@@ -127,18 +128,20 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
             with contextlib.suppress(ValueError, OSError):
                 expires = datetime.fromtimestamp(item["expiresDate"] / 1000, tz=UTC).strftime("%Y-%m-%d")
 
-        records.append(WhoisHistoryRecord(
-            domain=domain,
-            date=date_str,
-            registrar=registrar,
-            registrant_name=registrant_name,
-            registrant_org=registrant_org,
-            registrant_country=registrant_country,
-            name_servers=name_servers,
-            created_date=created,
-            expires_date=expires,
-            source="securitytrails",
-        ))
+        records.append(
+            WhoisHistoryRecord(
+                domain=domain,
+                date=date_str,
+                registrar=registrar,
+                registrant_name=registrant_name,
+                registrant_org=registrant_org,
+                registrant_country=registrant_country,
+                name_servers=name_servers,
+                created_date=created,
+                expires_date=expires,
+                source="securitytrails",
+            )
+        )
 
     return records
 
@@ -179,20 +182,22 @@ def _parse_whoisxml(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
         expires = item.get("expiresDateISO8601", "")[:10] if item.get("expiresDateISO8601") else ""
         updated = item.get("updatedDateISO8601", "")[:10] if item.get("updatedDateISO8601") else ""
 
-        records.append(WhoisHistoryRecord(
-            domain=domain,
-            date=date_str,
-            registrar=item.get("registrarName", ""),
-            registrant_name=registrant_name,
-            registrant_org=registrant_org,
-            registrant_country=registrant_country,
-            name_servers=name_servers,
-            status=status_str,
-            created_date=created[:10] if created else "",
-            expires_date=expires,
-            updated_date=updated,
-            source="whoisxml",
-        ))
+        records.append(
+            WhoisHistoryRecord(
+                domain=domain,
+                date=date_str,
+                registrar=item.get("registrarName", ""),
+                registrant_name=registrant_name,
+                registrant_org=registrant_org,
+                registrant_country=registrant_country,
+                name_servers=name_servers,
+                status=status_str,
+                created_date=created[:10] if created else "",
+                expires_date=expires,
+                updated_date=updated,
+                source="whoisxml",
+            )
+        )
 
     return records
 
@@ -293,9 +298,7 @@ def run_history(
         return []
 
     keys = api_keys or {}
-    return safe_asyncio_run(
-        _query_all_sources(domain, sources, keys, timeout)
-    )
+    return safe_asyncio_run(_query_all_sources(domain, sources, keys, timeout))
 
 
 # ---------------------------------------------------------------------------
@@ -330,15 +333,18 @@ def _print_history(records: list[WhoisHistoryRecord]) -> None:
 
     print_table(
         headers=("Date", "Registrar", "Registrant", "Org", "Country", "NS (5)", "Source"),
-        rows=[(
-            r.date or "-",
-            (r.registrar or "-")[:25],
-            (r.registrant_name or "-")[:20],
-            (r.registrant_org or "-")[:20],
-            (r.registrant_country or "-")[:12],
-            (r.name_servers or "-")[:30],
-            r.source,
-        ) for r in records],
+        rows=[
+            (
+                r.date or "-",
+                (r.registrar or "-")[:25],
+                (r.registrant_name or "-")[:20],
+                (r.registrant_org or "-")[:20],
+                (r.registrant_country or "-")[:12],
+                (r.name_servers or "-")[:30],
+                r.source,
+            )
+            for r in records
+        ],
         column_styles=[
             (Cyber.YELLOW,),
             (Cyber.CYAN,),

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Cache Poisoning."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -215,10 +216,20 @@ class TestCacheAttempt:
 
     def test_immutable(self) -> None:
         attempt = CacheAttempt(
-            technique="test", category="host", payload="p",
-            param="data", method="get_headers", status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100, status_changed=False,
-            size_changed=False, vulnerable=False, details="", error="",
+            technique="test",
+            category="host",
+            payload="p",
+            param="data",
+            method="get_headers",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             attempt.technique = "changed"  # type: ignore[misc]
@@ -244,9 +255,15 @@ class TestCacheResult:
 
     def test_immutable(self) -> None:
         result = CacheResult(
-            target="t", baseline_status=200, baseline_size=100,
-            tls=True, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.target = "changed"  # type: ignore[misc]
@@ -293,6 +310,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -320,6 +338,7 @@ class TestTestHost:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -346,6 +365,7 @@ class TestTestPath:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -372,6 +392,7 @@ class TestTestHeader:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -398,6 +419,7 @@ class TestTestEncoding:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
 
@@ -424,6 +446,7 @@ class TestTestBypass:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -443,11 +466,19 @@ class TestPrintResults:
             tls=True,
             attempts=[
                 CacheAttempt(
-                    technique="xfwd_host", category="host",
-                    payload='{"X-Forwarded-Host": "evil.com"}', param="data",
-                    method="get_headers", status_baseline=200, status_test=200,
-                    size_baseline=100, size_test=200, status_changed=False,
-                    size_changed=True, vulnerable=True, details="evil.com found",
+                    technique="xfwd_host",
+                    category="host",
+                    payload='{"X-Forwarded-Host": "evil.com"}',
+                    param="data",
+                    method="get_headers",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=False,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="evil.com found",
                     error="",
                 ),
             ],
@@ -504,19 +535,15 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_returns_int(self) -> None:
-        with patch("sys.argv", ["mytools-cachepoison"]), \
-             patch("mytools.web.cachepoisoning.run_main_loop", return_value=0) as mock_loop:
+        with patch("sys.argv", ["mytools-cachepoison"]), patch("mytools.web.cachepoisoning.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert isinstance(result, int)
             mock_loop.assert_called_once()
 
     def test_main_passes_args(self) -> None:
-        with patch("sys.argv", ["mytools-cachepoison", "https://example.com"]), \
-             patch("mytools.web.cachepoisoning.run_main_loop", return_value=0):
+        with patch("sys.argv", ["mytools-cachepoison", "https://example.com"]), patch("mytools.web.cachepoisoning.run_main_loop", return_value=0):
             result = main()
             assert result == 0
-
-
 
 
 class TestCdnPayloads:
@@ -686,6 +713,7 @@ class TestIntegration:
 
         with patch("mytools.web.cachepoisoning.safe_asyncio_run", return_value=0) as mock_run:
             from mytools.web.cachepoisoning import run_once
+
             result = run_once(args)
             assert result == 0
             mock_run.assert_called_once()
@@ -701,5 +729,6 @@ class TestIntegration:
 
         with patch("mytools.web.cachepoisoning.safe_asyncio_run", return_value=0):
             from mytools.web.cachepoisoning import run_once
+
             result = run_once(args)
             assert result == 0

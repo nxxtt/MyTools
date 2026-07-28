@@ -82,11 +82,37 @@ def _detect_leak(body: bytes) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 _LFI_PARAMS_DEFAULT: list[str] = [
-    "file", "page", "include", "path", "doc", "folder", "root",
-    "pg", "style", "pdf", "template", "php_path", "lang",
-    "load", "fetch", "show", "display", "read", "source", "content",
-    "cat", "dir", "action", "cmd", "exec", "command", "module",
-    "lib", "tmp", "temp", "log",
+    "file",
+    "page",
+    "include",
+    "path",
+    "doc",
+    "folder",
+    "root",
+    "pg",
+    "style",
+    "pdf",
+    "template",
+    "php_path",
+    "lang",
+    "load",
+    "fetch",
+    "show",
+    "display",
+    "read",
+    "source",
+    "content",
+    "cat",
+    "dir",
+    "action",
+    "cmd",
+    "exec",
+    "command",
+    "module",
+    "lib",
+    "tmp",
+    "temp",
+    "log",
 ]
 
 _LFI_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
@@ -118,12 +144,14 @@ _RFI_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
 
 def _load_lfi_params() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "lfi_rfi", default={"lfi_params": _LFI_PARAMS_DEFAULT})
     return data.get("lfi_params", _LFI_PARAMS_DEFAULT)
 
 
 def _load_lfi_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "lfi_rfi", default={"lfi_payloads": _LFI_PAYLOADS_DEFAULT})
     raw = data.get("lfi_payloads", _LFI_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
@@ -131,6 +159,7 @@ def _load_lfi_payloads() -> list[tuple[str, str]]:
 
 def _load_rfi_payloads() -> list[tuple[str, str]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "lfi_rfi", default={"rfi_payloads": _RFI_PAYLOADS_DEFAULT})
     raw = data.get("rfi_payloads", _RFI_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
@@ -187,7 +216,8 @@ class LFIFindings:
 
 
 async def _test_baseline(
-    client: httpx.AsyncClient, url: str,
+    client: httpx.AsyncClient,
+    url: str,
 ) -> tuple[int, int, bytes]:
     """Envia requisicao baseline para obter resposta de referencia."""
     try:
@@ -251,11 +281,7 @@ async def _test_lfi(
                 vulnerable = leak_detected or (status_changed and t_status == 200)
 
                 # Second-order verification for leak-based detection
-                details = (
-                    f"Leak: {leak_type}" if leak_detected
-                    else f"Status {b_status}->{t_status}" if status_changed
-                    else "Sem mudanca"
-                )
+                details = f"Leak: {leak_type}" if leak_detected else f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca"
                 if leak_detected:
                     verify = get_verify_payload("lfidetect", "lfi")
                     if verify:
@@ -276,42 +302,46 @@ async def _test_lfi(
                     exploit = f"curl '{test_url}'"
                     tool = "curl"
 
-                attempts.append(LFIAttempt(
-                    technique=technique,
-                    category="lfi",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    body_leak_detected=leak_detected,
-                    body_leak_type=leak_type,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                    exploit=exploit,
-                    tool=tool,
-                ))
+                attempts.append(
+                    LFIAttempt(
+                        technique=technique,
+                        category="lfi",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        body_leak_detected=leak_detected,
+                        body_leak_type=leak_type,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                        exploit=exploit,
+                        tool=tool,
+                    )
+                )
 
             except httpx.RequestError as exc:
-                attempts.append(LFIAttempt(
-                    technique=technique,
-                    category="lfi",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    body_leak_detected=False,
-                    body_leak_type="none",
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    LFIAttempt(
+                        technique=technique,
+                        category="lfi",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        body_leak_detected=False,
+                        body_leak_type="none",
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -346,11 +376,7 @@ async def _test_rfi(
                 vulnerable = leak_detected or (status_changed and t_status == 200)
 
                 # Second-order verification for leak-based detection
-                details = (
-                    f"Leak: {leak_type}" if leak_detected
-                    else f"Status {b_status}->{t_status}" if status_changed
-                    else "Sem mudanca"
-                )
+                details = f"Leak: {leak_type}" if leak_detected else f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca"
                 if leak_detected:
                     verify = get_verify_payload("lfidetect", "rfi")
                     if verify:
@@ -371,42 +397,46 @@ async def _test_rfi(
                     exploit = f"curl '{test_url}'"
                     tool = "curl"
 
-                attempts.append(LFIAttempt(
-                    technique=technique,
-                    category="rfi",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    body_leak_detected=leak_detected,
-                    body_leak_type=leak_type,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                    exploit=exploit,
-                    tool=tool,
-                ))
+                attempts.append(
+                    LFIAttempt(
+                        technique=technique,
+                        category="rfi",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        body_leak_detected=leak_detected,
+                        body_leak_type=leak_type,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                        exploit=exploit,
+                        tool=tool,
+                    )
+                )
 
             except httpx.RequestError as exc:
-                attempts.append(LFIAttempt(
-                    technique=technique,
-                    category="rfi",
-                    injection_point=f"param:{param}",
-                    url=test_url,
-                    payload=payload,
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    body_leak_detected=False,
-                    body_leak_type="none",
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    LFIAttempt(
+                        technique=technique,
+                        category="rfi",
+                        injection_point=f"param:{param}",
+                        url=test_url,
+                        payload=payload,
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        body_leak_detected=False,
+                        body_leak_type="none",
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -593,7 +623,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", nargs="?", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=["lfi", "rfi", "all"],
         default="all",
         help="Categoria de testes (default: all)",

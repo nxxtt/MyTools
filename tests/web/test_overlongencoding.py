@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Overlong UTF-8 Encoding Bypass."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -294,6 +295,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
@@ -315,7 +317,9 @@ class TestTestOverlongUrl:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_overlong_url(
-            client, "https://example.com/admin", (200, 1000, b""),
+            client,
+            "https://example.com/admin",
+            (200, 1000, b""),
         )
         assert len(attempts) > 0
         assert all(isinstance(a, OverlongAttempt) for a in attempts)
@@ -329,7 +333,9 @@ class TestTestOverlongUrl:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_overlong_url(
-            client, "https://example.com/admin", (404, 100, b""),
+            client,
+            "https://example.com/admin",
+            (404, 100, b""),
         )
         vulnerable = [a for a in attempts if a.vulnerable]
         assert len(vulnerable) > 0
@@ -348,7 +354,9 @@ class TestTestOverlongParams:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_overlong_params(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -365,7 +373,9 @@ class TestTestOverlongHeaders:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_overlong_headers(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -382,7 +392,9 @@ class TestTestOverlongWaf:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_overlong_waf(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -452,8 +464,7 @@ class TestMain:
     """Testes para main."""
 
     def test_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-overlong"]), \
-             patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop:
+        with patch("sys.argv", ["mytools-overlong"]), patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()

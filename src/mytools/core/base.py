@@ -8,6 +8,7 @@ Fornece:
 
 Logger fica module-level em cada arquivo (compativel com codigo existente).
 """
+
 from __future__ import annotations
 
 import argparse

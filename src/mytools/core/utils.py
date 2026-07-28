@@ -18,6 +18,7 @@ Padroes de design:
   - RateLimiter notificado em 429 aumenta delay com backoff exponencial
   - safe_asyncio_run() funciona mesmo com event loop ativo (Jupyter/REPL)
 """
+
 import argparse
 import asyncio
 import base64
@@ -60,6 +61,7 @@ def _read_version() -> str:
 
 
 __version__ = _read_version()
+
 
 def _load_security_headers() -> list[str]:
     """Carrega SECURITY_HEADERS de YAML com fallback."""
@@ -158,6 +160,7 @@ def run_main_loop(
 
         from mytools.data import load_payloads
         from mytools.data.loader import _DATA_DIR, dump_registry
+
         for sub in sorted(p.name for p in _DATA_DIR.iterdir() if p.is_dir() and not p.name.startswith("_")):
             for ext in ("*.yaml", "*.yml", "*.json"):
                 for yaml_file in sorted((_DATA_DIR / sub).glob(ext)):
@@ -166,7 +169,9 @@ def run_main_loop(
         return 0
     if not has_target(args):
         return run_interactive_shell(
-            parser, prompt, run_fn,
+            parser,
+            prompt,
+            run_fn,
             description=description,
             example=example,
             validate_fn=validate_fn,
@@ -351,7 +356,7 @@ class RateLimiter:
         """Bloqueia ate que o intervalo minimo entre requests tenha passado."""
         effective_interval = self._min_interval * self._backoff_multiplier
         if self._jitter > 0 and effective_interval > 0:
-            effective_interval *= (1.0 + random.uniform(-self._jitter, self._jitter))
+            effective_interval *= 1.0 + random.uniform(-self._jitter, self._jitter)
         if effective_interval <= 0:
             self._last_request_time = time.monotonic()
             return
@@ -569,9 +574,7 @@ def parse_int_range(
 
     invalid = [v for v in result if v < min_val or v > max_val]
     if invalid:
-        raise argparse.ArgumentTypeError(
-            f"{error_label}s invalidos: {', '.join(map(str, sorted(invalid)))}"
-        )
+        raise argparse.ArgumentTypeError(f"{error_label}s invalidos: {', '.join(map(str, sorted(invalid)))}")
     if not result:
         raise argparse.ArgumentTypeError(f"informe pelo menos um {error_label}")
     return sorted(result)
@@ -584,7 +587,7 @@ def extract_title(text: str) -> str:
     end = lower.find("</title>", start + 7)
     if start == -1 or end == -1:
         return ""
-    return " ".join(text[start + 7:end].strip().split())[:100]
+    return " ".join(text[start + 7 : end].strip().split())[:100]
 
 
 def show_banner(art: str, subtitle: str) -> None:
@@ -595,10 +598,12 @@ def show_banner(art: str, subtitle: str) -> None:
 
 def create_banner(art: str, subtitle: str, extra: Callable[[], None] | None = None) -> Callable[[], None]:
     """Cria uma funcao de banner reutilizavel a partir de art e subtitle."""
+
     def _banner() -> None:
         show_banner(art, subtitle)
         if extra:
             extra()
+
     return _banner
 
 
@@ -627,10 +632,7 @@ def print_table(
     if alignments is None:
         alignments = ["left"] * len(headers)
 
-    widths = [
-        max(len(headers[i]), *(len(row[i]) for row in rows))
-        for i in range(len(headers))
-    ]
+    widths = [max(len(headers[i]), *(len(row[i]) for row in rows)) for i in range(len(headers))]
 
     print()
     print(color("  ".join(header.ljust(widths[i]) for i, header in enumerate(headers)), Cyber.CYAN, Cyber.BOLD))
@@ -691,10 +693,7 @@ def resolve_cred(value: str) -> str:
     """
     if not value.startswith("@"):
         if _SECRET_PATTERNS.search(value):
-            logger.warning(
-                "Segredo em texto puro detectado. "
-                "Use keyring: mytools-cred set <nome> e depois @<nome>"
-            )
+            logger.warning("Segredo em texto puro detectado. Use keyring: mytools-cred set <nome> e depois @<nome>")
         return value
     name = value[1:]
     if not name:
@@ -877,9 +876,17 @@ def validate_stealth_args(args: argparse.Namespace, module_type: str | None = No
     compat = _STEALTH_COMPAT.get(module_type, _STEALTH_COMPAT["core"])
 
     stealth_flags = [
-        "random_delay", "jitter", "user_agent_rotate", "impersonate",
-        "fragment", "fragment_tcp", "tor", "waf_evasion", "pad_headers",
-        "src_port_random", "rate_limit",
+        "random_delay",
+        "jitter",
+        "user_agent_rotate",
+        "impersonate",
+        "fragment",
+        "fragment_tcp",
+        "tor",
+        "waf_evasion",
+        "pad_headers",
+        "src_port_random",
+        "rate_limit",
     ]
     flag_to_compat = {
         "random_delay": "random-delay",
@@ -1133,10 +1140,7 @@ def safe_asyncio_run(coro: Any) -> Any:
         try:
             return future.result(timeout=300)
         except concurrent.futures.TimeoutError:
-            raise RuntimeError(
-                "Timeout ao executar coroutine em thread separada (300s). "
-                "Se estiver usando Jupyter, considere nest_asyncio."
-            ) from None
+            raise RuntimeError("Timeout ao executar coroutine em thread separada (300s). Se estiver usando Jupyter, considere nest_asyncio.") from None
 
 
 _BUILTIN_COMMANDS = ("clear", "exit", "help", "quit")
@@ -1154,10 +1158,12 @@ def _setup_readline(
     _readline: Any = None
     try:
         import readline
+
         _readline = readline
     except ModuleNotFoundError:
         try:
             import pyreadline3
+
             _readline = pyreadline3
         except ModuleNotFoundError:
             return
@@ -1237,4 +1243,3 @@ def run_interactive_shell(
         except Exception as error:
             logger.debug("excecao inesperada no shell interativo", exc_info=True)
             print(color(f"Erro: {error}", Cyber.RED))
-

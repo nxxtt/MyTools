@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo OIDC Attack Detection."""
+
 from __future__ import annotations
 
 import pytest
@@ -71,11 +72,17 @@ def test_parse_json_response_empty() -> None:
 
 def test_attempt_dataclass_frozen() -> None:
     a = OIDCAttempt(
-        technique="test", category="discovery",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=100,
-        status_changed=False, size_changed=False,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="discovery",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=False,
+        size_changed=False,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -83,22 +90,33 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = OIDCAttempt(
-        technique="test", category="discovery",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=100,
-        status_changed=False, size_changed=False,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="discovery",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=False,
+        size_changed=False,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = OIDCResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        well_known_url=None, well_known_data=None,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        well_known_url=None,
+        well_known_data=None,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     with pytest.raises(AttributeError):
@@ -107,11 +125,16 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = OIDCResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        well_known_url=None, well_known_data=None,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        well_known_url=None,
+        well_known_data=None,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     assert not hasattr(r, "__dict__")

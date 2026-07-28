@@ -60,7 +60,7 @@ class TestDetectTool:
         assert detect_tool(html, {}) == "graphiql"
 
     def test_playground_title(self):
-        html = '<title>GraphQL Playground</title>'
+        html = "<title>GraphQL Playground</title>"
         assert detect_tool(html, {}) == "playground"
 
     def test_playground_div(self):
@@ -72,7 +72,7 @@ class TestDetectTool:
         assert detect_tool(html, {}) == "altair"
 
     def test_altair_window(self):
-        html = 'window.altair = new AltairGraphQL()'
+        html = "window.altair = new AltairGraphQL()"
         assert detect_tool(html, {}) == "altair"
 
     def test_voyager_div(self):
@@ -163,13 +163,7 @@ class TestParseIntrospection:
         assert types[0] == "Post (OBJECT)"
 
     def test_no_query_type(self):
-        data = {
-            "data": {
-                "__schema": {
-                    "types": [{"name": "Item", "kind": "OBJECT"}]
-                }
-            }
-        }
+        data = {"data": {"__schema": {"types": [{"name": "Item", "kind": "OBJECT"}]}}}
         types, query, _mutation, _subscription = parse_introspection(data)  # type: ignore[reportArgumentType]
         assert types == ["Item (OBJECT)"]
         assert query == ""

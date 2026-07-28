@@ -15,6 +15,7 @@ Fluxo:
   4. Classifica: vulnerable, blocked, error
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import logging
 from dataclasses import asdict, dataclass
@@ -83,27 +84,35 @@ async def _test_user_agent(
                 vulnerable = True
                 details = f"User-Agent refletido no body: {header_value[:80]}"
 
-            results.append(LogInjectAttempt(
-            exploit="%0a[IMPORTANT] fake log entry",
-            tool="curl",
-                technique=technique,
-                category="user_agent",
-                header_name=header_name,
-                payload=header_value,
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                LogInjectAttempt(
+                    exploit="%0a[IMPORTANT] fake log entry",
+                    tool="curl",
+                    technique=technique,
+                    category="user_agent",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(LogInjectAttempt(
-                technique=technique,
-                category="user_agent",
-                header_name=header_name,
-                payload=header_value,
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                LogInjectAttempt(
+                    technique=technique,
+                    category="user_agent",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -134,27 +143,35 @@ async def _test_referer(
                 vulnerable = True
                 details = f"Referer refletido no body: {header_value[:80]}"
 
-            results.append(LogInjectAttempt(
-            exploit="%0a[IMPORTANT] fake log entry",
-            tool="curl",
-                technique=technique,
-                category="referer",
-                header_name=header_name,
-                payload=header_value,
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                LogInjectAttempt(
+                    exploit="%0a[IMPORTANT] fake log entry",
+                    tool="curl",
+                    technique=technique,
+                    category="referer",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(LogInjectAttempt(
-                technique=technique,
-                category="referer",
-                header_name=header_name,
-                payload=header_value,
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                LogInjectAttempt(
+                    technique=technique,
+                    category="referer",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -185,27 +202,35 @@ async def _test_custom_header(
                 vulnerable = True
                 details = f"Custom header refletido no body: {header_name}: {header_value}"
 
-            results.append(LogInjectAttempt(
-            exploit="%0a[IMPORTANT] fake log entry",
-            tool="curl",
-                technique=technique,
-                category="custom_header",
-                header_name=header_name,
-                payload=header_value,
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                LogInjectAttempt(
+                    exploit="%0a[IMPORTANT] fake log entry",
+                    tool="curl",
+                    technique=technique,
+                    category="custom_header",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(LogInjectAttempt(
-                technique=technique,
-                category="custom_header",
-                header_name=header_name,
-                payload=header_value,
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                LogInjectAttempt(
+                    technique=technique,
+                    category="custom_header",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -237,27 +262,35 @@ async def _test_url_path(
                 vulnerable = True
                 details = f"Path payload refletido no body: {path}"
 
-            results.append(LogInjectAttempt(
-            exploit="%0a[IMPORTANT] fake log entry",
-            tool="curl",
-                technique=technique,
-                category="url_path",
-                header_name="URL",
-                payload=path,
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                LogInjectAttempt(
+                    exploit="%0a[IMPORTANT] fake log entry",
+                    tool="curl",
+                    technique=technique,
+                    category="url_path",
+                    header_name="URL",
+                    payload=path,
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(LogInjectAttempt(
-                technique=technique,
-                category="url_path",
-                header_name="URL",
-                payload=path,
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                LogInjectAttempt(
+                    technique=technique,
+                    category="url_path",
+                    header_name="URL",
+                    payload=path,
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -288,33 +321,42 @@ async def _test_bypass(
                 vulnerable = True
                 details = f"Bypass via {header_name}: payload refletido"
 
-            results.append(LogInjectAttempt(
-            exploit="%0a[IMPORTANT] fake log entry",
-            tool="curl",
-                technique=technique,
-                category="bypass",
-                header_name=header_name,
-                payload=header_value,
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                LogInjectAttempt(
+                    exploit="%0a[IMPORTANT] fake log entry",
+                    tool="curl",
+                    technique=technique,
+                    category="bypass",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(LogInjectAttempt(
-                technique=technique,
-                category="bypass",
-                header_name=header_name,
-                payload=header_value,
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                LogInjectAttempt(
+                    technique=technique,
+                    category="bypass",
+                    header_name=header_name,
+                    payload=header_value,
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
 @dataclass(frozen=True, slots=True)
 class LogInjectAttempt:
     """Tentativa individual de Log Injection."""
+
     technique: str
     category: str
     header_name: str
@@ -331,6 +373,7 @@ class LogInjectAttempt:
 @dataclass(frozen=True, slots=True)
 class LogInjectResult:
     """Resultado consolidado do scan de Log Injection."""
+
     target: str
     tls: bool
     attempts: list[LogInjectAttempt]
@@ -425,7 +468,8 @@ async def run_scan(
         print_results(result)
         logger.info(
             "Log Injection scan concluido: %d testes, %d vulneraveis",
-            len(all_attempts), len(vuln_techs),
+            len(all_attempts),
+            len(vuln_techs),
         )
 
         if output_file:
@@ -463,7 +507,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para o scan")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         default="all",
         choices=["all", "user_agent", "referer", "custom_header", "url_path", "bypass"],
         help="Categoria de testes (default: todas)",

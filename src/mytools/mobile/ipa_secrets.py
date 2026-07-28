@@ -46,11 +46,13 @@ def _check_plist_values(
                 value = match.group().decode("utf-8", errors="replace")[:100]
                 if value not in seen:
                     seen.add(value)
-                    findings.append({
-                        "pattern": pattern_name,
-                        "value": value,
-                        "source": source,
-                    })
+                    findings.append(
+                        {
+                            "pattern": pattern_name,
+                            "value": value,
+                            "source": source,
+                        }
+                    )
     elif isinstance(obj, dict):
         for v in obj.values():
             _check_plist_values(v, source, findings, seen)
@@ -87,11 +89,13 @@ def detect_ipa_secrets(file_path: str) -> dict[str, Any]:
                                 value = match.group().decode("utf-8", errors="replace")[:100]
                                 if value not in seen_values:
                                     seen_values.add(value)
-                                    findings.append({
-                                        "pattern": pattern_name,
-                                        "value": value,
-                                        "source": name,
-                                    })
+                                    findings.append(
+                                        {
+                                            "pattern": pattern_name,
+                                            "value": value,
+                                            "source": name,
+                                        }
+                                    )
                     except Exception:
                         pass
 
@@ -107,11 +111,13 @@ def detect_ipa_secrets(file_path: str) -> dict[str, Any]:
                                 value = match.group().decode("utf-8", errors="replace")[:100]
                                 if value not in seen_values:
                                     seen_values.add(value)
-                                    findings.append({
-                                        "pattern": pattern_name,
-                                        "value": value,
-                                        "source": name,
-                                    })
+                                    findings.append(
+                                        {
+                                            "pattern": pattern_name,
+                                            "value": value,
+                                            "source": name,
+                                        }
+                                    )
                     except Exception:
                         continue
 

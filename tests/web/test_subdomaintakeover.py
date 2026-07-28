@@ -132,6 +132,7 @@ class TestEnumerateWordlist:
 
     def test_extra_wordlist(self, tmp_path: object) -> None:
         import pathlib
+
         wl = pathlib.Path(str(tmp_path)) / "extra.txt"
         wl.write_text("custom1\ncustom2\n# comment\n\n")
         subs = _enumerate_wordlist("example.com", str(wl))
@@ -184,7 +185,9 @@ class TestEnumerateCrtsh:
         mock_resp = MagicMock()
         mock_resp.status_code = 429
         mock_resp.raise_for_status.side_effect = __import__("httpx").HTTPStatusError(
-            message="429", request=MagicMock(), response=mock_resp,
+            message="429",
+            request=MagicMock(),
+            response=mock_resp,
         )
         with patch("mytools.web.subdomaintakeover.httpx.get", return_value=mock_resp):
             result = _enumerate_crtsh("example.com")
@@ -228,7 +231,9 @@ class TestCheckHTTPFingerprint:
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
                 return await _check_http_fingerprint(
-                    client, "test.s3.amazonaws.com", ["NoSuchBucket"],
+                    client,
+                    "test.s3.amazonaws.com",
+                    ["NoSuchBucket"],
                 )
 
         status, match, sig = asyncio.run(run())
@@ -247,7 +252,9 @@ class TestCheckHTTPFingerprint:
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
                 return await _check_http_fingerprint(
-                    client, "test.example.com", ["NoSuchBucket"],
+                    client,
+                    "test.example.com",
+                    ["NoSuchBucket"],
                 )
 
         status, match, _sig = asyncio.run(run())
@@ -262,7 +269,9 @@ class TestCheckHTTPFingerprint:
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
                 return await _check_http_fingerprint(
-                    client, "test.example.com", ["NoSuchBucket"],
+                    client,
+                    "test.example.com",
+                    ["NoSuchBucket"],
                 )
 
         status, match, _sig = asyncio.run(run())
@@ -464,20 +473,24 @@ class TestRunScan:
 
     def test_vulnerable(self) -> None:
         async def run() -> TakeoverResult:
-            with patch(
-                "mytools.web.subdomaintakeover._enumerate_subdomains",
-                return_value=["test.example.com"],
-            ), patch(
-                "mytools.web.subdomaintakeover._resolve_cname",
-                return_value="test.s3.amazonaws.com",
-            ), patch(
-                "mytools.web.subdomaintakeover._get_services",
-                return_value={
-                    "s3": {
-                        "cname_suffix": ".s3.amazonaws.com",
-                        "http_signatures": ["NoSuchBucket"],
+            with (
+                patch(
+                    "mytools.web.subdomaintakeover._enumerate_subdomains",
+                    return_value=["test.example.com"],
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._resolve_cname",
+                    return_value="test.s3.amazonaws.com",
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._get_services",
+                    return_value={
+                        "s3": {
+                            "cname_suffix": ".s3.amazonaws.com",
+                            "http_signatures": ["NoSuchBucket"],
+                        },
                     },
-                },
+                ),
             ):
                 client = MagicMock()
                 resp = MagicMock()
@@ -497,20 +510,24 @@ class TestRunScan:
 
     def test_secure(self) -> None:
         async def run() -> TakeoverResult:
-            with patch(
-                "mytools.web.subdomaintakeover._enumerate_subdomains",
-                return_value=["test.example.com"],
-            ), patch(
-                "mytools.web.subdomaintakeover._resolve_cname",
-                return_value="test.example.com.cdn.cloudflare.net",
-            ), patch(
-                "mytools.web.subdomaintakeover._get_services",
-                return_value={
-                    "s3": {
-                        "cname_suffix": ".s3.amazonaws.com",
-                        "http_signatures": ["NoSuchBucket"],
+            with (
+                patch(
+                    "mytools.web.subdomaintakeover._enumerate_subdomains",
+                    return_value=["test.example.com"],
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._resolve_cname",
+                    return_value="test.example.com.cdn.cloudflare.net",
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._get_services",
+                    return_value={
+                        "s3": {
+                            "cname_suffix": ".s3.amazonaws.com",
+                            "http_signatures": ["NoSuchBucket"],
+                        },
                     },
-                },
+                ),
             ):
                 client = MagicMock()
                 client.aclose = AsyncMock()
@@ -524,15 +541,19 @@ class TestRunScan:
 
     def test_no_cname(self) -> None:
         async def run() -> TakeoverResult:
-            with patch(
-                "mytools.web.subdomaintakeover._enumerate_subdomains",
-                return_value=["test.example.com"],
-            ), patch(
-                "mytools.web.subdomaintakeover._resolve_cname",
-                return_value=None,
-            ), patch(
-                "mytools.web.subdomaintakeover._get_services",
-                return_value={"s3": {"cname_suffix": ".s3.amazonaws.com", "http_signatures": []}},
+            with (
+                patch(
+                    "mytools.web.subdomaintakeover._enumerate_subdomains",
+                    return_value=["test.example.com"],
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._resolve_cname",
+                    return_value=None,
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._get_services",
+                    return_value={"s3": {"cname_suffix": ".s3.amazonaws.com", "http_signatures": []}},
+                ),
             ):
                 client = MagicMock()
                 client.aclose = AsyncMock()

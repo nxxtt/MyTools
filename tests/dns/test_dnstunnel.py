@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de DNS Tunnel Detection."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,11 +36,20 @@ class TestTunnelResult:
 
     def test_frozen(self) -> None:
         r = TunnelResult(
-            domain="a", indicators=[], overall_severity="safe",
-            is_tunneling=False, confidence=0.0, labels_analyzed=0,
-            avg_label_length=0.0, max_label_length=0.0,
-            avg_entropy=0.0, max_entropy=0.0,
-            txt_ratio=0.0, base64_count=0, hex_count=0, nxdomain_ratio=0.0,
+            domain="a",
+            indicators=[],
+            overall_severity="safe",
+            is_tunneling=False,
+            confidence=0.0,
+            labels_analyzed=0,
+            avg_label_length=0.0,
+            max_label_length=0.0,
+            avg_entropy=0.0,
+            max_entropy=0.0,
+            txt_ratio=0.0,
+            base64_count=0,
+            hex_count=0,
+            nxdomain_ratio=0.0,
         )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
@@ -176,11 +186,20 @@ class TestPrintResults:
 
     def test_safe(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TunnelResult(
-            domain="example.com", indicators=[], overall_severity="safe",
-            is_tunneling=False, confidence=0.0, labels_analyzed=100,
-            avg_label_length=8.0, max_label_length=15.0,
-            avg_entropy=2.5, max_entropy=3.0,
-            txt_ratio=0.2, base64_count=0, hex_count=0, nxdomain_ratio=0.1,
+            domain="example.com",
+            indicators=[],
+            overall_severity="safe",
+            is_tunneling=False,
+            confidence=0.0,
+            labels_analyzed=100,
+            avg_label_length=8.0,
+            max_label_length=15.0,
+            avg_entropy=2.5,
+            max_entropy=3.0,
+            txt_ratio=0.2,
+            base64_count=0,
+            hex_count=0,
+            nxdomain_ratio=0.1,
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -194,10 +213,18 @@ class TestPrintResults:
                 TunnelIndicator("avg_entropy", 4.2, 3.5, "high"),
                 TunnelIndicator("max_label_length", 55.0, 30.0, "high"),
             ],
-            overall_severity="high", is_tunneling=True, confidence=0.6,
-            labels_analyzed=100, avg_label_length=35.0, max_label_length=55.0,
-            avg_entropy=4.2, max_entropy=4.5,
-            txt_ratio=0.8, base64_count=15, hex_count=0, nxdomain_ratio=0.1,
+            overall_severity="high",
+            is_tunneling=True,
+            confidence=0.6,
+            labels_analyzed=100,
+            avg_label_length=35.0,
+            max_label_length=55.0,
+            avg_entropy=4.2,
+            max_entropy=4.5,
+            txt_ratio=0.8,
+            base64_count=15,
+            hex_count=0,
+            nxdomain_ratio=0.1,
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -212,9 +239,12 @@ class TestScanTunnel:
     def test_safe_result(self, mock_analyze: MagicMock, mock_gen: MagicMock) -> None:
         mock_gen.return_value = ["www", "mail", "api"]
         mock_analyze.return_value = {
-            "avg_length": 4.0, "max_length": 6.0,
-            "avg_entropy": 2.0, "max_entropy": 2.5,
-            "base64_count": 0, "hex_count": 0,
+            "avg_length": 4.0,
+            "max_length": 6.0,
+            "avg_entropy": 2.0,
+            "max_entropy": 2.5,
+            "base64_count": 0,
+            "hex_count": 0,
         }
         result = scan_tunnel("example.com", num_queries=3)
         assert result.is_tunneling is False
@@ -225,9 +255,12 @@ class TestScanTunnel:
     def test_tunneling_result(self, mock_analyze: MagicMock, mock_gen: MagicMock) -> None:
         mock_gen.return_value = ["a" * 50] * 3
         mock_analyze.return_value = {
-            "avg_length": 50.0, "max_length": 55.0,
-            "avg_entropy": 4.0, "max_entropy": 4.5,
-            "base64_count": 3, "hex_count": 0,
+            "avg_length": 50.0,
+            "max_length": 55.0,
+            "avg_entropy": 4.0,
+            "max_entropy": 4.5,
+            "base64_count": 3,
+            "hex_count": 0,
         }
         result = scan_tunnel("evil.com", num_queries=3)
         assert result.is_tunneling is True
@@ -243,17 +276,18 @@ class TestDnsResolution:
     @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
-    def test_dns_resolution_increments_queries(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
-    ) -> None:
+    def test_dns_resolution_increments_queries(self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.return_value = [MagicMock()]
         mock_gen.return_value = ["test"]
         mock_analyze.return_value = {
-            "avg_length": 4.0, "max_length": 6.0,
-            "avg_entropy": 2.0, "max_entropy": 2.5,
-            "base64_count": 0, "hex_count": 0,
+            "avg_length": 4.0,
+            "max_length": 6.0,
+            "avg_entropy": 2.0,
+            "max_entropy": 2.5,
+            "base64_count": 0,
+            "hex_count": 0,
         }
         result = scan_tunnel("example.com", num_queries=1)
         assert result.labels_analyzed == 1
@@ -261,18 +295,20 @@ class TestDnsResolution:
     @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
-    def test_nxdomain_increments_count(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
-    ) -> None:
+    def test_nxdomain_increments_count(self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock) -> None:
         import dns.resolver
+
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
         mock_gen.return_value = ["test"]
         mock_analyze.return_value = {
-            "avg_length": 4.0, "max_length": 6.0,
-            "avg_entropy": 2.0, "max_entropy": 2.5,
-            "base64_count": 0, "hex_count": 0,
+            "avg_length": 4.0,
+            "max_length": 6.0,
+            "avg_entropy": 2.0,
+            "max_entropy": 2.5,
+            "base64_count": 0,
+            "hex_count": 0,
         }
         result = scan_tunnel("example.com", num_queries=1)
         assert result.labels_analyzed == 1

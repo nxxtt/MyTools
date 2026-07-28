@@ -71,6 +71,7 @@ _K8S_API_PATHS_DEFAULT: list[dict[str, Any]] = [
 
 def _load_k8s_paths() -> list[dict[str, Any]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "k8s_attack", default={"api_paths": _K8S_API_PATHS_DEFAULT})
     paths = data.get("api_paths", _K8S_API_PATHS_DEFAULT)
     return [{"path": p[0], "desc": p[1]} if isinstance(p, list) else p for p in paths]
@@ -177,20 +178,35 @@ def _extract_api_version(body: str) -> str:
 
 
 def _make_attempt(
-    tech: str, cat: str, desc: str, vuln: bool, details: str, error: str,
-    endpoint: str, api_version: str, code: int,
+    tech: str,
+    cat: str,
+    desc: str,
+    vuln: bool,
+    details: str,
+    error: str,
+    endpoint: str,
+    api_version: str,
+    code: int,
 ) -> K8sAttackAttempt:
     return K8sAttackAttempt(
-    exploit="kubectl get secrets --all-namespaces",
-    tool="kubectl",
-        technique=tech, category=cat, description=desc,
-        vulnerable=vuln, details=details, error=error,
-        endpoint=endpoint, api_version=api_version, response_code=code,
+        exploit="kubectl get secrets --all-namespaces",
+        tool="kubectl",
+        technique=tech,
+        category=cat,
+        description=desc,
+        vulnerable=vuln,
+        details=details,
+        error=error,
+        endpoint=endpoint,
+        api_version=api_version,
+        response_code=code,
     )
 
 
 async def _test_api_enumeration(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> K8sAttackAttempt:
     accessible_paths: list[str] = []
     api_versions: list[str] = []
@@ -221,13 +237,22 @@ async def _test_api_enumeration(
         unique_versions = list(set(api_versions))
         details += f" (versions: {', '.join(unique_versions[:3])})"
     return _make_attempt(
-        "api_enumeration", "kubernetes", "Kubernetes API enumeration",
-        vuln, details, "", url, ",".join(set(api_versions)), last_code,
+        "api_enumeration",
+        "kubernetes",
+        "Kubernetes API enumeration",
+        vuln,
+        details,
+        "",
+        url,
+        ",".join(set(api_versions)),
+        last_code,
     )
 
 
 async def _test_dashboard_exposed(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> K8sAttackAttempt:
     dashboard_found: list[str] = []
     last_code = 0
@@ -255,7 +280,12 @@ async def _test_dashboard_exposed(
 
 
 async def _test_kubernetes(
-    host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str,
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
 ) -> list[K8sAttackAttempt]:
     results: list[K8sAttackAttempt] = []
     async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
@@ -312,7 +342,10 @@ def print_results(result: K8sAttackResult) -> None:
 
 
 async def run_scan(
-    target: str, categories: list[str] | None, timeout: float, output_file: str | None,
+    target: str,
+    categories: list[str] | None,
+    timeout: float,
+    output_file: str | None,
 ) -> K8sAttackResult:
     host, path, port, tls = _parse_url(target)
     scheme = "https" if tls else "http"
@@ -342,10 +375,17 @@ async def run_scan(
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
     overall = "vulnerable" if vuln_techs else "secure"
     result = K8sAttackResult(
-        target=target, host=host, port=port, tls=tls, endpoint=endpoint,
-        k8s_detected=k8s_detected, api_versions=list(set(all_api_versions)),
-        attempts=all_attempts, vulnerable_techniques=vuln_techs,
-        issues=issues, overall_status=overall,
+        target=target,
+        host=host,
+        port=port,
+        tls=tls,
+        endpoint=endpoint,
+        k8s_detected=k8s_detected,
+        api_versions=list(set(all_api_versions)),
+        attempts=all_attempts,
+        vulnerable_techniques=vuln_techs,
+        issues=issues,
+        overall_status=overall,
     )
     print_results(result)
     if output_file:
@@ -365,12 +405,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
-    result = safe_asyncio_run(run_scan(
-        target=args.url,
-        categories=getattr(args, "categories", None),
-        timeout=getattr(args, "timeout", 5.0),
-        output_file=getattr(args, "output", None),
-    ))
+    result = safe_asyncio_run(
+        run_scan(
+            target=args.url,
+            categories=getattr(args, "categories", None),
+            timeout=getattr(args, "timeout", 5.0),
+            output_file=getattr(args, "output", None),
+        )
+    )
     return 1 if result.overall_status == "vulnerable" else 0
 
 

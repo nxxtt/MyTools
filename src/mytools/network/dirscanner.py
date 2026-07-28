@@ -62,12 +62,43 @@ Concorrencia:
 
 
 _DEFAULT_PATHS_DEFAULT: list[str] = [
-    "admin", "login", "dashboard", "wp-admin", "administrator", "backup",
-    "backups", "config", "config.php", ".env", "phpinfo.php", "images",
-    "uploads", "files", "assets", "static", "robots.txt", "sitemap.xml",
-    ".git", ".htaccess", "server-status", "api", "api/v1", "v1", "admin.php",
-    "panel", "phpmyadmin", "dev", "test", "staging", "old", "tmp", "private",
-    "db", "database", "dump.sql", "backup.zip",
+    "admin",
+    "login",
+    "dashboard",
+    "wp-admin",
+    "administrator",
+    "backup",
+    "backups",
+    "config",
+    "config.php",
+    ".env",
+    "phpinfo.php",
+    "images",
+    "uploads",
+    "files",
+    "assets",
+    "static",
+    "robots.txt",
+    "sitemap.xml",
+    ".git",
+    ".htaccess",
+    "server-status",
+    "api",
+    "api/v1",
+    "v1",
+    "admin.php",
+    "panel",
+    "phpmyadmin",
+    "dev",
+    "test",
+    "staging",
+    "old",
+    "tmp",
+    "private",
+    "db",
+    "database",
+    "dump.sql",
+    "backup.zip",
 ]
 
 
@@ -141,13 +172,16 @@ class Finding:
     method: str = "GET"
 
 
-banner = create_banner(r"""
+banner = create_banner(
+    r"""
     ____  _      _____
    / __ \(_)____/ ___/_________ _____  ____  ___  _____
   / / / / / ___/\__ \/ ___/ __ `/ __ \/ __ \/ _ \/ ___/
  / /_/ / / /  ___/ / /__/ /_/ / / / / / / /  __/ /
 /_/  /_/_/  /____/\___/\__,_/_/ /_/_/ /_/\___/_/
-""", "   HTTP directory scanner | use apenas em alvos autorizados")
+""",
+    "   HTTP directory scanner | use apenas em alvos autorizados",
+)
 
 
 def parse_statuses(value: str) -> set[int]:
@@ -336,7 +370,10 @@ async def scan_target(
     logger.info("Alvo: %s", base_url)
     logger.info(
         "Paths: %d | Status: %s | Method: %s | Concurrency: %d",
-        len(paths), ','.join(map(str, sorted(statuses))), method, concurrency,
+        len(paths),
+        ",".join(map(str, sorted(statuses))),
+        method,
+        concurrency,
     )
 
     sem = asyncio.Semaphore(concurrency)
@@ -424,12 +461,9 @@ def print_dir_table(findings: list[Finding]) -> None:
     )
 
 
-
 def build_parser() -> argparse.ArgumentParser:
     """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Directory/file scanner HTTP rapido para laboratorios e hosts autorizados."
-    )
+    parser = argparse.ArgumentParser(description="Directory/file scanner HTTP rapido para laboratorios e hosts autorizados.")
     add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
     parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
@@ -527,13 +561,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     ensure_output_dir(output_dir)
 
     if getattr(args, "dry_run", False):
-        paths = load_paths(args.wordlist, args.extensions, case_variation=getattr(args, "case_variation", False), unicode_norm=getattr(args, "unicode_norm", False))
+        paths = load_paths(
+            args.wordlist, args.extensions, case_variation=getattr(args, "case_variation", False), unicode_norm=getattr(args, "unicode_norm", False)
+        )
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
             logger.info("Alvo: %s", base_url)
             logger.info("Paths: %d | Method: %s | Concurrency: %d", len(paths), args.method, args.concurrency)
-            logger.info("Status: %s", ','.join(map(str, sorted(args.status))))
+            logger.info("Status: %s", ",".join(map(str, sorted(args.status))))
         return 0
 
     all_findings: list[Finding] = []

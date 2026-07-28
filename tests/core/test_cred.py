@@ -109,9 +109,7 @@ class TestRegistry:
         from mytools.core.cred import _update_registry
 
         _update_registry("new_cred", add=True)
-        kr.set_password.assert_called_once_with(
-            _SERVICE_NAME, "__registry__", "new_cred"
-        )
+        kr.set_password.assert_called_once_with(_SERVICE_NAME, "__registry__", "new_cred")
 
     @patch("mytools.core.cred._get_keyring")
     def test_add_to_existing_registry(self, mock_kr):
@@ -121,9 +119,7 @@ class TestRegistry:
         from mytools.core.cred import _update_registry
 
         _update_registry("token_b", add=True)
-        kr.set_password.assert_called_once_with(
-            _SERVICE_NAME, "__registry__", "token_a\ntoken_b"
-        )
+        kr.set_password.assert_called_once_with(_SERVICE_NAME, "__registry__", "token_a\ntoken_b")
 
     @patch("mytools.core.cred._get_keyring")
     def test_remove_from_registry(self, mock_kr):
@@ -133,9 +129,7 @@ class TestRegistry:
         from mytools.core.cred import _update_registry
 
         _update_registry("token_a", add=False)
-        kr.set_password.assert_called_once_with(
-            _SERVICE_NAME, "__registry__", "token_b"
-        )
+        kr.set_password.assert_called_once_with(_SERVICE_NAME, "__registry__", "token_b")
 
 
 class TestGetMaskedOutput:
@@ -179,8 +173,7 @@ class TestGetMaskedOutput:
         mock_get.return_value = None
         from mytools.core.cred import main
 
-        with caplog.at_level("ERROR", logger="mytools.cred"), \
-             patch("sys.argv", ["mytools-cred", "get", "missing"]):
+        with caplog.at_level("ERROR", logger="mytools.cred"), patch("sys.argv", ["mytools-cred", "get", "missing"]):
             result = main()
         assert result == 1
         assert any("nao encontrada" in record.message for record in caplog.records)

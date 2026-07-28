@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de DOM Clobbering."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -123,7 +124,7 @@ class TestCheckClobberInHTML:
         assert _check_clobber_in_html(html, payload) is True
 
     def test_no_reflection(self) -> None:
-        html = '<html><body>Hello world</body></html>'
+        html = "<html><body>Hello world</body></html>"
         payload = '<a id="config" href="javascript:void(0)">'
         assert _check_clobber_in_html(html, payload) is False
 
@@ -170,13 +171,13 @@ class TestDetectPassiveClobbering:
         assert len(config_results) == 1
 
     def test_multiple_clobberable_elements(self) -> None:
-        html = '''
+        html = """
         <html><body>
         <a id="config" href="/p1"></a>
         <div id="settings"></div>
         <form name="document"></form>
         </body></html>
-        '''
+        """
         result = _detect_passive_clobbering(html)
         assert len(result) >= 2
 
@@ -188,6 +189,7 @@ class TestNamedAccess:
         client = AsyncMock()
         client.get = AsyncMock(side_effect=Exception("Connection refused"))
         from mytools.web.domclobbering import _test_named_access
+
         result = await _test_named_access(client, "https://target.com", 10.0)
         assert len(result) > 0
         assert any(a.error for a in result)
@@ -198,6 +200,7 @@ class TestNamedAccess:
         mock_fetch.return_value = (200, {}, b'<a id="config" href="javascript:void(0)">', {})
         client = AsyncMock()
         from mytools.web.domclobbering import _test_named_access
+
         result = await _test_named_access(client, "https://target.com?q=test", 10.0)
         assert len(result) > 0
 
@@ -209,6 +212,7 @@ class TestFormChild:
         client = AsyncMock()
         client.get = AsyncMock(side_effect=Exception("Connection refused"))
         from mytools.web.domclobbering import _test_form_child
+
         result = await _test_form_child(client, "https://target.com", 10.0)
         assert len(result) > 0
         assert any(a.error for a in result)
@@ -221,6 +225,7 @@ class TestImpact:
         client = AsyncMock()
         client.get = AsyncMock(side_effect=Exception("Connection refused"))
         from mytools.web.domclobbering import _test_impact_chains
+
         result = await _test_impact_chains(client, "https://target.com", 10.0)
         assert len(result) > 0
         assert any(a.error for a in result)
@@ -230,33 +235,62 @@ class TestImpact:
 class TestDataclasses:
     def test_clobber_attempt_frozen(self) -> None:
         from mytools.web.domclobbering import ClobberAttempt
+
         a = ClobberAttempt(
-            technique="t", category="c", payload="p", target_element="e",
-            attribute_used="a", method="GET", status_baseline=200,
-            status_test=200, size_baseline=100, size_test=100,
-            status_changed=False, size_changed=False, vulnerable=False,
-            details="", error="",
+            technique="t",
+            category="c",
+            payload="p",
+            target_element="e",
+            attribute_used="a",
+            method="GET",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "new"  # type: ignore[misc]
 
     def test_clobber_attempt_slots(self) -> None:
         from mytools.web.domclobbering import ClobberAttempt
+
         a = ClobberAttempt(
-            technique="t", category="c", payload="p", target_element="e",
-            attribute_used="a", method="GET", status_baseline=200,
-            status_test=200, size_baseline=100, size_test=100,
-            status_changed=False, size_changed=False, vulnerable=False,
-            details="", error="",
+            technique="t",
+            category="c",
+            payload="p",
+            target_element="e",
+            attribute_used="a",
+            method="GET",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
     def test_clobber_result_frozen(self) -> None:
         from mytools.web.domclobbering import ClobberResult
+
         r = ClobberResult(
-            target="t", tls=True, baseline_status=200, baseline_size=100,
-            attempts=[], vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="unknown",
+            target="t",
+            tls=True,
+            baseline_status=200,
+            baseline_size=100,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="unknown",
         )
         with pytest.raises(AttributeError):
             r.target = "new"  # type: ignore[misc]

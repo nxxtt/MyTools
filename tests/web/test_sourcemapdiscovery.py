@@ -51,10 +51,7 @@ class TestExtractScriptUrls:
         assert urls == ["http://example.com/static/js/app.js"]
 
     def test_multiple_scripts(self):
-        html = (
-            '<script src="/js/vendor.js"></script>'
-            '<script src="/js/app.js"></script>'
-        )
+        html = '<script src="/js/vendor.js"></script><script src="/js/app.js"></script>'
         urls = extract_script_urls(html, "http://example.com/")
         assert len(urls) == 2
         assert "vendor" in urls[0]
@@ -81,10 +78,7 @@ class TestExtractScriptUrls:
         assert len(urls) == 1
 
     def test_dedup(self):
-        html = (
-            '<script src="/js/app.js"></script>'
-            '<script src="/js/app.js"></script>'
-        )
+        html = '<script src="/js/app.js"></script><script src="/js/app.js"></script>'
         urls = extract_script_urls(html, "http://example.com/")
         assert len(urls) == 1
 
@@ -132,13 +126,15 @@ class TestBuildMapUrls:
 
 class TestParseSourceMap:
     def test_valid_sourcemap(self):
-        data = json.dumps({
-            "version": 3,
-            "file": "app.js",
-            "sources": ["src/app.ts", "src/utils.ts"],
-            "names": ["App", "Utils", "render"],
-            "mappings": "AAAA;CCCC",
-        }).encode()
+        data = json.dumps(
+            {
+                "version": 3,
+                "file": "app.js",
+                "sources": ["src/app.ts", "src/utils.ts"],
+                "names": ["App", "Utils", "render"],
+                "mappings": "AAAA;CCCC",
+            }
+        ).encode()
         result = parse_source_map(data)
         assert result is not None
         assert result.sources_count == 2
@@ -168,10 +164,12 @@ class TestParseSourceMap:
         assert result is None
 
     def test_non_string_sources_filtered(self):
-        data = json.dumps({
-            "sources": ["a.ts", 123, None, "b.ts"],
-            "mappings": "AAAA",
-        }).encode()
+        data = json.dumps(
+            {
+                "sources": ["a.ts", 123, None, "b.ts"],
+                "mappings": "AAAA",
+            }
+        ).encode()
         result = parse_source_map(data)
         assert result is not None
         assert result.sources_count == 2
@@ -182,11 +180,13 @@ class TestParseSourceMap:
 
     def test_large_sourcemap(self):
         sources = [f"src/file{i}.ts" for i in range(100)]
-        data = json.dumps({
-            "sources": sources,
-            "names": [f"name{i}" for i in range(50)],
-            "mappings": "A" * 1000,
-        }).encode()
+        data = json.dumps(
+            {
+                "sources": sources,
+                "names": [f"name{i}" for i in range(50)],
+                "mappings": "A" * 1000,
+            }
+        ).encode()
         result = parse_source_map(data)
         assert result is not None
         assert result.sources_count == 100

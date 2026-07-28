@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de CAA Record Check."""
+
 from unittest.mock import MagicMock, patch
 
 import dns.resolver
@@ -33,8 +34,12 @@ class TestCaaResult:
 
     def test_frozen(self) -> None:
         r = CaaResult(
-            domain="a", records=[], has_caa=False,
-            authorized_cas=[], has_iodef=False, policy_status="none",
+            domain="a",
+            records=[],
+            has_caa=False,
+            authorized_cas=[],
+            has_iodef=False,
+            policy_status="none",
         )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
@@ -113,8 +118,12 @@ class TestPrintResults:
 
     def test_no_caa(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CaaResult(
-            domain="test.com", records=[], has_caa=False,
-            authorized_cas=[], has_iodef=False, policy_status="none",
+            domain="test.com",
+            records=[],
+            has_caa=False,
+            authorized_cas=[],
+            has_iodef=False,
+            policy_status="none",
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -125,8 +134,10 @@ class TestPrintResults:
         result = CaaResult(
             domain="secure.com",
             records=[CaaRecord("issue", "letsencrypt.org", 0)],
-            has_caa=True, authorized_cas=["Let's Encrypt"],
-            has_iodef=False, policy_status="restrictive",
+            has_caa=True,
+            authorized_cas=["Let's Encrypt"],
+            has_iodef=False,
+            policy_status="restrictive",
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -140,8 +151,10 @@ class TestPrintResults:
                 CaaRecord("issue", "digicert.com", 0),
                 CaaRecord("issue", "globalsign.com", 0),
             ],
-            has_caa=True, authorized_cas=["DigiCert", "GlobalSign", "Let's Encrypt"],
-            has_iodef=True, policy_status="permissive",
+            has_caa=True,
+            authorized_cas=["DigiCert", "GlobalSign", "Let's Encrypt"],
+            has_iodef=True,
+            policy_status="permissive",
         )
         print_results(result)
         out = capsys.readouterr().out

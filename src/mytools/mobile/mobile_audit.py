@@ -258,8 +258,12 @@ def _run_check(
         findings = []
         if "error" in data:
             return MobileAttempt(
-                technique="metadata", platform="android", check=check,
-                file_path=file_path, vulnerable=False, error=data["error"],
+                technique="metadata",
+                platform="android",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
             )
         findings.append(f"Package: {data.get('package', '')}")
         findings.append(f"Version: {data.get('version_name', '')} ({data.get('version_code', '')})")
@@ -270,8 +274,12 @@ def _run_check(
         if data.get("sdk_fingerprints"):
             findings.append(f"SDKs: {', '.join(data['sdk_fingerprints'])}")
         return MobileAttempt(
-            technique="metadata", platform="android", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="metadata",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
         )
 
     if check == "apk_pinning":
@@ -283,9 +291,13 @@ def _run_check(
         if data.get("nsc_indicators"):
             findings.extend([f"NSC: {n}" for n in data["nsc_indicators"]])
         return MobileAttempt(
-            technique="pinning", platform="android", check=check,
-            file_path=file_path, vulnerable=data.get("vulnerable", False),
-            findings=findings, details=f"{len(techniques)} pinning technique(s) detected",
+            technique="pinning",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=data.get("vulnerable", False),
+            findings=findings,
+            details=f"{len(techniques)} pinning technique(s) detected",
         )
 
     if check == "apk_endpoints":
@@ -302,8 +314,12 @@ def _run_check(
         for scheme in data.get("schemes", [])[:10]:
             findings.append(f"Scheme: {scheme}")
         return MobileAttempt(
-            technique="endpoints", platform="android", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="endpoints",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
             details=f"{data.get('total_endpoints', 0)} endpoint(s) found",
         )
 
@@ -311,14 +327,15 @@ def _run_check(
         from mytools.mobile.apk_secrets import detect_secrets
 
         data = detect_secrets(file_path)
-        findings = [
-            f"{f['pattern']}: {f['value'][:40]}..." if len(f["value"]) > 40 else f"{f['pattern']}: {f['value']}"
-            for f in data.get("findings", [])
-        ]
+        findings = [f"{f['pattern']}: {f['value'][:40]}..." if len(f["value"]) > 40 else f"{f['pattern']}: {f['value']}" for f in data.get("findings", [])]
         return MobileAttempt(
-            technique="secrets", platform="android", check=check,
-            file_path=file_path, vulnerable=data.get("total_secrets", 0) > 0,
-            findings=findings, details=f"{data.get('total_secrets', 0)} secret(s) found",
+            technique="secrets",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=data.get("total_secrets", 0) > 0,
+            findings=findings,
+            details=f"{data.get('total_secrets', 0)} secret(s) found",
         )
 
     if check == "apk_nsc":
@@ -327,7 +344,9 @@ def _run_check(
         data = analyze_nsc(file_path)
         findings = data.get("findings", [])
         return MobileAttempt(
-            technique="nsc", platform="android", check=check,
+            technique="nsc",
+            platform="android",
+            check=check,
             file_path=file_path,
             vulnerable=data.get("risk_score", 0) > 0,
             findings=findings,
@@ -341,8 +360,12 @@ def _run_check(
         sdks = data.get("sdk_fingerprints", [])
         findings = [f"SDK: {s}" for s in sdks]
         return MobileAttempt(
-            technique="sdk", platform="android", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="sdk",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
             details=f"{len(sdks)} SDK(s) detected",
         )
 
@@ -356,13 +379,14 @@ def _run_check(
         findings.append(f"Methods: {data['total_methods']}")
         findings.append(f"Strings: {data['total_strings']}")
         for dex in data["dex_files"]:
-            findings.append(
-                f"  DEX#{dex['index']}: {dex['class_count']} classes, "
-                f"{dex['method_count']} methods"
-            )
+            findings.append(f"  DEX#{dex['index']}: {dex['class_count']} classes, {dex['method_count']} methods")
         return MobileAttempt(
-            technique="dex_layer", platform="android", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="dex_layer",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
             details=f"{data['total_classes']} classes across {data['dex_count']} DEX file(s)",
         )
 
@@ -375,17 +399,15 @@ def _run_check(
         if data["truncated"]:
             findings.append("(output truncated - use class_filter to focus)")
         for m in data["methods"][:5]:
-            findings.append(
-                f"  {m['class_name']}->{m['method_name']}: "
-                f"{m['instruction_count']} insns"
-            )
+            findings.append(f"  {m['class_name']}->{m['method_name']}: {m['instruction_count']} insns")
         return MobileAttempt(
-            technique="dalvik_disasm", platform="android", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
-            details=(
-                f"{data['total_methods']} methods, "
-                f"{data['total_instructions']} instructions"
-            ),
+            technique="dalvik_disasm",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
+            details=(f"{data['total_methods']} methods, {data['total_instructions']} instructions"),
         )
 
     if check == "apk_decompile":
@@ -397,13 +419,14 @@ def _run_check(
         if data["truncated"]:
             findings.append("(output truncated - use class_filter to focus)")
         for cls in data["classes"][:5]:
-            findings.append(
-                f"  {cls['class_name']}: {cls['line_count']} lines, "
-                f"{cls['method_count']} methods"
-            )
+            findings.append(f"  {cls['class_name']}: {cls['line_count']} lines, {cls['method_count']} methods")
         return MobileAttempt(
-            technique="java_decompile", platform="android", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="java_decompile",
+            platform="android",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
             details=f"{data['total_decompiled']} classes decompiled via DAD",
         )
 
@@ -425,8 +448,11 @@ def _run_check(
         if data.get("ats_settings", {}).get("allows_insecure_http"):
             findings.append("ATS: Allows arbitrary HTTP loads!")
         return MobileAttempt(
-            technique="metadata", platform="ios", check=check,
-            file_path=file_path, vulnerable=data.get("ats_settings", {}).get("allows_insecure_http", False),
+            technique="metadata",
+            platform="ios",
+            check=check,
+            file_path=file_path,
+            vulnerable=data.get("ats_settings", {}).get("allows_insecure_http", False),
             findings=findings,
         )
 
@@ -448,8 +474,12 @@ def _run_check(
         if ent:
             findings.extend([f"Entitlement: {k}" for k in list(ent.keys())[:10]])
         return MobileAttempt(
-            technique="provisioning", platform="ios", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="provisioning",
+            platform="ios",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
         )
 
     if check == "ipa_macho":
@@ -467,29 +497,37 @@ def _run_check(
         findings.append(f"Exported: {macho.get('exported_count', 0)} functions")
         findings.append(f"Symbols: {macho.get('symbol_count', 0)}")
         return MobileAttempt(
-            technique="macho", platform="ios", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="macho",
+            platform="ios",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
         )
 
     if check == "ipa_secrets":
         from mytools.mobile.ipa_secrets import detect_ipa_secrets
 
         data = detect_ipa_secrets(file_path)
-        findings = [
-            f"{f['pattern']}: {f['value'][:40]}..." if len(f["value"]) > 40 else f"{f['pattern']}: {f['value']}"
-            for f in data.get("findings", [])
-        ]
+        findings = [f"{f['pattern']}: {f['value'][:40]}..." if len(f["value"]) > 40 else f"{f['pattern']}: {f['value']}" for f in data.get("findings", [])]
         return MobileAttempt(
-            technique="secrets", platform="ios", check=check,
-            file_path=file_path, vulnerable=data.get("total_secrets", 0) > 0,
-            findings=findings, details=f"{data.get('total_secrets', 0)} secret(s) found",
+            technique="secrets",
+            platform="ios",
+            check=check,
+            file_path=file_path,
+            vulnerable=data.get("total_secrets", 0) > 0,
+            findings=findings,
+            details=f"{data.get('total_secrets', 0)} secret(s) found",
         )
 
     if check == "oauth2_test":
         if not idp or not client_id:
             return MobileAttempt(
-                technique="oauth2", platform="oauth2", check=check,
-                file_path=file_path, vulnerable=False,
+                technique="oauth2",
+                platform="oauth2",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
                 error="Requires --idp and --client-id",
             )
         from mytools.mobile.oauth2_flows import generate_pkce_flow
@@ -497,16 +535,23 @@ def _run_check(
         data = generate_pkce_flow(idp, client_id)
         findings = [f"{k}: {v[:60]}" for k, v in data.items() if k != "instructions"]
         return MobileAttempt(
-            technique="pkce", platform="oauth2", check=check,
-            file_path=file_path, vulnerable=False, findings=findings,
+            technique="pkce",
+            platform="oauth2",
+            check=check,
+            file_path=file_path,
+            vulnerable=False,
+            findings=findings,
             details="PKCE flow parameters generated",
         )
 
     if check == "jwt_validate":
         if not jwt_token:
             return MobileAttempt(
-                technique="jwt", platform="oauth2", check=check,
-                file_path=file_path, vulnerable=False,
+                technique="jwt",
+                platform="oauth2",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
                 error="Requires --jwt token",
             )
         from mytools.mobile.oauth2_flows import validate_jwt
@@ -514,21 +559,30 @@ def _run_check(
         data = validate_jwt(jwt_token)
         if "error" in data:
             return MobileAttempt(
-                technique="jwt", platform="oauth2", check=check,
-                file_path=file_path, vulnerable=False, error=data["error"],
+                technique="jwt",
+                platform="oauth2",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
             )
         findings = [f"Warning: {w}" for w in data.get("warnings", [])]
         findings.append(f"Algorithm: {data.get('header', {}).get('alg', 'unknown')}")
         return MobileAttempt(
-            technique="jwt", platform="oauth2", check=check,
+            technique="jwt",
+            platform="oauth2",
+            check=check,
             file_path=file_path,
             vulnerable=bool(data.get("warnings")),
             findings=findings,
         )
 
     return MobileAttempt(
-        technique=check, platform=platform, check=check,
-        file_path=file_path, vulnerable=False,
+        technique=check,
+        platform=platform,
+        check=check,
+        file_path=file_path,
+        vulnerable=False,
         error=f"Unknown check: {check}",
     )
 

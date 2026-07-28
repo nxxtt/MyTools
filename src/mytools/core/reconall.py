@@ -22,6 +22,7 @@ Modulos disponiveis:
   - webrecon: HTTP passive recon (headers, CVE, WHOIS, emails)
   - attackaudit: red/blue web audit (XSS, SQLi, TLS, methods)
 """
+
 import argparse
 import asyncio
 import contextlib
@@ -104,7 +105,79 @@ from mytools.whois import whoishistory
 
 logger = logging.getLogger("mytools.reconall")
 
-ALL_MODULES = ["portscanner", "dnstransfer", "subenum", "dnshistory", "whoishistory", "ipasninfo", "techfingerprint", "openapidiscovery", "graphqlplayground", "sourcemapdiscovery", "vcsleak", "configfiledetect", "backupfiledetect", "googledorking", "emailbreachcheck", "socialengrecon", "pasteleak", "darkwebmonitor", "dnsrebinding", "dnswatorture", "dnsamplification", "dnstunnel", "dnssecvalidation", "nsecwalking",     "caacheck", "emailsecurity", "emailspoof", "smtpinjection", "smtpdowngrade", "emailtemplateinject", "emailattachmentbypass", "emailaddressbypass", "emaillinktracking", "nullbyteinject", "doubleurlencode", "pathtraversal", "overlongencoding", "bominjection", "charsetbypass", "openredirect", "crlfinjection", "sstidetect", "ssrfdetect", "xxedetect", "nosqliinject", "ldapiinject", "xpathinject", "ssiinject", "prototypepollution", "deserialinject", "cachepoisoning", "cachedeception", "methodoverride", "httpparampollution", "blindxss", "corsmisconfig", "clickjacking", "hostheaderinject", "headerinject",     "loginjection", "log4shell",     "lfidetect", "cmdinject", "csrfscan", "sqliscan", "loginbruteforce", "cloudbucketenum", "subtakeover", "dirscanner", "webrecon", "attackaudit"]
+ALL_MODULES = [
+    "portscanner",
+    "dnstransfer",
+    "subenum",
+    "dnshistory",
+    "whoishistory",
+    "ipasninfo",
+    "techfingerprint",
+    "openapidiscovery",
+    "graphqlplayground",
+    "sourcemapdiscovery",
+    "vcsleak",
+    "configfiledetect",
+    "backupfiledetect",
+    "googledorking",
+    "emailbreachcheck",
+    "socialengrecon",
+    "pasteleak",
+    "darkwebmonitor",
+    "dnsrebinding",
+    "dnswatorture",
+    "dnsamplification",
+    "dnstunnel",
+    "dnssecvalidation",
+    "nsecwalking",
+    "caacheck",
+    "emailsecurity",
+    "emailspoof",
+    "smtpinjection",
+    "smtpdowngrade",
+    "emailtemplateinject",
+    "emailattachmentbypass",
+    "emailaddressbypass",
+    "emaillinktracking",
+    "nullbyteinject",
+    "doubleurlencode",
+    "pathtraversal",
+    "overlongencoding",
+    "bominjection",
+    "charsetbypass",
+    "openredirect",
+    "crlfinjection",
+    "sstidetect",
+    "ssrfdetect",
+    "xxedetect",
+    "nosqliinject",
+    "ldapiinject",
+    "xpathinject",
+    "ssiinject",
+    "prototypepollution",
+    "deserialinject",
+    "cachepoisoning",
+    "cachedeception",
+    "methodoverride",
+    "httpparampollution",
+    "blindxss",
+    "corsmisconfig",
+    "clickjacking",
+    "hostheaderinject",
+    "headerinject",
+    "loginjection",
+    "log4shell",
+    "lfidetect",
+    "cmdinject",
+    "csrfscan",
+    "sqliscan",
+    "loginbruteforce",
+    "cloudbucketenum",
+    "subtakeover",
+    "dirscanner",
+    "webrecon",
+    "attackaudit",
+]
 
 """Recon completo: executa portscanner, dirscanner, webrecon, attackaudit, dnstransfer e subenum contra um alvo."""
 
@@ -118,7 +191,10 @@ def banner() -> None:
 /_/  /_/\__, /   /_/  \____/\____/_/____/
        /____/
 """
-    create_banner(art, "   recon all-in-one: port + dir + web + audit + dns + subenum + dnshistory + whoishistory + ipasn + techfp + oas + gql + sm + vcs + cfg + bak + dork + breach + soceng + leak + dark + rebind + dwt + amp + tunnel + dnssec + nsec + caa + secemail + spoof + smtpinject + smtpdown + templeti + attachbypass + addrbypass + linktrack + nullbyte + dblurl + ptraversal + lfi + cmd + rtlo")()
+    create_banner(
+        art,
+        "   recon all-in-one: port + dir + web + audit + dns + subenum + dnshistory + whoishistory + ipasn + techfp + oas + gql + sm + vcs + cfg + bak + dork + breach + soceng + leak + dark + rebind + dwt + amp + tunnel + dnssec + nsec + caa + secemail + spoof + smtpinject + smtpdown + templeti + attachbypass + addrbypass + linktrack + nullbyte + dblurl + ptraversal + lfi + cmd + rtlo",
+    )()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -141,9 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bearer-token", dest="bearer_token", help="Token Bearer para autenticacao. Suporta @credencial do keyring.")
     parser.add_argument("--cookie", help="Cookie para as requests. Suporta @credencial do keyring.")
     parser.add_argument("--header", action="append", default=[], help="Header customizado (pode repetir). Ex: 'X-Token: abc'")
-    parser.add_argument("--skip", action="append", default=[],
-                        choices=ALL_MODULES,
-                        help=f"Modulo para pular (pode repetir). Opcoes: {', '.join(ALL_MODULES)}")
+    parser.add_argument("--skip", action="append", default=[], choices=ALL_MODULES, help=f"Modulo para pular (pode repetir). Opcoes: {', '.join(ALL_MODULES)}")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
@@ -169,22 +243,77 @@ def _make_args(target: str, extra: dict, base_args: argparse.Namespace) -> argpa
 _PARSER_DEFAULTS: dict[str, object] | None = None
 
 _ALL_MODS = (
-    dirscanner, portscanner, dnstransfer, subdomainenum, dnshistory,
-    whoishistory, ipasninfo, techfingerprint, openapidiscovery,
-    graphqlplayground, sourcemapdiscovery, vcsleak, configfiledetect,
-    backupfiledetect, googledorking, emailbreachcheck, socialengrecon,
-    pasteleak, darkwebmonitor, dnsrebinding, dnswatorture,
-    dnsamplification, dnstunnel, dnssecvalidation, nsecwalking,
-    caacheck, emailsecurity, emailspoof, smtpinjection, smtpdowngrade,
-    emailtemplateinject, emailattachmentbypass, emailaddressbypass, emaillinktracking,
-    nullbyteinject, doubleurlencode, pathtraversal, rtloverride,
-    overlongencoding, bominjection, charsetbypass, openredirect,
-    crlfinjection, sstidetect, ssrfdetect, xxedetect,
-    nosqliinject, ldapiinject, xpathinject, ssiinject,
-    prototypepollution, deserialinject, cachepoisoning, cachedeception,
-    methodoverride, httpparampollution, blindxss, corsmisconfig,
-    clickjacking, hostheaderinject, headerinject, loginjection, log4shell,
-    lfidetect, cmdinject, csrfscan, sqliscan, loginbruteforce, cloudbucketenum, webrecon, attackaudit,
+    dirscanner,
+    portscanner,
+    dnstransfer,
+    subdomainenum,
+    dnshistory,
+    whoishistory,
+    ipasninfo,
+    techfingerprint,
+    openapidiscovery,
+    graphqlplayground,
+    sourcemapdiscovery,
+    vcsleak,
+    configfiledetect,
+    backupfiledetect,
+    googledorking,
+    emailbreachcheck,
+    socialengrecon,
+    pasteleak,
+    darkwebmonitor,
+    dnsrebinding,
+    dnswatorture,
+    dnsamplification,
+    dnstunnel,
+    dnssecvalidation,
+    nsecwalking,
+    caacheck,
+    emailsecurity,
+    emailspoof,
+    smtpinjection,
+    smtpdowngrade,
+    emailtemplateinject,
+    emailattachmentbypass,
+    emailaddressbypass,
+    emaillinktracking,
+    nullbyteinject,
+    doubleurlencode,
+    pathtraversal,
+    rtloverride,
+    overlongencoding,
+    bominjection,
+    charsetbypass,
+    openredirect,
+    crlfinjection,
+    sstidetect,
+    ssrfdetect,
+    xxedetect,
+    nosqliinject,
+    ldapiinject,
+    xpathinject,
+    ssiinject,
+    prototypepollution,
+    deserialinject,
+    cachepoisoning,
+    cachedeception,
+    methodoverride,
+    httpparampollution,
+    blindxss,
+    corsmisconfig,
+    clickjacking,
+    hostheaderinject,
+    headerinject,
+    loginjection,
+    log4shell,
+    lfidetect,
+    cmdinject,
+    csrfscan,
+    sqliscan,
+    loginbruteforce,
+    cloudbucketenum,
+    webrecon,
+    attackaudit,
     subdomaintakeover,
 )
 
@@ -210,23 +339,25 @@ def _build_base_ns(args: argparse.Namespace) -> argparse.Namespace:
     all_defaults = dict(get_parser_defaults())
 
     # Overrides do reconall — valores que difinem do default do parser
-    all_defaults.update({
-        "output": None,
-        "quiet": True,
-        "log_file": None,
-        "color": None,
-        "verbose": args.verbose,
-        "timeout": args.timeout,
-        "dry_run": args.dry_run,
-        "output_dir": args.output_dir,
-        "user_agent": f"MyTools/{__version__}",
-        "verify": False,
-        "threads": None,
-        "auth": getattr(args, "auth", None),
-        "bearer_token": getattr(args, "bearer_token", None),
-        "cookie": getattr(args, "cookie", None),
-        "header": getattr(args, "header", None),
-    })
+    all_defaults.update(
+        {
+            "output": None,
+            "quiet": True,
+            "log_file": None,
+            "color": None,
+            "verbose": args.verbose,
+            "timeout": args.timeout,
+            "dry_run": args.dry_run,
+            "output_dir": args.output_dir,
+            "user_agent": f"MyTools/{__version__}",
+            "verify": False,
+            "threads": None,
+            "auth": getattr(args, "auth", None),
+            "bearer_token": getattr(args, "bearer_token", None),
+            "cookie": getattr(args, "cookie", None),
+            "header": getattr(args, "header", None),
+        }
+    )
 
     return argparse.Namespace(**all_defaults)
 
@@ -250,262 +381,221 @@ def run_all(args: argparse.Namespace) -> int:
     modules: list[tuple[str, Callable[[argparse.Namespace], int], argparse.Namespace]] = []
 
     if "dnstransfer" not in skipped:
-        modules.append(("dnstransfer", dnstransfer.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("dnstransfer")}, base_ns)))
+        modules.append(("dnstransfer", dnstransfer.run_once, _make_args(domain, {"domain": domain, "output": _out("dnstransfer")}, base_ns)))
     if "subenum" not in skipped:
-        modules.append(("subenum", subdomainenum.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("subenum")}, base_ns)))
+        modules.append(("subenum", subdomainenum.run_once, _make_args(domain, {"domain": domain, "output": _out("subenum")}, base_ns)))
 
     if "dnshistory" not in skipped:
-        modules.append(("dnshistory", dnshistory.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("dnshistory")}, base_ns)))
+        modules.append(("dnshistory", dnshistory.run_once, _make_args(domain, {"domain": domain, "output": _out("dnshistory")}, base_ns)))
 
     if "whoishistory" not in skipped:
-        modules.append(("whoishistory", whoishistory.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("whoishistory")}, base_ns)))
+        modules.append(("whoishistory", whoishistory.run_once, _make_args(domain, {"domain": domain, "output": _out("whoishistory")}, base_ns)))
 
     if "ipasninfo" not in skipped:
-        modules.append(("ipasninfo", ipasninfo.run_once,
-                        _make_args(target, {"ips": [domain], "output": _out("ipasninfo")}, base_ns)))
+        modules.append(("ipasninfo", ipasninfo.run_once, _make_args(target, {"ips": [domain], "output": _out("ipasninfo")}, base_ns)))
 
     if "portscanner" not in skipped:
-        modules.append(("portscanner", portscanner.run_once,
-                        _make_args(target, {"targets": [domain], "ports": args.ports, "output": _out("portscanner")}, base_ns)))
+        modules.append(
+            ("portscanner", portscanner.run_once, _make_args(target, {"targets": [domain], "ports": args.ports, "output": _out("portscanner")}, base_ns))
+        )
 
     if "googledorking" not in skipped:
-        modules.append(("googledorking", googledorking.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("googledorking")}, base_ns)))
+        modules.append(("googledorking", googledorking.run_once, _make_args(domain, {"domain": domain, "output": _out("googledorking")}, base_ns)))
 
     if "emailbreachcheck" not in skipped:
         admin_email = f"admin@{domain}"
-        modules.append(("emailbreachcheck", emailbreachcheck.run_once,
-                        _make_args(domain, {"emails": [admin_email], "output": _out("emailbreachcheck")}, base_ns)))
+        modules.append(
+            ("emailbreachcheck", emailbreachcheck.run_once, _make_args(domain, {"emails": [admin_email], "output": _out("emailbreachcheck")}, base_ns))
+        )
 
     if "socialengrecon" not in skipped:
-        modules.append(("socialengrecon", socialengrecon.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("socialengrecon")}, base_ns)))
+        modules.append(("socialengrecon", socialengrecon.run_once, _make_args(domain, {"domain": domain, "output": _out("socialengrecon")}, base_ns)))
 
     if "pasteleak" not in skipped:
-        modules.append(("pasteleak", pasteleak.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("pasteleak")}, base_ns)))
+        modules.append(("pasteleak", pasteleak.run_once, _make_args(domain, {"domain": domain, "output": _out("pasteleak")}, base_ns)))
 
     if "darkwebmonitor" not in skipped:
-        modules.append(("darkwebmonitor", darkwebmonitor.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("darkwebmonitor")}, base_ns)))
+        modules.append(("darkwebmonitor", darkwebmonitor.run_once, _make_args(domain, {"domain": domain, "output": _out("darkwebmonitor")}, base_ns)))
 
     if "dnsrebinding" not in skipped:
-        modules.append(("dnsrebinding", dnsrebinding.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("dnsrebinding")}, base_ns)))
+        modules.append(("dnsrebinding", dnsrebinding.run_once, _make_args(domain, {"domain": domain, "output": _out("dnsrebinding")}, base_ns)))
 
     if "dnswatorture" not in skipped:
-        modules.append(("dnswatorture", dnswatorture.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("dnswatorture")}, base_ns)))
+        modules.append(("dnswatorture", dnswatorture.run_once, _make_args(domain, {"domain": domain, "output": _out("dnswatorture")}, base_ns)))
 
     if "dnsamplification" not in skipped:
-        modules.append(("dnsamplification", dnsamplification.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("dnsamplification")}, base_ns)))
+        modules.append(("dnsamplification", dnsamplification.run_once, _make_args(domain, {"domain": domain, "output": _out("dnsamplification")}, base_ns)))
 
     if "dnstunnel" not in skipped:
-        modules.append(("dnstunnel", dnstunnel.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("dnstunnel")}, base_ns)))
+        modules.append(("dnstunnel", dnstunnel.run_once, _make_args(domain, {"domain": domain, "output": _out("dnstunnel")}, base_ns)))
 
     if "dnssecvalidation" not in skipped:
-        modules.append(("dnssecvalidation", dnssecvalidation.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("dnssecvalidation")}, base_ns)))
+        modules.append(("dnssecvalidation", dnssecvalidation.run_once, _make_args(domain, {"domain": domain, "output": _out("dnssecvalidation")}, base_ns)))
 
     if "nsecwalking" not in skipped:
-        modules.append(("nsecwalking", nsecwalking.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("nsecwalking")}, base_ns)))
+        modules.append(("nsecwalking", nsecwalking.run_once, _make_args(domain, {"domain": domain, "output": _out("nsecwalking")}, base_ns)))
 
     if "caacheck" not in skipped:
-        modules.append(("caacheck", caacheck.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("caacheck")}, base_ns)))
+        modules.append(("caacheck", caacheck.run_once, _make_args(domain, {"domain": domain, "output": _out("caacheck")}, base_ns)))
 
     if "emailsecurity" not in skipped:
-        modules.append(("emailsecurity", emailsecurity.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("emailsecurity")}, base_ns)))
+        modules.append(("emailsecurity", emailsecurity.run_once, _make_args(domain, {"domain": domain, "output": _out("emailsecurity")}, base_ns)))
 
     if "emailspoof" not in skipped:
-        modules.append(("emailspoof", emailspoof.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("emailspoof")}, base_ns)))
+        modules.append(("emailspoof", emailspoof.run_once, _make_args(domain, {"domain": domain, "output": _out("emailspoof")}, base_ns)))
 
     if "smtpinjection" not in skipped:
-        modules.append(("smtpinjection", smtpinjection.run_once,
-                        _make_args(target, {"target": domain, "output": _out("smtpinjection")}, base_ns)))
+        modules.append(("smtpinjection", smtpinjection.run_once, _make_args(target, {"target": domain, "output": _out("smtpinjection")}, base_ns)))
 
     if "smtpdowngrade" not in skipped:
-        modules.append(("smtpdowngrade", smtpdowngrade.run_once,
-                        _make_args(target, {"target": domain, "output": _out("smtpdowngrade")}, base_ns)))
+        modules.append(("smtpdowngrade", smtpdowngrade.run_once, _make_args(target, {"target": domain, "output": _out("smtpdowngrade")}, base_ns)))
 
     if "emailtemplateinject" not in skipped:
-        modules.append(("emailtemplateinject", emailtemplateinject.run_once,
-                        _make_args(target, {"target": domain, "output": _out("emailtemplateinject")}, base_ns)))
+        modules.append(
+            ("emailtemplateinject", emailtemplateinject.run_once, _make_args(target, {"target": domain, "output": _out("emailtemplateinject")}, base_ns))
+        )
 
     if "emailattachmentbypass" not in skipped:
-        modules.append(("emailattachmentbypass", emailattachmentbypass.run_once,
-                        _make_args(target, {"target": domain, "output": _out("emailattachmentbypass")}, base_ns)))
+        modules.append(
+            ("emailattachmentbypass", emailattachmentbypass.run_once, _make_args(target, {"target": domain, "output": _out("emailattachmentbypass")}, base_ns))
+        )
 
     if "emailaddressbypass" not in skipped:
-        modules.append(("emailaddressbypass", emailaddressbypass.run_once,
-                        _make_args(target, {"target": domain, "output": _out("emailaddressbypass")}, base_ns)))
+        modules.append(
+            ("emailaddressbypass", emailaddressbypass.run_once, _make_args(target, {"target": domain, "output": _out("emailaddressbypass")}, base_ns))
+        )
 
     if "emaillinktracking" not in skipped:
-        modules.append(("emaillinktracking", emaillinktracking.run_once,
-                        _make_args(target, {"target": domain, "output": _out("emaillinktracking")}, base_ns)))
+        modules.append(("emaillinktracking", emaillinktracking.run_once, _make_args(target, {"target": domain, "output": _out("emaillinktracking")}, base_ns)))
 
     if "nullbyteinject" not in skipped and is_url:
-        modules.append(("nullbyteinject", nullbyteinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("nullbyteinject")}, base_ns)))
+        modules.append(("nullbyteinject", nullbyteinject.run_once, _make_args(target, {"url": target, "output": _out("nullbyteinject")}, base_ns)))
 
     if "doubleurlencode" not in skipped and is_url:
-        modules.append(("doubleurlencode", doubleurlencode.run_once,
-                        _make_args(target, {"url": target, "output": _out("doubleurlencode")}, base_ns)))
+        modules.append(("doubleurlencode", doubleurlencode.run_once, _make_args(target, {"url": target, "output": _out("doubleurlencode")}, base_ns)))
 
     if "pathtraversal" not in skipped and is_url:
-        modules.append(("pathtraversal", pathtraversal.run_once,
-                        _make_args(target, {"url": target, "output": _out("pathtraversal")}, base_ns)))
+        modules.append(("pathtraversal", pathtraversal.run_once, _make_args(target, {"url": target, "output": _out("pathtraversal")}, base_ns)))
 
     if "lfidetect" not in skipped and is_url:
-        modules.append(("lfidetect", lfidetect.run_once,
-                        _make_args(target, {"url": target, "output": _out("lfidetect")}, base_ns)))
+        modules.append(("lfidetect", lfidetect.run_once, _make_args(target, {"url": target, "output": _out("lfidetect")}, base_ns)))
 
     if "cmdinject" not in skipped and is_url:
-        modules.append(("cmdinject", cmdinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("cmdinject")}, base_ns)))
+        modules.append(("cmdinject", cmdinject.run_once, _make_args(target, {"url": target, "output": _out("cmdinject")}, base_ns)))
 
     if "csrfscan" not in skipped and is_url:
-        modules.append(("csrfscan", csrfscan.run_once,
-                        _make_args(target, {"url": target, "output": _out("csrfscan")}, base_ns)))
+        modules.append(("csrfscan", csrfscan.run_once, _make_args(target, {"url": target, "output": _out("csrfscan")}, base_ns)))
 
     if "sqliscan" not in skipped and is_url:
-        modules.append(("sqliscan", sqliscan.run_once,
-                        _make_args(target, {"url": target, "output": _out("sqliscan")}, base_ns)))
+        modules.append(("sqliscan", sqliscan.run_once, _make_args(target, {"url": target, "output": _out("sqliscan")}, base_ns)))
 
     if "loginbruteforce" not in skipped and is_url:
-        modules.append(("loginbruteforce", loginbruteforce.run_once,
-                        _make_args(target, {"url": target, "output": _out("loginbruteforce")}, base_ns)))
+        modules.append(("loginbruteforce", loginbruteforce.run_once, _make_args(target, {"url": target, "output": _out("loginbruteforce")}, base_ns)))
 
     if "cloudbucketenum" not in skipped:
-        modules.append(("cloudbucketenum", cloudbucketenum.run_once,
-                        _make_args(target, {"domain": domain, "output": _out("cloudbucketenum")}, base_ns)))
+        modules.append(("cloudbucketenum", cloudbucketenum.run_once, _make_args(target, {"domain": domain, "output": _out("cloudbucketenum")}, base_ns)))
 
     if "subtakeover" not in skipped:
-        modules.append(("subtakeover", subdomaintakeover.run_once,
-                        _make_args(domain, {"domain": domain, "output": _out("subtakeover")}, base_ns)))
+        modules.append(("subtakeover", subdomaintakeover.run_once, _make_args(domain, {"domain": domain, "output": _out("subtakeover")}, base_ns)))
 
     if "overlongencoding" not in skipped and is_url:
-        modules.append(("overlongencoding", overlongencoding.run_once,
-                        _make_args(target, {"url": target, "output": _out("overlongencoding")}, base_ns)))
+        modules.append(("overlongencoding", overlongencoding.run_once, _make_args(target, {"url": target, "output": _out("overlongencoding")}, base_ns)))
     if "bominjection" not in skipped and is_url:
-        modules.append(("bominjection", bominjection.run_once,
-                        _make_args(target, {"url": target, "output": _out("bominjection")}, base_ns)))
+        modules.append(("bominjection", bominjection.run_once, _make_args(target, {"url": target, "output": _out("bominjection")}, base_ns)))
     if "charsetbypass" not in skipped and is_url:
-        modules.append(("charsetbypass", charsetbypass.run_once,
-                        _make_args(target, {"url": target, "output": _out("charsetbypass")}, base_ns)))
+        modules.append(("charsetbypass", charsetbypass.run_once, _make_args(target, {"url": target, "output": _out("charsetbypass")}, base_ns)))
     if "openredirect" not in skipped and is_url:
-        modules.append(("openredirect", openredirect.run_once,
-                        _make_args(target, {"url": target, "output": _out("openredirect")}, base_ns)))
+        modules.append(("openredirect", openredirect.run_once, _make_args(target, {"url": target, "output": _out("openredirect")}, base_ns)))
     if "crlfinjection" not in skipped and is_url:
-        modules.append(("crlfinjection", crlfinjection.run_once,
-                        _make_args(target, {"url": target, "output": _out("crlfinjection")}, base_ns)))
+        modules.append(("crlfinjection", crlfinjection.run_once, _make_args(target, {"url": target, "output": _out("crlfinjection")}, base_ns)))
     if "sstidetect" not in skipped and is_url:
-        modules.append(("sstidetect", sstidetect.run_once,
-                        _make_args(target, {"url": target, "output": _out("sstidetect")}, base_ns)))
+        modules.append(("sstidetect", sstidetect.run_once, _make_args(target, {"url": target, "output": _out("sstidetect")}, base_ns)))
     if "ssrfdetect" not in skipped and is_url:
-        modules.append(("ssrfdetect", ssrfdetect.run_once,
-                        _make_args(target, {"url": target, "output": _out("ssrfdetect")}, base_ns)))
+        modules.append(("ssrfdetect", ssrfdetect.run_once, _make_args(target, {"url": target, "output": _out("ssrfdetect")}, base_ns)))
     if "xxedetect" not in skipped and is_url:
-        modules.append(("xxedetect", xxedetect.run_once,
-                        _make_args(target, {"url": target, "output": _out("xxedetect")}, base_ns)))
+        modules.append(("xxedetect", xxedetect.run_once, _make_args(target, {"url": target, "output": _out("xxedetect")}, base_ns)))
     if "nosqliinject" not in skipped and is_url:
-        modules.append(("nosqliinject", nosqliinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("nosqliinject")}, base_ns)))
+        modules.append(("nosqliinject", nosqliinject.run_once, _make_args(target, {"url": target, "output": _out("nosqliinject")}, base_ns)))
     if "ldapiinject" not in skipped and is_url:
-        modules.append(("ldapiinject", ldapiinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("ldapiinject")}, base_ns)))
+        modules.append(("ldapiinject", ldapiinject.run_once, _make_args(target, {"url": target, "output": _out("ldapiinject")}, base_ns)))
     if "xpathinject" not in skipped and is_url:
-        modules.append(("xpathinject", xpathinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("xpathinject")}, base_ns)))
+        modules.append(("xpathinject", xpathinject.run_once, _make_args(target, {"url": target, "output": _out("xpathinject")}, base_ns)))
     if "ssiinject" not in skipped and is_url:
-        modules.append(("ssiinject", ssiinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("ssiinject")}, base_ns)))
+        modules.append(("ssiinject", ssiinject.run_once, _make_args(target, {"url": target, "output": _out("ssiinject")}, base_ns)))
     if "prototypepollution" not in skipped and is_url:
-        modules.append(("prototypepollution", prototypepollution.run_once,
-                        _make_args(target, {"url": target, "output": _out("prototypepollution")}, base_ns)))
+        modules.append(("prototypepollution", prototypepollution.run_once, _make_args(target, {"url": target, "output": _out("prototypepollution")}, base_ns)))
     if "deserialinject" not in skipped and is_url:
-        modules.append(("deserialinject", deserialinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("deserialinject")}, base_ns)))
+        modules.append(("deserialinject", deserialinject.run_once, _make_args(target, {"url": target, "output": _out("deserialinject")}, base_ns)))
     if "cachepoisoning" not in skipped and is_url:
-        modules.append(("cachepoisoning", cachepoisoning.run_once,
-                        _make_args(target, {"url": target, "output": _out("cachepoisoning")}, base_ns)))
+        modules.append(("cachepoisoning", cachepoisoning.run_once, _make_args(target, {"url": target, "output": _out("cachepoisoning")}, base_ns)))
     if "cachedeception" not in skipped and is_url:
-        modules.append(("cachedeception", cachedeception.run_once,
-                        _make_args(target, {"url": target, "output": _out("cachedeception")}, base_ns)))
+        modules.append(("cachedeception", cachedeception.run_once, _make_args(target, {"url": target, "output": _out("cachedeception")}, base_ns)))
     if "methodoverride" not in skipped and is_url:
-        modules.append(("methodoverride", methodoverride.run_once,
-                        _make_args(target, {"url": target, "output": _out("methodoverride")}, base_ns)))
+        modules.append(("methodoverride", methodoverride.run_once, _make_args(target, {"url": target, "output": _out("methodoverride")}, base_ns)))
     if "httpparampollution" not in skipped and is_url:
-        modules.append(("httpparampollution", httpparampollution.run_once,
-                        _make_args(target, {"url": target, "output": _out("httpparampollution")}, base_ns)))
+        modules.append(("httpparampollution", httpparampollution.run_once, _make_args(target, {"url": target, "output": _out("httpparampollution")}, base_ns)))
     if "blindxss" not in skipped and is_url:
-        modules.append(("blindxss", blindxss.run_once,
-                        _make_args(target, {"url": target, "output": _out("blindxss")}, base_ns)))
+        modules.append(("blindxss", blindxss.run_once, _make_args(target, {"url": target, "output": _out("blindxss")}, base_ns)))
     if "corsmisconfig" not in skipped and is_url:
-        modules.append(("corsmisconfig", corsmisconfig.run_once,
-                        _make_args(target, {"url": target, "output": _out("corsmisconfig")}, base_ns)))
+        modules.append(("corsmisconfig", corsmisconfig.run_once, _make_args(target, {"url": target, "output": _out("corsmisconfig")}, base_ns)))
     if "clickjacking" not in skipped and is_url:
-        modules.append(("clickjacking", clickjacking.run_once,
-                        _make_args(target, {"url": target, "output": _out("clickjacking")}, base_ns)))
+        modules.append(("clickjacking", clickjacking.run_once, _make_args(target, {"url": target, "output": _out("clickjacking")}, base_ns)))
     if "hostheaderinject" not in skipped and is_url:
-        modules.append(("hostheaderinject", hostheaderinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("hostheaderinject")}, base_ns)))
+        modules.append(("hostheaderinject", hostheaderinject.run_once, _make_args(target, {"url": target, "output": _out("hostheaderinject")}, base_ns)))
     if "headerinject" not in skipped and is_url:
-        modules.append(("headerinject", headerinject.run_once,
-                        _make_args(target, {"url": target, "output": _out("headerinject")}, base_ns)))
+        modules.append(("headerinject", headerinject.run_once, _make_args(target, {"url": target, "output": _out("headerinject")}, base_ns)))
     if "loginjection" not in skipped and is_url:
-        modules.append(("loginjection", loginjection.run_once,
-                        _make_args(target, {"url": target, "output": _out("loginjection")}, base_ns)))
+        modules.append(("loginjection", loginjection.run_once, _make_args(target, {"url": target, "output": _out("loginjection")}, base_ns)))
     if "log4shell" not in skipped and is_url:
-        modules.append(("log4shell", log4shell.run_once,
-                        _make_args(target, {"url": target, "output": _out("log4shell")}, base_ns)))
+        modules.append(("log4shell", log4shell.run_once, _make_args(target, {"url": target, "output": _out("log4shell")}, base_ns)))
 
     if is_url:
         if "techfingerprint" not in skipped:
-            modules.append(("techfingerprint", techfingerprint.run_once,
-                            _make_args(target, {"urls": [target], "output": _out("techfingerprint")}, base_ns)))
+            modules.append(("techfingerprint", techfingerprint.run_once, _make_args(target, {"urls": [target], "output": _out("techfingerprint")}, base_ns)))
         if "openapidiscovery" not in skipped:
-            modules.append(("openapidiscovery", openapidiscovery.run_once,
-                            _make_args(target, {"url": target, "output": _out("openapidiscovery")}, base_ns)))
+            modules.append(("openapidiscovery", openapidiscovery.run_once, _make_args(target, {"url": target, "output": _out("openapidiscovery")}, base_ns)))
         if "graphqlplayground" not in skipped:
-            modules.append(("graphqlplayground", graphqlplayground.run_once,
-                            _make_args(target, {"url": target, "output": _out("graphqlplayground")}, base_ns)))
+            modules.append(("graphqlplayground", graphqlplayground.run_once, _make_args(target, {"url": target, "output": _out("graphqlplayground")}, base_ns)))
         if "sourcemapdiscovery" not in skipped:
-            modules.append(("sourcemapdiscovery", sourcemapdiscovery.run_once,
-                            _make_args(target, {"url": target, "output": _out("sourcemapdiscovery")}, base_ns)))
+            modules.append(
+                ("sourcemapdiscovery", sourcemapdiscovery.run_once, _make_args(target, {"url": target, "output": _out("sourcemapdiscovery")}, base_ns))
+            )
         if "vcsleak" not in skipped:
-            modules.append(("vcsleak", vcsleak.run_once,
-                            _make_args(target, {"url": target, "output": _out("vcsleak")}, base_ns)))
+            modules.append(("vcsleak", vcsleak.run_once, _make_args(target, {"url": target, "output": _out("vcsleak")}, base_ns)))
         if "configfiledetect" not in skipped:
-            modules.append(("configfiledetect", configfiledetect.run_once,
-                            _make_args(target, {"url": target, "output": _out("configfiledetect")}, base_ns)))
+            modules.append(("configfiledetect", configfiledetect.run_once, _make_args(target, {"url": target, "output": _out("configfiledetect")}, base_ns)))
         if "backupfiledetect" not in skipped:
-            modules.append(("backupfiledetect", backupfiledetect.run_once,
-                            _make_args(target, {"url": target, "output": _out("backupfiledetect")}, base_ns)))
+            modules.append(("backupfiledetect", backupfiledetect.run_once, _make_args(target, {"url": target, "output": _out("backupfiledetect")}, base_ns)))
         if "dirscanner" not in skipped:
-            modules.append(("dirscanner", dirscanner.run_once,
-                            _make_args(target, {"url": target, "output": _out("dirscanner"), "extensions": ["php", "txt", "bak", "html"]}, base_ns)))
+            modules.append(
+                (
+                    "dirscanner",
+                    dirscanner.run_once,
+                    _make_args(target, {"url": target, "output": _out("dirscanner"), "extensions": ["php", "txt", "bak", "html"]}, base_ns),
+                )
+            )
         if "webrecon" not in skipped:
-            modules.append(("webrecon", webrecon.run_once,
-                            _make_args(target, {"url": target, "output": _out("webrecon"), "cve": args.cve, "deep": args.deep}, base_ns)))
+            modules.append(
+                ("webrecon", webrecon.run_once, _make_args(target, {"url": target, "output": _out("webrecon"), "cve": args.cve, "deep": args.deep}, base_ns))
+            )
         if "attackaudit" not in skipped:
-            modules.append(("attackaudit", attackaudit.run_once,
-                            _make_args(target, {
-                                "url": target,
-                                "output": _out("attackaudit"),
-                                "deep": args.deep,
-                                "test_vulns": args.test_vulns,
-                                "test_methods": args.test_methods,
-                            }, base_ns)))
+            modules.append(
+                (
+                    "attackaudit",
+                    attackaudit.run_once,
+                    _make_args(
+                        target,
+                        {
+                            "url": target,
+                            "output": _out("attackaudit"),
+                            "deep": args.deep,
+                            "test_vulns": args.test_vulns,
+                            "test_methods": args.test_methods,
+                        },
+                        base_ns,
+                    ),
+                )
+            )
 
     if not modules:
         return 0
@@ -564,7 +654,7 @@ def main() -> int:
 
     banner()
     logger.info("Alvo: %s", args.target)
-    logger.info("Modulos: %s", ', '.join(m for m in ALL_MODULES if m not in args.skip))
+    logger.info("Modulos: %s", ", ".join(m for m in ALL_MODULES if m not in args.skip))
 
     start = time.monotonic()
     errors = run_all(args)

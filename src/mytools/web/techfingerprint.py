@@ -13,6 +13,7 @@ com versao precisa, usando 7 tipos de sinal:
 
 Cada deteccao inclui nivel de confianca (high/medium/low) e evidencia.
 """
+
 import argparse
 import logging
 import re
@@ -90,33 +91,33 @@ META_GENERATOR_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 SCRIPT_VERSION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("jQuery", re.compile(r'/jquery[@. -]([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("jQuery", re.compile(r'/jquery\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Bootstrap", re.compile(r'/bootstrap[@. -]([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Bootstrap", re.compile(r'/bootstrap\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("React", re.compile(r'/react@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("React", re.compile(r'/react\.production\.min\.js', re.IGNORECASE)),
-    ("Vue.js", re.compile(r'/vue@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Vue.js", re.compile(r'/vue\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Angular", re.compile(r'/angular[@. -]([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
+    ("jQuery", re.compile(r"/jquery[@. -]([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("jQuery", re.compile(r"/jquery\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Bootstrap", re.compile(r"/bootstrap[@. -]([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Bootstrap", re.compile(r"/bootstrap\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("React", re.compile(r"/react@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("React", re.compile(r"/react\.production\.min\.js", re.IGNORECASE)),
+    ("Vue.js", re.compile(r"/vue@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Vue.js", re.compile(r"/vue\.min\.js\?v=([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Angular", re.compile(r"/angular[@. -]([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
     ("Angular", re.compile(r'ng-version="([\d.]+)"', re.IGNORECASE)),
-    ("Lodash", re.compile(r'/lodash@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Moment.js", re.compile(r'/moment@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Axios", re.compile(r'/axios@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Font Awesome", re.compile(r'/font-awesome[@/](\d+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Font Awesome", re.compile(r'/fontawesome[@/](\d+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Animate.css", re.compile(r'/animate\.css@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Tailwind CSS", re.compile(r'/tailwindcss@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
+    ("Lodash", re.compile(r"/lodash@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Moment.js", re.compile(r"/moment@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Axios", re.compile(r"/axios@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Font Awesome", re.compile(r"/font-awesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Font Awesome", re.compile(r"/fontawesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Animate.css", re.compile(r"/animate\.css@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Tailwind CSS", re.compile(r"/tailwindcss@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
 ]
 
 CSS_VERSION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("Bootstrap", re.compile(r'/bootstrap[@. -]([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Font Awesome", re.compile(r'/font-awesome[@/](\d+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Font Awesome", re.compile(r'/fontawesome[@/](\d+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Tailwind CSS", re.compile(r'/tailwindcss@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Animate.css", re.compile(r'/animate\.css@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Bulma", re.compile(r'/bulma@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
-    ("Materialize", re.compile(r'/materialize@([\d]+\.[\d]+\.[\d]+)', re.IGNORECASE)),
+    ("Bootstrap", re.compile(r"/bootstrap[@. -]([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Font Awesome", re.compile(r"/font-awesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Font Awesome", re.compile(r"/fontawesome[@/](\d+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Tailwind CSS", re.compile(r"/tailwindcss@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Animate.css", re.compile(r"/animate\.css@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Bulma", re.compile(r"/bulma@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
+    ("Materialize", re.compile(r"/materialize@([\d]+\.[\d]+\.[\d]+)", re.IGNORECASE)),
 ]
 
 COOKIE_TECH_MAP: dict[str, str] = {
@@ -168,25 +169,25 @@ _COOKIE_PREFIX: dict[str, str] = {
 
 BODY_TECH_PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("Angular", "body", re.compile(r'ng-version="([\d.]+)"', re.IGNORECASE)),
-    ("Angular", "body", re.compile(r'ng-app=', re.IGNORECASE)),
-    ("React", "body", re.compile(r'data-reactroot', re.IGNORECASE)),
-    ("React", "body", re.compile(r'_reactRootContainer', re.IGNORECASE)),
-    ("Vue.js", "body", re.compile(r'data-v-', re.IGNORECASE)),
-    ("Vue.js", "body", re.compile(r'__vue__', re.IGNORECASE)),
-    ("WordPress", "body", re.compile(r'wp-content', re.IGNORECASE)),
-    ("Joomla", "body", re.compile(r'/media/jui/', re.IGNORECASE)),
-    ("Drupal", "body", re.compile(r'Drupal\.settings', re.IGNORECASE)),
-    ("Django", "body", re.compile(r'csrfmiddlewaretoken', re.IGNORECASE)),
-    ("Laravel", "body", re.compile(r'laravel_session', re.IGNORECASE)),
-    ("Express", "body", re.compile(r'X-Powered-By.*Express', re.IGNORECASE)),
-    ("Svelte", "body", re.compile(r'__svelte', re.IGNORECASE)),
-    ("Next.js", "body", re.compile(r'__NEXT_DATA__', re.IGNORECASE)),
-    ("Nuxt.js", "body", re.compile(r'__NUXT__', re.IGNORECASE)),
-    ("Gatsby", "body", re.compile(r'___gatsby', re.IGNORECASE)),
-    ("Shopify", "body", re.compile(r'cdn\.shopify\.com', re.IGNORECASE)),
-    ("Magento", "body", re.compile(r'mage/', re.IGNORECASE)),
-    ("PrestaShop", "body", re.compile(r'prestashop', re.IGNORECASE)),
-    ("OpenCart", "body", re.compile(r'catalog/view/theme', re.IGNORECASE)),
+    ("Angular", "body", re.compile(r"ng-app=", re.IGNORECASE)),
+    ("React", "body", re.compile(r"data-reactroot", re.IGNORECASE)),
+    ("React", "body", re.compile(r"_reactRootContainer", re.IGNORECASE)),
+    ("Vue.js", "body", re.compile(r"data-v-", re.IGNORECASE)),
+    ("Vue.js", "body", re.compile(r"__vue__", re.IGNORECASE)),
+    ("WordPress", "body", re.compile(r"wp-content", re.IGNORECASE)),
+    ("Joomla", "body", re.compile(r"/media/jui/", re.IGNORECASE)),
+    ("Drupal", "body", re.compile(r"Drupal\.settings", re.IGNORECASE)),
+    ("Django", "body", re.compile(r"csrfmiddlewaretoken", re.IGNORECASE)),
+    ("Laravel", "body", re.compile(r"laravel_session", re.IGNORECASE)),
+    ("Express", "body", re.compile(r"X-Powered-By.*Express", re.IGNORECASE)),
+    ("Svelte", "body", re.compile(r"__svelte", re.IGNORECASE)),
+    ("Next.js", "body", re.compile(r"__NEXT_DATA__", re.IGNORECASE)),
+    ("Nuxt.js", "body", re.compile(r"__NUXT__", re.IGNORECASE)),
+    ("Gatsby", "body", re.compile(r"___gatsby", re.IGNORECASE)),
+    ("Shopify", "body", re.compile(r"cdn\.shopify\.com", re.IGNORECASE)),
+    ("Magento", "body", re.compile(r"mage/", re.IGNORECASE)),
+    ("PrestaShop", "body", re.compile(r"prestashop", re.IGNORECASE)),
+    ("OpenCart", "body", re.compile(r"catalog/view/theme", re.IGNORECASE)),
 ]
 
 # ---------------------------------------------------------------------------
@@ -231,14 +232,16 @@ def _detect_header_versions(
                     continue
                 seen.add(key)
                 category = "server" if tech_name in {"Apache", "Nginx", "IIS", "LiteSpeed", "Caddy"} else "language"
-                results.append(TechFingerprint(
-                    name=tech_name,
-                    version=version,
-                    source="header",
-                    confidence="high",
-                    evidence=m.group(0)[:80],
-                    category=category,
-                ))
+                results.append(
+                    TechFingerprint(
+                        name=tech_name,
+                        version=version,
+                        source="header",
+                        confidence="high",
+                        evidence=m.group(0)[:80],
+                        category=category,
+                    )
+                )
                 break
 
     return results
@@ -257,14 +260,16 @@ def _detect_meta_generators(body: str) -> list[TechFingerprint]:
             if key in seen:
                 continue
             seen.add(key)
-            results.append(TechFingerprint(
-                name=tech_name,
-                version=version,
-                source="meta",
-                confidence="high",
-                evidence=m.group(0)[:80],
-                category="cms",
-            ))
+            results.append(
+                TechFingerprint(
+                    name=tech_name,
+                    version=version,
+                    source="meta",
+                    confidence="high",
+                    evidence=m.group(0)[:80],
+                    category="cms",
+                )
+            )
 
     return results
 
@@ -281,18 +286,30 @@ def _detect_script_versions(body: str) -> list[TechFingerprint]:
             if key in seen:
                 continue
             seen.add(key)
-            category = "library" if tech_name in {
-                "jQuery", "Lodash", "Moment.js", "Axios", "Font Awesome",
-                "Animate.css", "Tailwind CSS",
-            } else "framework"
-            results.append(TechFingerprint(
-                name=tech_name,
-                version=version,
-                source="script",
-                confidence="high" if version else "medium",
-                evidence=m.group(0)[:80],
-                category=category,
-            ))
+            category = (
+                "library"
+                if tech_name
+                in {
+                    "jQuery",
+                    "Lodash",
+                    "Moment.js",
+                    "Axios",
+                    "Font Awesome",
+                    "Animate.css",
+                    "Tailwind CSS",
+                }
+                else "framework"
+            )
+            results.append(
+                TechFingerprint(
+                    name=tech_name,
+                    version=version,
+                    source="script",
+                    confidence="high" if version else "medium",
+                    evidence=m.group(0)[:80],
+                    category=category,
+                )
+            )
 
     return results
 
@@ -309,14 +326,16 @@ def _detect_css_versions(body: str) -> list[TechFingerprint]:
             if key in seen:
                 continue
             seen.add(key)
-            results.append(TechFingerprint(
-                name=tech_name,
-                version=version,
-                source="css",
-                confidence="high" if version else "medium",
-                evidence=m.group(0)[:80],
-                category="library",
-            ))
+            results.append(
+                TechFingerprint(
+                    name=tech_name,
+                    version=version,
+                    source="css",
+                    confidence="high" if version else "medium",
+                    evidence=m.group(0)[:80],
+                    category="library",
+                )
+            )
 
     return results
 
@@ -334,13 +353,15 @@ def _detect_cookie_techs(cookies: list[str]) -> list[TechFingerprint]:
         if tech and tech not in seen:
             seen.add(tech)
             category = "language" if tech in {"PHP", "Java", "ASP.NET"} else "framework"
-            results.append(TechFingerprint(
-                name=tech,
-                source="cookie",
-                confidence="medium",
-                evidence=cookie_str[:60],
-                category=category,
-            ))
+            results.append(
+                TechFingerprint(
+                    name=tech,
+                    source="cookie",
+                    confidence="medium",
+                    evidence=cookie_str[:60],
+                    category=category,
+                )
+            )
             continue
 
         # Check prefix match
@@ -348,13 +369,15 @@ def _detect_cookie_techs(cookies: list[str]) -> list[TechFingerprint]:
             if cookie_name.startswith(prefix) and tech not in seen:
                 seen.add(tech)
                 category = "language" if tech in {"PHP", "Java", "ASP.NET"} else "framework"
-                results.append(TechFingerprint(
-                    name=tech,
-                    source="cookie",
-                    confidence="medium",
-                    evidence=cookie_str[:60],
-                    category=category,
-                ))
+                results.append(
+                    TechFingerprint(
+                        name=tech,
+                        source="cookie",
+                        confidence="medium",
+                        evidence=cookie_str[:60],
+                        category=category,
+                    )
+                )
                 break
 
     return results
@@ -370,18 +393,30 @@ def _detect_body_techs(body: str) -> list[TechFingerprint]:
         if m and tech_name not in seen:
             version = m.group(1) if pat.groups and m.lastindex else ""
             seen.add(tech_name)
-            category = "cms" if tech_name in {
-                "WordPress", "Joomla", "Drupal", "Shopify", "Magento",
-                "PrestaShop", "OpenCart",
-            } else "framework"
-            results.append(TechFingerprint(
-                name=tech_name,
-                version=version,
-                source="body",
-                confidence="high" if version else "low",
-                evidence=m.group(0)[:80] if m else "",
-                category=category,
-            ))
+            category = (
+                "cms"
+                if tech_name
+                in {
+                    "WordPress",
+                    "Joomla",
+                    "Drupal",
+                    "Shopify",
+                    "Magento",
+                    "PrestaShop",
+                    "OpenCart",
+                }
+                else "framework"
+            )
+            results.append(
+                TechFingerprint(
+                    name=tech_name,
+                    version=version,
+                    source="body",
+                    confidence="high" if version else "low",
+                    evidence=m.group(0)[:80] if m else "",
+                    category=category,
+                )
+            )
 
     return results
 
@@ -438,10 +473,7 @@ async def _async_scan(url: str, timeout: float, user_agent: str | None = None) -
         body = body_bytes.decode("latin-1", errors="replace")
 
         # Extrai cookies do header Set-Cookie
-        cookies: list[str] = [
-            val for key, val in resp_headers.items()
-            if key.lower() == "set-cookie"
-        ]
+        cookies: list[str] = [val for key, val in resp_headers.items() if key.lower() == "set-cookie"]
 
         return fingerprint(url, dict(resp_headers), body, cookies)
 
@@ -479,14 +511,17 @@ def _print_results(url: str, results: list[TechFingerprint]) -> None:
 
     print_table(
         headers=("Tecnologia", "Versao", "Categoria", "Fonte", "Confianca", "Evidencia"),
-        rows=[(
-            r.name,
-            r.version or "-",
-            r.category,
-            r.source,
-            r.confidence,
-            r.evidence[:40] if r.evidence else "-",
-        ) for r in results],
+        rows=[
+            (
+                r.name,
+                r.version or "-",
+                r.category,
+                r.source,
+                r.confidence,
+                r.evidence[:40] if r.evidence else "-",
+            )
+            for r in results
+        ],
         column_styles=[
             (Cyber.WHITE, Cyber.BOLD),
             (Cyber.YELLOW,),
@@ -558,7 +593,7 @@ def run_once(args: argparse.Namespace) -> int:
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"URLs: {color(str(len(urls)), Cyber.GREEN, Cyber.BOLD)} | "
         f"Tecnologias: {color(str(total_techs), Cyber.GREEN, Cyber.BOLD)} | "
-        f"Tempo: {color(f"{elapsed:.1f}s", Cyber.WHITE)}"
+        f"Tempo: {color(f'{elapsed:.1f}s', Cyber.WHITE)}",
     )
 
     if getattr(args, "output", None):
@@ -580,13 +615,7 @@ def main() -> int:
             prompt="techfp> ",
             description="Fingerprint de tecnologias — detecta versoes exatas via HTTP.",
             example="https://example.com -o tech.json",
-            contextual_help=(
-                "Uso: <url> [opcoes]\n"
-                "Exemplos:\n"
-                "  https://example.com\n"
-                "  https://example.com -o tech.json\n"
-                "  -l urls.txt -o results.json"
-            ),
+            contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"),
         )
     return run_once(args)
 

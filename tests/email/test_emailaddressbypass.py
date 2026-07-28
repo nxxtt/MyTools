@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Address Quoting Bypass."""
+
 import smtplib
 from unittest.mock import MagicMock, patch
 
@@ -22,8 +23,11 @@ from mytools.email.emailaddressbypass import (
 class TestAddressAttempt:
     def test_frozen(self) -> None:
         a = AddressAttempt(
-            technique="quoted_basic", email_address='"user"@test.com',
-            status="accepted", server_response="250 OK", error="",
+            technique="quoted_basic",
+            email_address='"user"@test.com',
+            status="accepted",
+            server_response="250 OK",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "x"  # type: ignore[misc]
@@ -35,9 +39,15 @@ class TestAddressAttempt:
 class TestAddressResult:
     def test_frozen(self) -> None:
         r = AddressResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[], accepted_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="secure",
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
@@ -209,6 +219,7 @@ class TestTestAddress:
     @patch("mytools.email.emailaddressbypass.smtplib.SMTP")
     def test_address_error(self, mock_smtp: MagicMock) -> None:
         from smtplib import SMTPResponseException
+
         mock_server = MagicMock()
         mock_server.rcpt.side_effect = SMTPResponseException(550, b"fail")
         mock_smtp.return_value = mock_server
@@ -354,11 +365,19 @@ class TestScanAddressBypass:
 class TestPrintResults:
     def test_print_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = AddressResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[AddressAttempt(
-                technique="quoted_basic", email_address='"user"@test.com',
-                status="accepted", server_response="250 OK", error="",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[
+                AddressAttempt(
+                    technique="quoted_basic",
+                    email_address='"user"@test.com',
+                    status="accepted",
+                    server_response="250 OK",
+                    error="",
+                )
+            ],
             accepted_techniques=["quoted_basic"],
             blocked_techniques=[],
             issues=["1/14 enderecos citados aceitos"],
@@ -370,11 +389,19 @@ class TestPrintResults:
 
     def test_print_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = AddressResult(
-            target="mail.test.com", port=587, tls=True, banner="220",
-            attempts=[AddressAttempt(
-                technique="quoted_basic", email_address='"user"@test.com',
-                status="rejected", server_response="550 Rejected", error="",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=True,
+            banner="220",
+            attempts=[
+                AddressAttempt(
+                    technique="quoted_basic",
+                    email_address='"user"@test.com',
+                    status="rejected",
+                    server_response="550 Rejected",
+                    error="",
+                )
+            ],
             accepted_techniques=[],
             blocked_techniques=["quoted_basic"],
             issues=["Todos os enderecos citados bloqueados"],
@@ -386,9 +413,15 @@ class TestPrintResults:
 
     def test_print_error(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = AddressResult(
-            target="mail.test.com", port=587, tls=False, banner="",
-            attempts=[], accepted_techniques=[], blocked_techniques=[],
-            issues=["Falha de conexao"], overall_status="error",
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=["Falha de conexao"],
+            overall_status="error",
         )
         print_results(result)
         captured = capsys.readouterr()
@@ -396,11 +429,19 @@ class TestPrintResults:
 
     def test_print_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = AddressResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[AddressAttempt(
-                technique="quoted_at", email_address='"user@other.com"@test.com',
-                status="error", server_response="", error="timeout",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[
+                AddressAttempt(
+                    technique="quoted_at",
+                    email_address='"user@other.com"@test.com',
+                    status="error",
+                    server_response="",
+                    error="timeout",
+                )
+            ],
             accepted_techniques=[],
             blocked_techniques=[],
             issues=[],

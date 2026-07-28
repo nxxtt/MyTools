@@ -15,6 +15,7 @@ NAO aplica para:
   - Timing-based (blind injection) — mesmo ruído afeta ambos requests
   - SSRF — segundo payload nao adiciona evidencia independente sem callback
 """
+
 from __future__ import annotations
 
 import logging

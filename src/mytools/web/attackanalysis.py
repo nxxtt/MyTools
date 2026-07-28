@@ -105,24 +105,28 @@ def build_graph(findings: list[dict[str, Any]], target: str) -> AttackGraph:
         node_id = f"vuln_{i}"
         severity_counts[severity] = severity_counts.get(severity, 0) + 1
 
-        nodes.append(AttackNode(
-            id=node_id,
-            label=f"{item}\n({severity})",
-            severity=severity,
-            category=category,
-            module=item,
-            exploit=exploit,
-        ))
+        nodes.append(
+            AttackNode(
+                id=node_id,
+                label=f"{item}\n({severity})",
+                severity=severity,
+                category=category,
+                module=item,
+                exploit=exploit,
+            )
+        )
 
         for j, other in enumerate(findings):
             if i >= j:
                 continue
             if other.get("category") == category:
-                edges.append(AttackEdge(
-                    source=f"vuln_{i}",
-                    target=f"vuln_{j}",
-                    relationship="same_category",
-                ))
+                edges.append(
+                    AttackEdge(
+                        source=f"vuln_{i}",
+                        target=f"vuln_{j}",
+                        relationship="same_category",
+                    )
+                )
 
     return AttackGraph(
         nodes=nodes,
@@ -168,8 +172,7 @@ def _build_nx_graph(graph: AttackGraph) -> nx.DiGraph:
     """Constrói networkx DiGraph a partir de AttackGraph."""
     G = nx.DiGraph()
     for node in graph.nodes:
-        G.add_node(node.id, label=node.label, severity=node.severity,
-                   category=node.category, module=node.module, exploit=node.exploit)
+        G.add_node(node.id, label=node.label, severity=node.severity, category=node.category, module=node.module, exploit=node.exploit)
     for edge in graph.edges:
         G.add_edge(edge.source, edge.target, relationship=edge.relationship)
     return G
@@ -190,10 +193,7 @@ def _draw_graph(G: nx.DiGraph, graph: AttackGraph, output_path: str, fmt: str) -
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=6)
     plt.title(f"Attack Path — {graph.target}", fontsize=14, fontweight="bold")
     plt.legend(
-        handles=[
-            Line2D([0], [0], marker="o", color="w", markerfacecolor=c, markersize=10, label=s.title())
-            for s, c in _SEVERITY_COLORS.items()
-        ],
+        handles=[Line2D([0], [0], marker="o", color="w", markerfacecolor=c, markersize=10, label=s.title()) for s, c in _SEVERITY_COLORS.items()],
         loc="upper left",
     )
     plt.axis("off")
@@ -208,11 +208,13 @@ def suggest_exploits(findings: list[dict[str, Any]]) -> list[dict[str, str]]:
     for finding in findings:
         exploit = finding.get("exploit", "")
         if exploit:
-            exploits.append({
-                "module": finding.get("item", "unknown"),
-                "severity": finding.get("severity", "info"),
-                "exploit": exploit,
-            })
+            exploits.append(
+                {
+                    "module": finding.get("item", "unknown"),
+                    "severity": finding.get("severity", "info"),
+                    "exploit": exploit,
+                }
+            )
     return exploits
 
 

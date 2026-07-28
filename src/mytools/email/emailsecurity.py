@@ -13,6 +13,7 @@ Fluxo:
   4. Analisa mecanismos e qualificadores
   5. Classifica severidade geral
 """
+
 import argparse
 import logging
 import re
@@ -106,7 +107,7 @@ def _query_txt(domain: str, resolver: dns.resolver.Resolver) -> str | None:
                 else:
                     parts.append(str(txt))
             return "".join(parts)
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+    except dns.resolver.NoAnswer, dns.resolver.NXDOMAIN:
         pass
     except dns.exception.Timeout:
         return DNS_ERROR
@@ -218,7 +219,7 @@ def scan_email_security(
         issues.append("Nenhum registro DMARC encontrado")
 
     dkim_selectors: list[str] = []
-    for sel in (selectors or DEFAULT_SELECTORS):
+    for sel in selectors or DEFAULT_SELECTORS:
         dkim_raw = _query_txt(f"{sel}._domainkey.{domain}", resolver)
         if dkim_raw == DNS_ERROR or dkim_raw is None:
             continue
@@ -226,13 +227,10 @@ def scan_email_security(
             dkim_selectors.append(sel)
 
     if not dkim_selectors:
-        issues.append("Nenhum registro DKIM encontrado (seletores testados: " +
-                       ", ".join(selectors or DEFAULT_SELECTORS) + ")")
+        issues.append("Nenhum registro DKIM encontrado (seletores testados: " + ", ".join(selectors or DEFAULT_SELECTORS) + ")")
 
     # Critico: ausencia total, SPF +all, ou DMARC none sem SPF
-    if (not spf and not dmarc and not dkim_selectors) or \
-       (spf and spf.has_all and spf.all_qualifier == "+") or \
-       (dmarc and dmarc.policy == "none" and not spf):
+    if (not spf and not dmarc and not dkim_selectors) or (spf and spf.has_all and spf.all_qualifier == "+") or (dmarc and dmarc.policy == "none" and not spf):
         status = "critical"
     elif dmarc and dmarc.policy == "malformed":
         status = "warning"
@@ -339,7 +337,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo para verificacao.")
     parser.add_argument(
-        "--nameserver", "-s",
+        "--nameserver",
+        "-s",
         default="8.8.8.8",
         help="Nameserver para queries. Padrao: 8.8.8.8",
     )
@@ -408,13 +407,7 @@ def main() -> int:
         prompt="secemail> ",
         description="Email Security interativo — verifica DMARC/SPF/DKIM.",
         example="example.com --selectors default,google",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --selectors default,google,s1\n"
-            "  example.com --nameserver 1.1.1.1"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"),
     )
 
 

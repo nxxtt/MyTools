@@ -21,6 +21,7 @@ Fluxo:
   4. Resolve multiplas vezes para detectar IP flip
   5. Classifica severidade de cada achado
 """
+
 import argparse
 import ipaddress
 import logging
@@ -98,7 +99,9 @@ def _check_ttl(domain: str, answers: dns.resolver.Answer) -> RebindingResult | N
 
     if ttl == 0:
         return RebindingResult(
-            domain=domain, check="ttl", severity="critical",
+            domain=domain,
+            check="ttl",
+            severity="critical",
             detail="TTL=0 — indicador forte de rebinding",
             records=[f"TTL={ttl}"],
             exploit="rebinding_payload",
@@ -106,7 +109,9 @@ def _check_ttl(domain: str, answers: dns.resolver.Answer) -> RebindingResult | N
         )
     if ttl <= 2:
         return RebindingResult(
-            domain=domain, check="ttl", severity="high",
+            domain=domain,
+            check="ttl",
+            severity="high",
             detail=f"TTL={ttl}s — possivel rebinding",
             records=[f"TTL={ttl}"],
             exploit="rebinding_payload",
@@ -114,7 +119,9 @@ def _check_ttl(domain: str, answers: dns.resolver.Answer) -> RebindingResult | N
         )
     if ttl <= 5:
         return RebindingResult(
-            domain=domain, check="ttl", severity="medium",
+            domain=domain,
+            check="ttl",
+            severity="medium",
             detail=f"TTL={ttl}s — suspeito, investigar",
             records=[f"TTL={ttl}"],
             exploit="rebinding_payload",
@@ -122,7 +129,9 @@ def _check_ttl(domain: str, answers: dns.resolver.Answer) -> RebindingResult | N
         )
     if ttl <= 30:
         return RebindingResult(
-            domain=domain, check="ttl", severity="low",
+            domain=domain,
+            check="ttl",
+            severity="low",
             detail=f"TTL={ttl}s — baixo mas possivelmente legitimo",
             records=[f"TTL={ttl}"],
             exploit="",
@@ -138,21 +147,29 @@ def _check_private_ips(domain: str, answers: dns.resolver.Answer) -> list[Rebind
     for rdata in answers:
         ip_str = rdata.address
         if _is_cloud_metadata(ip_str):
-            results.append(RebindingResult(
-                domain=domain, check="private_ip", severity="critical",
-                detail=f"IP {ip_str} e endpoint de metadata cloud (AWS/GCP/Azure)",
-                records=[ip_str],
-                exploit="rebinding_payload",
-                tool="rbndr.us",
-            ))
+            results.append(
+                RebindingResult(
+                    domain=domain,
+                    check="private_ip",
+                    severity="critical",
+                    detail=f"IP {ip_str} e endpoint de metadata cloud (AWS/GCP/Azure)",
+                    records=[ip_str],
+                    exploit="rebinding_payload",
+                    tool="rbndr.us",
+                )
+            )
         elif _is_private_ip(ip_str):
-            results.append(RebindingResult(
-                domain=domain, check="private_ip", severity="critical",
-                detail=f"IP {ip_str} e reservado/privado (RFC1918)",
-                records=[ip_str],
-                exploit="rebinding_payload",
-                tool="rbndr.us",
-            ))
+            results.append(
+                RebindingResult(
+                    domain=domain,
+                    check="private_ip",
+                    severity="critical",
+                    detail=f"IP {ip_str} e reservado/privado (RFC1918)",
+                    records=[ip_str],
+                    exploit="rebinding_payload",
+                    tool="rbndr.us",
+                )
+            )
 
     return results
 
@@ -184,7 +201,9 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
 
     if final_ip and _is_private_ip(final_ip):
         return RebindingResult(
-            domain=domain, check="cname_chain", severity="high",
+            domain=domain,
+            check="cname_chain",
+            severity="high",
             detail=f"CNAME chain ({chain_depth} hops) resolve para IP privado {final_ip}",
             records=[*cname_names, final_ip],
             exploit="rebinding_payload",
@@ -193,7 +212,9 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
 
     if min_ttl is not None and min_ttl <= 5:
         return RebindingResult(
-            domain=domain, check="cname_chain", severity="medium",
+            domain=domain,
+            check="cname_chain",
+            severity="medium",
             detail=f"CNAME chain com TTL minimo={min_ttl}s ({chain_depth} hops)",
             records=cname_names,
             exploit="rebinding_payload",
@@ -202,7 +223,9 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
 
     if chain_depth >= 4:
         return RebindingResult(
-            domain=domain, check="cname_chain", severity="low",
+            domain=domain,
+            check="cname_chain",
+            severity="low",
             detail=f"CNAME chain profunda ({chain_depth} hops) — pode ocultar destino",
             records=cname_names,
             exploit="",
@@ -214,9 +237,7 @@ def _check_cname_chain(domain: str, answers: dns.resolver.Answer, resolver: dns.
 
 def _check_wildcard(domain: str, resolver: dns.resolver.Resolver) -> RebindingResult | None:
     """Testa se o dominio tem wildcard DNS."""
-    random_subdomains = [
-        "".join(random.choices(string.ascii_lowercase, k=12)) for _ in range(5)
-    ]
+    random_subdomains = ["".join(random.choices(string.ascii_lowercase, k=12)) for _ in range(5)]
 
     resolved_any = False
     resolved_ips: list[str] = []
@@ -235,7 +256,9 @@ def _check_wildcard(domain: str, resolver: dns.resolver.Resolver) -> RebindingRe
 
     unique_ips = list(set(resolved_ips))
     return RebindingResult(
-        domain=domain, check="wildcard", severity="medium",
+        domain=domain,
+        check="wildcard",
+        severity="medium",
         detail=f"Wildcard DNS detectado — subdominios aleatorios resolvem para {len(unique_ips)} IP(s)",
         records=unique_ips[:5],
         exploit="rebinding_payload",
@@ -262,7 +285,9 @@ def _check_ip_flip(domain: str, resolver: dns.resolver.Resolver, queries: int = 
 
     if seen_public and seen_private:
         return RebindingResult(
-            domain=domain, check="ip_flip", severity="critical",
+            domain=domain,
+            check="ip_flip",
+            severity="critical",
             detail=f"IP flip detectado — publicos: {seen_public}, privados: {seen_private}",
             records=list(seen_public | seen_private),
             exploit="rebinding_payload",
@@ -288,36 +313,52 @@ def scan_rebinding(
         answers = resolver.resolve(domain, "A")
     except dns.resolver.NXDOMAIN:
         logger.warning("Dominio %s nao existe (NXDOMAIN)", domain)
-        return [RebindingResult(
-            domain=domain, check="resolve", severity="info",
-            detail="Dominio nao existe (NXDOMAIN)",
-            exploit="",
-            tool="rbndr.us",
-        )]
+        return [
+            RebindingResult(
+                domain=domain,
+                check="resolve",
+                severity="info",
+                detail="Dominio nao existe (NXDOMAIN)",
+                exploit="",
+                tool="rbndr.us",
+            )
+        ]
     except dns.resolver.NoAnswer:
         logger.warning("Dominio %s nao retorna registros A", domain)
-        return [RebindingResult(
-            domain=domain, check="resolve", severity="info",
-            detail="Sem registros A para o dominio",
-            exploit="",
-            tool="rbndr.us",
-        )]
+        return [
+            RebindingResult(
+                domain=domain,
+                check="resolve",
+                severity="info",
+                detail="Sem registros A para o dominio",
+                exploit="",
+                tool="rbndr.us",
+            )
+        ]
     except dns.exception.Timeout:
         logger.warning("Timeout resolvendo %s", domain)
-        return [RebindingResult(
-            domain=domain, check="resolve", severity="info",
-            detail="Timeout na resolucao DNS",
-            exploit="",
-            tool="rbndr.us",
-        )]
+        return [
+            RebindingResult(
+                domain=domain,
+                check="resolve",
+                severity="info",
+                detail="Timeout na resolucao DNS",
+                exploit="",
+                tool="rbndr.us",
+            )
+        ]
     except dns.exception.DNSException as e:
         logger.warning("Erro DNS resolvendo %s: %s", domain, e)
-        return [RebindingResult(
-            domain=domain, check="resolve", severity="info",
-            detail=f"Erro DNS: {e}",
-            exploit="",
-            tool="rbndr.us",
-        )]
+        return [
+            RebindingResult(
+                domain=domain,
+                check="resolve",
+                severity="info",
+                detail=f"Erro DNS: {e}",
+                exploit="",
+                tool="rbndr.us",
+            )
+        ]
 
     ttl_result = _check_ttl(domain, answers)
     if ttl_result:
@@ -396,7 +437,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("domain", nargs="?", help="Dominio alvo para testar (ex: example.com).")
     parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha).")
     parser.add_argument(
-        "--queries", "-n",
+        "--queries",
+        "-n",
         type=int,
         default=5,
         help="Numero de resolucoes para detectar IP flip. Padrao: 5",
@@ -467,13 +509,7 @@ def main() -> int:
         prompt="rebind> ",
         description="DNS Rebinding Detection interativo.",
         example="example.com --queries 10",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --queries 10\n"
-            "  -l domains.txt -o results.json"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 10\n  -l domains.txt -o results.json"),
     )
 
 

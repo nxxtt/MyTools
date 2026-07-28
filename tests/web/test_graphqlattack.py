@@ -34,10 +34,16 @@ from mytools.web.graphqlattack import (
 class TestGraphQLAttackAttempt:
     def test_creation(self) -> None:
         a = GraphQLAttackAttempt(
-            technique="schema_discovery", category="introspection",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="https://target.com/graphql", query_type="Query",
-            schema_types=10, response_code=200,
+            technique="schema_discovery",
+            category="introspection",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://target.com/graphql",
+            query_type="Query",
+            schema_types=10,
+            response_code=200,
         )
         assert a.technique == "schema_discovery"
         assert a.category == "introspection"
@@ -45,9 +51,16 @@ class TestGraphQLAttackAttempt:
 
     def test_frozen(self) -> None:
         a = GraphQLAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="",
-            endpoint="", query_type="", schema_types=0, response_code=0,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="",
+            query_type="",
+            schema_types=0,
+            response_code=0,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -56,20 +69,38 @@ class TestGraphQLAttackAttempt:
 class TestGraphQLAttackResult:
     def test_creation(self) -> None:
         r = GraphQLAttackResult(
-            target="https://target.com/graphql", host="target.com", port=443, tls=True,
-            endpoint="https://target.com/graphql", schema_found=True,
-            types_count=10, queries_count=1, mutations_count=1,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://target.com/graphql",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com/graphql",
+            schema_found=True,
+            types_count=10,
+            queries_count=1,
+            mutations_count=1,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.schema_found is True
 
     def test_frozen(self) -> None:
         r = GraphQLAttackResult(
-            target="t", host="h", port=443, tls=True,
-            endpoint="", schema_found=False, types_count=0,
-            queries_count=0, mutations_count=0,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            endpoint="",
+            schema_found=False,
+            types_count=0,
+            queries_count=0,
+            mutations_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -81,8 +112,14 @@ class TestGraphQLAttackResult:
 class TestCategoryMap:
     def test_all_categories_present(self) -> None:
         expected = {
-            "introspection", "depth_abuse", "batch_abuse", "alias_overload",
-            "schema_stitching", "persisted_abuse", "resolver_analysis", "persisted_enum",
+            "introspection",
+            "depth_abuse",
+            "batch_abuse",
+            "alias_overload",
+            "schema_stitching",
+            "persisted_abuse",
+            "resolver_analysis",
+            "persisted_enum",
         }
         assert set(_CATEGORY_MAP.keys()) == expected
 
@@ -106,6 +143,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -140,11 +178,11 @@ class TestDetectTool:
         assert _detect_tool(html) == "graphiql"
 
     def test_playground(self) -> None:
-        html = 'GraphQL Playground loaded'
+        html = "GraphQL Playground loaded"
         assert _detect_tool(html) == "playground"
 
     def test_unknown(self) -> None:
-        html = '<html><body>test</body></html>'
+        html = "<html><body>test</body></html>"
         assert _detect_tool(html) == "unknown"
 
 
@@ -216,6 +254,7 @@ class TestDefaultPaths:
 
     def test_introspection_query_is_json(self) -> None:
         import json
+
         data = json.loads(_INTROSPECTION_QUERY)
         assert "query" in data
         assert "__schema" in data["query"]
@@ -227,10 +266,19 @@ class TestDefaultPaths:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = GraphQLAttackResult(
-            target="https://target.com/graphql", host="target.com", port=443, tls=True,
-            endpoint="https://target.com/graphql", schema_found=False,
-            types_count=0, queries_count=0, mutations_count=0,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://target.com/graphql",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com/graphql",
+            schema_found=False,
+            types_count=0,
+            queries_count=0,
+            mutations_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -239,11 +287,19 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = GraphQLAttackResult(
-            target="https://target.com/graphql", host="target.com", port=443, tls=True,
-            endpoint="https://target.com/graphql", schema_found=True,
-            types_count=10, queries_count=1, mutations_count=0,
-            attempts=[], vulnerable_techniques=["full_introspection"],
-            issues=["Errors: test_error"], overall_status="vulnerable",
+            target="https://target.com/graphql",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com/graphql",
+            schema_found=True,
+            types_count=10,
+            queries_count=1,
+            mutations_count=0,
+            attempts=[],
+            vulnerable_techniques=["full_introspection"],
+            issues=["Errors: test_error"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

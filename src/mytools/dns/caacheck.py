@@ -16,6 +16,7 @@ Fluxo:
   3. Identifica CAs autorizadas
   4. Avalia politica (restrictive/permissive/open)
 """
+
 import argparse
 import logging
 from dataclasses import asdict, dataclass
@@ -93,7 +94,7 @@ def _parse_caa_rdata(rdata: object) -> CaaRecord | None:
             tag = parts[1]
             value = parts[2].strip('"')
             return CaaRecord(tag=tag, value=value, flags=flags)
-    except (ValueError, IndexError):
+    except ValueError, IndexError:
         pass
     return None
 
@@ -164,7 +165,9 @@ def print_results(result: CaaResult) -> None:
     print()
 
     print(f"  CAA Configurado: {color('SIM', Cyber.GREEN) if result.has_caa else color('NAO', Cyber.RED)}")
-    print(f"  Politica: {color(result.policy_status.upper(), Cyber.GREEN if result.policy_status == 'restrictive' else (Cyber.YELLOW if result.policy_status == 'permissive' else Cyber.RED))}")
+    print(
+        f"  Politica: {color(result.policy_status.upper(), Cyber.GREEN if result.policy_status == 'restrictive' else (Cyber.YELLOW if result.policy_status == 'permissive' else Cyber.RED))}"
+    )
     print(f"  IODEF (report): {color('SIM', Cyber.GREEN) if result.has_iodef else color('NAO', Cyber.YELLOW)}")
     print()
 
@@ -216,7 +219,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo para verificacao CAA.")
     parser.add_argument(
-        "--nameserver", "-s",
+        "--nameserver",
+        "-s",
         default="8.8.8.8",
         help="Nameserver para queries. Padrao: 8.8.8.8",
     )
@@ -277,12 +281,7 @@ def main() -> int:
         prompt="caa> ",
         description="CAA Record Check interativo.",
         example="example.com --nameserver 8.8.8.8",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --nameserver 1.1.1.1"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1"),
     )
 
 

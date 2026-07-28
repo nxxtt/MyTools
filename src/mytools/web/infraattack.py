@@ -44,16 +44,25 @@ _BANNER_LINES: str = (
 )
 
 _TERRAFORM_STATE_PATHS_DEFAULT: list[str] = [
-    "/terraform.tfstate", "/env/terraform.tfstate", "/prod/terraform.tfstate",
-    "/staging/terraform.tfstate", "/dev/terraform.tfstate", "/infra/terraform.tfstate",
-    "/infrastructure/terraform.tfstate", "/tf/terraform.tfstate", "/tfstate/terraform.tfstate",
-    "/.terraform/terraform.tfstate", "/terraform.tfstate.backup",
-    "/env/terraform.tfstate.backup", "/prod/terraform.tfstate.backup",
+    "/terraform.tfstate",
+    "/env/terraform.tfstate",
+    "/prod/terraform.tfstate",
+    "/staging/terraform.tfstate",
+    "/dev/terraform.tfstate",
+    "/infra/terraform.tfstate",
+    "/infrastructure/terraform.tfstate",
+    "/tf/terraform.tfstate",
+    "/tfstate/terraform.tfstate",
+    "/.terraform/terraform.tfstate",
+    "/terraform.tfstate.backup",
+    "/env/terraform.tfstate.backup",
+    "/prod/terraform.tfstate.backup",
 ]
 
 
 def _load_terraform_paths() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "infra_attack", default={"terraform_state_paths": _TERRAFORM_STATE_PATHS_DEFAULT})
     return data.get("terraform_state_paths", _TERRAFORM_STATE_PATHS_DEFAULT)
 
@@ -227,15 +236,28 @@ def _parse_url(target: str) -> tuple[str, str, int, bool]:
 
 
 def _make_attempt(
-    tech: str, cat: str, desc: str, vuln: bool, details: str, error: str,
-    endpoint: str, service_type: str, code: int,
+    tech: str,
+    cat: str,
+    desc: str,
+    vuln: bool,
+    details: str,
+    error: str,
+    endpoint: str,
+    service_type: str,
+    code: int,
 ) -> InfraAttackAttempt:
     return InfraAttackAttempt(
-    exploit="curl <TARGET>:9200/_cat/indices",
-    tool="curl",
-        technique=tech, category=cat, description=desc,
-        vulnerable=vuln, details=details, error=error,
-        endpoint=endpoint, service_type=service_type, response_code=code,
+        exploit="curl <TARGET>:9200/_cat/indices",
+        tool="curl",
+        technique=tech,
+        category=cat,
+        description=desc,
+        vulnerable=vuln,
+        details=details,
+        error=error,
+        endpoint=endpoint,
+        service_type=service_type,
+        response_code=code,
     )
 
 
@@ -250,7 +272,9 @@ def _extract_secrets(body: str) -> list[str]:
 
 
 async def _test_terraform_state_leak(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     leaked_files: list[str] = []
     secrets_found: list[str] = []
@@ -267,11 +291,8 @@ async def _test_terraform_state_leak(
                     if "resources" in data or "terraform_version" in data or "serial" in data:
                         leaked_files.append(state_path)
                         body = json.dumps(data)
-                        secrets_found.extend(
-                            pattern for pattern in _TERRAFORM_SECRET_PATTERNS
-                            if re.search(pattern, body, re.IGNORECASE)
-                        )
-                except (json.JSONDecodeError, ValueError):
+                        secrets_found.extend(pattern for pattern in _TERRAFORM_SECRET_PATTERNS if re.search(pattern, body, re.IGNORECASE))
+                except json.JSONDecodeError, ValueError:
                     if "terraform" in resp.text.lower():
                         leaked_files.append(state_path)
         except Exception:
@@ -286,7 +307,9 @@ async def _test_terraform_state_leak(
 
 
 async def _test_vault_exposed(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     accessible: list[str] = []
     last_code = 0
@@ -315,7 +338,9 @@ async def _test_vault_exposed(
 
 
 async def _test_cicd_pipeline_leak(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     found_pipelines: list[str] = []
     last_code = 0
@@ -339,7 +364,9 @@ async def _test_cicd_pipeline_leak(
 
 
 async def _test_cicd_secret_detection(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     secrets_per_pipeline: dict[str, list[str]] = {}
     last_code = 0
@@ -368,7 +395,9 @@ async def _test_cicd_secret_detection(
 
 
 async def _test_elastic_exposed(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     accessible: list[str] = []
     last_code = 0
@@ -403,7 +432,9 @@ async def _test_elastic_exposed(
 
 
 async def _test_redis_mongo_unauth(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     services_found: list[str] = []
     last_code = 0
@@ -441,7 +472,9 @@ async def _test_redis_mongo_unauth(
 
 
 async def _test_debug_endpoints(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     found_endpoints: list[str] = []
     last_code = 0
@@ -464,7 +497,9 @@ async def _test_debug_endpoints(
 
 
 async def _test_debug_mode_detection(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> InfraAttackAttempt:
     detected_modes: list[str] = []
     last_code = 0
@@ -475,10 +510,7 @@ async def _test_debug_mode_detection(
         headers_str = " ".join(f"{k}: {v}" for k, v in resp.headers.items())
         combined = resp.text + " " + headers_str
 
-        detected_modes.extend(
-            sig_info["desc"] for sig_info in _DEBUG_MODE_SIGNATURES
-            if re.search(sig_info["pattern"], combined, re.IGNORECASE)
-        )
+        detected_modes.extend(sig_info["desc"] for sig_info in _DEBUG_MODE_SIGNATURES if re.search(sig_info["pattern"], combined, re.IGNORECASE))
     except Exception:
         pass
 
@@ -489,8 +521,7 @@ async def _test_debug_mode_detection(
             resp = await client.get(full_url)
             if resp.status_code == 200:
                 detected_modes.extend(
-                    f"{sig_info['desc']} ({path})" for sig_info in _DEBUG_MODE_SIGNATURES
-                    if re.search(sig_info["pattern"], resp.text, re.IGNORECASE)
+                    f"{sig_info['desc']} ({path})" for sig_info in _DEBUG_MODE_SIGNATURES if re.search(sig_info["pattern"], resp.text, re.IGNORECASE)
                 )
         except Exception:
             pass
@@ -502,7 +533,12 @@ async def _test_debug_mode_detection(
 
 
 async def _test_infrastructure(
-    host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str,
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
 ) -> list[InfraAttackAttempt]:
     results: list[InfraAttackAttempt] = []
     async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
@@ -564,7 +600,10 @@ def print_results(result: InfraAttackResult) -> None:
 
 
 async def run_scan(
-    target: str, categories: list[str] | None, timeout: float, output_file: str | None,
+    target: str,
+    categories: list[str] | None,
+    timeout: float,
+    output_file: str | None,
 ) -> InfraAttackResult:
     host, path, port, tls = _parse_url(target)
     scheme = "https" if tls else "http"
@@ -591,10 +630,17 @@ async def run_scan(
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
     overall = "vulnerable" if vuln_techs else "secure"
     result = InfraAttackResult(
-        target=target, host=host, port=port, tls=tls, endpoint=endpoint,
-        service_detected=service_detected, techniques_count=len(all_attempts),
-        attempts=all_attempts, vulnerable_techniques=vuln_techs,
-        issues=issues, overall_status=overall,
+        target=target,
+        host=host,
+        port=port,
+        tls=tls,
+        endpoint=endpoint,
+        service_detected=service_detected,
+        techniques_count=len(all_attempts),
+        attempts=all_attempts,
+        vulnerable_techniques=vuln_techs,
+        issues=issues,
+        overall_status=overall,
     )
     print_results(result)
     if output_file:
@@ -614,12 +660,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
-    result = safe_asyncio_run(run_scan(
-        target=args.url,
-        categories=getattr(args, "categories", None),
-        timeout=getattr(args, "timeout", 5.0),
-        output_file=getattr(args, "output", None),
-    ))
+    result = safe_asyncio_run(
+        run_scan(
+            target=args.url,
+            categories=getattr(args, "categories", None),
+            timeout=getattr(args, "timeout", 5.0),
+            output_file=getattr(args, "output", None),
+        )
+    )
     return 1 if result.overall_status == "vulnerable" else 0
 
 

@@ -266,6 +266,7 @@ class TestFormDetection:
 
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
+
             client = MagicMock()
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
@@ -282,6 +283,7 @@ class TestFormDetection:
 
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
+
             client = MagicMock()
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
@@ -297,6 +299,7 @@ class TestFormDetection:
 
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
+
             client = MagicMock()
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
@@ -370,6 +373,7 @@ class TestOriginReferer:
 
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
+
             client = MagicMock()
             resp = MagicMock()
             resp.status_code = 200
@@ -389,6 +393,7 @@ class TestOriginReferer:
 
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
+
             client = MagicMock()
             resp = MagicMock()
             resp.status_code = 403
@@ -415,6 +420,7 @@ class TestTokenAnalysis:
 
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
+
             client = MagicMock()
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
@@ -431,6 +437,7 @@ class TestTokenAnalysis:
 
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
+
             client = MagicMock()
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
@@ -451,6 +458,7 @@ class TestRunScan:
     def test_invalid_category(self) -> None:
         async def run() -> CSRFResult:
             from unittest.mock import AsyncMock, MagicMock, patch
+
             client = MagicMock()
             resp = MagicMock()
             resp.status_code = 200
@@ -470,6 +478,7 @@ class TestRunScan:
     def test_baseline_error(self) -> None:
         async def run() -> CSRFResult:
             from unittest.mock import AsyncMock, MagicMock, patch
+
             client = MagicMock()
             resp = MagicMock()
             resp.status_code = 0

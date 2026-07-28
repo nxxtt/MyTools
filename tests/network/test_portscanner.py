@@ -252,11 +252,13 @@ class TestResolveTargetsIPv6:
 
     def test_invalid_raises(self):
         import pytest
+
         with pytest.raises(ValueError, match="nenhum alvo"):
             resolve_targets([])
 
     def test_unresolvable_hostname_raises(self):
         import pytest
+
         with pytest.raises(ValueError, match="nao consegui resolver"):
             resolve_targets(["thishostdoesnotexist.invalid"])
 
@@ -294,6 +296,7 @@ class TestDryRun:
 
     def test_dry_run_returns_zero(self, capsys):
         from mytools.network.portscanner import run_once
+
         parser = build_parser()
         args = parser.parse_args(["127.0.0.1", "-p", "80", "--dry-run"])
         result = run_once(args)
@@ -301,6 +304,7 @@ class TestDryRun:
 
     def test_dry_run_outputs_info(self, caplog):
         from mytools.network.portscanner import run_once
+
         parser = build_parser()
         args = parser.parse_args(["127.0.0.1", "-p", "22,80", "--dry-run"])
         with caplog.at_level("WARNING", logger="mytools.portscanner"):
@@ -313,10 +317,22 @@ class TestMain:
     def test_no_target_shells_interactive(self, mock_shell):
         mock_shell.return_value = 0
         from mytools.network.portscanner import main
+
         args = argparse.Namespace(
-            targets=None, target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=0.5, ports=[80],
-            workers=100, threads=None, banner=False, dry_run=False, retries=3,
+            targets=None,
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=0.5,
+            ports=[80],
+            workers=100,
+            threads=None,
+            banner=False,
+            dry_run=False,
+            retries=3,
         )
         with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -325,10 +341,22 @@ class TestMain:
 
     def test_quiet_without_output_returns_1(self):
         from mytools.network.portscanner import main
+
         args = argparse.Namespace(
-            targets=["127.0.0.1"], target_list=None, quiet=True, output=None,
-            verbose=False, color=None, log_file=None, timeout=0.5, ports=[80],
-            workers=100, threads=None, banner=False, dry_run=False, retries=3,
+            targets=["127.0.0.1"],
+            target_list=None,
+            quiet=True,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=0.5,
+            ports=[80],
+            workers=100,
+            threads=None,
+            banner=False,
+            dry_run=False,
+            retries=3,
         )
         with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -338,10 +366,22 @@ class TestMain:
     def test_valid_target_calls_run_once(self, mock_run_once):
         mock_run_once.return_value = 0
         from mytools.network.portscanner import main
+
         args = argparse.Namespace(
-            targets=["127.0.0.1"], target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=0.5, ports=[80],
-            workers=100, threads=None, banner=False, dry_run=False, retries=3,
+            targets=["127.0.0.1"],
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=0.5,
+            ports=[80],
+            workers=100,
+            threads=None,
+            banner=False,
+            dry_run=False,
+            retries=3,
         )
         with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -352,10 +392,22 @@ class TestMain:
     def test_exception_returns_1(self, mock_run_once):
         mock_run_once.side_effect = RuntimeError("fail")
         from mytools.network.portscanner import main
+
         args = argparse.Namespace(
-            targets=["127.0.0.1"], target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=0.5, ports=[80],
-            workers=100, threads=None, banner=False, dry_run=False, retries=3,
+            targets=["127.0.0.1"],
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=0.5,
+            ports=[80],
+            workers=100,
+            threads=None,
+            banner=False,
+            dry_run=False,
+            retries=3,
         )
         with patch("mytools.network.portscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()

@@ -10,26 +10,26 @@ logger = logging.getLogger("mytools.mobile.apk_endpoints")
 
 # URL patterns to extract
 _URL_PATTERNS = [
-    re.compile(rb'https?://[a-zA-Z0-9._/\-?&=%#@:~]+'),
-    re.compile(rb'ws://[a-zA-Z0-9._/\-?&=%#@:~]+'),
-    re.compile(rb'wss://[a-zA-Z0-9._/\-?&=%#@:~]+'),
+    re.compile(rb"https?://[a-zA-Z0-9._/\-?&=%#@:~]+"),
+    re.compile(rb"ws://[a-zA-Z0-9._/\-?&=%#@:~]+"),
+    re.compile(rb"wss://[a-zA-Z0-9._/\-?&=%#@:~]+"),
 ]
 
 # API path patterns
 _API_PATH_PATTERNS = [
-    re.compile(rb'/(?:api|v[0-9]+|graphql|rest|oauth|auth|token|login|register|signup|user|users|profile|admin|dashboard|webhook)[a-zA-Z0-9/_\-]*'),
+    re.compile(rb"/(?:api|v[0-9]+|graphql|rest|oauth|auth|token|login|register|signup|user|users|profile|admin|dashboard|webhook)[a-zA-Z0-9/_\-]*"),
 ]
 
 # Deep link / scheme patterns
 _SCHEME_PATTERNS = [
-    re.compile(rb'[a-zA-Z][a-zA-Z0-9+.\-]+://[^\s\x00-\x1f]+'),
+    re.compile(rb"[a-zA-Z][a-zA-Z0-9+.\-]+://[^\s\x00-\x1f]+"),
 ]
 
 # Firebase patterns
 _FIREBASE_PATTERNS = [
-    re.compile(rb'https://[a-z0-9-]+\.firebaseio\.com[^\s\x00-\x1f]*'),
-    re.compile(rb'https://[a-z0-9-]+\.firebaseapp\.com[^\s\x00-\x1f]*'),
-    re.compile(rb'https://[a-z0-9-]+\.web\.app[^\s\x00-\x1f]*'),
+    re.compile(rb"https://[a-z0-9-]+\.firebaseio\.com[^\s\x00-\x1f]*"),
+    re.compile(rb"https://[a-z0-9-]+\.firebaseapp\.com[^\s\x00-\x1f]*"),
+    re.compile(rb"https://[a-z0-9-]+\.web\.app[^\s\x00-\x1f]*"),
 ]
 
 

@@ -13,6 +13,7 @@ Fluxo:
   3. Extrai metadados da API e lista de endpoints
   4. Exibe resumo colorido e salva output detalhado
 """
+
 import argparse
 import asyncio
 import json
@@ -48,19 +49,36 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.openapidiscovery")
 
 _DEFAULT_PATHS_OPENAPI: list[str] = [
-    "swagger.json", "swagger/v1/swagger.json", "swagger/v2/swagger.json",
-    "v1/swagger.json", "v2/swagger.json", "api/swagger.json",
-    "api/v1/swagger.json", "api/v2/swagger.json",
-    "openapi.json", "openapi.yaml", "openapi/v1.json", "openapi/v1.yaml",
-    "api-docs", "api-docs/", "api/docs",
-    "swagger-ui.html", "swagger-ui/", "redoc/", "docs/", "apidoc/",
-    "api/swagger-ui.html", "swagger-resources",
-    "swagger-resources/configuration/ui", "swagger-resources/configuration/security",
+    "swagger.json",
+    "swagger/v1/swagger.json",
+    "swagger/v2/swagger.json",
+    "v1/swagger.json",
+    "v2/swagger.json",
+    "api/swagger.json",
+    "api/v1/swagger.json",
+    "api/v2/swagger.json",
+    "openapi.json",
+    "openapi.yaml",
+    "openapi/v1.json",
+    "openapi/v1.yaml",
+    "api-docs",
+    "api-docs/",
+    "api/docs",
+    "swagger-ui.html",
+    "swagger-ui/",
+    "redoc/",
+    "docs/",
+    "apidoc/",
+    "api/swagger-ui.html",
+    "swagger-resources",
+    "swagger-resources/configuration/ui",
+    "swagger-resources/configuration/security",
 ]
 
 
 def _load_openapi_paths() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "openapi_paths", default={"paths": _DEFAULT_PATHS_OPENAPI})
     return data.get("paths", _DEFAULT_PATHS_OPENAPI)
 
@@ -139,13 +157,15 @@ def _parse_openapi_v3(spec: dict[str, object]) -> tuple[str, str, str, list[str]
                             loc = str(p.get("in", ""))
                             if name:
                                 params.append(f"{name} ({loc})")
-                endpoints.append(EndpointInfo(
-                    method=method.upper(),
-                    path=path,
-                    summary=summary,
-                    tags=tags,
-                    parameters=params,
-                ))
+                endpoints.append(
+                    EndpointInfo(
+                        method=method.upper(),
+                        path=path,
+                        summary=summary,
+                        tags=tags,
+                        parameters=params,
+                    )
+                )
 
     schemas: list[str] = []
     components = spec.get("components", {})
@@ -193,13 +213,15 @@ def _parse_openapi_v2(spec: dict[str, object]) -> tuple[str, str, str, list[str]
                             loc = str(p.get("in", ""))
                             if name:
                                 params.append(f"{name} ({loc})")
-                endpoints.append(EndpointInfo(
-                    method=method.upper(),
-                    path=path,
-                    summary=summary,
-                    tags=tags,
-                    parameters=params,
-                ))
+                endpoints.append(
+                    EndpointInfo(
+                        method=method.upper(),
+                        path=path,
+                        summary=summary,
+                        tags=tags,
+                        parameters=params,
+                    )
+                )
 
     schemas: list[str] = []
     definitions = spec.get("definitions", {})
@@ -229,6 +251,7 @@ def parse_spec(content: bytes, content_type: str) -> ApiSpecInfo | None:
     if spec is None:
         try:
             import yaml
+
             text = content.decode("utf-8", errors="replace")
             loaded = yaml.safe_load(text)
             if isinstance(loaded, dict):
@@ -280,8 +303,12 @@ async def probe_spec(
 
     try:
         status, headers, content, _ = await fetch(
-            client, full_url, timeout=timeout, method="GET",
-            max_retries=retries, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="GET",
+            max_retries=retries,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -331,8 +358,7 @@ async def scan_specs(
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
+        f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
     )
 
     sem = asyncio.Semaphore(concurrency)
@@ -374,7 +400,7 @@ async def scan_specs(
                     f"{color(r.format.upper(), Cyber.YELLOW, Cyber.BOLD)} "
                     f"{color(str(len(r.endpoints)).rjust(4), Cyber.WHITE)} endpoints "
                     f"{color(r.url, Cyber.CYAN)}"
-                    f"{color(f" | {r.title} v{r.version}" if r.title else '', Cyber.GRAY)}"
+                    f"{color(f' | {r.title} v{r.version}' if r.title else '', Cyber.GRAY)}"
                 )
     finally:
         await client.aclose()
@@ -382,8 +408,7 @@ async def scan_specs(
     elapsed = time.monotonic() - started
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Specs encontradas: {color(str(len(specs)), Cyber.GREEN, Cyber.BOLD)}",
+        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. Specs encontradas: {color(str(len(specs)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return specs
 
@@ -397,14 +422,17 @@ def print_api_summary(specs: list[ApiSpecInfo]) -> None:
     print(color("\n  Specs Encontradas", Cyber.CYAN, Cyber.BOLD))
 
     headers = ("FORMATO", "ENDPOINTS", "SCHEMAS", "VERSAO", "TITULO", "URL")
-    rows = [(
-        spec.format.upper(),
-        str(len(spec.endpoints)),
-        str(len(spec.schemas)),
-        spec.version or "-",
-        (spec.title[:40] + "...") if len(spec.title) > 40 else (spec.title or "-"),
-        spec.url,
-    ) for spec in specs]
+    rows = [
+        (
+            spec.format.upper(),
+            str(len(spec.endpoints)),
+            str(len(spec.schemas)),
+            spec.version or "-",
+            (spec.title[:40] + "...") if len(spec.title) > 40 else (spec.title or "-"),
+            spec.url,
+        )
+        for spec in specs
+    ]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         return [
@@ -440,12 +468,15 @@ def print_api_endpoints(spec: ApiSpecInfo) -> None:
         return
 
     headers = ("METHOD", "PATH", "TAGS", "SUMMARY")
-    rows = [(
-        ep.method,
-        ep.path,
-        ", ".join(ep.tags[:3]) if ep.tags else "-",
-        (ep.summary[:50] + "...") if len(ep.summary) > 50 else (ep.summary or "-"),
-    ) for ep in spec.endpoints]
+    rows = [
+        (
+            ep.method,
+            ep.path,
+            ", ".join(ep.tags[:3]) if ep.tags else "-",
+            (ep.summary[:50] + "...") if len(ep.summary) > 50 else (ep.summary or "-"),
+        )
+        for ep in spec.endpoints
+    ]
 
     method_colors = {
         "GET": (Cyber.GREEN,),
@@ -478,7 +509,7 @@ def print_api_endpoints(spec: ApiSpecInfo) -> None:
         for s in spec.schemas[:20]:
             print(f"    {color('-', Cyber.GRAY)} {s}")
         if len(spec.schemas) > 20:
-            print(f"    {color(f"... +{len(spec.schemas) - 20} mais", Cyber.GRAY)}")
+            print(f"    {color(f'... +{len(spec.schemas) - 20} mais', Cyber.GRAY)}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -531,7 +562,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         for url in urls:
             base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}")
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}",
+            )
         return 0
 
     all_specs: list[ApiSpecInfo] = []

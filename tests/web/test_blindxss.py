@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Blind XSS via callback."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -155,22 +156,42 @@ class TestCheckXSSResponse:
 class TestBlindXSSAttempt:
     def test_frozen(self) -> None:
         a = BlindXSSAttempt(
-            technique="test", category="input", field="input",
-            payload="<script>", callback_url="https://hook.example.com/xss/123",
-            method="POST", status_baseline=200, status_test=200,
-            size_baseline=100, size_test=200, status_changed=True,
-            size_changed=True, vulnerable=True, details="test", error="",
+            technique="test",
+            category="input",
+            field="input",
+            payload="<script>",
+            callback_url="https://hook.example.com/xss/123",
+            method="POST",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=True,
+            size_changed=True,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         a = BlindXSSAttempt(
-            technique="test", category="input", field="input",
-            payload="<script>", callback_url="https://hook.example.com/xss/123",
-            method="POST", status_baseline=200, status_test=200,
-            size_baseline=100, size_test=200, status_changed=True,
-            size_changed=True, vulnerable=True, details="test", error="",
+            technique="test",
+            category="input",
+            field="input",
+            payload="<script>",
+            callback_url="https://hook.example.com/xss/123",
+            method="POST",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=True,
+            size_changed=True,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
@@ -178,10 +199,16 @@ class TestBlindXSSAttempt:
 class TestBlindXSSResult:
     def test_frozen(self) -> None:
         r = BlindXSSResult(
-            target="https://test.com", webhook_url="https://hook.example.com",
-            baseline_status=200, baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            webhook_url="https://hook.example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -205,6 +232,7 @@ class TestBaseline:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -227,7 +255,9 @@ class TestInput:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_input(
-            mock_client, "https://test.com", "https://hook.example.com",
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
             (200, 100, b"ok"),
         )
         assert len(results) == 20
@@ -236,13 +266,16 @@ class TestInput:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_input(
-            mock_client, "https://test.com", "https://hook.example.com",
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
             (200, 100, b"ok"),
         )
         assert len(results) == 20
@@ -262,7 +295,9 @@ class TestHeader:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_header(
-            mock_client, "https://test.com", "https://hook.example.com",
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
             (200, 100, b"ok"),
         )
         assert len(results) == 20
@@ -282,7 +317,9 @@ class TestAttr:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_attr(
-            mock_client, "https://test.com", "https://hook.example.com",
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
             (200, 100, b"ok"),
         )
         assert len(results) == 20
@@ -302,7 +339,9 @@ class TestEvent:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_event(
-            mock_client, "https://test.com", "https://hook.example.com",
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
             (200, 100, b"ok"),
         )
         assert len(results) == 20
@@ -322,7 +361,9 @@ class TestBypass:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_bypass(
-            mock_client, "https://test.com", "https://hook.example.com",
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
             (200, 100, b"ok"),
         )
         assert len(results) == 20
@@ -333,19 +374,33 @@ class TestBypass:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BlindXSSResult(
-            target="https://test.com", webhook_url="https://hook.example.com",
-            baseline_status=200, baseline_size=100, tls=True,
-            attempts=[BlindXSSAttempt(
-                technique="script_input", category="input", field="input",
-                payload="<script>fetch(...)</script>",
-                callback_url="https://hook.example.com/xss/abc123",
-                method="POST", status_baseline=200, status_test=200,
-                size_baseline=100, size_test=200, status_changed=False,
-                size_changed=True, vulnerable=True,
-                details="path=/contact", error="",
-            )],
+            target="https://test.com",
+            webhook_url="https://hook.example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                BlindXSSAttempt(
+                    technique="script_input",
+                    category="input",
+                    field="input",
+                    payload="<script>fetch(...)</script>",
+                    callback_url="https://hook.example.com/xss/abc123",
+                    method="POST",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=False,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="path=/contact",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["script_input"],
-            blocked_techniques=[], issues=[],
+            blocked_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -355,10 +410,16 @@ class TestPrintResults:
 
     def test_no_vulns_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BlindXSSResult(
-            target="https://test.com", webhook_url="https://hook.example.com",
-            baseline_status=200, baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            webhook_url="https://hook.example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -366,9 +427,14 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BlindXSSResult(
-            target="https://test.com", webhook_url="https://hook.example.com",
-            baseline_status=200, baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
+            target="https://test.com",
+            webhook_url="https://hook.example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
             issues=["Nenhum teste retornou resultado claro"],
             overall_status="unknown",
         )
@@ -420,6 +486,7 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com", "--webhook", "https://hook.example.com"])
         from mytools.web.blindxss import run_once
+
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()

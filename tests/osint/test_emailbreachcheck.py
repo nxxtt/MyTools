@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Breach Check."""
+
 import httpx
 import pytest
 import respx
@@ -37,8 +38,12 @@ class TestEmailBreach:
 
     def test_all_fields(self):
         b = EmailBreach(
-            email="a@b.com", breach_name="LinkedIn", breach_date="2012-05-05",
-            pwn_count=164000000, data_classes="passwords,emails", source="hibp",
+            email="a@b.com",
+            breach_name="LinkedIn",
+            breach_date="2012-05-05",
+            pwn_count=164000000,
+            data_classes="passwords,emails",
+            source="hibp",
         )
         assert b.pwn_count == 164000000
         assert b.source == "hibp"
@@ -188,10 +193,14 @@ async def test_xposedornot_non_200():
 async def test_leakcheck_breach_found():
     with respx.mock:
         respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
-            return_value=httpx.Response(200, json={
-                "success": True, "found": 2,
-                "sources": [{"name": "LinkedIn", "date": "2012"}, {"name": "Adobe", "date": "2013"}],
-            }),
+            return_value=httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "found": 2,
+                    "sources": [{"name": "LinkedIn", "date": "2012"}, {"name": "Adobe", "date": "2013"}],
+                },
+            ),
         )
         client = httpx.AsyncClient()
         rl = RateLimiter(0)
@@ -218,9 +227,14 @@ async def test_leakcheck_no_breaches():
 async def test_leakcheck_string_sources():
     with respx.mock:
         respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
-            return_value=httpx.Response(200, json={
-                "success": True, "found": 1, "sources": ["LinkedIn"],
-            }),
+            return_value=httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "found": 1,
+                    "sources": ["LinkedIn"],
+                },
+            ),
         )
         client = httpx.AsyncClient()
         rl = RateLimiter(0)
@@ -250,9 +264,12 @@ async def test_leakcheck_error():
 async def test_hibp_breach_found():
     with respx.mock:
         respx.route(method="GET", url__startswith="https://haveibeenpwned.com/").mock(
-            return_value=httpx.Response(200, json=[
-                {"Name": "LinkedIn", "BreachDate": "2012-05-05", "PwnCount": 164000000, "DataClasses": ["passwords", "emails"]},
-            ]),
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {"Name": "LinkedIn", "BreachDate": "2012-05-05", "PwnCount": 164000000, "DataClasses": ["passwords", "emails"]},
+                ],
+            ),
         )
         client = httpx.AsyncClient()
         rl = RateLimiter(0)

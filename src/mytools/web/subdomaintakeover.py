@@ -46,22 +46,117 @@ logger = logging.getLogger("mytools.subdomaintakeover")
 # ---------------------------------------------------------------------------
 
 _WORDLIST_DEFAULT: list[str] = [
-    "www", "mail", "ftp", "localhost", "webmail", "smtp", "pop", "ns1", "ns2",
-    "ns3", "ns4", "cdn", "api", "dev", "staging", "test", "beta", "demo",
-    "admin", "portal", "blog", "webdisk", "cpanel", "whm", "webhost",
-    "remote", "gateway", "vpn", "shop", "store", "app", "m", "mobile",
-    "forum", "support", "help", "docs", "wiki", "status", "monitor",
-    "jenkins", "gitlab", "git", "bitbucket", "jira", "confluence",
-    "grafana", "kibana", "elastic", "prometheus", "zabbix", "nagios",
-    "docker", "registry", "k8s", "kube", "kubernetes", "helm",
-    "db", "database", "mysql", "postgres", "redis", "mongo", "elastic",
-    "search", "cache", "queue", "mq", "rabbitmq", "kafka",
-    "ci", "cd", "build", "deploy", "release", "artifact",
-    "log", "logs", "s3", "minio", "blob", "storage", "assets", "static",
-    "img", "images", "media", "video", "files", "download",
-    "ns", "dns", "mx", "mx1", "mx2", "imap", "pop3",
-    "intranet", "internal", "private", "secure", "auth", "sso", "login",
-    "old", "new", "temp", "tmp", "backup", "bak",
+    "www",
+    "mail",
+    "ftp",
+    "localhost",
+    "webmail",
+    "smtp",
+    "pop",
+    "ns1",
+    "ns2",
+    "ns3",
+    "ns4",
+    "cdn",
+    "api",
+    "dev",
+    "staging",
+    "test",
+    "beta",
+    "demo",
+    "admin",
+    "portal",
+    "blog",
+    "webdisk",
+    "cpanel",
+    "whm",
+    "webhost",
+    "remote",
+    "gateway",
+    "vpn",
+    "shop",
+    "store",
+    "app",
+    "m",
+    "mobile",
+    "forum",
+    "support",
+    "help",
+    "docs",
+    "wiki",
+    "status",
+    "monitor",
+    "jenkins",
+    "gitlab",
+    "git",
+    "bitbucket",
+    "jira",
+    "confluence",
+    "grafana",
+    "kibana",
+    "elastic",
+    "prometheus",
+    "zabbix",
+    "nagios",
+    "docker",
+    "registry",
+    "k8s",
+    "kube",
+    "kubernetes",
+    "helm",
+    "db",
+    "database",
+    "mysql",
+    "postgres",
+    "redis",
+    "mongo",
+    "elastic",
+    "search",
+    "cache",
+    "queue",
+    "mq",
+    "rabbitmq",
+    "kafka",
+    "ci",
+    "cd",
+    "build",
+    "deploy",
+    "release",
+    "artifact",
+    "log",
+    "logs",
+    "s3",
+    "minio",
+    "blob",
+    "storage",
+    "assets",
+    "static",
+    "img",
+    "images",
+    "media",
+    "video",
+    "files",
+    "download",
+    "ns",
+    "dns",
+    "mx",
+    "mx1",
+    "mx2",
+    "imap",
+    "pop3",
+    "intranet",
+    "internal",
+    "private",
+    "secure",
+    "auth",
+    "sso",
+    "login",
+    "old",
+    "new",
+    "temp",
+    "tmp",
+    "backup",
+    "bak",
 ]
 
 
@@ -74,6 +169,7 @@ _SERVICES_DEFAULT: dict[str, dict[str, Any]] = {}
 
 def _load_services() -> dict[str, Any]:
     from mytools.data import load_payloads
+
     return load_payloads("web", "subdomain_takeover", default={"services": _SERVICES_DEFAULT})
 
 
@@ -89,6 +185,7 @@ def _get_services() -> dict[str, dict[str, Any]]:
 # DNS resolution
 # ---------------------------------------------------------------------------
 
+
 def _resolve_cname(subdomain: str, timeout: float = 5.0) -> str | None:
     """Resolve CNAME record de um subdominio. Retorna target ou None."""
     resolver = dns.resolver.Resolver()
@@ -100,7 +197,7 @@ def _resolve_cname(subdomain: str, timeout: float = 5.0) -> str | None:
             target = str(rdata.target).rstrip(".")
             logger.debug("CNAME %s -> %s", subdomain, target)
             return target
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers):
+    except dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers:
         logger.debug("Sem CNAME para %s", subdomain)
     except dns.resolver.Timeout:
         logger.debug("Timeout resolvendo CNAME para %s", subdomain)
@@ -118,8 +215,7 @@ def _resolve_a(subdomain: str, timeout: float = 5.0) -> list[str]:
     try:
         answers = resolver.resolve(subdomain, "A")
         ips.extend(str(rdata) for rdata in answers)
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers,
-            dns.resolver.Timeout, dns.exception.DNSException):
+    except dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers, dns.resolver.Timeout, dns.exception.DNSException:
         pass
     return ips
 
@@ -128,12 +224,14 @@ def _resolve_a(subdomain: str, timeout: float = 5.0) -> list[str]:
 # Subdomain enumeration
 # ---------------------------------------------------------------------------
 
+
 def _enumerate_wordlist(domain: str, extra_file: str | None = None) -> list[str]:
     """Gera subdominios a partir da wordlist embutida + arquivo extra."""
     prefixes = list(_WORDLIST_DEFAULT)
     if extra_file:
         try:
             from pathlib import Path
+
             text = Path(extra_file).read_text(encoding="utf-8", errors="ignore")
             for line in text.splitlines():
                 line = line.strip()
@@ -162,13 +260,19 @@ def _enumerate_crtsh(domain: str, timeout: float = 10.0) -> list[str]:
     max_retries = 2
     for attempt in range(max_retries):
         try:
-            resp = httpx.get(url, timeout=timeout, follow_redirects=True, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; MyTools/subtakeover)",
-            })
+            resp = httpx.get(
+                url,
+                timeout=timeout,
+                follow_redirects=True,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; MyTools/subtakeover)",
+                },
+            )
             if resp.status_code == 429:
                 logger.warning("crt.sh rate limited (tentativa %d/%d)", attempt + 1, max_retries)
                 if attempt < max_retries - 1:
                     import time
+
                     time.sleep(2 * (attempt + 1))
                 continue
             resp.raise_for_status()
@@ -213,6 +317,7 @@ def _enumerate_subdomains(
 # Service matching
 # ---------------------------------------------------------------------------
 
+
 def _match_service(cname_target: str, services: dict[str, dict[str, Any]]) -> tuple[str, str] | None:
     """Verifica se CNAME target corresponde a um servico conhecido.
 
@@ -229,6 +334,7 @@ def _match_service(cname_target: str, services: dict[str, dict[str, Any]]) -> tu
 # ---------------------------------------------------------------------------
 # HTTP fingerprint check
 # ---------------------------------------------------------------------------
+
 
 async def _check_http_fingerprint(
     client: httpx.AsyncClient,
@@ -263,6 +369,7 @@ async def _check_http_fingerprint(
 # Dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True, slots=True)
 class TakeoverAttempt:
     """Tentativa individual de subdomain takeover."""
@@ -293,6 +400,7 @@ class TakeoverResult:
 # Core scan
 # ---------------------------------------------------------------------------
 
+
 async def run_scan(
     domain: str,
     timeout: int = 10,
@@ -306,8 +414,12 @@ async def run_scan(
     if not services:
         logger.error("Nenhum service fingerprint carregado")
         return TakeoverResult(
-            target=domain, subdomains_scanned=0, dangling_cnames=0,
-            attempts=[], vulnerable_subdomains=[], overall_status="error",
+            target=domain,
+            subdomains_scanned=0,
+            dangling_cnames=0,
+            attempts=[],
+            vulnerable_subdomains=[],
+            overall_status="error",
         )
 
     logger.info("Enumerando subdominios de %s...", domain)
@@ -316,8 +428,12 @@ async def run_scan(
 
     if not subdomains:
         return TakeoverResult(
-            target=domain, subdomains_scanned=0, dangling_cnames=0,
-            attempts=[], vulnerable_subdomains=[], overall_status="secure",
+            target=domain,
+            subdomains_scanned=0,
+            dangling_cnames=0,
+            attempts=[],
+            vulnerable_subdomains=[],
+            overall_status="secure",
         )
 
     client = create_async_client(timeout=timeout)
@@ -341,20 +457,25 @@ async def run_scan(
                 signatures = []
 
             http_status, http_match, matched_sig = await _check_http_fingerprint(
-                client, sub, signatures,
+                client,
+                sub,
+                signatures,
             )
 
             vulnerable = http_match
             details = (
-                f"CNAME -> {cname} [{svc_name}], "
-                f"HTTP {http_status}, match: '{matched_sig}'" if http_match
+                f"CNAME -> {cname} [{svc_name}], HTTP {http_status}, match: '{matched_sig}'"
+                if http_match
                 else f"CNAME -> {cname} [{svc_name}], HTTP {http_status}, sem match"
             )
 
             logger.info(
                 "%s %s -> %s [%s] HTTP %d %s",
                 "VULN" if vulnerable else "OK",
-                sub, cname, svc_name, http_status,
+                sub,
+                cname,
+                svc_name,
+                http_status,
                 f"match='{matched_sig}'" if http_match else "",
             )
 
@@ -398,7 +519,9 @@ async def run_scan(
 
     logger.info(
         "Subdomain takeover scan concluido: %d subdominios, %d dangling, %d vulneraveis",
-        len(subdomains), dangling_count, len(vuln_subs),
+        len(subdomains),
+        dangling_count,
+        len(vuln_subs),
     )
 
     await client.aclose()
@@ -408,6 +531,7 @@ async def run_scan(
 # ---------------------------------------------------------------------------
 # Print results
 # ---------------------------------------------------------------------------
+
 
 def print_results(result: TakeoverResult) -> None:
     """Exibe os resultados do scan formatados."""
@@ -459,6 +583,7 @@ banner_art = create_banner(
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Constrói o parser de argumentos CLI."""
@@ -518,13 +643,7 @@ def main() -> int:
         prompt="subtakeover> ",
         description="Subdomain takeover interativo.",
         example="example.com",
-        contextual_help=(
-            "Uso: <domain> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --wordlist extras.txt\n"
-            "  example.com --concurrency 20 --json-output"
-        ),
+        contextual_help=("Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20 --json-output"),
     )
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Security (DMARC/SPF/DKIM)."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,8 +22,7 @@ class TestSpfRecord:
     """Testes do dataclass SpfRecord."""
 
     def test_frozen(self) -> None:
-        r = SpfRecord(raw="v=spf1 ~all", version="spf1",
-                      mechanisms=[], has_all=True, all_qualifier="~", includes=[])
+        r = SpfRecord(raw="v=spf1 ~all", version="spf1", mechanisms=[], has_all=True, all_qualifier="~", includes=[])
         with pytest.raises(AttributeError):
             r.raw = "x"  # type: ignore[misc]
 
@@ -34,8 +34,7 @@ class TestDmarcRecord:
     """Testes do dataclass DmarcRecord."""
 
     def test_frozen(self) -> None:
-        r = DmarcRecord(raw="v=DMARC1; p=reject", policy="reject",
-                        sp="reject", rua="", pct=100)
+        r = DmarcRecord(raw="v=DMARC1; p=reject", policy="reject", sp="reject", rua="", pct=100)
         with pytest.raises(AttributeError):
             r.raw = "x"  # type: ignore[misc]
 
@@ -48,8 +47,12 @@ class TestEmailSecurityResult:
 
     def test_frozen(self) -> None:
         r = EmailSecurityResult(
-            domain="a", spf=None, dkim_selectors=[],
-            dmarc=None, overall_status="missing", issues=[],
+            domain="a",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="missing",
+            issues=[],
         )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
@@ -190,6 +193,7 @@ class TestScanEmailSecurity:
             if "_domainkey" in domain:
                 return "v=DKIM1; p=MIGf..."
             return "v=spf1 include:_spf.google.com ~all"
+
         mock_txt.side_effect = side_effect
         result = scan_email_security("good.com")
         assert result.spf is not None
@@ -209,6 +213,7 @@ class TestScanEmailSecurity:
             if "_dmarc" in domain:
                 return DNS_ERROR
             return "v=spf1 ~all"
+
         mock_txt.side_effect = side_effect
         result = scan_email_security("test.com")
         assert any("Erro DNS ao consultar DMARC" in i for i in result.issues)
@@ -219,6 +224,7 @@ class TestScanEmailSecurity:
             if "_dmarc" in domain:
                 return "v=DMARC1"
             return "v=spf1 ~all"
+
         mock_txt.side_effect = side_effect
         result = scan_email_security("test.com")
         assert result.dmarc is not None

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Paste/Leak Monitoring."""
+
 import httpx
 import pytest
 import respx

@@ -19,6 +19,7 @@ Fluxo:
   3. Dedup por (fonte, url)
   4. Exibe resumo colorido
 """
+
 import argparse
 import json
 import logging
@@ -129,7 +130,11 @@ async def _query_ahmia(
     try:
         await rate_limiter.wait()
         status, _h, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=2,
+            rate_limiter=rate_limiter,
         )
     except FetchError as e:
         logger.debug("Ahmia fetch error: %s", e)
@@ -188,7 +193,11 @@ async def _query_darksearch(
     try:
         await rate_limiter.wait()
         status, _h, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=2,
+            rate_limiter=rate_limiter,
         )
     except FetchError as e:
         logger.debug("DarkSearch fetch error: %s", e)
@@ -264,7 +273,7 @@ async def _query_intelx(
 
     try:
         search_id = json.loads(body).get("id", "")
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return mentions
     if not search_id:
         return mentions
@@ -372,18 +381,13 @@ def print_results(mentions: list[DarkWebMention]) -> None:
 
     total = len(mentions)
     sources_count = len(by_source)
-    print(
-        color(f"\n[+] {total} mencao(es) encontrada(s) em {sources_count} fonte(s):", Cyber.GREEN, Cyber.BOLD)
-    )
+    print(color(f"\n[+] {total} mencao(es) encontrada(s) em {sources_count} fonte(s):", Cyber.GREEN, Cyber.BOLD))
 
     for source, source_mentions in by_source.items():
         print(color(f"\n  Fonte: {source}", Cyber.CYAN, Cyber.BOLD))
         for mention in source_mentions:
             sev_color = severity_colors.get(mention.severity, Cyber.GRAY)
-            print(
-                f"    {color(mention.severity.upper(), sev_color, Cyber.BOLD)}"
-                f" | {color(mention.title[:60], Cyber.WHITE)}"
-            )
+            print(f"    {color(mention.severity.upper(), sev_color, Cyber.BOLD)} | {color(mention.title[:60], Cyber.WHITE)}")
             print(f"      {color(mention.url, Cyber.GRAY)}")
             print_exploit_info(mention.exploit, mention.tool)
 

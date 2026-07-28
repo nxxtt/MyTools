@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de DNS Water Torture."""
+
 import pytest
 
 from mytools.dns.dnswatorture import (
@@ -32,10 +33,20 @@ class TestWaterTortureResult:
 
     def test_frozen(self) -> None:
         r = WaterTortureResult(
-            domain="a", nameserver="b", pattern="c", queries_sent=0,
-            nxdomain_count=0, noerror_count=0, other_count=0,
-            timeout_count=0, avg_latency_ms=0.0, p95_latency_ms=0.0,
-            p99_latency_ms=0.0, loss_rate=0.0, duration_s=0.0, qps=0.0,
+            domain="a",
+            nameserver="b",
+            pattern="c",
+            queries_sent=0,
+            nxdomain_count=0,
+            noerror_count=0,
+            other_count=0,
+            timeout_count=0,
+            avg_latency_ms=0.0,
+            p95_latency_ms=0.0,
+            p99_latency_ms=0.0,
+            loss_rate=0.0,
+            duration_s=0.0,
+            qps=0.0,
         )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
@@ -176,11 +187,20 @@ class TestPrintResults:
 
     def test_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = WaterTortureResult(
-            domain="example.com", nameserver="8.8.8.8", pattern="random",
-            queries_sent=100, nxdomain_count=90, noerror_count=5,
-            other_count=3, timeout_count=2, avg_latency_ms=15.5,
-            p95_latency_ms=30.0, p99_latency_ms=45.0, loss_rate=0.02,
-            duration_s=10.0, qps=10.0,
+            domain="example.com",
+            nameserver="8.8.8.8",
+            pattern="random",
+            queries_sent=100,
+            nxdomain_count=90,
+            noerror_count=5,
+            other_count=3,
+            timeout_count=2,
+            avg_latency_ms=15.5,
+            p95_latency_ms=30.0,
+            p99_latency_ms=45.0,
+            loss_rate=0.02,
+            duration_s=10.0,
+            qps=10.0,
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -191,11 +211,20 @@ class TestPrintResults:
 
     def test_high_loss(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = WaterTortureResult(
-            domain="test.com", nameserver="8.8.8.8", pattern="random",
-            queries_sent=100, nxdomain_count=50, noerror_count=10,
-            other_count=0, timeout_count=40, avg_latency_ms=50.0,
-            p95_latency_ms=100.0, p99_latency_ms=150.0, loss_rate=0.4,
-            duration_s=10.0, qps=10.0,
+            domain="test.com",
+            nameserver="8.8.8.8",
+            pattern="random",
+            queries_sent=100,
+            nxdomain_count=50,
+            noerror_count=10,
+            other_count=0,
+            timeout_count=40,
+            avg_latency_ms=50.0,
+            p95_latency_ms=100.0,
+            p99_latency_ms=150.0,
+            loss_rate=0.4,
+            duration_s=10.0,
+            qps=10.0,
         )
         print_results(result)
         out = capsys.readouterr().out

@@ -14,6 +14,7 @@ Fluxo:
   4. Classifica: detectado, blocked, error
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import asyncio
 import logging
@@ -39,7 +40,19 @@ logger = logging.getLogger("mytools.nosqliinject")
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "detect": ["gt_bypass", "ne_bypass", "regex_bypass", "exists_bypass", "type_bypass"],
-    "mongodb": ["mongo_gt", "mongo_ne", "mongo_where", "mongo_regex", "mongo_or", "mongo_nin", "mongo_and", "mongo_not", "mongo_mod", "mongo_exists", "mongo_type"],
+    "mongodb": [
+        "mongo_gt",
+        "mongo_ne",
+        "mongo_where",
+        "mongo_regex",
+        "mongo_or",
+        "mongo_nin",
+        "mongo_and",
+        "mongo_not",
+        "mongo_mod",
+        "mongo_exists",
+        "mongo_type",
+    ],
     "redis": ["redis_info", "redis_config", "redis_keys", "redis_eval", "redis_flushall"],
     "couchdb": ["couchdb_alldocs", "couchdb_changes", "couchdb_show", "couchdb_utils", "couchdb_config"],
     "bypass": ["unicode_bypass", "double_json", "nested_bypass", "mixed_type", "array_bypass", "null_terminator"],
@@ -48,6 +61,7 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 
 def _load_category_map() -> dict[str, list[str]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "nosqliinject", default={"category_map": _CATEGORY_MAP_DEFAULT})
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -90,6 +104,7 @@ _DETECT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_detect_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "nosqliinject", default={"detect_payloads": [list(t) for t in _DETECT_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("detect_payloads", [list(t) for t in _DETECT_PAYLOADS_DEFAULT])]
 
@@ -168,6 +183,7 @@ _MONGODB_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_mongodb_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "nosqliinject", default={"mongodb_payloads": [list(t) for t in _MONGODB_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("mongodb_payloads", [list(t) for t in _MONGODB_PAYLOADS_DEFAULT])]
 
@@ -210,6 +226,7 @@ _REDIS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_redis_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "nosqliinject", default={"redis_payloads": [list(t) for t in _REDIS_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("redis_payloads", [list(t) for t in _REDIS_PAYLOADS_DEFAULT])]
 
@@ -252,6 +269,7 @@ _COUCHDB_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_couchdb_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "nosqliinject", default={"couchdb_payloads": [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("couchdb_payloads", [list(t) for t in _COUCHDB_PAYLOADS_DEFAULT])]
 
@@ -300,6 +318,7 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "nosqliinject", default={"bypass_payloads": [list(t) for t in _BYPASS_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("bypass_payloads", [list(t) for t in _BYPASS_PAYLOADS_DEFAULT])]
 
@@ -307,13 +326,23 @@ def _load_bypass_payloads() -> list[tuple[str, str, str, list[str]]]:
 _BYPASS_PAYLOADS = _load_bypass_payloads()
 
 _LOGIN_PARAMS_DEFAULT: list[str] = [
-    "user", "username", "email", "login", "name", "account",
-    "pass", "password", "pwd", "secret", "auth",
+    "user",
+    "username",
+    "email",
+    "login",
+    "name",
+    "account",
+    "pass",
+    "password",
+    "pwd",
+    "secret",
+    "auth",
 ]
 
 
 def _load_login_params() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "nosqliinject", default={"login_params": _LOGIN_PARAMS_DEFAULT})
     return data.get("login_params", _LOGIN_PARAMS_DEFAULT)
 
@@ -409,39 +438,42 @@ async def _test_detect(
                 status_changed = t_status != b_status
                 vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
 
-                attempts.append(NoSQLiAttempt(
-                exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
-
-                    technique=f"{technique}_{method}",
-                    category="detect",
-                    payload=payload[:120],
-                    method=method,
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    status_changed=status_changed,
-                    size_changed=abs(t_size - b_size) > 50,
-                    vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                    error="",
-                ))
+                attempts.append(
+                    NoSQLiAttempt(
+                        exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
+                        technique=f"{technique}_{method}",
+                        category="detect",
+                        payload=payload[:120],
+                        method=method,
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        status_changed=status_changed,
+                        size_changed=abs(t_size - b_size) > 50,
+                        vulnerable=vulnerable,
+                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        error="",
+                    )
+                )
             except httpx.RequestError as exc:
-                attempts.append(NoSQLiAttempt(
-                    technique=f"{technique}_{method}",
-                    category="detect",
-                    payload=payload[:120],
-                    method=method,
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    NoSQLiAttempt(
+                        technique=f"{technique}_{method}",
+                        category="detect",
+                        payload=payload[:120],
+                        method=method,
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -468,39 +500,42 @@ async def _test_mongodb(
             status_changed = t_status != b_status
             vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
 
-            attempts.append(NoSQLiAttempt(
-            exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
-
-                technique=technique,
-                category="mongodb",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                status_changed=status_changed,
-                size_changed=abs(t_size - b_size) > 50,
-                vulnerable=vulnerable,
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                error="",
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
+                    technique=technique,
+                    category="mongodb",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                )
+            )
         except httpx.RequestError as exc:
-            attempts.append(NoSQLiAttempt(
-                technique=technique,
-                category="mongodb",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                status_changed=False,
-                size_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    technique=technique,
+                    category="mongodb",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -527,39 +562,42 @@ async def _test_redis(
             status_changed = t_status != b_status
             vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
 
-            attempts.append(NoSQLiAttempt(
-            exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
-
-                technique=technique,
-                category="redis",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                status_changed=status_changed,
-                size_changed=abs(t_size - b_size) > 50,
-                vulnerable=vulnerable,
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                error="",
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
+                    technique=technique,
+                    category="redis",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                )
+            )
         except httpx.RequestError as exc:
-            attempts.append(NoSQLiAttempt(
-                technique=technique,
-                category="redis",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                status_changed=False,
-                size_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    technique=technique,
+                    category="redis",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -586,39 +624,42 @@ async def _test_couchdb(
             status_changed = t_status != b_status
             vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
 
-            attempts.append(NoSQLiAttempt(
-            exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
-
-                technique=technique,
-                category="couchdb",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                status_changed=status_changed,
-                size_changed=abs(t_size - b_size) > 50,
-                vulnerable=vulnerable,
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                error="",
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
+                    technique=technique,
+                    category="couchdb",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                )
+            )
         except httpx.RequestError as exc:
-            attempts.append(NoSQLiAttempt(
-                technique=technique,
-                category="couchdb",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                status_changed=False,
-                size_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    technique=technique,
+                    category="couchdb",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -645,39 +686,42 @@ async def _test_bypass(
             status_changed = t_status != b_status
             vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
 
-            attempts.append(NoSQLiAttempt(
-            exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
-
-                technique=technique,
-                category="bypass",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                status_changed=status_changed,
-                size_changed=abs(t_size - b_size) > 50,
-                vulnerable=vulnerable,
-                details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                error="",
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    exploit='{"username": {"$ne": ""}, "password": {"$ne": ""}}',
+                    technique=technique,
+                    category="bypass",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=abs(t_size - b_size) > 50,
+                    vulnerable=vulnerable,
+                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                    error="",
+                )
+            )
         except httpx.RequestError as exc:
-            attempts.append(NoSQLiAttempt(
-                technique=technique,
-                category="bypass",
-                payload=payload[:120],
-                method="json_post",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                status_changed=False,
-                size_changed=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                NoSQLiAttempt(
+                    technique=technique,
+                    category="bypass",
+                    payload=payload[:120],
+                    method="json_post",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -795,9 +839,9 @@ async def run_scan(
         logger.info("NoSQLi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
         return 1 if vuln_techs else 0
 
-
     finally:
         await client.aclose()
+
 
 banner_art = create_banner(
     r"""
@@ -822,7 +866,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo (ex: https://example.com)")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categoria de testes (default: todas)",
     )

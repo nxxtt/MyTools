@@ -197,6 +197,7 @@ class TestPrintResults:
 
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         from mytools.web.lfidetect import LFIAttempt
+
         attempt = LFIAttempt(
             technique="php_filter",
             category="lfi",
@@ -239,12 +240,22 @@ class TestPrintResults:
 class TestLFIAttempt:
     def test_frozen(self) -> None:
         from mytools.web.lfidetect import LFIAttempt
+
         attempt = LFIAttempt(
-            technique="test", category="lfi", injection_point="param:file",
-            url="https://x.com", payload="test", status_baseline=200,
-            status_test=200, size_baseline=0, size_test=0,
-            body_leak_detected=False, body_leak_type="none",
-            vulnerable=False, details="", error="",
+            technique="test",
+            category="lfi",
+            injection_point="param:file",
+            url="https://x.com",
+            payload="test",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=0,
+            size_test=0,
+            body_leak_detected=False,
+            body_leak_type="none",
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             attempt.technique = "changed"  # type: ignore[misc]
@@ -253,9 +264,14 @@ class TestLFIAttempt:
 class TestLFIFindings:
     def test_frozen(self) -> None:
         result = LFIFindings(
-            target="https://x.com", baseline_status=200, tls=True,
-            attempts=[], vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://x.com",
+            baseline_status=200,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.target = "changed"  # type: ignore[misc]

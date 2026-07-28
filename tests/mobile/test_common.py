@@ -22,7 +22,10 @@ class TestMobileAttempt:
 
     def test_frozen(self) -> None:
         a = MobileAttempt(
-            technique="t", platform="p", check="c", file_path="f",
+            technique="t",
+            platform="p",
+            check="c",
+            file_path="f",
             vulnerable=False,
         )
         with pytest.raises(AttributeError):
@@ -30,8 +33,11 @@ class TestMobileAttempt:
 
     def test_with_findings(self) -> None:
         a = MobileAttempt(
-            technique="secrets", platform="android", check="apk_secrets",
-            file_path="app.apk", vulnerable=True,
+            technique="secrets",
+            platform="android",
+            check="apk_secrets",
+            file_path="app.apk",
+            vulnerable=True,
             findings=["AWS Key: AKIA...", "JWT: eyJ..."],
             details="2 secrets found",
         )

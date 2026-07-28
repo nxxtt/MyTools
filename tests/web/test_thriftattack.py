@@ -25,9 +25,16 @@ from mytools.web.thriftattack import (
 class TestThriftAttackAttempt:
     def test_creation(self) -> None:
         a = ThriftAttackAttempt(
-            technique="service_enumeration", category="method_enumeration",
-            description="desc", vulnerable=False, details="test", error="",
-            host="target.com", port=9090, protocol="binary", response_code=200,
+            technique="service_enumeration",
+            category="method_enumeration",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            host="target.com",
+            port=9090,
+            protocol="binary",
+            response_code=200,
         )
         assert a.technique == "service_enumeration"
         assert a.category == "method_enumeration"
@@ -35,9 +42,16 @@ class TestThriftAttackAttempt:
 
     def test_frozen(self) -> None:
         a = ThriftAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="",
-            host="h", port=9090, protocol="binary", response_code=0,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            host="h",
+            port=9090,
+            protocol="binary",
+            response_code=0,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -46,18 +60,34 @@ class TestThriftAttackAttempt:
 class TestThriftAttackResult:
     def test_creation(self) -> None:
         r = ThriftAttackResult(
-            target="thrift://target.com:9090", host="target.com", port=9090, tls=False,
-            services_found=3, methods_found=10, protocol_detected="binary",
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="thrift://target.com:9090",
+            host="target.com",
+            port=9090,
+            tls=False,
+            services_found=3,
+            methods_found=10,
+            protocol_detected="binary",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.protocol_detected == "binary"
 
     def test_frozen(self) -> None:
         r = ThriftAttackResult(
-            target="t", host="h", port=9090, tls=False,
-            services_found=0, methods_found=0, protocol_detected="binary",
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=9090,
+            tls=False,
+            services_found=0,
+            methods_found=0,
+            protocol_detected="binary",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -85,6 +115,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -147,9 +178,17 @@ class TestParseUrl:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = ThriftAttackResult(
-            target="thrift://target.com:9090", host="target.com", port=9090, tls=False,
-            services_found=0, methods_found=0, protocol_detected="binary",
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="thrift://target.com:9090",
+            host="target.com",
+            port=9090,
+            tls=False,
+            services_found=0,
+            methods_found=0,
+            protocol_detected="binary",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -158,10 +197,17 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = ThriftAttackResult(
-            target="thrift://target.com:9090", host="target.com", port=9090, tls=False,
-            services_found=3, methods_found=10, protocol_detected="binary",
-            attempts=[], vulnerable_techniques=["service_enumeration"],
-            issues=["Errors: test_error"], overall_status="vulnerable",
+            target="thrift://target.com:9090",
+            host="target.com",
+            port=9090,
+            tls=False,
+            services_found=3,
+            methods_found=10,
+            protocol_detected="binary",
+            attempts=[],
+            vulnerable_techniques=["service_enumeration"],
+            issues=["Errors: test_error"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

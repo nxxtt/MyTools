@@ -51,8 +51,13 @@ class TestDotTlsInfo:
 
     def test_frozen(self) -> None:
         t = DotTlsInfo(
-            issuer="", subject="", not_before="", not_after="",
-            san=[], serial="", version="",
+            issuer="",
+            subject="",
+            not_before="",
+            not_after="",
+            san=[],
+            serial="",
+            version="",
         )
         with pytest.raises(AttributeError):
             t.issuer = "changed"  # type: ignore[misc]
@@ -61,22 +66,28 @@ class TestDotTlsInfo:
 class TestDotResolverResult:
     def test_creation(self) -> None:
         r = DotResolverResult(
-            resolver="google", resolver_name="Google DNS",
-            host="dns.google", port=853, records=[],
-            tls_info=DotTlsInfo(issuer="", subject="", not_before="",
-                                not_after="", san=[], serial="", version=""),
-            latency_ms=50.0, error="",
+            resolver="google",
+            resolver_name="Google DNS",
+            host="dns.google",
+            port=853,
+            records=[],
+            tls_info=DotTlsInfo(issuer="", subject="", not_before="", not_after="", san=[], serial="", version=""),
+            latency_ms=50.0,
+            error="",
         )
         assert r.resolver == "google"
         assert r.port == 853
 
     def test_frozen(self) -> None:
         r = DotResolverResult(
-            resolver="google", resolver_name="Google DNS",
-            host="dns.google", port=853, records=[],
-            tls_info=DotTlsInfo(issuer="", subject="", not_before="",
-                                not_after="", san=[], serial="", version=""),
-            latency_ms=50.0, error="",
+            resolver="google",
+            resolver_name="Google DNS",
+            host="dns.google",
+            port=853,
+            records=[],
+            tls_info=DotTlsInfo(issuer="", subject="", not_before="", not_after="", san=[], serial="", version=""),
+            latency_ms=50.0,
+            error="",
         )
         with pytest.raises(AttributeError):
             r.resolver = "changed"  # type: ignore[misc]
@@ -85,20 +96,32 @@ class TestDotResolverResult:
 class TestDotScanResult:
     def test_creation(self) -> None:
         r = DotScanResult(
-            domain="example.com", query_type="A", resolvers=[],
-            traditional_records=[], traditional_latency_ms=10.0,
-            filtering_detected=False, inconsistencies=[],
-            dot_supported=True, overall_status="resolved", error="",
+            domain="example.com",
+            query_type="A",
+            resolvers=[],
+            traditional_records=[],
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            dot_supported=True,
+            overall_status="resolved",
+            error="",
         )
         assert r.domain == "example.com"
         assert r.overall_status == "resolved"
 
     def test_frozen(self) -> None:
         r = DotScanResult(
-            domain="example.com", query_type="A", resolvers=[],
-            traditional_records=[], traditional_latency_ms=10.0,
-            filtering_detected=False, inconsistencies=[],
-            dot_supported=True, overall_status="resolved", error="",
+            domain="example.com",
+            query_type="A",
+            resolvers=[],
+            traditional_records=[],
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            dot_supported=True,
+            overall_status="resolved",
+            error="",
         )
         with pytest.raises(AttributeError):
             r.domain = "changed"  # type: ignore[misc]
@@ -180,11 +203,16 @@ class TestCompareRecords:
 class TestPrintResults:
     def test_resolved(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DotScanResult(
-            domain="example.com", query_type="A", resolvers=[],
+            domain="example.com",
+            query_type="A",
+            resolvers=[],
             traditional_records=[DotRecord("example.com", "A", 300, "1.2.3.4")],
-            traditional_latency_ms=10.0, filtering_detected=False,
-            inconsistencies=[], dot_supported=True,
-            overall_status="resolved", error="",
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            dot_supported=True,
+            overall_status="resolved",
+            error="",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -193,10 +221,16 @@ class TestPrintResults:
 
     def test_filtering(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DotScanResult(
-            domain="example.com", query_type="A", resolvers=[],
-            traditional_records=[], traditional_latency_ms=10.0,
-            filtering_detected=True, inconsistencies=["missing_in_dot: 1.2.3.4"],
-            dot_supported=True, overall_status="filtering_detected", error="",
+            domain="example.com",
+            query_type="A",
+            resolvers=[],
+            traditional_records=[],
+            traditional_latency_ms=10.0,
+            filtering_detected=True,
+            inconsistencies=["missing_in_dot: 1.2.3.4"],
+            dot_supported=True,
+            overall_status="filtering_detected",
+            error="",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -204,11 +238,16 @@ class TestPrintResults:
 
     def test_no_support(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DotScanResult(
-            domain="example.com", query_type="A", resolvers=[],
+            domain="example.com",
+            query_type="A",
+            resolvers=[],
             traditional_records=[DotRecord("example.com", "A", 300, "1.2.3.4")],
-            traditional_latency_ms=10.0, filtering_detected=False,
-            inconsistencies=[], dot_supported=False,
-            overall_status="no_dot_support", error="",
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            dot_supported=False,
+            overall_status="no_dot_support",
+            error="",
         )
         print_results(r)
         output = capsys.readouterr().out

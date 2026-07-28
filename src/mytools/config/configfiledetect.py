@@ -10,6 +10,7 @@ Fluxo:
   2. Valida o conteudo retornado para confirmar leak real
   3. Exibe resumo colorido e salva output detalhado
 """
+
 import argparse
 import asyncio
 import json
@@ -154,13 +155,26 @@ _CREDENTIALS_PATHS_DEFAULT: list[str] = [
     "keyfile.json",
 ]
 
-_SENSITIVE_BASENAMES_DEFAULT: frozenset[str] = frozenset({
-    "credentials.json", "secrets.json", "secrets.yml", "secrets.yaml",
-    "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", ".htpasswd",
-    "wp-config.php", "config/database.yml", "config/secrets.yml",
-    "service-account.json", "keyfile.json", "aws/credentials",
-    ".aws/credentials",
-})
+_SENSITIVE_BASENAMES_DEFAULT: frozenset[str] = frozenset(
+    {
+        "credentials.json",
+        "secrets.json",
+        "secrets.yml",
+        "secrets.yaml",
+        "id_rsa",
+        "id_dsa",
+        "id_ecdsa",
+        "id_ed25519",
+        ".htpasswd",
+        "wp-config.php",
+        "config/database.yml",
+        "config/secrets.yml",
+        "service-account.json",
+        "keyfile.json",
+        "aws/credentials",
+        ".aws/credentials",
+    }
+)
 
 _SENSITIVE_PATTERNS_DEFAULT: dict[str, list[str]] = {
     "env": ["=", "DB_", "API_KEY", "SECRET", "PASSWORD", "TOKEN", "MYSQL", "POSTGRES", "REDIS"],
@@ -180,16 +194,20 @@ def _load_config_paths() -> None:
     global DOCKER_PATHS, CREDENTIALS_PATHS, ALL_CATEGORIES, ALL_PATHS
     global SENSITIVE_BASENAMES, _SENSITIVE_PATTERNS
 
-    data = load_payloads("config", "config_file_detect", default={
-        "env": _ENV_PATHS_DEFAULT,
-        "config": _CONFIG_PATHS_DEFAULT,
-        "framework": _FRAMEWORK_PATHS_DEFAULT,
-        "database": _DATABASE_PATHS_DEFAULT,
-        "docker": _DOCKER_PATHS_DEFAULT,
-        "credentials": _CREDENTIALS_PATHS_DEFAULT,
-        "sensitive_basenames": list(_SENSITIVE_BASENAMES_DEFAULT),
-        "sensitive_patterns": _SENSITIVE_PATTERNS_DEFAULT,
-    })
+    data = load_payloads(
+        "config",
+        "config_file_detect",
+        default={
+            "env": _ENV_PATHS_DEFAULT,
+            "config": _CONFIG_PATHS_DEFAULT,
+            "framework": _FRAMEWORK_PATHS_DEFAULT,
+            "database": _DATABASE_PATHS_DEFAULT,
+            "docker": _DOCKER_PATHS_DEFAULT,
+            "credentials": _CREDENTIALS_PATHS_DEFAULT,
+            "sensitive_basenames": list(_SENSITIVE_BASENAMES_DEFAULT),
+            "sensitive_patterns": _SENSITIVE_PATTERNS_DEFAULT,
+        },
+    )
 
     ENV_PATHS = data.get("env", _ENV_PATHS_DEFAULT)
     CONFIG_PATHS = data.get("config", _CONFIG_PATHS_DEFAULT)
@@ -291,7 +309,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
                 data = json.loads(text)
                 if isinstance(data, dict):
                     return True, f"JSON config ({len(data)} keys)"
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError, ValueError:
                 pass
         # YAML-like (checar por chaves comuns)
         patterns = _SENSITIVE_PATTERNS["config"]
@@ -351,8 +369,12 @@ async def _probe_path(
     # HEAD pre-check
     try:
         head_status, head_headers, _, _ = await fetch(
-            client, full_url, timeout=timeout, method="HEAD",
-            max_retries=1, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="HEAD",
+            max_retries=1,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -374,8 +396,12 @@ async def _probe_path(
     await rate_limiter.wait()
     try:
         status, _headers, content, _ = await fetch(
-            client, full_url, timeout=timeout, method="GET",
-            max_retries=retries, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="GET",
+            max_retries=retries,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -428,7 +454,8 @@ async def scan_configs(
 
     logger.info(
         "Paths: %d | Concurrency: %d",
-        total, concurrency,
+        total,
+        concurrency,
     )
 
     sem = asyncio.Semaphore(concurrency)

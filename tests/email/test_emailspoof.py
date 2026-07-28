@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Spoofing."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -27,9 +28,16 @@ class TestSpoofVector:
 
 class TestSpoofResult:
     def test_frozen(self) -> None:
-        r = SpoofResult(domain="a", risk_score="none", vectors=[], issues=[],
-                        spf_status="strict", dmarc_status="reject",
-                        dkim_status="present", overall_protection="protected")
+        r = SpoofResult(
+            domain="a",
+            risk_score="none",
+            vectors=[],
+            issues=[],
+            spf_status="strict",
+            dmarc_status="reject",
+            dkim_status="present",
+            overall_protection="protected",
+        )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
 
@@ -85,8 +93,12 @@ class TestAnalyzeSpoofing:
     @patch("mytools.email.emailspoof.scan_email_security")
     def test_no_records(self, mock_scan: MagicMock) -> None:
         mock_scan.return_value = EmailSecurityResult(
-            domain="bad.com", spf=None, dkim_selectors=[], dmarc=None,
-            overall_status="critical", issues=[],
+            domain="bad.com",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="critical",
+            issues=[],
         )
         result = analyze_spoofing("bad.com")
         assert result.risk_score == "critical"
@@ -99,8 +111,7 @@ class TestAnalyzeSpoofing:
             domain="good.com",
             spf=SpfRecord("v=spf1 -all", "spf1", [], True, "-", []),
             dkim_selectors=["default"],
-            dmarc=DmarcRecord("v=DMARC1; p=reject; rua=mailto:d@example.com",
-                              "reject", "reject", "mailto:d@example.com", 100),
+            dmarc=DmarcRecord("v=DMARC1; p=reject; rua=mailto:d@example.com", "reject", "reject", "mailto:d@example.com", 100),
             overall_status="secure",
             issues=[],
         )
@@ -223,9 +234,14 @@ class TestAnalyzeSpoofing:
 class TestPrintResults:
     def test_protected(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = SpoofResult(
-            domain="ok.com", risk_score="none", vectors=[], issues=[],
-            spf_status="strict", dmarc_status="reject",
-            dkim_status="present", overall_protection="protected",
+            domain="ok.com",
+            risk_score="none",
+            vectors=[],
+            issues=[],
+            spf_status="strict",
+            dmarc_status="reject",
+            dkim_status="present",
+            overall_protection="protected",
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -233,10 +249,14 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = SpoofResult(
-            domain="bad.com", risk_score="critical",
+            domain="bad.com",
+            risk_score="critical",
             vectors=[SpoofVector("SPF +all", "critical", "desc", "fix")],
-            issues=[], spf_status="critical", dmarc_status="missing",
-            dkim_status="missing", overall_protection="vulnerable",
+            issues=[],
+            spf_status="critical",
+            dmarc_status="missing",
+            dkim_status="missing",
+            overall_protection="vulnerable",
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -246,8 +266,9 @@ class TestPrintResults:
 
 class TestEmailSecurityResult:
     """Verificar que emailsecurity dataclasses sao usadas corretamente."""
+
     def test_spoof_uses_base_result(self) -> None:
         from mytools.email.emailsecurity import EmailSecurityResult as ESR
-        r = ESR(domain="x", spf=None, dkim_selectors=[], dmarc=None,
-                overall_status="critical", issues=[])
+
+        r = ESR(domain="x", spf=None, dkim_selectors=[], dmarc=None, overall_status="critical", issues=[])
         assert r.domain == "x"

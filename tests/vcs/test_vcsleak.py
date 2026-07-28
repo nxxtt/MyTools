@@ -77,7 +77,7 @@ class TestValidateContent:
         assert "[core]" in detail
 
     def test_git_config_remote(self):
-        content = b"[remote \"origin\"]\n\turl = https://github.com/x/y.git"
+        content = b'[remote "origin"]\n\turl = https://github.com/x/y.git'
         ok, detail = _validate_content(".git/config", content)
         assert ok is True
         assert "[remote" in detail

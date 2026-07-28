@@ -43,35 +43,46 @@ logger = logging.getLogger("mytools.graphqlattack")
 # ─── Banner ──────────────────────────────────────────────────────────────────
 
 _BANNER_LINES: str = (
-    "  ___           _        __ _   \n"
-    " | __|_ _  __ _| |_ ___ / _(_)__ _\n"
-    " | _/ _` |/ _` |  _/ -_)  _| / _` |\n"
-    " |_\\__,_|\\__,_|\\__\\___|_| |_\\__,_|\n"
+    "  ___           _        __ _   \n | __|_ _  __ _| |_ ___ / _(_)__ _\n | _/ _` |/ _` |  _/ -_)  _| / _` |\n |_\\__,_|\\__,_|\\__\\___|_| |_\\__,_|\n"
 )
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
 _DEFAULT_PATHS_GQL: list[str] = [
-    "graphql", "graphiql", "playground", "altair", "_graphql",
-    "api/graphql", "v1/graphql", "v2/graphql", "v3/graphql",
-    "graph", "gql", "query", "graphql-api",
+    "graphql",
+    "graphiql",
+    "playground",
+    "altair",
+    "_graphql",
+    "api/graphql",
+    "v1/graphql",
+    "v2/graphql",
+    "v3/graphql",
+    "graph",
+    "gql",
+    "query",
+    "graphql-api",
 ]
 
 
 def _load_graphql_paths() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "graphql_paths", default={"paths": _DEFAULT_PATHS_GQL})
     return data.get("paths", _DEFAULT_PATHS_GQL)
 
 
 _DEFAULT_PATHS = _load_graphql_paths()
 
-_INTROSPECTION_QUERY: str = json.dumps({
-    "query": "{ __schema { queryType { name } mutationType { name } subscriptionType { name } types { name kind } } }",
-})
+_INTROSPECTION_QUERY: str = json.dumps(
+    {
+        "query": "{ __schema { queryType { name } mutationType { name } subscriptionType { name } types { name kind } } }",
+    }
+)
 
-_DEEP_INTROSPECTION_QUERY: str = json.dumps({
-    "query": """{
+_DEEP_INTROSPECTION_QUERY: str = json.dumps(
+    {
+        "query": """{
         __schema {
             queryType { name }
             mutationType { name }
@@ -93,7 +104,8 @@ _DEEP_INTROSPECTION_QUERY: str = json.dumps({
             directives { name locations args { name type { name } } }
         }
     }""",
-})
+    }
+)
 
 _TOOL_SIGNATURES: list[tuple[str, re.Pattern[str]]] = [
     ("graphiql", re.compile(r"<div\s+id=['\"]?graphiql['\"]?|GraphiQL\.create|new\s+GraphiQL", re.IGNORECASE)),
@@ -227,7 +239,11 @@ def _detect_tool(body: str) -> str:
 
 
 async def _find_endpoint(
-    host: str, port: int, path: str, timeout: float, tls: bool,
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
 ) -> str:
     """Encontra endpoint GraphQL testando paths comuns."""
     scheme = "https" if tls else "http"
@@ -259,8 +275,11 @@ async def _find_endpoint(
 
 
 async def _execute_query(
-    endpoint: str, query: str, variables: dict[str, Any] | None = None,
-    headers: dict[str, str] | None = None, timeout: float = 10.0,
+    endpoint: str,
+    query: str,
+    variables: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = 10.0,
 ) -> tuple[int, dict[str, Any]]:
     """Executa query GraphQL e retorna (status_code, response_dict)."""
     payload: dict[str, Any] = {"query": query}
@@ -357,8 +376,13 @@ def _build_persisted_query(hash_val: str) -> dict[str, Any]:
 
 
 async def _test_introspection(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa introspection GraphQL."""
     results: list[GraphQLAttackAttempt] = []
@@ -409,22 +433,37 @@ async def _test_introspection(
                 vulnerable = False
                 details = ""
 
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="introspection", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=200,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="introspection",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=200,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="introspection", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="introspection",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -433,8 +472,13 @@ async def _test_introspection(
 
 
 async def _test_depth_abuse(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa depth abuse (DoS via nested queries)."""
     results: list[GraphQLAttackAttempt] = []
@@ -488,22 +532,37 @@ async def _test_depth_abuse(
                 vulnerable = False
                 details = ""
 
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="depth_abuse", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=status if tech in ("nested_query_dos", "circular_ref", "fragment_spread", "directive_overload", "alias_chain_dos") else 200,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="depth_abuse",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=status if tech in ("nested_query_dos", "circular_ref", "fragment_spread", "directive_overload", "alias_chain_dos") else 200,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="depth_abuse", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="depth_abuse",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -512,8 +571,13 @@ async def _test_depth_abuse(
 
 
 async def _test_batch_abuse(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa batch query abuse para bypass de rate limiting."""
     results: list[GraphQLAttackAttempt] = []
@@ -566,22 +630,37 @@ async def _test_batch_abuse(
                 details = ""
 
             status_code = resp.status_code if resp is not None else 200
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="batch_abuse", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=status_code,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="batch_abuse",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=status_code,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="batch_abuse", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="batch_abuse",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -590,8 +669,13 @@ async def _test_batch_abuse(
 
 
 async def _test_alias_overload(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa alias overloading para bypass de limites."""
     results: list[GraphQLAttackAttempt] = []
@@ -637,22 +721,37 @@ async def _test_alias_overload(
                 vulnerable = False
                 details = ""
 
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="alias_overload", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=status if tech in ("alias_count_bypass",) else 200,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="alias_overload",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=status if tech in ("alias_count_bypass",) else 200,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="alias_overload", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="alias_overload",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -661,8 +760,13 @@ async def _test_alias_overload(
 
 
 async def _test_schema_stitching(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa schema stitching e federation abuse."""
     results: list[GraphQLAttackAttempt] = []
@@ -704,22 +808,37 @@ async def _test_schema_stitching(
                 vulnerable = False
                 details = ""
 
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="schema_stitching", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=200,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="schema_stitching",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=200,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="schema_stitching", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="schema_stitching",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -728,8 +847,13 @@ async def _test_schema_stitching(
 
 
 async def _test_persisted_abuse(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa Automatic Persisted Queries (APQ) abuse."""
     results: list[GraphQLAttackAttempt] = []
@@ -789,22 +913,37 @@ async def _test_persisted_abuse(
                 vulnerable = False
                 details = ""
 
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="persisted_abuse", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=200,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="persisted_abuse",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=200,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="persisted_abuse", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="persisted_abuse",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -813,8 +952,13 @@ async def _test_persisted_abuse(
 
 
 async def _test_resolver_analysis(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa resolvers para vulnerabilidades (N+1, injection, SSRF, authz)."""
     results: list[GraphQLAttackAttempt] = []
@@ -858,12 +1002,12 @@ async def _test_resolver_analysis(
                 vulnerable = found_inj
                 details = f"SQL error leak: {'detected' if vulnerable else 'not detected'}"
             elif tech == "ssrf_in_resolver":
-                query = '{ __typename }'
+                query = "{ __typename }"
                 status, data = await _execute_query(endpoint_url, query, timeout=timeout)
                 vulnerable = False
                 details = "SSRF: requires schema with URL-fetching resolvers"
             elif tech == "authz_bypass":
-                query = '{ __typename }'
+                query = "{ __typename }"
                 status, data = await _execute_query(endpoint_url, query, timeout=timeout)
                 vulnerable = status == 200
                 details = f"Unauthenticated access: status {status}"
@@ -877,22 +1021,37 @@ async def _test_resolver_analysis(
                 vulnerable = False
                 details = ""
 
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="resolver_analysis", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=200,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="resolver_analysis",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=200,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="resolver_analysis", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="resolver_analysis",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -901,8 +1060,13 @@ async def _test_resolver_analysis(
 
 
 async def _test_persisted_enum(
-    host: str, port: int, path: str, timeout: float, tls: bool,
-    endpoint_url: str, schema_info: dict[str, Any],
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint_url: str,
+    schema_info: dict[str, Any],
 ) -> list[GraphQLAttackAttempt]:
     """Testa enumeração de persisted queries."""
     results: list[GraphQLAttackAttempt] = []
@@ -954,7 +1118,7 @@ async def _test_persisted_enum(
                 query = "{ __typename }"
                 _status, data = await _execute_query(endpoint_url, query, timeout=timeout)
                 data_str = json.dumps(data)
-                has_hash = bool(re.search(r'[a-f0-9]{64}', data_str))
+                has_hash = bool(re.search(r"[a-f0-9]{64}", data_str))
                 vulnerable = has_hash
                 details = f"Hash in response: {'yes' if vulnerable else 'no'}"
             elif tech == "persisted_vs_dynamic":
@@ -976,22 +1140,37 @@ async def _test_persisted_enum(
                 vulnerable = False
                 details = ""
 
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="persisted_enum", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                endpoint=endpoint_url,
-                query_type=schema_info.get("query_type", ""),
-                schema_types=types_count, response_code=200,
-                exploit="introspection_query",
-                tool="graphql-playground",
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="persisted_enum",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    endpoint=endpoint_url,
+                    query_type=schema_info.get("query_type", ""),
+                    schema_types=types_count,
+                    response_code=200,
+                    exploit="introspection_query",
+                    tool="graphql-playground",
+                )
+            )
         except Exception as exc:
-            results.append(GraphQLAttackAttempt(
-                technique=tech, category="persisted_enum", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                endpoint=endpoint_url, query_type="",
-                schema_types=types_count, response_code=0,
-            ))
+            results.append(
+                GraphQLAttackAttempt(
+                    technique=tech,
+                    category="persisted_enum",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    endpoint=endpoint_url,
+                    query_type="",
+                    schema_types=types_count,
+                    response_code=0,
+                )
+            )
 
     return results
 
@@ -1086,12 +1265,20 @@ async def run_scan(
             raw = await tester(host, port, path, timeout, tls, endpoint_url, schema_info)
             all_attempts.extend(raw)
         except Exception as e:
-            all_attempts.append(GraphQLAttackAttempt(
-                technique=f"{cat}_error", category=cat, description="",
-                vulnerable=False, details="", error=str(e)[:100],
-                endpoint=endpoint_url, query_type=query_type,
-                schema_types=len(types), response_code=0,
-            ))
+            all_attempts.append(
+                GraphQLAttackAttempt(
+                    technique=f"{cat}_error",
+                    category=cat,
+                    description="",
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                    endpoint=endpoint_url,
+                    query_type=query_type,
+                    schema_types=len(types),
+                    response_code=0,
+                )
+            )
 
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
     issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
@@ -1099,14 +1286,19 @@ async def run_scan(
     overall = "vulnerable" if vuln_techs else "secure"
 
     result = GraphQLAttackResult(
-        target=target, host=host, port=port, tls=tls,
-        endpoint=endpoint_url, schema_found=bool(types),
+        target=target,
+        host=host,
+        port=port,
+        tls=tls,
+        endpoint=endpoint_url,
+        schema_found=bool(types),
         types_count=len(types),
         queries_count=1 if query_type else 0,
         mutations_count=1 if mutation_type else 0,
         attempts=all_attempts,
         vulnerable_techniques=vuln_techs,
-        issues=issues, overall_status=overall,
+        issues=issues,
+        overall_status=overall,
     )
 
     print_results(result)
@@ -1163,7 +1355,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo (https://target.com/graphql)")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",

@@ -343,6 +343,7 @@ class TestVersion:
 
     def test_version_matches_pyproject(self):
         from pathlib import Path
+
         pyproject = Path(__file__).parent.parent.parent / "pyproject.toml"
         for line in pyproject.read_text(encoding="utf-8").splitlines():
             if line.startswith("version"):
@@ -385,6 +386,7 @@ class TestParseExtraHeadersUtils:
 class TestAddCommonArgs:
     def test_adds_timeout(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["-t", "10"])
@@ -392,6 +394,7 @@ class TestAddCommonArgs:
 
     def test_adds_output(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["-o", "out.json"])
@@ -399,6 +402,7 @@ class TestAddCommonArgs:
 
     def test_adds_verbose(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["-v"])
@@ -406,6 +410,7 @@ class TestAddCommonArgs:
 
     def test_adds_quiet(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["-q"])
@@ -413,6 +418,7 @@ class TestAddCommonArgs:
 
     def test_adds_auth(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["--auth", "user:pass"])
@@ -421,6 +427,7 @@ class TestAddCommonArgs:
 
     def test_adds_bearer_token(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["--bearer-token", "tok123"])
@@ -428,6 +435,7 @@ class TestAddCommonArgs:
 
     def test_adds_cookie(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["--cookie", "session=abc"])
@@ -435,6 +443,7 @@ class TestAddCommonArgs:
 
     def test_adds_header(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["--header", "X-Token: abc", "--header", "X-Custom: xyz"])
@@ -442,6 +451,7 @@ class TestAddCommonArgs:
 
     def test_adds_proxy(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["--proxy", "http://proxy:8080"])
@@ -449,6 +459,7 @@ class TestAddCommonArgs:
 
     def test_adds_delay(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["--delay", "5"])
@@ -456,6 +467,7 @@ class TestAddCommonArgs:
 
     def test_adds_log_file(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args(["--log-file", "test.log"])
@@ -463,6 +475,7 @@ class TestAddCommonArgs:
 
     def test_default_timeout(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args([])
@@ -470,6 +483,7 @@ class TestAddCommonArgs:
 
     def test_default_quiet_false(self):
         import argparse
+
         parser = argparse.ArgumentParser()
         add_common_args(parser)
         args = parser.parse_args([])
@@ -537,18 +551,12 @@ class TestQueryNvd:
                     "cve": {
                         "id": "CVE-2021-44228",
                         "descriptions": [{"lang": "en", "value": "Apache Log4j2 RCE"}],
-                        "metrics": {
-                            "cvssMetricV31": [
-                                {"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}
-                            ]
-                        },
+                        "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}]},
                     }
                 }
             ],
         }
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
-            return_value=httpx.Response(200, json=mock_response)
-        )
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(200, json=mock_response))
         results = await query_nvd("Log4j 2.14")
         assert len(results) == 1
         assert results[0]["id"] == "CVE-2021-44228"
@@ -558,18 +566,14 @@ class TestQueryNvd:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_empty_on_rate_limit(self):
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
-            return_value=httpx.Response(403)
-        )
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(403))
         results = await query_nvd("test")
         assert results == []
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_empty_on_error(self):
-        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(
-            return_value=httpx.Response(500)
-        )
+        respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0").mock(return_value=httpx.Response(500))
         results = await query_nvd("test")
         assert results == []
 
@@ -605,12 +609,14 @@ class TestSetColor:
         monkeypatch.setattr("mytools.core.utils._USE_COLOR", True)
         set_color(False)
         from mytools.core import utils
+
         assert utils._USE_COLOR is False
 
     def test_enables_color(self, monkeypatch):
         monkeypatch.setattr("mytools.core.utils._USE_COLOR", False)
         set_color(True)
         from mytools.core import utils
+
         assert utils._USE_COLOR is True
 
 
@@ -666,6 +672,7 @@ class TestSeverityColor:
             assert severity_color("critical") == Cyber.BLUE
         finally:
             from mytools.core.utils import _SEVERITY_COLOR_NAMES
+
             _SEVERITY_COLOR_NAMES["critical"] = "RED"
 
     def test_severity_follows_theme(self):
@@ -721,6 +728,7 @@ class TestPrintJson:
 
     def test_handles_non_serializable(self, capsys):
         from datetime import datetime
+
         print_json({"ts": datetime(2026, 1, 1)})
         out = capsys.readouterr().out
         assert "2026" in out
@@ -782,24 +790,28 @@ class TestWriteOutput:
 
     def test_json_extension(self, tmp_path):
         from mytools.core.utils import write_output
+
         path = str(tmp_path / "result.json")
         write_output(path, {"key": "value"}, quiet=True)
         assert Path(path).exists()
 
     def test_csv_extension(self, tmp_path):
         from mytools.core.utils import write_output
+
         path = str(tmp_path / "result.csv")
         write_output(path, [{"a": "1"}], fieldnames=["a"], quiet=True)
         assert Path(path).exists()
 
     def test_invalid_extension_raises(self, tmp_path):
         from mytools.core.utils import write_output
+
         path = str(tmp_path / "result.xml")
         with pytest.raises(ValueError, match="extensao nao suportada"):
             write_output(path, {"key": "value"}, quiet=True)
 
     def test_txt_extension_raises(self, tmp_path):
         from mytools.core.utils import write_output
+
         path = str(tmp_path / "result.txt")
         with pytest.raises(ValueError, match="extensao nao suportada"):
             write_output(path, [{"a": "1"}], fieldnames=["a"], quiet=True)

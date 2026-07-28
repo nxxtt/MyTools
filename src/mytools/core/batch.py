@@ -11,6 +11,7 @@ Exemplos:
   mytools-batch targets.txt webrecon --strict --fail-fast
   mytools-batch targets.txt webrecon --format json
 """
+
 import argparse
 import contextlib
 import importlib
@@ -67,12 +68,8 @@ def _discover_modules() -> dict[str, str]:
             m = re.match(r'^([\w-]+)\s*=\s*"([^"]+)"', line.strip())
             if m:
                 key, val = m.group(1), m.group(2)
-                if (
-                    key.startswith("mytools-")
-                    and key
-                    not in ("mytools", "mytools-cred", "mytools-reconall")
-                ):
-                    mod_name = key[len("mytools-"):]
+                if key.startswith("mytools-") and key not in ("mytools", "mytools-cred", "mytools-reconall"):
+                    mod_name = key[len("mytools-") :]
                     modules[mod_name] = val.split(":")[0]
     return modules
 
@@ -314,11 +311,7 @@ def run_batch(args: argparse.Namespace) -> int:
         logger.error("'all' nao pode ser combinado com outros modulos")
         return 1
 
-    mod_names = (
-        [n for n in _get_all_module_names() if n not in args.skip]
-        if args.modules == ["all"]
-        else [n for n in args.modules if n not in args.skip]
-    )
+    mod_names = [n for n in _get_all_module_names() if n not in args.skip] if args.modules == ["all"] else [n for n in args.modules if n not in args.skip]
 
     module_list: list[tuple[str, Callable[[argparse.Namespace], int], Callable[[], argparse.ArgumentParser]]] = []
     for name in mod_names:
@@ -338,8 +331,11 @@ def run_batch(args: argparse.Namespace) -> int:
                     break
                 results.append(
                     process_target(
-                        target, module_list, base_ns,
-                        args.output_dir, args.timeout,
+                        target,
+                        module_list,
+                        base_ns,
+                        args.output_dir,
+                        args.timeout,
                     ),
                 )
         else:
@@ -414,13 +410,7 @@ def _print_report(
                     "modules": {
                         mod: {
                             "exit_code": code,
-                            "status": (
-                                "ok"
-                                if code == 0
-                                else "vuln"
-                                if code > 0
-                                else "error"
-                            ),
+                            "status": ("ok" if code == 0 else "vuln" if code > 0 else "error"),
                         }
                         for mod, code in r.details.items()
                     },
@@ -443,8 +433,7 @@ def _print_report(
                 print(f"    {icon} {mod}")
         print("-" * 70)
         print(
-            f"  Targets: {total_targets} | OK: {total_success} "
-            f"| Vulns: {total_vulns} | Errors: {total_errors}",
+            f"  Targets: {total_targets} | OK: {total_success} | Vulns: {total_vulns} | Errors: {total_errors}",
         )
         print(f"  Tempo total: {total_duration:.1f}s")
         print("=" * 70)
@@ -470,32 +459,45 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("targets", help="Arquivo com alvos (1 por linha)")
     parser.add_argument("modules", nargs="+", help="Modulos (ou 'all')")
     parser.add_argument(
-        "-p", "--parallel", type=int, default=1,
+        "-p",
+        "--parallel",
+        type=int,
+        default=1,
         help="Targets simultaneos",
     )
     parser.add_argument("-o", "--output-dir", help="Dir para JSONs")
     parser.add_argument(
-        "--skip", action="append", default=[],
+        "--skip",
+        action="append",
+        default=[],
         help="Modulo para pular",
     )
     parser.add_argument(
-        "-t", "--timeout", type=float, default=5.0,
+        "-t",
+        "--timeout",
+        type=float,
+        default=5.0,
         help="Timeout (default: 5s)",
     )
     parser.add_argument(
-        "--strict", action="store_true",
+        "--strict",
+        action="store_true",
         help="Exit 2 se vulns",
     )
     parser.add_argument(
-        "--fail-fast", action="store_true",
+        "--fail-fast",
+        action="store_true",
         help="Para no 1o erro (apenas --parallel 1)",
     )
     parser.add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Formato do relatorio",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Mostra plano sem executar",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -504,11 +506,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bearer-token", help="Bearer token")
     parser.add_argument("--cookie", help="Cookie header")
     parser.add_argument(
-        "--header", action="append", default=[],
+        "--header",
+        action="append",
+        default=[],
         help="Header customizado",
     )
     parser.add_argument(
-        "--version", action="version",
+        "--version",
+        action="version",
         version=f"%(prog)s {__version__}",
     )
     return parser
@@ -522,11 +527,7 @@ def main() -> int:
 
     if args.dry_run:
         targets = read_targets(args.targets)
-        mod_names = (
-            _get_all_module_names()
-            if args.modules == ["all"]
-            else args.modules
-        )
+        mod_names = _get_all_module_names() if args.modules == ["all"] else args.modules
         mod_names = [n for n in mod_names if n not in args.skip]
         logger.info(
             "Dry-run: %d targets x %d modulos = %d execucoes",

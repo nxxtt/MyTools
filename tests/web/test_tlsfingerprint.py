@@ -34,10 +34,17 @@ from mytools.web.tlsfingerprint import (
 class TestTLSFingerprintAttempt:
     def test_creation(self) -> None:
         a = TLSFingerprintAttempt(
-            technique="ja3_hash", category="tls_fingerprint", description="desc",
-            ja3="abc123", ja4="t13d0516h2_abc123_def456",
-            cipher_suite="TLS_AES_128_GCM_SHA256", tls_version="0x0304",
-            alpn="h2", vulnerable=False, details="test", error="",
+            technique="ja3_hash",
+            category="tls_fingerprint",
+            description="desc",
+            ja3="abc123",
+            ja4="t13d0516h2_abc123_def456",
+            cipher_suite="TLS_AES_128_GCM_SHA256",
+            tls_version="0x0304",
+            alpn="h2",
+            vulnerable=False,
+            details="test",
+            error="",
         )
         assert a.technique == "ja3_hash"
         assert a.ja3 == "abc123"
@@ -45,9 +52,17 @@ class TestTLSFingerprintAttempt:
 
     def test_frozen(self) -> None:
         a = TLSFingerprintAttempt(
-            technique="t", category="c", description="d",
-            ja3="", ja4="", cipher_suite="", tls_version="",
-            alpn="", vulnerable=False, details="", error="",
+            technique="t",
+            category="c",
+            description="d",
+            ja3="",
+            ja4="",
+            cipher_suite="",
+            tls_version="",
+            alpn="",
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -56,20 +71,36 @@ class TestTLSFingerprintAttempt:
 class TestTLSFingerprintResult:
     def test_creation(self) -> None:
         r = TLSFingerprintResult(
-            target="https://example.com", host="example.com", port=443, tls=True,
-            server_cipher="TLS_AES_128_GCM_SHA256", server_version="TLSv1.3",
-            ja3_hash="abc", ja4_hash="def",
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            server_cipher="TLS_AES_128_GCM_SHA256",
+            server_version="TLSv1.3",
+            ja3_hash="abc",
+            ja4_hash="def",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.ja3_hash == "abc"
 
     def test_frozen(self) -> None:
         r = TLSFingerprintResult(
-            target="t", host="h", port=443, tls=True,
-            server_cipher="", server_version="",
-            ja3_hash="", ja4_hash="",
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            server_cipher="",
+            server_version="",
+            ja3_hash="",
+            ja4_hash="",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -280,10 +311,14 @@ class TestBuildParser:
 
     def test_has_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "https://example.com",
-            "-c", "tls_fingerprint", "cipher_audit",
-        ])
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "-c",
+                "tls_fingerprint",
+                "cipher_audit",
+            ]
+        )
         assert args.categories == ["tls_fingerprint", "cipher_audit"]
 
     def test_no_categories_default(self) -> None:
@@ -306,10 +341,18 @@ class TestBuildParser:
 class TestPrintResults:
     def test_print_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TLSFingerprintResult(
-            target="https://example.com", host="example.com", port=443, tls=True,
-            server_cipher="TLS_AES_128_GCM_SHA256", server_version="TLSv1.3",
-            ja3_hash="abc123", ja4_hash="t13d0516h2_abc123_def456",
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            server_cipher="TLS_AES_128_GCM_SHA256",
+            server_version="TLSv1.3",
+            ja3_hash="abc123",
+            ja4_hash="t13d0516h2_abc123_def456",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -317,16 +360,31 @@ class TestPrintResults:
 
     def test_print_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         attempt = TLSFingerprintAttempt(
-            technique="deprecated_ciphers", category="cipher_audit", description="desc",
-            ja3="", ja4="", cipher_suite="RC4", tls_version="TLSv1.2",
-            alpn="h2", vulnerable=True, details="Found RC4", error="",
+            technique="deprecated_ciphers",
+            category="cipher_audit",
+            description="desc",
+            ja3="",
+            ja4="",
+            cipher_suite="RC4",
+            tls_version="TLSv1.2",
+            alpn="h2",
+            vulnerable=True,
+            details="Found RC4",
+            error="",
         )
         result = TLSFingerprintResult(
-            target="https://example.com", host="example.com", port=443, tls=True,
-            server_cipher="RC4_128_SHA", server_version="TLSv1.2",
-            ja3_hash="abc", ja4_hash="def",
-            attempts=[attempt], vulnerable_techniques=["deprecated_ciphers"],
-            issues=[], overall_status="vulnerable",
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            server_cipher="RC4_128_SHA",
+            server_version="TLSv1.2",
+            ja3_hash="abc",
+            ja4_hash="def",
+            attempts=[attempt],
+            vulnerable_techniques=["deprecated_ciphers"],
+            issues=[],
+            overall_status="vulnerable",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -334,11 +392,18 @@ class TestPrintResults:
 
     def test_print_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TLSFingerprintResult(
-            target="https://example.com", host="example.com", port=443, tls=True,
-            server_cipher="AES", server_version="TLSv1.3",
-            ja3_hash="abc", ja4_hash="def",
-            attempts=[], vulnerable_techniques=[],
-            issues=["Errors: technique1"], overall_status="secure",
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            server_cipher="AES",
+            server_version="TLSv1.3",
+            ja3_hash="abc",
+            ja4_hash="def",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=["Errors: technique1"],
+            overall_status="secure",
         )
         print_results(result)
         output = capsys.readouterr().out

@@ -41,24 +41,32 @@ _BANNER_LINES: str = (
 )
 
 _ENV_VAR_PATTERNS_DEFAULT: list[str] = [
-    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
-    "AWS_REGION", "AWS_LAMBDA_", "SECRET_", "API_KEY",
-    "DATABASE_URL", "CONNECTION_STRING", "PASSWORD", "TOKEN",
-    "PRIVATE_KEY", "arn:aws:",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_REGION",
+    "AWS_LAMBDA_",
+    "SECRET_",
+    "API_KEY",
+    "DATABASE_URL",
+    "CONNECTION_STRING",
+    "PASSWORD",
+    "TOKEN",
+    "PRIVATE_KEY",
+    "arn:aws:",
 ]
 
 
 def _load_lambda_patterns() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "lambda_attack", default={"env_var_patterns": _ENV_VAR_PATTERNS_DEFAULT})
     return data.get("env_var_patterns", _ENV_VAR_PATTERNS_DEFAULT)
 
 
 _ENV_VAR_PATTERNS = _load_lambda_patterns()
 
-_LAYER_ARN_PATTERN: re.Pattern[str] = re.compile(
-    r"arn:aws:lambda:[a-z0-9-]+:\d{12}:layer:[a-zA-Z0-9_-]+:\d+"
-)
+_LAYER_ARN_PATTERN: re.Pattern[str] = re.compile(r"arn:aws:lambda:[a-z0-9-]+:\d{12}:layer:[a-zA-Z0-9_-]+:\d+")
 
 _LAMBDA_ERROR_SIGNATURES: list[str] = [
     "Traceback (most recent call last)",
@@ -135,16 +143,29 @@ def _parse_url(target: str) -> tuple[str, str, int, bool]:
 
 
 def _make_attempt(
-    tech: str, cat: str, desc: str, vuln: bool, details: str, error: str,
-    endpoint: str, code: int, leaked_vars: list[str] | None = None,
+    tech: str,
+    cat: str,
+    desc: str,
+    vuln: bool,
+    details: str,
+    error: str,
+    endpoint: str,
+    code: int,
+    leaked_vars: list[str] | None = None,
 ) -> LambdaAttackAttempt:
     return LambdaAttackAttempt(
-    exploit="curl <TARGET>/api/endpoint",
-    tool="curl",
-        technique=tech, category=cat, description=desc,
-        vulnerable=vuln, details=details, error=error,
-        endpoint=endpoint, response_code=code,
-        leaked_vars=leaked_vars or [], leak_count=len(leaked_vars or []),
+        exploit="curl <TARGET>/api/endpoint",
+        tool="curl",
+        technique=tech,
+        category=cat,
+        description=desc,
+        vulnerable=vuln,
+        details=details,
+        error=error,
+        endpoint=endpoint,
+        response_code=code,
+        leaked_vars=leaked_vars or [],
+        leak_count=len(leaked_vars or []),
     )
 
 
@@ -180,7 +201,9 @@ def _extract_error_details(body: str) -> dict[str, Any]:
 
 
 async def _test_env_var_leak(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> LambdaAttackAttempt:
     all_leaked: list[str] = []
     payloads = [
@@ -191,8 +214,8 @@ async def _test_env_var_leak(
         {"body": b'{"event":{"body":"<script>alert(1)</script>"}}', "desc": "XSS in event"},
         {"body": b'{"body":"admin\' OR 1=1--"}', "desc": "SQL injection in event"},
         {"headers": {"Content-Type": "application/x-yaml"}, "body": "test: value", "desc": "YAML content type"},
-        {"headers": {"X-Amz-Invocation-Type": "RequestResponse"}, "body": b'{}', "desc": "Lambda invocation header"},
-        {"headers": {"X-Amz-Lambda-Function-Name": "test"}, "body": b'{}', "desc": "Lambda function name header"},
+        {"headers": {"X-Amz-Invocation-Type": "RequestResponse"}, "body": b"{}", "desc": "Lambda invocation header"},
+        {"headers": {"X-Amz-Lambda-Function-Name": "test"}, "body": b"{}", "desc": "Lambda function name header"},
         {"body": b'{"queryStringParameters":{"debug":"true","admin":"1"}}', "desc": "API Gateway debug params"},
     ]
 
@@ -217,7 +240,9 @@ async def _test_env_var_leak(
 
 
 async def _test_layer_enumeration(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> LambdaAttackAttempt:
     layers_found: list[str] = []
     payloads = [
@@ -246,7 +271,9 @@ async def _test_layer_enumeration(
 
 
 async def _test_temp_file_persistence(
-    url: str, timeout: float, client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    client: httpx.AsyncClient,
 ) -> LambdaAttackAttempt:
     marker = f"persistence_test_{uuid.uuid4().hex[:12]}"
     last_code = 0
@@ -286,8 +313,14 @@ async def _test_temp_file_persistence(
 
 TestCategoryMap = dict  # placeholder for test imports
 
+
 async def _test_lambda(
-    host: str, port: int, path: str, timeout: float, tls: bool, endpoint: str,
+    host: str,
+    port: int,
+    path: str,
+    timeout: float,
+    tls: bool,
+    endpoint: str,
 ) -> list[LambdaAttackAttempt]:
     results: list[LambdaAttackAttempt] = []
     async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
@@ -343,7 +376,10 @@ def print_results(result: LambdaAttackResult) -> None:
 
 
 async def run_scan(
-    target: str, categories: list[str] | None, timeout: float, output_file: str | None,
+    target: str,
+    categories: list[str] | None,
+    timeout: float,
+    output_file: str | None,
 ) -> LambdaAttackResult:
     host, path, port, tls = _parse_url(target)
     scheme = "https" if tls else "http"
@@ -369,9 +405,16 @@ async def run_scan(
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
     overall = "vulnerable" if vuln_techs else "secure"
     result = LambdaAttackResult(
-        target=target, host=host, port=port, tls=tls, endpoint=endpoint,
-        lambda_detected=lambda_detected, attempts=all_attempts,
-        vulnerable_techniques=vuln_techs, issues=issues, overall_status=overall,
+        target=target,
+        host=host,
+        port=port,
+        tls=tls,
+        endpoint=endpoint,
+        lambda_detected=lambda_detected,
+        attempts=all_attempts,
+        vulnerable_techniques=vuln_techs,
+        issues=issues,
+        overall_status=overall,
     )
     print_results(result)
     if output_file:
@@ -391,12 +434,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
-    result = safe_asyncio_run(run_scan(
-        target=args.url,
-        categories=getattr(args, "categories", None),
-        timeout=getattr(args, "timeout", 5.0),
-        output_file=getattr(args, "output", None),
-    ))
+    result = safe_asyncio_run(
+        run_scan(
+            target=args.url,
+            categories=getattr(args, "categories", None),
+            timeout=getattr(args, "timeout", 5.0),
+            output_file=getattr(args, "output", None),
+        )
+    )
     return 1 if result.overall_status == "vulnerable" else 0
 
 

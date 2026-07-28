@@ -19,6 +19,7 @@ Fluxo:
   4. Classifica cada tecnica: detected, not_detected, blocked, error
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import contextlib
 import logging
@@ -59,10 +60,14 @@ def _load_link_tracking() -> tuple[dict[str, list[str]], list[str]]:
     """Carrega link tracking data de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("email", "link_tracking", default={
-        "categories": _CATEGORY_MAP_DEFAULT,
-        "shorteners": _SHORTENERS_DEFAULT,
-    })
+    data = load_payloads(
+        "email",
+        "link_tracking",
+        default={
+            "categories": _CATEGORY_MAP_DEFAULT,
+            "shorteners": _SHORTENERS_DEFAULT,
+        },
+    )
     return (
         data.get("categories", _CATEGORY_MAP_DEFAULT),
         data.get("shorteners", _SHORTENERS_DEFAULT),
@@ -71,49 +76,27 @@ def _load_link_tracking() -> tuple[dict[str, list[str]], list[str]]:
 
 _CATEGORY_MAP, _SHORTENERS_LOADED = _load_link_tracking()
 
-_TRACKING_PIXEL_1X1 = (
-    '<img src="https://tracking.example.com/pixel.gif?uid=test123&ts=1234567890" '
-    'width="1" height="1" style="display:none" alt="">'
-)
+_TRACKING_PIXEL_1X1 = '<img src="https://tracking.example.com/pixel.gif?uid=test123&ts=1234567890" width="1" height="1" style="display:none" alt="">'
 
 _TRACKING_PIXEL_CSS = (
-    '<div style="background-image:url(\'https://track.example.com/bg.gif?rid=abc\')'
-    ';width:1px;height:1px;position:absolute;top:-9999px"></div>'
+    "<div style=\"background-image:url('https://track.example.com/bg.gif?rid=abc');width:1px;height:1px;position:absolute;top:-9999px\"></div>"
 )
 
 _LINK_REWRITE = '<a href="https://legitimate.com/page">Click here</a>'
 
-_UTM_PARAMS = (
-    '<a href="https://example.com/product?utm_source=email&utm_medium=campaign'
-    '&utm_content=test&utm_term=keyword">Product link</a>'
-)
+_UTM_PARAMS = '<a href="https://example.com/product?utm_source=email&utm_medium=campaign&utm_content=test&utm_term=keyword">Product link</a>'
 
-_REDIRECT_CHAIN = (
-    '<a href="https://redirect.example.com/r?url=https://final.com">Redirect link</a>'
-)
+_REDIRECT_CHAIN = '<a href="https://redirect.example.com/r?url=https://final.com">Redirect link</a>'
 
 _URL_SHORTENER = '<a href="https://bit.ly/abc123">Short link</a>'
 
-_HIDDEN_ELEMENT = (
-    '<div style="display:none;font-size:0;line-height:0" '
-    'data-track-id="open-test-456">invisible content</div>'
-)
+_HIDDEN_ELEMENT = '<div style="display:none;font-size:0;line-height:0" data-track-id="open-test-456">invisible content</div>'
 
-_CSS_TRACKING = (
-    '<style>.tracker{background:url("https://css.example.com/t.gif?cid=xyz") '
-    'no-repeat;width:1px;height:1px}</style>'
-    '<div class="tracker"></div>'
-)
+_CSS_TRACKING = '<style>.tracker{background:url("https://css.example.com/t.gif?cid=xyz") no-repeat;width:1px;height:1px}</style><div class="tracker"></div>'
 
-_FONT_FINGERPRINT = (
-    '<style>@font-face{font-family:"Tracker";'
-    'src:url("https://font.example.com/f.woff?id=789")}</style>'
-)
+_FONT_FINGERPRINT = '<style>@font-face{font-family:"Tracker";src:url("https://font.example.com/f.woff?id=789")}</style>'
 
-_WEB_BEACON = (
-    '<img src="https://webbeacon.example.com/beacon?email=test@test.com&opened=1" '
-    'border="0" width="0" height="0" alt="">'
-)
+_WEB_BEACON = '<img src="https://webbeacon.example.com/beacon?email=test@test.com&opened=1" border="0" width="0" height="0" alt="">'
 
 _READ_RECEIPT_HEADER = "Disposition-Notification-To"
 
@@ -166,6 +149,7 @@ def _build_test_email(
 @dataclass(frozen=True, slots=True)
 class TrackingAttempt:
     """Resultado de uma tentativa individual de deteccao de tracking."""
+
     technique: str
     status: str  # detected, not_detected, blocked, error
     details: str
@@ -175,6 +159,7 @@ class TrackingAttempt:
 @dataclass(frozen=True, slots=True)
 class TrackingResult:
     """Resultado completo da verificacao de link tracking."""
+
     target: str
     port: int
     tls: bool
@@ -206,7 +191,7 @@ def _connect_smtp(target: str, port: int, timeout: float) -> tuple[smtplib.SMTP,
             server.starttls()
             server.ehlo()
             tls_active = True
-    except (smtplib.SMTPException, OSError):
+    except smtplib.SMTPException, OSError:
         pass
     return server, tls_active
 
@@ -245,7 +230,7 @@ def _detect_web_beacon(server_response: str, email_body: str) -> tuple[str, str]
     combined = server_response + email_body
     if "webbeacon" in combined or "web-beacon" in combined:
         return "detected", "Web beacon detectado"
-    if "beacon" in combined and ("width=\"0\"" in combined or "height=\"0\"" in combined):
+    if "beacon" in combined and ('width="0"' in combined or 'height="0"' in combined):
         return "detected", "Beacon invisivel detectado"
     return "not_detected", "Nenhum web beacon injetado"
 
@@ -353,9 +338,15 @@ def scan_link_tracking(
     except ConnectionError as exc:
         issues.append(f"Falha de conexao: {exc}")
         return TrackingResult(
-            target=target, port=port, tls=False, banner="",
-            attempts=[], detected_techniques=[], clean_techniques=[],
-            issues=issues, overall_status="error",
+            target=target,
+            port=port,
+            tls=False,
+            banner="",
+            attempts=[],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=issues,
+            overall_status="error",
         )
 
     try:
@@ -395,8 +386,7 @@ def scan_link_tracking(
                     status, details = detector(server_response, email_body)
                 elif name == "link_rewrite":
                     status, details = detector(_LINK_REWRITE, server_response, email_body)
-                elif name in ("utm_params", "redirect_chain", "url_shortener",
-                              "hidden_element", "css_tracking", "font_fingerprint"):
+                elif name in ("utm_params", "redirect_chain", "url_shortener", "hidden_element", "css_tracking", "font_fingerprint"):
                     status, details = detector(email_body)
                 elif name in ("read_receipt", "message_id_tracking"):
                     status, details = detector(server_response)
@@ -406,19 +396,23 @@ def scan_link_tracking(
                 if status == "detected":
                     issues.append(f"Tracking detectado: {label}")
 
-                attempts.append(TrackingAttempt(
-                    technique=name,
-                    status=status,
-                    details=details[:200],
-                    error="",
-                ))
+                attempts.append(
+                    TrackingAttempt(
+                        technique=name,
+                        status=status,
+                        details=details[:200],
+                        error="",
+                    )
+                )
             except Exception as exc:
-                attempts.append(TrackingAttempt(
-                    technique=name,
-                    status="error",
-                    details="",
-                    error=str(exc)[:200],
-                ))
+                attempts.append(
+                    TrackingAttempt(
+                        technique=name,
+                        status="error",
+                        details="",
+                        error=str(exc)[:200],
+                    )
+                )
 
     finally:
         with contextlib.suppress(smtplib.SMTPException):
@@ -529,7 +523,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     parser.add_argument("target", nargs="?", help="Host SMTP alvo (ex: mail.example.com).")
     parser.add_argument(
-        "--port", "-p",
+        "--port",
+        "-p",
         type=int,
         default=587,
         help="Porta SMTP. Padrao: 587",
@@ -545,7 +540,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Endereco TO para os testes. Padrao: test@example.com",
     )
     parser.add_argument(
-        "--category", "-c",
+        "--category",
+        "-c",
         choices=list(_CATEGORY_MAP.keys()),
         help="Testa apenas uma categoria de tracking.",
     )

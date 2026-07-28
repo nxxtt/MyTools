@@ -12,6 +12,7 @@ Fluxo por email:
   3. Mescla resultados sem duplicatas
   4. Exibe resumo colorido por severidade
 """
+
 import argparse
 import asyncio
 import json
@@ -105,7 +106,10 @@ async def _query_xposedornot(
 
     try:
         status, _headers, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=1,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=1,
             rate_limiter=rate_limiter,
         )
     except FetchError:
@@ -116,7 +120,7 @@ async def _query_xposedornot(
 
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return []
 
     breaches_raw = data.get("breaches", [])
@@ -127,28 +131,39 @@ async def _query_xposedornot(
     if isinstance(breaches_raw, list):
         for b in breaches_raw:
             if isinstance(b, str):
-                breaches.append(EmailBreach(
-                    email=email, breach_name=b, source="xposedornot",
-                    exploit=f"https://haveibeenpwned.com/account/{email}",
-                    tool="xposedornot",
-                ))
+                breaches.append(
+                    EmailBreach(
+                        email=email,
+                        breach_name=b,
+                        source="xposedornot",
+                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        tool="xposedornot",
+                    )
+                )
             elif isinstance(b, dict):
-                breaches.append(EmailBreach(
-                    email=email,
-                    breach_name=b.get("name", b.get("breach", "unknown")),
-                    breach_date=b.get("date", b.get("breach_date", "")),
-                    pwn_count=b.get("pwn_count", 0),
-                    data_classes=b.get("data_classes", ""),
-                    source="xposedornot",
-                    exploit=f"https://haveibeenpwned.com/account/{email}",
-                    tool="xposedornot",
-                ))
+                breaches.append(
+                    EmailBreach(
+                        email=email,
+                        breach_name=b.get("name", b.get("breach", "unknown")),
+                        breach_date=b.get("date", b.get("breach_date", "")),
+                        pwn_count=b.get("pwn_count", 0),
+                        data_classes=b.get("data_classes", ""),
+                        source="xposedornot",
+                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        tool="xposedornot",
+                    )
+                )
     elif isinstance(breaches_raw, dict):
-        breaches.extend(EmailBreach(
-            email=email, breach_name=name, source="xposedornot",
-            exploit=f"https://haveibeenpwned.com/account/{email}",
-            tool="xposedornot",
-        ) for name in breaches_raw)
+        breaches.extend(
+            EmailBreach(
+                email=email,
+                breach_name=name,
+                source="xposedornot",
+                exploit=f"https://haveibeenpwned.com/account/{email}",
+                tool="xposedornot",
+            )
+            for name in breaches_raw
+        )
 
     return breaches
 
@@ -165,7 +180,10 @@ async def _query_leakcheck(
 
     try:
         status, _headers, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=1,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=1,
             rate_limiter=rate_limiter,
         )
     except FetchError:
@@ -176,7 +194,7 @@ async def _query_leakcheck(
 
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return []
 
     if not data.get("success") or not data.get("found"):
@@ -187,20 +205,26 @@ async def _query_leakcheck(
     if isinstance(sources, list):
         for src in sources:
             if isinstance(src, dict):
-                breaches.append(EmailBreach(
-                    email=email,
-                    breach_name=src.get("name", "unknown"),
-                    breach_date=src.get("date", ""),
-                    source="leakcheck",
-                    exploit=f"https://haveibeenpwned.com/account/{email}",
-                    tool="leakcheck",
-                ))
+                breaches.append(
+                    EmailBreach(
+                        email=email,
+                        breach_name=src.get("name", "unknown"),
+                        breach_date=src.get("date", ""),
+                        source="leakcheck",
+                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        tool="leakcheck",
+                    )
+                )
             elif isinstance(src, str):
-                breaches.append(EmailBreach(
-                    email=email, breach_name=src, source="leakcheck",
-                    exploit=f"https://haveibeenpwned.com/account/{email}",
-                    tool="leakcheck",
-                ))
+                breaches.append(
+                    EmailBreach(
+                        email=email,
+                        breach_name=src,
+                        source="leakcheck",
+                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        tool="leakcheck",
+                    )
+                )
 
     return breaches
 
@@ -221,7 +245,10 @@ async def _query_hibp(
 
     try:
         status, _headers, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=1,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=1,
             rate_limiter=rate_limiter,
             headers={"hibp-api-key": api_key},
         )
@@ -235,7 +262,7 @@ async def _query_hibp(
 
     try:
         items = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return []
 
     if not isinstance(items, list):
@@ -251,7 +278,8 @@ async def _query_hibp(
             source="hibp",
             exploit=f"https://haveibeenpwned.com/account/{email}",
             tool="hibp",
-        ) for item in items
+        )
+        for item in items
     ]
 
     return breaches
@@ -366,7 +394,8 @@ def print_results(breaches: list[EmailBreach]) -> None:
             str(b.pwn_count) if b.pwn_count else "-",
             b.data_classes[:30] or "-",
             b.source,
-        ) for b in breaches
+        )
+        for b in breaches
     ]
 
     def _row_styles(_row: tuple[str, ...]) -> list[tuple[str, ...]]:

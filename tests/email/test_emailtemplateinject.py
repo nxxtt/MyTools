@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Template Injection."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,8 +22,7 @@ from mytools.email.emailtemplateinject import (
 
 class TestTemplateProbe:
     def test_frozen(self) -> None:
-        p = TemplateProbe(engine="jinja2", payload_name="test", payload="x",
-                          response_snippet="y", detected=True, status="detected")
+        p = TemplateProbe(engine="jinja2", payload_name="test", payload="x", response_snippet="y", detected=True, status="detected")
         with pytest.raises(AttributeError):
             p.engine = "z"  # type: ignore[misc]
 
@@ -33,8 +33,13 @@ class TestTemplateProbe:
 class TestTemplateInjectionResult:
     def test_frozen(self) -> None:
         r = TemplateInjectionResult(
-            target="mail.test.com", port=587, banner="220",
-            engines_detected=[], probes=[], issues=[], overall_status="safe",
+            target="mail.test.com",
+            port=587,
+            banner="220",
+            engines_detected=[],
+            probes=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
@@ -256,10 +261,13 @@ class TestScanEmailTemplateInjection:
 class TestPrintResults:
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = TemplateInjectionResult(
-            target="mail.test.com", port=587, banner="220",
+            target="mail.test.com",
+            port=587,
+            banner="220",
             engines_detected=["jinja2"],
             probes=[TemplateProbe("jinja2", "jinja2_expr", "{{7*7}}", "49", True, "detected")],
-            issues=["Vulneravel"], overall_status="vulnerable",
+            issues=["Vulneravel"],
+            overall_status="vulnerable",
         )
         print_results(r)
         out = capsys.readouterr().out
@@ -267,10 +275,13 @@ class TestPrintResults:
 
     def test_safe(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = TemplateInjectionResult(
-            target="mail.test.com", port=587, banner="220",
+            target="mail.test.com",
+            port=587,
+            banner="220",
             engines_detected=[],
             probes=[TemplateProbe("unknown", "jinja2_expr", "{{7*7}}", "550 Rejected", False, "blocked")],
-            issues=["Seguro"], overall_status="safe",
+            issues=["Seguro"],
+            overall_status="safe",
         )
         print_results(r)
         out = capsys.readouterr().out
@@ -278,10 +289,13 @@ class TestPrintResults:
 
     def test_unknown(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = TemplateInjectionResult(
-            target="mail.test.com", port=587, banner="220",
+            target="mail.test.com",
+            port=587,
+            banner="220",
             engines_detected=[],
             probes=[TemplateProbe("unknown", "jinja2_expr", "{{7*7}}", "250 OK", False, "not_detected")],
-            issues=["Inconclusivo"], overall_status="unknown",
+            issues=["Inconclusivo"],
+            overall_status="unknown",
         )
         print_results(r)
         out = capsys.readouterr().out
@@ -289,14 +303,17 @@ class TestPrintResults:
 
     def test_with_probes(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = TemplateInjectionResult(
-            target="mail.test.com", port=587, banner="220",
+            target="mail.test.com",
+            port=587,
+            banner="220",
             engines_detected=["jinja2", "handlebars"],
             probes=[
                 TemplateProbe("jinja2", "jinja2_expr", "{{7*7}}", "49", True, "detected"),
                 TemplateProbe("unknown", "mako_expr", "${7*7}", "550", False, "blocked"),
                 TemplateProbe("unknown", "tornado_expr", "{{7*7}}", "error", False, "error"),
             ],
-            issues=[], overall_status="vulnerable",
+            issues=[],
+            overall_status="vulnerable",
         )
         print_results(r)
         out = capsys.readouterr().out

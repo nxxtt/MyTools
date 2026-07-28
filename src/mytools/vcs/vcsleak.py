@@ -9,6 +9,7 @@ Fluxo:
   2. Valida o conteudo retornado para confirmar leak real
   3. Exibe resumo colorido e salva output detalhado
 """
+
 import argparse
 import asyncio
 import logging
@@ -88,11 +89,15 @@ def _load_vcs_paths() -> tuple[list[str], list[str], list[str]]:
     """Carrega VCS paths de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("vcs", "vcs_leak_paths", default={
-        "git": _GIT_PATHS_DEFAULT,
-        "svn": _SVN_PATHS_DEFAULT,
-        "hg": _HG_PATHS_DEFAULT,
-    })
+    data = load_payloads(
+        "vcs",
+        "vcs_leak_paths",
+        default={
+            "git": _GIT_PATHS_DEFAULT,
+            "svn": _SVN_PATHS_DEFAULT,
+            "hg": _HG_PATHS_DEFAULT,
+        },
+    )
     return (
         data.get("git", _GIT_PATHS_DEFAULT),
         data.get("svn", _SVN_PATHS_DEFAULT),
@@ -199,7 +204,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
 
     if vcs_type == "svn":
         if path == ".svn/wc.db":
-            if content[:len(SQLITE_MAGIC)] == SQLITE_MAGIC:
+            if content[: len(SQLITE_MAGIC)] == SQLITE_MAGIC:
                 return True, "SQLite working copy database"
             return False, ""
         validator = SVN_VALIDATORS.get(path)
@@ -239,8 +244,12 @@ async def _probe_path(
 
     try:
         head_status, _head_headers, _, _ = await fetch(
-            client, full_url, timeout=timeout, method="HEAD",
-            max_retries=1, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="HEAD",
+            max_retries=1,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -253,8 +262,12 @@ async def _probe_path(
     await rate_limiter.wait()
     try:
         status, _headers, content, _ = await fetch(
-            client, full_url, timeout=timeout, method="GET",
-            max_retries=retries, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="GET",
+            max_retries=retries,
+            rate_limiter=rate_limiter,
             allow_redirects=True,
         )
     except FetchError:
@@ -302,8 +315,7 @@ async def scan_vcs(
     started = time.monotonic()
     rate_limiter = RateLimiter(requests_per_second)
     client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
-    apply_session_auth(client, auth=auth, bearer_token=bearer_token,
-                       cookie=cookie, extra_headers=extra_headers)
+    apply_session_auth(client, auth=auth, bearer_token=bearer_token, cookie=cookie, extra_headers=extra_headers)
 
     logger.info("scan vcs leak iniciado: %s", base_url)
     logger.info("Alvo: %s", base_url)
@@ -358,13 +370,16 @@ def print_results(leaks: list[VCSLeak]) -> None:
     print(color("\n  VCS Leaks Encontrados", Cyber.CYAN, Cyber.BOLD))
 
     hdrs = ("VCS", "STATUS", "TAMANHO", "DETALHE", "URL")
-    rows = [(
-        leak.vcs_type.upper(),
-        str(leak.status),
-        str(leak.raw_size),
-        leak.detail[:60],
-        leak.url,
-    ) for leak in leaks]
+    rows = [
+        (
+            leak.vcs_type.upper(),
+            str(leak.status),
+            str(leak.raw_size),
+            leak.detail[:60],
+            leak.url,
+        )
+        for leak in leaks
+    ]
 
     def _row_styles(row: tuple[str, ...]) -> list[tuple[str, ...]]:
         vcs = row[0].lower()
@@ -526,12 +541,7 @@ def main() -> int:
         description="VCS Leak Detection interativo.",
         example="http://target.com --git-only",
         contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  http://target.com\n"
-            "  http://target.com --git-only\n"
-            "  http://target.com --svn-only\n"
-            "  -l urls.txt -o results.json"
+            "Uso: <url> [opcoes]\nExemplos:\n  http://target.com\n  http://target.com --git-only\n  http://target.com --svn-only\n  -l urls.txt -o results.json"
         ),
     )
 

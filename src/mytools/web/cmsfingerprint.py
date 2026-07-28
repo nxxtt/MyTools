@@ -108,10 +108,14 @@ _CMS_SIGNATURES_DEFAULT: dict[str, Any] = {
 def _load_cms_data() -> tuple[dict[str, list[str]], dict[str, Any]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "cms_fingerprint", default={
-        "category_map": _CATEGORY_MAP_DEFAULT,
-        "cms_signatures": _CMS_SIGNATURES_DEFAULT,
-    })
+    data = load_payloads(
+        "web",
+        "cms_fingerprint",
+        default={
+            "category_map": _CATEGORY_MAP_DEFAULT,
+            "cms_signatures": _CMS_SIGNATURES_DEFAULT,
+        },
+    )
     return (
         data.get("category_map", _CATEGORY_MAP_DEFAULT),
         data.get("cms_signatures", _CMS_SIGNATURES_DEFAULT),
@@ -286,7 +290,7 @@ async def _detect_wp_users(
                     name = u.get("name", "")
                     if name and name not in users:
                         users.append(name)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             pass
 
     return users
@@ -357,26 +361,30 @@ async def scan_cms_fingerprint(
         if "cms_detect" in cats:
             cms_detected = await _detect_cms(client, base_url)
             if cms_detected:
-                all_attempts.append(CmsAttempt(
-                    technique="cms_identify",
-                    category="cms_detect",
-                    description=f"CMS detected: {cms_detected}",
-                    status_code=200,
-                    vulnerable=True,
-                    details=f"CMS: {cms_detected}",
-                    error="",
-                ))
+                all_attempts.append(
+                    CmsAttempt(
+                        technique="cms_identify",
+                        category="cms_detect",
+                        description=f"CMS detected: {cms_detected}",
+                        status_code=200,
+                        vulnerable=True,
+                        details=f"CMS: {cms_detected}",
+                        error="",
+                    )
+                )
                 issues.append(f"CMS detected: {cms_detected}")
             else:
-                all_attempts.append(CmsAttempt(
-                    technique="cms_identify",
-                    category="cms_detect",
-                    description="No CMS detected",
-                    status_code=0,
-                    vulnerable=False,
-                    details="",
-                    error="",
-                ))
+                all_attempts.append(
+                    CmsAttempt(
+                        technique="cms_identify",
+                        category="cms_detect",
+                        description="No CMS detected",
+                        status_code=0,
+                        vulnerable=False,
+                        details="",
+                        error="",
+                    )
+                )
 
         # Step 2: WordPress-specific checks
         if cms_detected == "wordpress" or "wp_version" in cats or "wp_plugins" in cats or "wp_themes" in cats or "wp_users" in cats:
@@ -386,100 +394,117 @@ async def scan_cms_fingerprint(
             if "wp_version" in cats:
                 version, evidence = await _detect_wp_version(client, base_url)
                 if version:
-                    all_attempts.append(CmsAttempt(
-                        technique="wp_version_probe",
-                        category="wp_version",
-                        description=f"WordPress version: {version}",
-                        status_code=200,
-                        vulnerable=True,
-                        details=evidence,
-                        error="",
-                    ))
+                    all_attempts.append(
+                        CmsAttempt(
+                            technique="wp_version_probe",
+                            category="wp_version",
+                            description=f"WordPress version: {version}",
+                            status_code=200,
+                            vulnerable=True,
+                            details=evidence,
+                            error="",
+                        )
+                    )
                 else:
-                    all_attempts.append(CmsAttempt(
-                        technique="wp_version_probe",
-                        category="wp_version",
-                        description="WordPress version not detected",
-                        status_code=0,
-                        vulnerable=False,
-                        details="",
-                        error="",
-                    ))
+                    all_attempts.append(
+                        CmsAttempt(
+                            technique="wp_version_probe",
+                            category="wp_version",
+                            description="WordPress version not detected",
+                            status_code=0,
+                            vulnerable=False,
+                            details="",
+                            error="",
+                        )
+                    )
 
             # Plugins
             if "wp_plugins" in cats:
                 plugins = await _detect_wp_plugins(
-                    client, base_url,
+                    client,
+                    base_url,
                     sigs.get("plugins", [])[:plugin_limit],
                 )
                 if plugins:
-                    all_attempts.append(CmsAttempt(
-                        technique="wp_plugin_probe",
-                        category="wp_plugins",
-                        description=f"{len(plugins)} plugin(s) found",
-                        status_code=200,
-                        vulnerable=True,
-                        details=", ".join(plugins),
-                        error="",
-                    ))
+                    all_attempts.append(
+                        CmsAttempt(
+                            technique="wp_plugin_probe",
+                            category="wp_plugins",
+                            description=f"{len(plugins)} plugin(s) found",
+                            status_code=200,
+                            vulnerable=True,
+                            details=", ".join(plugins),
+                            error="",
+                        )
+                    )
                 else:
-                    all_attempts.append(CmsAttempt(
-                        technique="wp_plugin_probe",
-                        category="wp_plugins",
-                        description="No plugins detected",
-                        status_code=0,
-                        vulnerable=False,
-                        details="",
-                        error="",
-                    ))
+                    all_attempts.append(
+                        CmsAttempt(
+                            technique="wp_plugin_probe",
+                            category="wp_plugins",
+                            description="No plugins detected",
+                            status_code=0,
+                            vulnerable=False,
+                            details="",
+                            error="",
+                        )
+                    )
 
             # Themes
             if "wp_themes" in cats:
                 themes = await _detect_wp_themes(
-                    client, base_url,
+                    client,
+                    base_url,
                     sigs.get("themes", [])[:theme_limit],
                 )
                 if themes:
-                    all_attempts.append(CmsAttempt(
-                        technique="wp_theme_probe",
-                        category="wp_themes",
-                        description=f"{len(themes)} theme(s) found",
-                        status_code=200,
-                        vulnerable=True,
-                        details=", ".join(themes),
-                        error="",
-                    ))
+                    all_attempts.append(
+                        CmsAttempt(
+                            technique="wp_theme_probe",
+                            category="wp_themes",
+                            description=f"{len(themes)} theme(s) found",
+                            status_code=200,
+                            vulnerable=True,
+                            details=", ".join(themes),
+                            error="",
+                        )
+                    )
                 else:
-                    all_attempts.append(CmsAttempt(
-                        technique="wp_theme_probe",
-                        category="wp_themes",
-                        description="No themes detected",
-                        status_code=0,
-                        vulnerable=False,
-                        details="",
-                        error="",
-                    ))
+                    all_attempts.append(
+                        CmsAttempt(
+                            technique="wp_theme_probe",
+                            category="wp_themes",
+                            description="No themes detected",
+                            status_code=0,
+                            vulnerable=False,
+                            details="",
+                            error="",
+                        )
+                    )
 
             # Users (auto when WordPress detected, or explicit -c wp_users)
             if cms_detected == "wordpress" or "wp_users" in cats:
                 users = await _detect_wp_users(client, base_url)
                 if users:
-                    all_attempts.append(CmsAttempt(
-                        technique="wp_user_enum",
-                        category="wp_users",
-                        description=f"{len(users)} user(s) found",
-                        status_code=200,
-                        vulnerable=True,
-                        details=", ".join(users),
-                        error="",
-                    ))
+                    all_attempts.append(
+                        CmsAttempt(
+                            technique="wp_user_enum",
+                            category="wp_users",
+                            description=f"{len(users)} user(s) found",
+                            status_code=200,
+                            vulnerable=True,
+                            details=", ".join(users),
+                            error="",
+                        )
+                    )
                     issues.append(f"WordPress users enumerated: {', '.join(users)}")
 
         # Step 3: Joomla-specific checks
         if cms_detected == "joomla" or "joomla_info" in cats:
             sigs = _CMS_SIGNATURES.get("joomla", {})
             joomla_version, extensions = await _detect_joomla_info(
-                client, base_url,
+                client,
+                base_url,
                 sigs.get("third_party_extensions", []),
             )
             if joomla_version:
@@ -489,15 +514,17 @@ async def scan_cms_fingerprint(
                 details_parts.append(f"Version: {joomla_version}")
             if extensions:
                 details_parts.append(f"Extensions: {', '.join(extensions)}")
-            all_attempts.append(CmsAttempt(
-                technique="joomla_version_probe",
-                category="joomla_info",
-                description=f"Joomla info: {joomla_version or 'unknown'}",
-                status_code=200 if joomla_version else 0,
-                vulnerable=bool(extensions),
-                details="; ".join(details_parts) or "No info found",
-                error="",
-            ))
+            all_attempts.append(
+                CmsAttempt(
+                    technique="joomla_version_probe",
+                    category="joomla_info",
+                    description=f"Joomla info: {joomla_version or 'unknown'}",
+                    status_code=200 if joomla_version else 0,
+                    vulnerable=bool(extensions),
+                    details="; ".join(details_parts) or "No info found",
+                    error="",
+                )
+            )
 
     # Overall status
     vuln_cats = {a.category for a in all_attempts if a.vulnerable}
@@ -570,7 +597,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo (ex: https://example.com)")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",
@@ -605,13 +633,15 @@ def _async_run_once(args: argparse.Namespace) -> CmsResult:
     plugin_limit = getattr(args, "plugin_limit", 15)
     theme_limit = getattr(args, "theme_limit", 10)
 
-    result = safe_asyncio_run(scan_cms_fingerprint(
-        base_url=url,
-        categories=categories,
-        timeout=timeout,
-        plugin_limit=plugin_limit,
-        theme_limit=theme_limit,
-    ))
+    result = safe_asyncio_run(
+        scan_cms_fingerprint(
+            base_url=url,
+            categories=categories,
+            timeout=timeout,
+            plugin_limit=plugin_limit,
+            theme_limit=theme_limit,
+        )
+    )
 
     print_results(result)
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de DNS Rebinding Detection."""
+
 from unittest.mock import MagicMock, patch
 
 import dns.exception
@@ -174,8 +175,11 @@ class TestPrintResults:
     def test_with_vulns(self, capsys: pytest.CaptureFixture[str]) -> None:
         results = [
             RebindingResult(
-                domain="example.com", check="ttl", severity="critical",
-                detail="TTL=0", records=["TTL=0"],
+                domain="example.com",
+                check="ttl",
+                severity="critical",
+                detail="TTL=0",
+                records=["TTL=0"],
             ),
         ]
         print_results(results)
@@ -186,7 +190,9 @@ class TestPrintResults:
     def test_with_info(self, capsys: pytest.CaptureFixture[str]) -> None:
         results = [
             RebindingResult(
-                domain="example.com", check="resolve", severity="info",
+                domain="example.com",
+                check="resolve",
+                severity="info",
                 detail="Dominio nao existe",
             ),
         ]
@@ -275,8 +281,11 @@ class TestScanRebinding:
         mock_resolver.resolve.return_value = mock_answers
 
         mock_ttl.return_value = RebindingResult(
-            domain="example.com", check="ttl", severity="critical",
-            detail="TTL=0", records=["TTL=0"],
+            domain="example.com",
+            check="ttl",
+            severity="critical",
+            detail="TTL=0",
+            records=["TTL=0"],
         )
         mock_private.return_value = []
         mock_cname.return_value = None

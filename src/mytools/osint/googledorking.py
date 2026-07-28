@@ -13,6 +13,7 @@ Dorks disponiveis por categoria:
   sensitive - Arquivos sensiveis (.env, .sql, .bak, etc.)
   subdomain - Enumeracao de subdominios via dorks
 """
+
 import argparse
 import asyncio
 import logging
@@ -131,14 +132,18 @@ def _load_dorks() -> dict[str, list[str]]:
     """Carrega dorks de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("osint", "google_dorking", default={
-        "filetype": _FILETYPE_DORKS_DEFAULT,
-        "directory": _DIRECTORY_DORKS_DEFAULT,
-        "login": _LOGIN_DORKS_DEFAULT,
-        "error": _ERROR_DORKS_DEFAULT,
-        "sensitive": _SENSITIVE_DORKS_DEFAULT,
-        "subdomain": _SUBDOMAIN_DORKS_DEFAULT,
-    })
+    data = load_payloads(
+        "osint",
+        "google_dorking",
+        default={
+            "filetype": _FILETYPE_DORKS_DEFAULT,
+            "directory": _DIRECTORY_DORKS_DEFAULT,
+            "login": _LOGIN_DORKS_DEFAULT,
+            "error": _ERROR_DORKS_DEFAULT,
+            "sensitive": _SENSITIVE_DORKS_DEFAULT,
+            "subdomain": _SUBDOMAIN_DORKS_DEFAULT,
+        },
+    )
     return data
 
 
@@ -232,15 +237,17 @@ def generate_dorks(domain: str, categories: list[str] | None = None) -> list[Dor
         dorks = ALL_CATEGORIES.get(cat, [])
         for dork in dorks:
             full = _build_full_query(dork, domain)
-            queries.append(DorkQuery(
-                category=cat,
-                dork=dork,
-                full_query=full,
-                google_url=_build_google_url(full),
-                ddg_url=_build_ddg_url(full),
-                exploit=f"https://www.google.com/search?q={quote_plus(full)}",
-                tool="google",
-            ))
+            queries.append(
+                DorkQuery(
+                    category=cat,
+                    dork=dork,
+                    full_query=full,
+                    google_url=_build_google_url(full),
+                    ddg_url=_build_ddg_url(full),
+                    exploit=f"https://www.google.com/search?q={quote_plus(full)}",
+                    tool="google",
+                )
+            )
 
     return queries
 
@@ -249,15 +256,17 @@ def add_custom_dorks(domain: str, custom_dorks: list[str], queries: list[DorkQue
     """Adiciona dorks customizadas a lista existente."""
     for dork in custom_dorks:
         full = _build_full_query(dork, domain)
-        queries.append(DorkQuery(
-            category="custom",
-            dork=dork,
-            full_query=full,
-            google_url=_build_google_url(full),
-            ddg_url=_build_ddg_url(full),
-            exploit=f"https://www.google.com/search?q={quote_plus(full)}",
-            tool="google",
-        ))
+        queries.append(
+            DorkQuery(
+                category="custom",
+                dork=dork,
+                full_query=full,
+                google_url=_build_google_url(full),
+                ddg_url=_build_ddg_url(full),
+                exploit=f"https://www.google.com/search?q={quote_plus(full)}",
+                tool="google",
+            )
+        )
     return queries
 
 
@@ -294,7 +303,10 @@ async def search_ddg(
 
     try:
         status, _headers, body, _ = await fetch(
-            client, ddg_url, timeout=timeout, max_retries=1,
+            client,
+            ddg_url,
+            timeout=timeout,
+            max_retries=1,
             rate_limiter=rate_limiter,
         )
     except FetchError:
@@ -398,12 +410,14 @@ def print_results(queries: list[DorkQuery], quiet: bool = False) -> None:
         rows: list[tuple[str, ...]] = []
         for i, q in enumerate(cat_queries, 1):
             n_results = str(len(q.results)) if q.results else "-"
-            rows.append((
-                str(i),
-                q.dork[:50],
-                q.google_url[:70],
-                n_results,
-            ))
+            rows.append(
+                (
+                    str(i),
+                    q.dork[:50],
+                    q.google_url[:70],
+                    n_results,
+                )
+            )
 
         def _styles(_row: tuple[str, ...]) -> list[tuple[str, ...]]:
             return [
@@ -446,7 +460,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
     parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha).")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=[*list(ALL_CATEGORIES.keys()), "all", "custom"],
         default="all",
         dest="category",
@@ -473,8 +488,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Max resultados por dork no DuckDuckGo. Padrao: 5",
     )
     return parser
-
-
 
 
 async def _async_run_once(args: argparse.Namespace) -> int:

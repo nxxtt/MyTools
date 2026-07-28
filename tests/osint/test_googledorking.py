@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Google Dorking."""
+
 import httpx
 import pytest
 import respx
@@ -35,7 +36,9 @@ class TestDorkQuery:
 
     def test_all_fields(self):
         q = DorkQuery(
-            category="filetype", dork="filetype:pdf", full_query="site:ex.com filetype:pdf",
+            category="filetype",
+            dork="filetype:pdf",
+            full_query="site:ex.com filetype:pdf",
             google_url="https://google.com/search?q=site%3Aex.com+filetype%3Apdf",
             ddg_url="https://html.duckduckgo.com/html/?q=site%3Aex.com+filetype%3Apdf",
             results=[{"title": "t", "url": "u", "snippet": "s"}],
@@ -218,8 +221,13 @@ class TestPrintResults:
 
     def test_with_results(self, capsys):
         queries = [
-            DorkQuery(category="filetype", dork="filetype:pdf", full_query="site:ex.com filetype:pdf",
-                      google_url="https://google.com/search?q=x", ddg_url="https://ddg.com/x"),
+            DorkQuery(
+                category="filetype",
+                dork="filetype:pdf",
+                full_query="site:ex.com filetype:pdf",
+                google_url="https://google.com/search?q=x",
+                ddg_url="https://ddg.com/x",
+            ),
         ]
         print_results(queries)
         out = capsys.readouterr().out
@@ -227,9 +235,14 @@ class TestPrintResults:
 
     def test_with_search_results(self, capsys):
         queries = [
-            DorkQuery(category="filetype", dork="filetype:pdf", full_query="site:ex.com filetype:pdf",
-                      google_url="https://google.com/search?q=x", ddg_url="https://ddg.com/x",
-                      results=[{"title": "T", "url": "http://x.com", "snippet": "S"}]),
+            DorkQuery(
+                category="filetype",
+                dork="filetype:pdf",
+                full_query="site:ex.com filetype:pdf",
+                google_url="https://google.com/search?q=x",
+                ddg_url="https://ddg.com/x",
+                results=[{"title": "T", "url": "http://x.com", "snippet": "S"}],
+            ),
         ]
         print_results(queries)
         out = capsys.readouterr().out
@@ -242,6 +255,7 @@ class TestPrintResults:
 @pytest.mark.asyncio
 async def test_search_ddg_success():
     from mytools.core.utils import RateLimiter
+
     html = """
     <div class="result">
         <a class="result__a" href="http://a.com">Title</a>
@@ -264,6 +278,7 @@ async def test_search_ddg_success():
 @pytest.mark.asyncio
 async def test_search_ddg_error():
     from mytools.core.utils import RateLimiter
+
     with respx.mock:
         respx.route(method="GET", url__startswith="https://html.duckduckgo.com/").mock(
             side_effect=httpx.ConnectError("refused"),
@@ -278,6 +293,7 @@ async def test_search_ddg_error():
 @pytest.mark.asyncio
 async def test_search_ddg_non_200():
     from mytools.core.utils import RateLimiter
+
     with respx.mock:
         respx.route(method="GET", url__startswith="https://html.duckduckgo.com/").mock(
             return_value=httpx.Response(500),

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Web Cache Deception."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -217,10 +218,20 @@ class TestDeceptionAttempt:
 
     def test_immutable(self) -> None:
         attempt = DeceptionAttempt(
-            technique="test", category="extension", payload="p",
-            param="/admin", method="get_path", status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100, status_changed=False,
-            size_changed=False, vulnerable=False, details="", error="",
+            technique="test",
+            category="extension",
+            payload="p",
+            param="/admin",
+            method="get_path",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             attempt.technique = "changed"  # type: ignore[misc]
@@ -246,9 +257,15 @@ class TestDeceptionResult:
 
     def test_immutable(self) -> None:
         result = DeceptionResult(
-            target="t", baseline_status=200, baseline_size=100,
-            tls=True, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.target = "changed"  # type: ignore[misc]
@@ -295,6 +312,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -322,6 +340,7 @@ class TestTestExtension:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -348,6 +367,7 @@ class TestTestPath:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -374,6 +394,7 @@ class TestTestParameter:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -400,6 +421,7 @@ class TestTestFramework:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -426,6 +448,7 @@ class TestTestBypass:
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.RequestError("fail")
 
@@ -445,11 +468,19 @@ class TestPrintResults:
             tls=True,
             attempts=[
                 DeceptionAttempt(
-                    technique="css_ext", category="extension",
-                    payload="/admin.css", param="/admin",
-                    method="get_path", status_baseline=200, status_test=200,
-                    size_baseline=100, size_test=200, status_changed=False,
-                    size_changed=True, vulnerable=True, details="admin found",
+                    technique="css_ext",
+                    category="extension",
+                    payload="/admin.css",
+                    param="/admin",
+                    method="get_path",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=False,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="admin found",
                     error="",
                 ),
             ],
@@ -506,15 +537,13 @@ class TestMain:
     """Testes para main()."""
 
     def test_main_returns_int(self) -> None:
-        with patch("sys.argv", ["mytools-cachedec"]), \
-             patch("mytools.web.cachedeception.run_main_loop", return_value=0) as mock_loop:
+        with patch("sys.argv", ["mytools-cachedec"]), patch("mytools.web.cachedeception.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert isinstance(result, int)
             mock_loop.assert_called_once()
 
     def test_main_passes_args(self) -> None:
-        with patch("sys.argv", ["mytools-cachedec", "https://example.com"]), \
-             patch("mytools.web.cachedeception.run_main_loop", return_value=0):
+        with patch("sys.argv", ["mytools-cachedec", "https://example.com"]), patch("mytools.web.cachedeception.run_main_loop", return_value=0):
             result = main()
             assert result == 0
 
@@ -527,12 +556,8 @@ class TestIntegration:
     async def test_run_scan_all_categories(self) -> None:
         from mytools.web.cachedeception import run_scan
 
-        respx.route(method="GET", url__startswith="https://example.com/").mock(
-            return_value=httpx.Response(200, text="not vulnerable")
-        )
-        respx.route(method="POST", url__startswith="https://example.com/").mock(
-            return_value=httpx.Response(200, text="not vulnerable")
-        )
+        respx.route(method="GET", url__startswith="https://example.com/").mock(return_value=httpx.Response(200, text="not vulnerable"))
+        respx.route(method="POST", url__startswith="https://example.com/").mock(return_value=httpx.Response(200, text="not vulnerable"))
         result = await run_scan(
             target="https://example.com",
             categories=[],
@@ -624,6 +649,7 @@ class TestIntegration:
 
         with patch("mytools.web.cachedeception.safe_asyncio_run", return_value=0) as mock_run:
             from mytools.web.cachedeception import run_once
+
             result = run_once(args)
             assert result == 0
             mock_run.assert_called_once()
@@ -639,5 +665,6 @@ class TestIntegration:
 
         with patch("mytools.web.cachedeception.safe_asyncio_run", return_value=0):
             from mytools.web.cachedeception import run_once
+
             result = run_once(args)
             assert result == 0

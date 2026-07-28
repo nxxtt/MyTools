@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de SSTI Detection."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -278,12 +279,20 @@ class TestSSTIAttempt:
 
     def test_frozen(self) -> None:
         att = SSTIAttempt(
-            technique="t", category="c", url="u", payload="p",
-            status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100,
-            status_changed=False, size_changed=False,
-            engine_detected="", vulnerable=False,
-            details="d", error="",
+            technique="t",
+            category="c",
+            url="u",
+            payload="p",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            engine_detected="",
+            vulnerable=False,
+            details="d",
+            error="",
         )
         with pytest.raises(AttributeError):
             att.technique = "new"  # type: ignore[misc]
@@ -327,6 +336,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
@@ -348,7 +358,9 @@ class TestTestParamSSTI:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_param_ssti(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
         assert all(isinstance(a, SSTIAttempt) for a in attempts)
@@ -356,11 +368,14 @@ class TestTestParamSSTI:
     @pytest.mark.asyncio
     async def test_error_handled(self) -> None:
         import httpx
+
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
         attempts = await _test_param_ssti(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
         assert any(a.error for a in attempts)
@@ -378,7 +393,9 @@ class TestTestHeaderSSTI:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_header_ssti(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
 
@@ -395,7 +412,9 @@ class TestTestBodySSTI:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_body_ssti(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
 
@@ -407,7 +426,10 @@ class TestTestExploit:
     async def test_returns_empty_if_no_engines(self) -> None:
         client = AsyncMock()
         attempts = await _test_exploit(
-            client, "https://example.com", (200, 100, b"ok"), [],
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+            [],
         )
         assert len(attempts) == 0
 
@@ -420,7 +442,10 @@ class TestTestExploit:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_exploit(
-            client, "https://example.com", (200, 100, b"ok"), ["jinja2"],
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+            ["jinja2"],
         )
         assert len(attempts) > 0
 
@@ -437,7 +462,9 @@ class TestTestBypass:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_bypass(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) == 15
 
@@ -467,6 +494,7 @@ class TestPrintResults:
 
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         import re
+
         result = SSTIResult(
             target="https://example.com",
             baseline_status=200,
@@ -485,6 +513,7 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         import re
+
         result = SSTIResult(
             target="https://example.com",
             baseline_status=200,
@@ -506,8 +535,7 @@ class TestMain:
     """Testes para main."""
 
     def test_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-sstdetect"]), \
-             patch("mytools.web.sstidetect.run_main_loop", return_value=1) as mock_loop:
+        with patch("sys.argv", ["mytools-sstdetect"]), patch("mytools.web.sstidetect.run_main_loop", return_value=1) as mock_loop:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()

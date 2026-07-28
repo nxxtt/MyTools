@@ -1,4 +1,5 @@
 """Testes do modulo depscanner.py — Dependency Scanner."""
+
 from __future__ import annotations
 
 import httpx
@@ -475,10 +476,14 @@ class TestBuildParser:
 
     def test_has_categories_arg(self) -> None:
         p = build_parser()
-        args = p.parse_args([
-            "https://example.com",
-            "-c", "frontend_deps", "cve_check",
-        ])
+        args = p.parse_args(
+            [
+                "https://example.com",
+                "-c",
+                "frontend_deps",
+                "cve_check",
+            ]
+        )
         assert args.categories == ["frontend_deps", "cve_check"]
 
 

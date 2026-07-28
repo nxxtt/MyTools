@@ -28,6 +28,7 @@ Fluxo:
   3. Coleta metricas de cada resposta
   4. Exibe relatorio final com estatisticas
 """
+
 import argparse
 import logging
 import random
@@ -115,8 +116,22 @@ def _gen_sequential_label(counter: int) -> str:
 def _gen_wordlist_label() -> str:
     """Gera label de combinacao palavra + sufixo numerico."""
     words = [
-        "test", "dev", "staging", "api", "web", "app", "mail", "ftp",
-        "vpn", "ns", "dns", "mx", "www", "cdn", "db", "cache",
+        "test",
+        "dev",
+        "staging",
+        "api",
+        "web",
+        "app",
+        "mail",
+        "ftp",
+        "vpn",
+        "ns",
+        "dns",
+        "mx",
+        "www",
+        "cdn",
+        "db",
+        "cache",
     ]
     word = random.choice(words)
     suffix = "".join(random.choices(string.digits, k=random.randint(2, 6)))
@@ -140,32 +155,42 @@ def _send_query(
         resolver.resolve(fqdn, "A")
         latency = (time.monotonic() - start) * 1000
         return QueryResult(
-            domain=fqdn, response_code="NOERROR",
-            latency_ms=latency, error="",
+            domain=fqdn,
+            response_code="NOERROR",
+            latency_ms=latency,
+            error="",
         )
     except dns.resolver.NXDOMAIN:
         latency = (time.monotonic() - start) * 1000
         return QueryResult(
-            domain=fqdn, response_code="NXDOMAIN",
-            latency_ms=latency, error="",
+            domain=fqdn,
+            response_code="NXDOMAIN",
+            latency_ms=latency,
+            error="",
         )
     except dns.resolver.NoAnswer:
         latency = (time.monotonic() - start) * 1000
         return QueryResult(
-            domain=fqdn, response_code="NOANSWER",
-            latency_ms=latency, error="",
+            domain=fqdn,
+            response_code="NOANSWER",
+            latency_ms=latency,
+            error="",
         )
     except dns.exception.Timeout:
         latency = (time.monotonic() - start) * 1000
         return QueryResult(
-            domain=fqdn, response_code="TIMEOUT",
-            latency_ms=latency, error="timeout",
+            domain=fqdn,
+            response_code="TIMEOUT",
+            latency_ms=latency,
+            error="timeout",
         )
     except dns.exception.DNSException as e:
         latency = (time.monotonic() - start) * 1000
         return QueryResult(
-            domain=fqdn, response_code="ERROR",
-            latency_ms=latency, error=str(e),
+            domain=fqdn,
+            response_code="ERROR",
+            latency_ms=latency,
+            error=str(e),
         )
 
 
@@ -317,30 +342,35 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com).")
     parser.add_argument(
-        "--nameserver", "-s",
+        "--nameserver",
+        "-s",
         default=DEFAULT_NAMESERVER,
         help=f"Nameserver para enviar queries. Padrao: {DEFAULT_NAMESERVER}",
     )
     parser.add_argument(
-        "--rate", "-r",
+        "--rate",
+        "-r",
         type=int,
         default=DEFAULT_RATE,
         help=f"Queries por segundo (QPS). Padrao: {DEFAULT_RATE}",
     )
     parser.add_argument(
-        "--duration", "-d",
+        "--duration",
+        "-d",
         type=int,
         default=DEFAULT_DURATION,
         help=f"Duracao do teste em segundos. Padrao: {DEFAULT_DURATION}",
     )
     parser.add_argument(
-        "--concurrency", "-c",
+        "--concurrency",
+        "-c",
         type=int,
         default=DEFAULT_CONCURRENCY,
         help=f"Threads concorrentes. Padrao: {DEFAULT_CONCURRENCY}",
     )
     parser.add_argument(
-        "--pattern", "-p",
+        "--pattern",
+        "-p",
         choices=["random", "uuid", "sequential", "wordlist"],
         default="random",
         help="Padrao de geracao de subdominios. Padrao: random",
@@ -391,9 +421,22 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(result)],
-            ["domain", "nameserver", "pattern", "queries_sent", "nxdomain_count",
-             "noerror_count", "other_count", "timeout_count", "avg_latency_ms",
-             "p95_latency_ms", "p99_latency_ms", "loss_rate", "duration_s", "qps"],
+            [
+                "domain",
+                "nameserver",
+                "pattern",
+                "queries_sent",
+                "nxdomain_count",
+                "noerror_count",
+                "other_count",
+                "timeout_count",
+                "avg_latency_ms",
+                "p95_latency_ms",
+                "p99_latency_ms",
+                "loss_rate",
+                "duration_s",
+                "qps",
+            ],
             quiet=quiet,
         )
     return 0

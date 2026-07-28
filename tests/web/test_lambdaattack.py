@@ -25,10 +25,16 @@ from mytools.web.lambdaattack import (
 class TestLambdaAttackAttempt:
     def test_creation(self) -> None:
         a = LambdaAttackAttempt(
-            technique="env_var_leak", category="lambda",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="https://target.com/api", response_code=200,
-            leaked_vars=[], leak_count=0,
+            technique="env_var_leak",
+            category="lambda",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://target.com/api",
+            response_code=200,
+            leaked_vars=[],
+            leak_count=0,
         )
         assert a.technique == "env_var_leak"
         assert a.vulnerable is False
@@ -36,9 +42,16 @@ class TestLambdaAttackAttempt:
 
     def test_frozen(self) -> None:
         a = LambdaAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            response_code=200, leaked_vars=[], leak_count=0,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            response_code=200,
+            leaked_vars=[],
+            leak_count=0,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -47,18 +60,32 @@ class TestLambdaAttackAttempt:
 class TestLambdaAttackResult:
     def test_creation(self) -> None:
         r = LambdaAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", lambda_detected=False,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            lambda_detected=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.lambda_detected is False
 
     def test_frozen(self) -> None:
         r = LambdaAttackResult(
-            target="t", host="h", port=443, tls=True, endpoint="e",
-            lambda_detected=False, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            endpoint="e",
+            lambda_detected=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.host = "changed"  # type: ignore[misc]
@@ -81,6 +108,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -123,7 +151,7 @@ class TestIsLambdaResponse:
 
 class TestExtractErrorDetails:
     def test_has_traceback(self) -> None:
-        body = "Traceback (most recent call last):\n  File \"handler.py\", line 1"
+        body = 'Traceback (most recent call last):\n  File "handler.py", line 1'
         result = _extract_error_details(body)
         assert result["has_traceback"] is True
 
@@ -171,9 +199,16 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = LambdaAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", lambda_detected=False,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            lambda_detected=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -182,16 +217,28 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = LambdaAttackAttempt(
-            technique="env_var_leak", category="lambda", description="desc",
-            vulnerable=True, details="leak found", error="",
-            endpoint="https://target.com", response_code=200,
-            leaked_vars=["AWS_KEY"], leak_count=1,
+            technique="env_var_leak",
+            category="lambda",
+            description="desc",
+            vulnerable=True,
+            details="leak found",
+            error="",
+            endpoint="https://target.com",
+            response_code=200,
+            leaked_vars=["AWS_KEY"],
+            leak_count=1,
         )
         r = LambdaAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", lambda_detected=True,
-            attempts=[a], vulnerable_techniques=["env_var_leak"],
-            issues=["Test issue"], overall_status="vulnerable",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            lambda_detected=True,
+            attempts=[a],
+            vulnerable_techniques=["env_var_leak"],
+            issues=["Test issue"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

@@ -59,18 +59,18 @@ def analyze_dex_layer(file_path: str) -> dict[str, Any]:
             "checksum": str(getattr(header, "checksum", "")),
         }
 
-        dex_files.append({
-            "index": i,
-            "class_count": len(classes),
-            "method_count": len(methods),
-            "string_count": len(strings),
-            "header": header_info,
-            "classes": classes[:50],
-            "methods": [
-                f"{m.get_class_name()}->{m.get_name()}" for m in methods[:50]
-            ],
-            "strings": strings[:100],
-        })
+        dex_files.append(
+            {
+                "index": i,
+                "class_count": len(classes),
+                "method_count": len(methods),
+                "string_count": len(strings),
+                "header": header_info,
+                "classes": classes[:50],
+                "methods": [f"{m.get_class_name()}->{m.get_name()}" for m in methods[:50]],
+                "strings": strings[:100],
+            }
+        )
 
         total_classes += len(classes)
         total_methods += len(methods)
@@ -131,21 +131,23 @@ def disassemble_dalvik(
 
             total_instructions += len(insns)
 
-            result_methods.append({
-                "class_name": method.get_class_name(),
-                "method_name": method.get_name(),
-                "descriptor": method.get_descriptor(),
-                "access_flags": str(method.get_access_flags()),
-                "instruction_count": len(insns),
-                "instructions": [
-                    {
-                        "hex": insn.get_hex(),
-                        "mnemonic": insn.get_name(),
-                        "output": insn.get_output(),
-                    }
-                    for insn in insns
-                ],
-            })
+            result_methods.append(
+                {
+                    "class_name": method.get_class_name(),
+                    "method_name": method.get_name(),
+                    "descriptor": method.get_descriptor(),
+                    "access_flags": str(method.get_access_flags()),
+                    "instruction_count": len(insns),
+                    "instructions": [
+                        {
+                            "hex": insn.get_hex(),
+                            "mnemonic": insn.get_name(),
+                            "output": insn.get_output(),
+                        }
+                        for insn in insns
+                    ],
+                }
+            )
 
     return {
         "class_filter": class_filter,
@@ -207,19 +209,15 @@ def decompile_java(
             if source and len(source.strip()) > 10:
                 lines = source.split("\n")
                 # Count methods (lines with 'public', 'private', 'protected', 'static')
-                method_count = sum(
-                    1 for line in lines
-                    if any(
-                        line.strip().startswith(kw)
-                        for kw in ("public ", "private ", "protected ", "static ")
-                    )
+                method_count = sum(1 for line in lines if any(line.strip().startswith(kw) for kw in ("public ", "private ", "protected ", "static ")))
+                result_classes.append(
+                    {
+                        "class_name": name,
+                        "source": source,
+                        "method_count": method_count,
+                        "line_count": len(lines),
+                    }
                 )
-                result_classes.append({
-                    "class_name": name,
-                    "source": source,
-                    "method_count": method_count,
-                    "line_count": len(lines),
-                })
                 total_decompiled += 1
             else:
                 total_empty += 1

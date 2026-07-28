@@ -17,6 +17,7 @@ Performance:
   - batch_size = workers*2 para processar resultados em blocos
   - ip_sort_key ordena por versao IP (v4 antes de v6) e endereco
 """
+
 import argparse
 import functools
 import ipaddress
@@ -45,20 +46,144 @@ logger = logging.getLogger("mytools.portscanner")
 
 
 _DEFAULT_PORTS_DEFAULT: list[int] = [
-    20, 21, 22, 23, 25, 53, 80, 110, 119, 123, 135, 139, 143, 161, 194, 389,
-    443, 445, 465, 587, 636, 993, 995, 1433, 1521, 2049, 3306, 3389, 5432,
-    5900, 6379, 8080, 8443, 9200, 27017,
+    20,
+    21,
+    22,
+    23,
+    25,
+    53,
+    80,
+    110,
+    119,
+    123,
+    135,
+    139,
+    143,
+    161,
+    194,
+    389,
+    443,
+    445,
+    465,
+    587,
+    636,
+    993,
+    995,
+    1433,
+    1521,
+    2049,
+    3306,
+    3389,
+    5432,
+    5900,
+    6379,
+    8080,
+    8443,
+    9200,
+    27017,
 ]
 
 _TOP_100_PORTS_DEFAULT: list[int] = [
-    7, 9, 13, 21, 22, 23, 25, 26, 37, 53, 79, 80, 81, 88, 106, 110, 111, 113,
-    119, 135, 139, 143, 144, 179, 199, 389, 427, 443, 444, 445, 465, 513, 514,
-    515, 543, 544, 548, 554, 587, 631, 646, 873, 990, 993, 995, 1025, 1026,
-    1027, 1028, 1029, 1110, 1433, 1720, 1723, 1755, 1900, 2000, 2001, 2049,
-    2121, 2717, 3000, 3128, 3306, 3389, 3986, 4899, 5000, 5009, 5051, 5060,
-    5101, 5190, 5357, 5432, 5631, 5666, 5800, 5900, 6000, 6001, 6646, 7070,
-    8000, 8008, 8009, 8080, 8081, 8443, 8888, 9100, 9999, 10000, 32768, 49152,
-    49153, 49154, 49155, 49156, 49157,
+    7,
+    9,
+    13,
+    21,
+    22,
+    23,
+    25,
+    26,
+    37,
+    53,
+    79,
+    80,
+    81,
+    88,
+    106,
+    110,
+    111,
+    113,
+    119,
+    135,
+    139,
+    143,
+    144,
+    179,
+    199,
+    389,
+    427,
+    443,
+    444,
+    445,
+    465,
+    513,
+    514,
+    515,
+    543,
+    544,
+    548,
+    554,
+    587,
+    631,
+    646,
+    873,
+    990,
+    993,
+    995,
+    1025,
+    1026,
+    1027,
+    1028,
+    1029,
+    1110,
+    1433,
+    1720,
+    1723,
+    1755,
+    1900,
+    2000,
+    2001,
+    2049,
+    2121,
+    2717,
+    3000,
+    3128,
+    3306,
+    3389,
+    3986,
+    4899,
+    5000,
+    5009,
+    5051,
+    5060,
+    5101,
+    5190,
+    5357,
+    5432,
+    5631,
+    5666,
+    5800,
+    5900,
+    6000,
+    6001,
+    6646,
+    7070,
+    8000,
+    8008,
+    8009,
+    8080,
+    8081,
+    8443,
+    8888,
+    9100,
+    9999,
+    10000,
+    32768,
+    49152,
+    49153,
+    49154,
+    49155,
+    49156,
+    49157,
 ]
 
 
@@ -66,10 +191,14 @@ def _load_ports() -> tuple[list[int], list[int]]:
     """Carrega portas de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("network", "port_scanner", default={
-        "default_ports": _DEFAULT_PORTS_DEFAULT,
-        "top_100_ports": _TOP_100_PORTS_DEFAULT,
-    })
+    data = load_payloads(
+        "network",
+        "port_scanner",
+        default={
+            "default_ports": _DEFAULT_PORTS_DEFAULT,
+            "top_100_ports": _TOP_100_PORTS_DEFAULT,
+        },
+    )
     return (
         data.get("default_ports", _DEFAULT_PORTS_DEFAULT),
         data.get("top_100_ports", _TOP_100_PORTS_DEFAULT),
@@ -79,19 +208,22 @@ def _load_ports() -> tuple[list[int], list[int]]:
 DEFAULT_PORTS, TOP_100_PORTS = _load_ports()
 
 
-
-banner = create_banner(r"""
+banner = create_banner(
+    r"""
     ____             __  _____
    / __ \____  _____/ /_/ ___/_________ _____  ____  ___  _____
   / /_/ / __ \/ ___/ __/\__ \/ ___/ __ `/ __ \/ __ \/ _ \/ ___/
  / ____/ /_/ / /  / /_ ___/ / /__/ /_/ / / / / / / /  __/ /
 /_/    \____/_/   \__//____/\___/\__,_/_/ /_/_/ /_/\___/_/
-""", "   TCP scanner | use apenas em alvos autorizados")
+""",
+    "   TCP scanner | use apenas em alvos autorizados",
+)
 
 
 @dataclass(frozen=True, slots=True)
 class Finding:
     """Representa uma porta aberta encontrada durante a varredura."""
+
     host: str
     address: str
     port: int
@@ -156,11 +288,13 @@ def service_name(port: int) -> str:
         return "unknown"
 
 
-BANNER_PROBES = MappingProxyType({
-    80: b"HEAD / HTTP/1.0\r\n\r\n",
-    8080: b"HEAD / HTTP/1.0\r\n\r\n",
-    8000: b"HEAD / HTTP/1.0\r\n\r\n",
-})
+BANNER_PROBES = MappingProxyType(
+    {
+        80: b"HEAD / HTTP/1.0\r\n\r\n",
+        8080: b"HEAD / HTTP/1.0\r\n\r\n",
+        8000: b"HEAD / HTTP/1.0\r\n\r\n",
+    }
+)
 
 
 def grab_banner(sock: socket.socket, port: int, timeout: float) -> str:
@@ -233,11 +367,7 @@ def scan_targets(
     with ThreadPoolExecutor(max_workers=workers) as executor:
         batch_size = workers * 2
         pending = []
-        targets_ports = (
-            (host, address, port)
-            for host, address in targets
-            for port in ports
-        )
+        targets_ports = ((host, address, port) for host, address in targets for port in ports)
 
         def _process_completed(futures_list: list[Future[Finding | None]]) -> None:
             for future in as_completed(futures_list):
@@ -278,10 +408,7 @@ def ip_sort_key(address: str) -> tuple[int, int, str]:
 def print_port_table(findings: list[Finding]) -> None:
     """Exibe os findings em formato de tabela colorida no terminal."""
     headers = ("HOST", "IP", "PORT", "SERVICE", "BANNER")
-    rows = [
-        (item.host, item.address, str(item.port), item.service, item.banner)
-        for item in findings
-    ]
+    rows = [(item.host, item.address, str(item.port), item.service, item.banner) for item in findings]
     print_table(
         headers=headers,
         rows=rows,
@@ -298,9 +425,7 @@ def print_port_table(findings: list[Finding]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     """Constrói e retorna o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Port scanner TCP rapido para laboratorios e hosts autorizados."
-    )
+    parser = argparse.ArgumentParser(description="Port scanner TCP rapido para laboratorios e hosts autorizados.")
     parser.add_argument(
         "targets",
         nargs="*",
@@ -343,6 +468,7 @@ def run_once(args: argparse.Namespace) -> int:
 
     if args.threads is not None:
         import warnings
+
         warnings.warn(
             "--threads e deprecated, use --workers",
             DeprecationWarning,

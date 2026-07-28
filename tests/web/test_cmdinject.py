@@ -279,12 +279,23 @@ class TestPrintResults:
 class TestCmdInjectAttempt:
     def test_frozen(self) -> None:
         attempt = CmdInjectAttempt(
-            technique="test", category="os_command", injection_point="param:cmd",
-            url="https://x.com", payload="test", status_baseline=200,
-            status_test=200, size_baseline=0, size_test=0,
-            time_baseline=0.1, time_test=0.1, content_match=False,
-            content_type="none", timing_match=False, vulnerable=False,
-            details="", error="",
+            technique="test",
+            category="os_command",
+            injection_point="param:cmd",
+            url="https://x.com",
+            payload="test",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=0,
+            size_test=0,
+            time_baseline=0.1,
+            time_test=0.1,
+            content_match=False,
+            content_type="none",
+            timing_match=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             attempt.technique = "changed"  # type: ignore[misc]
@@ -293,9 +304,14 @@ class TestCmdInjectAttempt:
 class TestCmdInjectResult:
     def test_frozen(self) -> None:
         result = CmdInjectResult(
-            target="https://x.com", baseline_status=200, tls=True,
-            attempts=[], vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://x.com",
+            baseline_status=200,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.target = "changed"  # type: ignore[misc]

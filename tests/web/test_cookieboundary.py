@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Cookie Domain Boundary."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -188,60 +189,108 @@ class TestIsPublicSuffix:
 # ─── Test Domain Attributes ──────────────────────────────────────────────────
 class TestDomainAttributes:
     def test_domain_absent(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_domain_attributes(cookies, "example.com")
         assert len(results) == 1
         assert results[0].technique == "domain_absent"
         assert results[0].vulnerable is True
 
     def test_domain_wildcard(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain=".", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain=".",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_domain_attributes(cookies, "example.com")
         assert len(results) == 1
         assert results[0].technique == "domain_wildcard"
         assert results[0].vulnerable is True
 
     def test_domain_public_suffix(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain=".com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain=".com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_domain_attributes(cookies, "example.com")
         assert len(results) == 1
         assert results[0].technique == "domain_public_suffix"
         assert results[0].vulnerable is True
 
     def test_domain_mismatch(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain=".evil.com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain=".evil.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_domain_attributes(cookies, "example.com")
         assert len(results) == 1
         assert results[0].technique == "domain_mismatch"
         assert results[0].vulnerable is True
 
     def test_domain_overly_broad(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain=".example.com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain=".example.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_domain_attributes(cookies, "api.example.com")
         assert len(results) == 1
         assert results[0].technique == "domain_overly_broad"
         assert results[0].vulnerable is True
 
     def test_domain_correct(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="example.com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="example.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_domain_attributes(cookies, "example.com")
         assert len(results) == 1
         assert results[0].vulnerable is False
@@ -250,50 +299,90 @@ class TestDomainAttributes:
 # ─── Test Flag Attributes ────────────────────────────────────────────────────
 class TestFlagAttributes:
     def test_all_flags_present(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_flag_attributes(cookies)
         assert len(results) == 4
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) == 0
 
     def test_no_httponly(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=False, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_flag_attributes(cookies)
         no_http = [r for r in results if r.technique == "flag_no_httponly"]
         assert len(no_http) == 1
         assert no_http[0].vulnerable is True
 
     def test_no_secure(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=False, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=False,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_flag_attributes(cookies)
         no_sec = [r for r in results if r.technique == "flag_no_secure"]
         assert len(no_sec) == 1
         assert no_sec[0].vulnerable is True
 
     def test_no_samesite(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="",
+                raw="",
+            )
+        ]
         results = _test_flag_attributes(cookies)
         no_ss = [r for r in results if r.technique == "flag_no_samesite"]
         assert len(no_ss) == 1
         assert no_ss[0].vulnerable is True
 
     def test_samesite_none(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="None", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="None",
+                raw="",
+            )
+        ]
         results = _test_flag_attributes(cookies)
         ss_none = [r for r in results if r.technique == "flag_samesite_none"]
         assert len(ss_none) == 1
@@ -301,10 +390,8 @@ class TestFlagAttributes:
 
     def test_multiple_cookies(self) -> None:
         cookies = [
-            CookieInfo(name="a", value="1", domain="", path="/",
-                       secure=True, httponly=True, samesite="Lax", raw=""),
-            CookieInfo(name="b", value="2", domain="", path="/",
-                       secure=False, httponly=False, samesite="", raw=""),
+            CookieInfo(name="a", value="1", domain="", path="/", secure=True, httponly=True, samesite="Lax", raw=""),
+            CookieInfo(name="b", value="2", domain="", path="/", secure=False, httponly=False, samesite="", raw=""),
         ]
         results = _test_flag_attributes(cookies)
         assert len(results) == 7
@@ -313,30 +400,54 @@ class TestFlagAttributes:
 # ─── Test Path Attributes ────────────────────────────────────────────────────
 class TestPathAttributes:
     def test_path_absent(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_path_attributes(cookies)
         assert len(results) == 1
         assert results[0].technique == "path_absent"
         assert results[0].vulnerable is True
 
     def test_path_root(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_path_attributes(cookies)
         assert len(results) == 1
         assert results[0].technique == "path_overly_broad"
         assert results[0].vulnerable is True
 
     def test_path_restricted(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/api",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/api",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         results = _test_path_attributes(cookies)
         assert len(results) == 1
         assert results[0].technique == "path_overly_broad"
@@ -347,16 +458,28 @@ class TestPathAttributes:
 class TestCookieInfo:
     def test_frozen(self) -> None:
         c = CookieInfo(
-            name="test", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
+            name="test",
+            value="abc",
+            domain="",
+            path="/",
+            secure=True,
+            httponly=True,
+            samesite="Strict",
+            raw="",
         )
         with pytest.raises(AttributeError):
             c.name = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         c = CookieInfo(
-            name="test", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
+            name="test",
+            value="abc",
+            domain="",
+            path="/",
+            secure=True,
+            httponly=True,
+            samesite="Strict",
+            raw="",
         )
         assert not hasattr(c, "__dict__")
 
@@ -364,9 +487,14 @@ class TestCookieInfo:
 class TestCookieBoundaryAttempt:
     def test_frozen(self) -> None:
         a = CookieBoundaryAttempt(
-            technique="test", category="domain", cookie_name="session",
-            attribute_tested="Domain", attribute_value=".example.com",
-            vulnerable=True, details="test", error="",
+            technique="test",
+            category="domain",
+            cookie_name="session",
+            attribute_tested="Domain",
+            attribute_value=".example.com",
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
@@ -375,10 +503,15 @@ class TestCookieBoundaryAttempt:
 class TestCookieBoundaryResult:
     def test_frozen(self) -> None:
         r = CookieBoundaryResult(
-            target="https://test.com", target_domain="test.com", tls=True,
-            cookies_found=[], attempts=[],
-            vulnerable_techniques=[], protected_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -388,19 +521,36 @@ class TestCookieBoundaryResult:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CookieBoundaryResult(
-            target="https://test.com", target_domain="test.com", tls=True,
-            cookies_found=[CookieInfo(
-                name="session", value="abc", domain="", path="/",
-                secure=False, httponly=False, samesite="", raw="",
-            )],
-            attempts=[CookieBoundaryAttempt(
-                technique="flag_no_httponly", category="flags",
-                cookie_name="session", attribute_tested="HttpOnly",
-                attribute_value="False", vulnerable=True,
-                details="Cookie 'session' sem HttpOnly", error="",
-            )],
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[
+                CookieInfo(
+                    name="session",
+                    value="abc",
+                    domain="",
+                    path="/",
+                    secure=False,
+                    httponly=False,
+                    samesite="",
+                    raw="",
+                )
+            ],
+            attempts=[
+                CookieBoundaryAttempt(
+                    technique="flag_no_httponly",
+                    category="flags",
+                    cookie_name="session",
+                    attribute_tested="HttpOnly",
+                    attribute_value="False",
+                    vulnerable=True,
+                    details="Cookie 'session' sem HttpOnly",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["flag_no_httponly"],
-            protected_techniques=[], issues=[],
+            protected_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -410,10 +560,15 @@ class TestPrintResults:
 
     def test_safe_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CookieBoundaryResult(
-            target="https://test.com", target_domain="test.com", tls=True,
-            cookies_found=[], attempts=[],
-            vulnerable_techniques=[], protected_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -421,9 +576,13 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CookieBoundaryResult(
-            target="https://test.com", target_domain="test.com", tls=True,
-            cookies_found=[], attempts=[],
-            vulnerable_techniques=[], protected_techniques=[],
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
             issues=["Nenhum Set-Cookie detectado"],
             overall_status="unknown",
         )
@@ -433,13 +592,26 @@ class TestPrintResults:
 
     def test_cookies_listed(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CookieBoundaryResult(
-            target="https://test.com", target_domain="test.com", tls=True,
-            cookies_found=[CookieInfo(
-                name="session", value="abc123", domain=".test.com", path="/",
-                secure=True, httponly=True, samesite="Lax", raw="",
-            )],
-            attempts=[], vulnerable_techniques=[], protected_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[
+                CookieInfo(
+                    name="session",
+                    value="abc123",
+                    domain=".test.com",
+                    path="/",
+                    secure=True,
+                    httponly=True,
+                    samesite="Lax",
+                    raw="",
+                )
+            ],
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -465,20 +637,36 @@ class TestCookiePathTraversalPayloads:
 class TestPathTraversalActive:
     @pytest.mark.asyncio
     async def test_no_scoped_cookies(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_client = AsyncMock()
         results = await _test_path_traversal_active(mock_client, "https://test.com", cookies)
         assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_scoped_cookie_no_leak(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/api",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/api",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.headers = MagicMock()
         mock_resp.headers.get_list = MagicMock(return_value=[])
@@ -492,10 +680,18 @@ class TestPathTraversalActive:
 
     @pytest.mark.asyncio
     async def test_scoped_cookie_leak(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/api",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/api",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.headers = MagicMock()
         mock_resp.headers.get_list = MagicMock(return_value=["session=stolen; Path=/api"])
@@ -509,10 +705,18 @@ class TestPathTraversalActive:
 
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/api",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/api",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
 
@@ -523,10 +727,18 @@ class TestPathTraversalActive:
 
     @pytest.mark.asyncio
     async def test_case_variation(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/Api",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/Api",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.headers = MagicMock()
         mock_resp.headers.get_list = MagicMock(return_value=["session=stolen"])
@@ -539,10 +751,18 @@ class TestPathTraversalActive:
 
     @pytest.mark.asyncio
     async def test_trailing_slash(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/api",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/api",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.headers = MagicMock()
         mock_resp.headers.get_list = MagicMock(return_value=["session=stolen"])
@@ -555,10 +775,18 @@ class TestPathTraversalActive:
 
     @pytest.mark.asyncio
     async def test_prefix_match(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/api",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/api",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.headers = MagicMock()
         mock_resp.headers.get_list = MagicMock(return_value=["session=stolen"])
@@ -615,20 +843,36 @@ class TestIsCsrfCookie:
 class TestDoubleSubmit:
     @pytest.mark.asyncio
     async def test_no_csrf_cookies(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_client = AsyncMock()
         results = await _test_double_submit(mock_client, "https://test.com", cookies)
         assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_csrf_cookie_no_httponly(self) -> None:
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc123", domain="", path="/",
-            secure=True, httponly=False, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc123",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
@@ -643,10 +887,18 @@ class TestDoubleSubmit:
 
     @pytest.mark.asyncio
     async def test_csrf_cookie_no_samesite(self) -> None:
-        cookies = [CookieInfo(
-            name="XSRF-TOKEN", value="xyz", domain="", path="/",
-            secure=True, httponly=True, samesite="", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="XSRF-TOKEN",
+                value="xyz",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
@@ -661,10 +913,18 @@ class TestDoubleSubmit:
 
     @pytest.mark.asyncio
     async def test_csrf_cookie_samesite_none(self) -> None:
-        cookies = [CookieInfo(
-            name="csrf", value="val", domain="", path="/",
-            secure=True, httponly=True, samesite="None", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf",
+                value="val",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="None",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
@@ -679,10 +939,18 @@ class TestDoubleSubmit:
 
     @pytest.mark.asyncio
     async def test_csrf_cookie_no_secure(self) -> None:
-        cookies = [CookieInfo(
-            name="csrftoken", value="tok", domain="", path="/",
-            secure=False, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrftoken",
+                value="tok",
+                domain="",
+                path="/",
+                secure=False,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
@@ -697,10 +965,18 @@ class TestDoubleSubmit:
 
     @pytest.mark.asyncio
     async def test_csrf_cookie_overly_broad_domain(self) -> None:
-        cookies = [CookieInfo(
-            name="csrf_token", value="v", domain=".com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="v",
+                domain=".com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
@@ -715,10 +991,18 @@ class TestDoubleSubmit:
 
     @pytest.mark.asyncio
     async def test_csrf_pattern_confirmed(self) -> None:
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain="", path="/",
-            secure=True, httponly=False, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         form_html = b'<html><form><input type="hidden" name="csrf_token" value="abc"></form></html>'
         mock_headers = MagicMock()
         mock_headers.multi_items.return_value = []
@@ -737,10 +1021,18 @@ class TestDoubleSubmit:
 
     @pytest.mark.asyncio
     async def test_csrf_pattern_not_detected(self) -> None:
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain="", path="/",
-            secure=True, httponly=False, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
@@ -755,10 +1047,18 @@ class TestDoubleSubmit:
 
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
-        cookies = [CookieInfo(
-            name="csrf", value="v", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf",
+                value="v",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         mock_client = AsyncMock()
         mock_client.request = AsyncMock(side_effect=httpx.RequestError("timeout"))
 
@@ -772,20 +1072,36 @@ class TestDoubleSubmit:
 class TestSameSiteDnsBypass:
     @pytest.mark.asyncio
     async def test_no_lax_cookies_returns_empty(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         assert result == []
 
     @pytest.mark.asyncio
     async def test_lax_cookie_detected(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Lax", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -793,10 +1109,18 @@ class TestSameSiteDnsBypass:
 
     @pytest.mark.asyncio
     async def test_missing_samesite_detected(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -806,14 +1130,27 @@ class TestSameSiteDnsBypass:
     @patch("mytools.dns.dnsrebinding.scan_rebinding")
     async def test_dns_rebindable_ttl(self, mock_scan: MagicMock) -> None:
         from mytools.dns.dnsrebinding import RebindingResult
-        mock_scan.return_value = [RebindingResult(
-            domain="target.com", check="ttl", severity="high",
-            detail="TTL baixo",
-        )]
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Lax", raw="",
-        )]
+
+        mock_scan.return_value = [
+            RebindingResult(
+                domain="target.com",
+                check="ttl",
+                severity="high",
+                detail="TTL baixo",
+            )
+        ]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -823,14 +1160,27 @@ class TestSameSiteDnsBypass:
     @patch("mytools.dns.dnsrebinding.scan_rebinding")
     async def test_dns_rebindable_wildcard(self, mock_scan: MagicMock) -> None:
         from mytools.dns.dnsrebinding import RebindingResult
-        mock_scan.return_value = [RebindingResult(
-            domain="target.com", check="wildcard", severity="medium",
-            detail="Wildcard detectado",
-        )]
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Lax", raw="",
-        )]
+
+        mock_scan.return_value = [
+            RebindingResult(
+                domain="target.com",
+                check="wildcard",
+                severity="medium",
+                detail="Wildcard detectado",
+            )
+        ]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -840,14 +1190,27 @@ class TestSameSiteDnsBypass:
     @patch("mytools.dns.dnsrebinding.scan_rebinding")
     async def test_dns_rebindable_ip_flip(self, mock_scan: MagicMock) -> None:
         from mytools.dns.dnsrebinding import RebindingResult
-        mock_scan.return_value = [RebindingResult(
-            domain="target.com", check="ip_flip", severity="critical",
-            detail="IP flip detectado",
-        )]
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Lax", raw="",
-        )]
+
+        mock_scan.return_value = [
+            RebindingResult(
+                domain="target.com",
+                check="ip_flip",
+                severity="critical",
+                detail="IP flip detectado",
+            )
+        ]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -858,14 +1221,27 @@ class TestSameSiteDnsBypass:
     @patch("mytools.dns.dnsrebinding.scan_rebinding")
     async def test_no_rebinding_returns_no_risk(self, mock_scan: MagicMock) -> None:
         from mytools.dns.dnsrebinding import RebindingResult
-        mock_scan.return_value = [RebindingResult(
-            domain="target.com", check="ttl", severity="info",
-            detail="TTL normal",
-        )]
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Lax", raw="",
-        )]
+
+        mock_scan.return_value = [
+            RebindingResult(
+                domain="target.com",
+                check="ttl",
+                severity="info",
+                detail="TTL normal",
+            )
+        ]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -874,10 +1250,18 @@ class TestSameSiteDnsBypass:
 
     @pytest.mark.asyncio
     async def test_no_domain_returns_only_lax_checks(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Lax", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://", cookies)
         techniques = [a.technique for a in result]
@@ -888,10 +1272,18 @@ class TestSameSiteDnsBypass:
     @patch("mytools.dns.dnsrebinding.scan_rebinding")
     async def test_scan_rebinding_error(self, mock_scan: MagicMock) -> None:
         mock_scan.side_effect = Exception("DNS timeout")
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Lax", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Lax",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_samesite_dns_bypass(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -905,10 +1297,18 @@ class TestSameSiteDnsBypass:
 class TestCsrfSubdomain:
     @pytest.mark.asyncio
     async def test_no_csrf_cookies_returns_empty(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc", domain="test.com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="test.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         assert result == []
@@ -917,10 +1317,18 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_csrf_cookie_wildcard_domain(self, mock_enum: MagicMock) -> None:
         mock_enum.return_value = []
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc123", domain=".target.com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc123",
+                domain=".target.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -930,10 +1338,18 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_csrf_cookie_broad_domain(self, mock_enum: MagicMock) -> None:
         mock_enum.return_value = []
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc123", domain="other.target.com", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc123",
+                domain="other.target.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -943,10 +1359,18 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_csrf_cookie_no_httponly(self, mock_enum: MagicMock) -> None:
         mock_enum.return_value = []
-        cookies = [CookieInfo(
-            name="XSRF-TOKEN", value="xyz", domain="", path="/",
-            secure=True, httponly=False, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="XSRF-TOKEN",
+                value="xyz",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -956,10 +1380,18 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_csrf_cookie_samesite_none(self, mock_enum: MagicMock) -> None:
         mock_enum.return_value = []
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="None", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="None",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -969,14 +1401,23 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_subdomains_discovered(self, mock_enum: MagicMock) -> None:
         from mytools.dns.subdomainenum import SubdomainResult
+
         mock_enum.return_value = [
             SubdomainResult(subdomain="api.target.com", status="passive"),
             SubdomainResult(subdomain="dev.target.com", status="passive"),
         ]
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -986,13 +1427,22 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_combined_risk(self, mock_enum: MagicMock) -> None:
         from mytools.dns.subdomainenum import SubdomainResult
+
         mock_enum.return_value = [
             SubdomainResult(subdomain="api.target.com", status="passive"),
         ]
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain=".target.com", path="/",
-            secure=True, httponly=False, samesite="None", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain=".target.com",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="None",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -1000,10 +1450,18 @@ class TestCsrfSubdomain:
 
     @pytest.mark.asyncio
     async def test_no_domain_returns_early(self) -> None:
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://", cookies)
         techniques = [a.technique for a in result]
@@ -1013,10 +1471,18 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_passive_enum_error(self, mock_enum: MagicMock) -> None:
         mock_enum.side_effect = Exception("DNS timeout")
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain="", path="/",
-            secure=True, httponly=True, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         error_attempts = [a for a in result if a.error]
@@ -1027,10 +1493,18 @@ class TestCsrfSubdomain:
     @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_single_risk_no_combined(self, mock_enum: MagicMock) -> None:
         mock_enum.return_value = []
-        cookies = [CookieInfo(
-            name="csrf_token", value="abc", domain="", path="/",
-            secure=True, httponly=False, samesite="Strict", raw="",
-        )]
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="Strict",
+                raw="",
+            )
+        ]
         client = AsyncMock()
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
@@ -1041,68 +1515,119 @@ class TestCsrfSubdomain:
 # ─── Cookie Quoting ──────────────────────────────────────────────────────────
 class TestCookieQuoting:
     def test_no_issues_returns_empty(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc123", domain="", path="/",
-            secure=True, httponly=True, samesite="strict", raw="session=abc123; Path=/; Secure; HttpOnly",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc123",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="strict",
+                raw="session=abc123; Path=/; Secure; HttpOnly",
+            )
+        ]
         result = _test_cookie_quoting(cookies)
         assert result == []
 
     def test_semicolon_in_value(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="val;ue", domain="", path="/",
-            secure=False, httponly=False, samesite="", raw='session="val;ue"',
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="val;ue",
+                domain="",
+                path="/",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw='session="val;ue"',
+            )
+        ]
         result = _test_cookie_quoting(cookies)
         techniques = [a.technique for a in result]
         assert "quoting_semicolon_in_value" in techniques
 
     def test_backslash_in_value(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value=r'val"ue', domain="", path="/",
-            secure=False, httponly=False, samesite="",
-            raw=r'session="val\"ue"',
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value=r'val"ue',
+                domain="",
+                path="/",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw=r'session="val\"ue"',
+            )
+        ]
         result = _test_cookie_quoting(cookies)
         techniques = [a.technique for a in result]
         assert "quoting_backslash_escape" in techniques
 
     def test_null_byte_in_value(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="abc\x00def", domain="", path="/",
-            secure=False, httponly=False, samesite="",
-            raw="session=abc\x00def",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc\x00def",
+                domain="",
+                path="/",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw="session=abc\x00def",
+            )
+        ]
         result = _test_cookie_quoting(cookies)
         techniques = [a.technique for a in result]
         assert "quoting_null_byte" in techniques
 
     def test_comma_separator(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="v", domain="", path="",
-            secure=False, httponly=False, samesite="",
-            raw="session=v, Path=/, Secure",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="v",
+                domain="",
+                path="",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw="session=v, Path=/, Secure",
+            )
+        ]
         result = _test_cookie_quoting(cookies)
         techniques = [a.technique for a in result]
         assert "quoting_comma_separator" in techniques
 
     def test_unbalanced_quotes(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="value", domain="", path="",
-            secure=False, httponly=False, samesite="",
-            raw='session="value; Path=/',
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="value",
+                domain="",
+                path="",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw='session="value; Path=/',
+            )
+        ]
         result = _test_cookie_quoting(cookies)
         techniques = [a.technique for a in result]
         assert "quoting_unbalanced_quotes" in techniques
 
     def test_whitespace_in_value(self) -> None:
-        cookies = [CookieInfo(
-            name="session", value="  abc  ", domain="", path="/",
-            secure=False, httponly=False, samesite="",
-            raw="session=  abc  ; Path=/",
-        )]
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="  abc  ",
+                domain="",
+                path="/",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw="session=  abc  ; Path=/",
+            )
+        ]
         result = _test_cookie_quoting(cookies)
         techniques = [a.technique for a in result]
         assert "quoting_whitespace_in_value" in techniques
@@ -1110,12 +1635,24 @@ class TestCookieQuoting:
     def test_multiple_cookies_mixed_issues(self) -> None:
         cookies = [
             CookieInfo(
-                name="a", value="v;1", domain="", path="",
-                secure=False, httponly=False, samesite="", raw='a="v;1"',
+                name="a",
+                value="v;1",
+                domain="",
+                path="",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw='a="v;1"',
             ),
             CookieInfo(
-                name="b", value="x\x00y", domain="", path="",
-                secure=False, httponly=False, samesite="", raw="b=x\x00y",
+                name="b",
+                value="x\x00y",
+                domain="",
+                path="",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw="b=x\x00y",
             ),
         ]
         result = _test_cookie_quoting(cookies)
@@ -1156,6 +1693,7 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
         from mytools.web.cookieboundary import run_once
+
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()

@@ -1,4 +1,5 @@
 """Testes do modulo apk_dex.py — DEX Layer, Dalvik Disassembly, Java Decompilation."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,12 +21,14 @@ class TestLoadApk:
     def test_file_not_found(self) -> None:
         with pytest.raises(FileNotFoundError, match="File not found"):
             from mytools.mobile.apk_dex import _load_apk
+
             _load_apk("nonexistent.apk")
 
     def test_invalid_file(self, tmp_path: Path) -> None:
         p = tmp_path / "fake.apk"
         p.write_bytes(b"not an apk")
         from mytools.mobile.apk_dex import _load_apk
+
         with pytest.raises((ValueError, Exception, OSError)):
             _load_apk(str(p))
 
@@ -99,7 +102,7 @@ def _mock_dex(classes: list[str] | None = None, methods: list[str] | None = None
     mock.get_classes.return_value = [_mock_dex_class(n) for n in (classes or ["Lcom/test/Foo;"])]
 
     encoded_methods = []
-    for m_name in (methods or ["<init>"]):
+    for m_name in methods or ["<init>"]:
         m = MagicMock()
         m.get_class_name.return_value = "Lcom/test/Foo;"
         m.get_name.return_value = m_name
@@ -157,6 +160,7 @@ class TestAnalyzeDexLayerMock:
     @patch("mytools.mobile.apk_dex.Path.is_file", return_value=True)
     def test_empty_dex_raises(self, mock_isfile: MagicMock, mock_analyze: MagicMock) -> None:
         from mytools.mobile.apk_dex import _load_apk
+
         with pytest.raises(ValueError, match="No DEX files"):
             _load_apk("test.apk")
 
@@ -298,6 +302,7 @@ class TestWithFixture:
 class TestMobileAuditDispatch:
     def test_dex_check_choice_exists(self) -> None:
         from mytools.mobile.mobile_audit import MobileAuditScanner
+
         s = MobileAuditScanner()
         parser = s.build_parser()
         args = parser.parse_args(["app.apk", "-c", "apk_dex"])
@@ -305,6 +310,7 @@ class TestMobileAuditDispatch:
 
     def test_disasm_check_choice_exists(self) -> None:
         from mytools.mobile.mobile_audit import MobileAuditScanner
+
         s = MobileAuditScanner()
         parser = s.build_parser()
         args = parser.parse_args(["app.apk", "-c", "apk_disasm"])
@@ -312,6 +318,7 @@ class TestMobileAuditDispatch:
 
     def test_decompile_check_choice_exists(self) -> None:
         from mytools.mobile.mobile_audit import MobileAuditScanner
+
         s = MobileAuditScanner()
         parser = s.build_parser()
         args = parser.parse_args(["app.apk", "-c", "apk_decompile"])
@@ -319,6 +326,7 @@ class TestMobileAuditDispatch:
 
     def test_help_includes_new_checks(self) -> None:
         from mytools.mobile.mobile_audit import MobileAuditScanner
+
         s = MobileAuditScanner()
         help_text = s._help()
         assert "apk_dex" in help_text

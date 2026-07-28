@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo XSS Vectors."""
+
 from __future__ import annotations
 
 import pytest
@@ -29,9 +30,14 @@ def test_category_map_has_eight_categories() -> None:
 
 def test_category_map_keys() -> None:
     assert _CATEGORY_MAP.keys() == {
-        "media_events", "uri_javascript", "uri_data",
-        "iframe_vectors", "base_redirect", "custom_elements",
-        "shadow_dom", "slot_use",
+        "media_events",
+        "uri_javascript",
+        "uri_data",
+        "iframe_vectors",
+        "base_redirect",
+        "custom_elements",
+        "shadow_dom",
+        "slot_use",
     }
 
 
@@ -74,9 +80,14 @@ def test_slot_use_payloads_count() -> None:
 
 def test_all_payloads_have_four_elements() -> None:
     all_lists = (
-        _MEDIA_PAYLOADS + _URI_JS_PAYLOADS + _URI_DATA_PAYLOADS
-        + _IFRAME_PAYLOADS + _BASE_PAYLOADS + _CUSTOM_ELEMENT_PAYLOADS
-        + _SHADOW_DOM_PAYLOADS + _SLOT_USE_PAYLOADS
+        _MEDIA_PAYLOADS
+        + _URI_JS_PAYLOADS
+        + _URI_DATA_PAYLOADS
+        + _IFRAME_PAYLOADS
+        + _BASE_PAYLOADS
+        + _CUSTOM_ELEMENT_PAYLOADS
+        + _SHADOW_DOM_PAYLOADS
+        + _SLOT_USE_PAYLOADS
     )
     for p in all_lists:
         assert len(p) == 4, f"Payload {p[0]} should have 4 elements"
@@ -101,28 +112,36 @@ def test_inject_payload_special_chars() -> None:
 
 
 def test_check_xss_reflection_true() -> None:
-    body = '<div><script>alert(1)</script></div>'
+    body = "<div><script>alert(1)</script></div>"
     assert _check_xss_reflection(body, "<script>alert(1)</script>") is True
 
 
 def test_check_xss_reflection_case_insensitive() -> None:
-    body = '<SCRIPT>alert(1)</SCRIPT>'
+    body = "<SCRIPT>alert(1)</SCRIPT>"
     assert _check_xss_reflection(body, "<script>alert(1)</script>") is True
 
 
 def test_check_xss_reflection_false() -> None:
-    body = '<div>safe content</div>'
+    body = "<div>safe content</div>"
     assert _check_xss_reflection(body, "<script>alert(1)</script>") is False
 
 
 def test_attempt_dataclass_frozen() -> None:
     a = XSSVectorAttempt(
-        technique="test", category="media_events",
-        context="test_ctx", payload="p", method="GET",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=110,
-        status_changed=False, size_changed=True,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="media_events",
+        context="test_ctx",
+        payload="p",
+        method="GET",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=110,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -130,22 +149,34 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = XSSVectorAttempt(
-        technique="test", category="media_events",
-        context="test_ctx", payload="p", method="GET",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=110,
-        status_changed=False, size_changed=True,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="media_events",
+        context="test_ctx",
+        payload="p",
+        method="GET",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=110,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = XSSVectorResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     with pytest.raises(AttributeError):
@@ -154,10 +185,14 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = XSSVectorResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     assert not hasattr(r, "__dict__")
@@ -173,9 +208,14 @@ def test_no_duplicate_technique_names_across_categories() -> None:
 def test_no_duplicate_payload_names_across_lists() -> None:
     all_names: list[str] = []
     for lst in (
-        _MEDIA_PAYLOADS, _URI_JS_PAYLOADS, _URI_DATA_PAYLOADS,
-        _IFRAME_PAYLOADS, _BASE_PAYLOADS, _CUSTOM_ELEMENT_PAYLOADS,
-        _SHADOW_DOM_PAYLOADS, _SLOT_USE_PAYLOADS,
+        _MEDIA_PAYLOADS,
+        _URI_JS_PAYLOADS,
+        _URI_DATA_PAYLOADS,
+        _IFRAME_PAYLOADS,
+        _BASE_PAYLOADS,
+        _CUSTOM_ELEMENT_PAYLOADS,
+        _SHADOW_DOM_PAYLOADS,
+        _SLOT_USE_PAYLOADS,
     ):
         all_names.extend(p[0] for p in lst)
     assert len(all_names) == len(set(all_names))
@@ -183,9 +223,14 @@ def test_no_duplicate_payload_names_across_lists() -> None:
 
 def test_all_payloads_have_indicators() -> None:
     all_lists = (
-        _MEDIA_PAYLOADS + _URI_JS_PAYLOADS + _URI_DATA_PAYLOADS
-        + _IFRAME_PAYLOADS + _BASE_PAYLOADS + _CUSTOM_ELEMENT_PAYLOADS
-        + _SHADOW_DOM_PAYLOADS + _SLOT_USE_PAYLOADS
+        _MEDIA_PAYLOADS
+        + _URI_JS_PAYLOADS
+        + _URI_DATA_PAYLOADS
+        + _IFRAME_PAYLOADS
+        + _BASE_PAYLOADS
+        + _CUSTOM_ELEMENT_PAYLOADS
+        + _SHADOW_DOM_PAYLOADS
+        + _SLOT_USE_PAYLOADS
     )
     for p in all_lists:
         assert len(p[3]) >= 1, f"Payload {p[0]} must have at least 1 indicator"

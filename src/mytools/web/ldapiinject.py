@@ -14,6 +14,7 @@ Fluxo:
   4. Classifica: detectado, blocked, error
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import asyncio
 import logging
@@ -185,8 +186,18 @@ _BYPASS_PAYLOADS: list[tuple[str, str, list[str]]] = [
 ]
 
 _LDAP_PARAMS: list[str] = [
-    "user", "username", "login", "search", "filter", "query",
-    "uid", "dn", "cn", "mail", "member", "email",
+    "user",
+    "username",
+    "login",
+    "search",
+    "filter",
+    "query",
+    "uid",
+    "dn",
+    "cn",
+    "mail",
+    "member",
+    "email",
 ]
 
 
@@ -279,41 +290,45 @@ async def _test_detect(
                     status_changed = t_status != b_status
                     vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
-                    attempts.append(LDAPiAttempt(
-                    exploit="admin)(!(|(password=*)))",
-                    tool="hydra",
-                        technique=f"{technique}_{param}",
-                        category="detect",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=t_status,
-                        size_baseline=b_size,
-                        size_test=t_size,
-                        status_changed=status_changed,
-                        size_changed=abs(t_size - b_size) > 50,
-                        vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                        error="",
-                    ))
+                    attempts.append(
+                        LDAPiAttempt(
+                            exploit="admin)(!(|(password=*)))",
+                            tool="hydra",
+                            technique=f"{technique}_{param}",
+                            category="detect",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=t_status,
+                            size_baseline=b_size,
+                            size_test=t_size,
+                            status_changed=status_changed,
+                            size_changed=abs(t_size - b_size) > 50,
+                            vulnerable=vulnerable,
+                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            error="",
+                        )
+                    )
                 except httpx.RequestError as exc:
-                    attempts.append(LDAPiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="detect",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(exc),
-                    ))
+                    attempts.append(
+                        LDAPiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="detect",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            status_changed=False,
+                            size_changed=False,
+                            vulnerable=False,
+                            details="",
+                            error=str(exc),
+                        )
+                    )
 
     return attempts
 
@@ -349,41 +364,45 @@ async def _test_auth_bypass(
                     status_changed = t_status != b_status
                     vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
-                    attempts.append(LDAPiAttempt(
-                    exploit="admin)(!(|(password=*)))",
-                    tool="hydra",
-                        technique=f"{technique}_{param}",
-                        category="auth_bypass",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=t_status,
-                        size_baseline=b_size,
-                        size_test=t_size,
-                        status_changed=status_changed,
-                        size_changed=abs(t_size - b_size) > 50,
-                        vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                        error="",
-                    ))
+                    attempts.append(
+                        LDAPiAttempt(
+                            exploit="admin)(!(|(password=*)))",
+                            tool="hydra",
+                            technique=f"{technique}_{param}",
+                            category="auth_bypass",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=t_status,
+                            size_baseline=b_size,
+                            size_test=t_size,
+                            status_changed=status_changed,
+                            size_changed=abs(t_size - b_size) > 50,
+                            vulnerable=vulnerable,
+                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            error="",
+                        )
+                    )
                 except httpx.RequestError as exc:
-                    attempts.append(LDAPiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="auth_bypass",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(exc),
-                    ))
+                    attempts.append(
+                        LDAPiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="auth_bypass",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            status_changed=False,
+                            size_changed=False,
+                            vulnerable=False,
+                            details="",
+                            error=str(exc),
+                        )
+                    )
 
     return attempts
 
@@ -419,41 +438,45 @@ async def _test_search(
                     status_changed = t_status != b_status
                     vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
-                    attempts.append(LDAPiAttempt(
-                    exploit="admin)(!(|(password=*)))",
-                    tool="hydra",
-                        technique=f"{technique}_{param}",
-                        category="search",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=t_status,
-                        size_baseline=b_size,
-                        size_test=t_size,
-                        status_changed=status_changed,
-                        size_changed=abs(t_size - b_size) > 50,
-                        vulnerable=vulnerable,
-                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                        error="",
-                    ))
+                    attempts.append(
+                        LDAPiAttempt(
+                            exploit="admin)(!(|(password=*)))",
+                            tool="hydra",
+                            technique=f"{technique}_{param}",
+                            category="search",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=t_status,
+                            size_baseline=b_size,
+                            size_test=t_size,
+                            status_changed=status_changed,
+                            size_changed=abs(t_size - b_size) > 50,
+                            vulnerable=vulnerable,
+                            details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                            error="",
+                        )
+                    )
                 except httpx.RequestError as exc:
-                    attempts.append(LDAPiAttempt(
-                        technique=f"{technique}_{param}",
-                        category="search",
-                        payload=payload,
-                        param=param,
-                        method=method,
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(exc),
-                    ))
+                    attempts.append(
+                        LDAPiAttempt(
+                            technique=f"{technique}_{param}",
+                            category="search",
+                            payload=payload,
+                            param=param,
+                            method=method,
+                            status_baseline=b_status,
+                            status_test=0,
+                            size_baseline=b_size,
+                            size_test=0,
+                            status_changed=False,
+                            size_changed=False,
+                            vulnerable=False,
+                            details="",
+                            error=str(exc),
+                        )
+                    )
 
     return attempts
 
@@ -481,41 +504,45 @@ async def _test_blind(
                 status_changed = t_status != b_status
                 vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
-                attempts.append(LDAPiAttempt(
-                exploit="admin)(!(|(password=*)))",
-                tool="hydra",
-                    technique=f"{technique}_{param}",
-                    category="blind",
-                    payload=payload,
-                    param=param,
-                    method="query",
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    status_changed=status_changed,
-                    size_changed=abs(t_size - b_size) > 50,
-                    vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                    error="",
-                ))
+                attempts.append(
+                    LDAPiAttempt(
+                        exploit="admin)(!(|(password=*)))",
+                        tool="hydra",
+                        technique=f"{technique}_{param}",
+                        category="blind",
+                        payload=payload,
+                        param=param,
+                        method="query",
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        status_changed=status_changed,
+                        size_changed=abs(t_size - b_size) > 50,
+                        vulnerable=vulnerable,
+                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        error="",
+                    )
+                )
             except httpx.RequestError as exc:
-                attempts.append(LDAPiAttempt(
-                    technique=f"{technique}_{param}",
-                    category="blind",
-                    payload=payload,
-                    param=param,
-                    method="query",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    LDAPiAttempt(
+                        technique=f"{technique}_{param}",
+                        category="blind",
+                        payload=payload,
+                        param=param,
+                        method="query",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -543,41 +570,45 @@ async def _test_bypass(
                 status_changed = t_status != b_status
                 vulnerable = _check_ldap_response(resp.content, t_status, indicators)
 
-                attempts.append(LDAPiAttempt(
-                exploit="admin)(!(|(password=*)))",
-                tool="hydra",
-                    technique=f"{technique}_{param}",
-                    category="bypass",
-                    payload=payload,
-                    param=param,
-                    method="post_form",
-                    status_baseline=b_status,
-                    status_test=t_status,
-                    size_baseline=b_size,
-                    size_test=t_size,
-                    status_changed=status_changed,
-                    size_changed=abs(t_size - b_size) > 50,
-                    vulnerable=vulnerable,
-                    details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
-                    error="",
-                ))
+                attempts.append(
+                    LDAPiAttempt(
+                        exploit="admin)(!(|(password=*)))",
+                        tool="hydra",
+                        technique=f"{technique}_{param}",
+                        category="bypass",
+                        payload=payload,
+                        param=param,
+                        method="post_form",
+                        status_baseline=b_status,
+                        status_test=t_status,
+                        size_baseline=b_size,
+                        size_test=t_size,
+                        status_changed=status_changed,
+                        size_changed=abs(t_size - b_size) > 50,
+                        vulnerable=vulnerable,
+                        details=f"Status {b_status}->{t_status}" if status_changed else "Sem mudanca",
+                        error="",
+                    )
+                )
             except httpx.RequestError as exc:
-                attempts.append(LDAPiAttempt(
-                    technique=f"{technique}_{param}",
-                    category="bypass",
-                    payload=payload,
-                    param=param,
-                    method="post_form",
-                    status_baseline=b_status,
-                    status_test=0,
-                    size_baseline=b_size,
-                    size_test=0,
-                    status_changed=False,
-                    size_changed=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    LDAPiAttempt(
+                        technique=f"{technique}_{param}",
+                        category="bypass",
+                        payload=payload,
+                        param=param,
+                        method="post_form",
+                        status_baseline=b_status,
+                        status_test=0,
+                        size_baseline=b_size,
+                        size_test=0,
+                        status_changed=False,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -632,7 +663,6 @@ async def run_scan(
     tls = target.startswith("https")
     client = create_async_client(timeout=timeout)
     try:
-
         print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
         baseline = await _test_baseline(client, target)
         if baseline[0] == 0:
@@ -689,9 +719,9 @@ async def run_scan(
         logger.info("LDAPi scan concluido: %d testes, %d vulneraveis", len(all_attempts), len(vuln_techs))
         return 1 if vuln_techs else 0
 
-
     finally:
         await client.aclose()
+
 
 banner_art = create_banner(
     r"""
@@ -716,7 +746,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo (ex: https://example.com)")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categoria de testes (default: todas)",
     )

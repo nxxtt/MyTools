@@ -20,6 +20,7 @@ Fluxo:
   4. Repete ate completar o ciclo (volta ao inicio)
   5. NSEC3 detectado → informa limitacoes (hashed names)
 """
+
 import argparse
 import logging
 import random
@@ -51,10 +52,23 @@ DEFAULT_MAX_HOPS = 500
 DEFAULT_TIMEOUT = 3.0
 
 TYPE_BITMAPS = {
-    1: "A", 2: "NS", 5: "CNAME", 6: "SOA", 15: "MX",
-    16: "TXT", 28: "AAAA", 33: "SRV", 43: "DS", 46: "RRSIG",
-    47: "NSEC", 48: "DNSKEY", 50: "NSEC3", 52: "TLSA",
-    65: "HTTPS", 252: "ANY", 255: "ALL",
+    1: "A",
+    2: "NS",
+    5: "CNAME",
+    6: "SOA",
+    15: "MX",
+    16: "TXT",
+    28: "AAAA",
+    33: "SRV",
+    43: "DS",
+    46: "RRSIG",
+    47: "NSEC",
+    48: "DNSKEY",
+    50: "NSEC3",
+    52: "TLSA",
+    65: "HTTPS",
+    252: "ANY",
+    255: "ALL",
 }
 
 
@@ -263,12 +277,14 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo para enumeracao.")
     parser.add_argument(
-        "--nameserver", "-s",
+        "--nameserver",
+        "-s",
         default="8.8.8.8",
         help="Nameserver para queries. Padrao: 8.8.8.8",
     )
     parser.add_argument(
-        "--max-hops", "-m",
+        "--max-hops",
+        "-m",
         type=int,
         default=DEFAULT_MAX_HOPS,
         help=f"Numero maximo de hops. Padrao: {DEFAULT_MAX_HOPS}",
@@ -314,8 +330,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(result)],
-            ["domain", "total_names", "has_nsec3", "zone_enumerated",
-             "max_hops", "hops_used"],
+            ["domain", "total_names", "has_nsec3", "zone_enumerated", "max_hops", "hops_used"],
             quiet=quiet,
         )
     return 0
@@ -336,13 +351,7 @@ def main() -> int:
         prompt="nsec> ",
         description="NSEC Walking interativo.",
         example="example.com --max-hops 500",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --max-hops 500\n"
-            "  example.com --nameserver 1.1.1.1"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --max-hops 500\n  example.com --nameserver 1.1.1.1"),
     )
 
 

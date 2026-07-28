@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de NSEC Walking."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -32,9 +33,14 @@ class TestNsecResult:
 
     def test_frozen(self) -> None:
         r = NsecResult(
-            domain="a", names_found=[], total_names=0,
-            has_nsec3=False, zone_enumerated=False,
-            entries=[], max_hops=0, hops_used=0,
+            domain="a",
+            names_found=[],
+            total_names=0,
+            has_nsec3=False,
+            zone_enumerated=False,
+            entries=[],
+            max_hops=0,
+            hops_used=0,
         )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
@@ -113,7 +119,8 @@ class TestPrintResults:
                 NsecEntry("x.example.com", "a.example.com", ["A"]),
                 NsecEntry("a.example.com", "b.example.com", ["A", "MX"]),
             ],
-            max_hops=500, hops_used=2,
+            max_hops=500,
+            hops_used=2,
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -122,9 +129,14 @@ class TestPrintResults:
 
     def test_nsec3(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = NsecResult(
-            domain="test.com", names_found=[], total_names=0,
-            has_nsec3=True, zone_enumerated=False,
-            entries=[], max_hops=500, hops_used=0,
+            domain="test.com",
+            names_found=[],
+            total_names=0,
+            has_nsec3=True,
+            zone_enumerated=False,
+            entries=[],
+            max_hops=500,
+            hops_used=0,
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -132,9 +144,14 @@ class TestPrintResults:
 
     def test_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = NsecResult(
-            domain="empty.com", names_found=[], total_names=0,
-            has_nsec3=False, zone_enumerated=False,
-            entries=[], max_hops=500, hops_used=0,
+            domain="empty.com",
+            names_found=[],
+            total_names=0,
+            has_nsec3=False,
+            zone_enumerated=False,
+            entries=[],
+            max_hops=500,
+            hops_used=0,
         )
         print_results(result)
         out = capsys.readouterr().out

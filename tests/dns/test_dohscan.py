@@ -36,9 +36,13 @@ class TestDohRecord:
 class TestDohProviderResult:
     def test_creation(self) -> None:
         r = DohProviderResult(
-            provider="google", provider_name="Google DNS",
-            url="https://dns.google/dns-query", records=[],
-            latency_ms=50.0, status_code=200, error="",
+            provider="google",
+            provider_name="Google DNS",
+            url="https://dns.google/dns-query",
+            records=[],
+            latency_ms=50.0,
+            status_code=200,
+            error="",
             query_method="GET",
         )
         assert r.provider == "google"
@@ -46,9 +50,13 @@ class TestDohProviderResult:
 
     def test_frozen(self) -> None:
         r = DohProviderResult(
-            provider="google", provider_name="Google DNS",
-            url="https://dns.google/dns-query", records=[],
-            latency_ms=50.0, status_code=200, error="",
+            provider="google",
+            provider_name="Google DNS",
+            url="https://dns.google/dns-query",
+            records=[],
+            latency_ms=50.0,
+            status_code=200,
+            error="",
             query_method="GET",
         )
         with pytest.raises(AttributeError):
@@ -58,20 +66,32 @@ class TestDohProviderResult:
 class TestDohScanResult:
     def test_creation(self) -> None:
         r = DohScanResult(
-            domain="example.com", query_type="A", providers=[],
-            traditional_records=[], traditional_latency_ms=10.0,
-            filtering_detected=False, inconsistencies=[],
-            doh_supported=True, overall_status="resolved", error="",
+            domain="example.com",
+            query_type="A",
+            providers=[],
+            traditional_records=[],
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            doh_supported=True,
+            overall_status="resolved",
+            error="",
         )
         assert r.domain == "example.com"
         assert r.overall_status == "resolved"
 
     def test_frozen(self) -> None:
         r = DohScanResult(
-            domain="example.com", query_type="A", providers=[],
-            traditional_records=[], traditional_latency_ms=10.0,
-            filtering_detected=False, inconsistencies=[],
-            doh_supported=True, overall_status="resolved", error="",
+            domain="example.com",
+            query_type="A",
+            providers=[],
+            traditional_records=[],
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            doh_supported=True,
+            overall_status="resolved",
+            error="",
         )
         with pytest.raises(AttributeError):
             r.domain = "changed"  # type: ignore[misc]
@@ -153,11 +173,16 @@ class TestCompareRecords:
 class TestPrintResults:
     def test_resolved(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DohScanResult(
-            domain="example.com", query_type="A", providers=[],
+            domain="example.com",
+            query_type="A",
+            providers=[],
             traditional_records=[DohRecord("example.com", "A", 300, "1.2.3.4")],
-            traditional_latency_ms=10.0, filtering_detected=False,
-            inconsistencies=[], doh_supported=True,
-            overall_status="resolved", error="",
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            doh_supported=True,
+            overall_status="resolved",
+            error="",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -166,10 +191,16 @@ class TestPrintResults:
 
     def test_filtering(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DohScanResult(
-            domain="example.com", query_type="A", providers=[],
-            traditional_records=[], traditional_latency_ms=10.0,
-            filtering_detected=True, inconsistencies=["missing_in_doh: 1.2.3.4"],
-            doh_supported=True, overall_status="filtering_detected", error="",
+            domain="example.com",
+            query_type="A",
+            providers=[],
+            traditional_records=[],
+            traditional_latency_ms=10.0,
+            filtering_detected=True,
+            inconsistencies=["missing_in_doh: 1.2.3.4"],
+            doh_supported=True,
+            overall_status="filtering_detected",
+            error="",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -177,11 +208,16 @@ class TestPrintResults:
 
     def test_no_support(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DohScanResult(
-            domain="example.com", query_type="A", providers=[],
+            domain="example.com",
+            query_type="A",
+            providers=[],
             traditional_records=[DohRecord("example.com", "A", 300, "1.2.3.4")],
-            traditional_latency_ms=10.0, filtering_detected=False,
-            inconsistencies=[], doh_supported=False,
-            overall_status="no_doh_support", error="",
+            traditional_latency_ms=10.0,
+            filtering_detected=False,
+            inconsistencies=[],
+            doh_supported=False,
+            overall_status="no_doh_support",
+            error="",
         )
         print_results(r)
         output = capsys.readouterr().out

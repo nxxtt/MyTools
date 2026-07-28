@@ -125,7 +125,8 @@ class TestTestEndpointBaseline:
         mock_client.get.return_value = mock_resp
 
         status, size, ct = await _test_endpoint_baseline(
-            mock_client, "https://api.example.com/users",
+            mock_client,
+            "https://api.example.com/users",
         )
         assert status == 200
         assert size == 2
@@ -137,7 +138,8 @@ class TestTestEndpointBaseline:
         mock_client.get.side_effect = httpx.RequestError("connection refused")
 
         status, size, ct = await _test_endpoint_baseline(
-            mock_client, "https://api.example.com/users",
+            mock_client,
+            "https://api.example.com/users",
         )
         assert status == 0
         assert size == 0
@@ -188,17 +190,28 @@ class TestBuildParser:
 
     def test_multiple_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "https://api.example.com", "-c", "auth_bypass", "content_type",
-        ])
+        args = parser.parse_args(
+            [
+                "https://api.example.com",
+                "-c",
+                "auth_bypass",
+                "content_type",
+            ]
+        )
         assert args.categories == ["auth_bypass", "content_type"]
 
     def test_all_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "https://api.example.com", "-c",
-            "auth_bypass", "content_type", "version_enum", "hateoas",
-        ])
+        args = parser.parse_args(
+            [
+                "https://api.example.com",
+                "-c",
+                "auth_bypass",
+                "content_type",
+                "version_enum",
+                "hateoas",
+            ]
+        )
         assert len(args.categories) == 4
 
     def test_invalid_category(self) -> None:
@@ -208,9 +221,14 @@ class TestBuildParser:
 
     def test_custom_endpoints(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "https://api.example.com", "--endpoints", "/users", "/orders",
-        ])
+        args = parser.parse_args(
+            [
+                "https://api.example.com",
+                "--endpoints",
+                "/users",
+                "/orders",
+            ]
+        )
         assert args.endpoints == ["/users", "/orders"]
 
     def test_default_concurrency(self) -> None:

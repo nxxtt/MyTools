@@ -21,6 +21,7 @@ Limitacoes conhecidas:
     Muitos servidores bloqueiam acesso a /package.json.
   - CVE database e estatica e precisa de atualizacoes manuais.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -125,11 +126,15 @@ _BACKEND_LIBS_DEFAULT: dict[str, Any] = {
 def _load_dep_data() -> tuple[dict[str, list[str]], dict[str, Any], dict[str, Any]]:
     from mytools.data import load_payloads
 
-    data = load_payloads("web", "dependency_scan", default={
-        "category_map": _CATEGORY_MAP_DEFAULT,
-        "frontend_libraries": _FRONTEND_LIBS_DEFAULT,
-        "backend_libraries": _BACKEND_LIBS_DEFAULT,
-    })
+    data = load_payloads(
+        "web",
+        "dependency_scan",
+        default={
+            "category_map": _CATEGORY_MAP_DEFAULT,
+            "frontend_libraries": _FRONTEND_LIBS_DEFAULT,
+            "backend_libraries": _BACKEND_LIBS_DEFAULT,
+        },
+    )
     return (
         data.get("category_map", _CATEGORY_MAP_DEFAULT),
         data.get("frontend_libraries", _FRONTEND_LIBS_DEFAULT),
@@ -198,7 +203,7 @@ async def _try_sourcemap_version(
             return ""
         data = json.loads(body_bytes)
         return str(data.get("version", ""))
-    except (json.JSONDecodeError, Exception):
+    except json.JSONDecodeError, Exception:
         return ""
 
 
@@ -305,32 +310,34 @@ async def _detect_frontend_deps(
 
     # Build attempts
     for lib_name, version in detected.items():
-        attempts.append(DepScanAttempt(
-            technique="frontend_probe",
-            category="frontend_deps",
-            library=lib_name,
-            version=version,
-            source="script_src",
-            severity="",
-            details="Detected in HTML source",
-            error="",
-        ))
+        attempts.append(
+            DepScanAttempt(
+                technique="frontend_probe",
+                category="frontend_deps",
+                library=lib_name,
+                version=version,
+                source="script_src",
+                severity="",
+                details="Detected in HTML source",
+                error="",
+            )
+        )
 
     # Log libs found without version
     attempts.extend(
         DepScanAttempt(
-                technique="frontend_probe",
-                category="frontend_deps",
-                library=lib_name,
-                version="",
-                source="",
-                severity="",
-                details="Not detected",
-                error="",
-            )
-            for lib_name in _FRONTEND_LIBS
-            if lib_name not in detected
-            )
+            technique="frontend_probe",
+            category="frontend_deps",
+            library=lib_name,
+            version="",
+            source="",
+            severity="",
+            details="Not detected",
+            error="",
+        )
+        for lib_name in _FRONTEND_LIBS
+        if lib_name not in detected
+    )
 
     return attempts
 
@@ -353,7 +360,7 @@ async def _detect_backend_deps(
         body = body_bytes.decode("utf-8", errors="replace") if body_bytes else ""
         headers_dict = dict(headers) if hasattr(headers, "items") else {}
         headers_lower = {k.lower(): v for k, v in headers_dict.items()}
-    except (FetchError, Exception):
+    except FetchError, Exception:
         return attempts
 
     cookies_raw = ""
@@ -407,32 +414,36 @@ async def _detect_backend_deps(
                     if ver:
                         detected[lib_name] = f"Manifest: {path}"
                         # Store version for later
-                        attempts.append(DepScanAttempt(
-                            technique="backend_probe",
-                            category="backend_deps",
-                            library=lib_name,
-                            version=ver,
-                            source="manifest",
-                            severity="",
-                            details=f"Detected via {path}",
-                            error="",
-                        ))
+                        attempts.append(
+                            DepScanAttempt(
+                                technique="backend_probe",
+                                category="backend_deps",
+                                library=lib_name,
+                                version=ver,
+                                source="manifest",
+                                severity="",
+                                details=f"Detected via {path}",
+                                error="",
+                            )
+                        )
                         break
 
     # Add detected entries without version from manifest
     for lib_name, detail in detected.items():
         already = any(a.library == lib_name for a in attempts)
         if not already:
-            attempts.append(DepScanAttempt(
-                technique="backend_probe",
-                category="backend_deps",
-                library=lib_name,
-                version="",
-                source="header",
-                severity="",
-                details=detail,
-                error="",
-            ))
+            attempts.append(
+                DepScanAttempt(
+                    technique="backend_probe",
+                    category="backend_deps",
+                    library=lib_name,
+                    version="",
+                    source="header",
+                    severity="",
+                    details=detail,
+                    error="",
+                )
+            )
 
     return attempts
 
@@ -489,15 +500,15 @@ def _check_cves(deps: list[DepScanAttempt]) -> list[DepScanAttempt]:
     # Check frontend CVEs
     results.extend(
         DepScanAttempt(
-                    technique="cve_match",
-                    category="cve_check",
-                    library=lib_name,
-                    version=dep.version,
-                    source=dep.source,
-                    severity=cve["severity"],
-                    details=f"{cve['id']}: {cve['description']} (affected: {cve['affected']})",
-                    error="",
-                )
+            technique="cve_match",
+            category="cve_check",
+            library=lib_name,
+            version=dep.version,
+            source=dep.source,
+            severity=cve["severity"],
+            details=f"{cve['id']}: {cve['description']} (affected: {cve['affected']})",
+            error="",
+        )
         for lib_name, sig in _FRONTEND_LIBS.items()
         if (dep := detected.get(lib_name))
         for cve in sig.get("cves", [])
@@ -505,21 +516,21 @@ def _check_cves(deps: list[DepScanAttempt]) -> list[DepScanAttempt]:
     )
     # Check backend CVEs
     results.extend(
-     DepScanAttempt(
-        technique="cve_match",
-        category="cve_check",
-        library=lib_name,
-        version=dep.version,
-        source=dep.source,
-        severity=cve["severity"],
-        details=f"{cve['id']}: {cve['description']} (affected: {cve['affected']})",
-        error="",
+        DepScanAttempt(
+            technique="cve_match",
+            category="cve_check",
+            library=lib_name,
+            version=dep.version,
+            source=dep.source,
+            severity=cve["severity"],
+            details=f"{cve['id']}: {cve['description']} (affected: {cve['affected']})",
+            error="",
+        )
+        for lib_name, sig in _BACKEND_LIBS.items()
+        if (dep := detected.get(lib_name))
+        for cve in sig.get("cves", [])
+        if _version_in_range(dep.version, cve["affected"])
     )
-    for lib_name, sig in _BACKEND_LIBS.items()
-    if (dep := detected.get(lib_name))
-    for cve in sig.get("cves", [])
-    if _version_in_range(dep.version, cve["affected"])
-)
     return results
 
 
@@ -541,16 +552,18 @@ def _check_outdated(deps: list[DepScanAttempt]) -> list[DepScanAttempt]:
         if not latest:
             continue
         if dep.version != latest:
-            results.append(DepScanAttempt(
-                technique="outdated_match",
-                category="outdated_check",
-                library=lib_name,
-                version=dep.version,
-                source=dep.source,
-                severity="info",
-                details=f"Latest: {latest} (detected: {dep.version})",
-                error="",
-            ))
+            results.append(
+                DepScanAttempt(
+                    technique="outdated_match",
+                    category="outdated_check",
+                    library=lib_name,
+                    version=dep.version,
+                    source=dep.source,
+                    severity="info",
+                    details=f"Latest: {latest} (detected: {dep.version})",
+                    error="",
+                )
+            )
 
     return results
 
@@ -592,17 +605,13 @@ async def scan_dependency(
     if "cve_check" in cats:
         cve_results = _check_cves(all_deps)
         all_attempts.extend(cve_results)
-        vulnerable_deps = list({
-            f"{a.library} {a.version}" for a in cve_results
-        })
+        vulnerable_deps = list({f"{a.library} {a.version}" for a in cve_results})
 
     # Outdated check (offline)
     if "outdated_check" in cats:
         outdated_results = _check_outdated(all_deps)
         all_attempts.extend(outdated_results)
-        outdated_deps = list({
-            f"{a.library} {a.version}" for a in outdated_results
-        })
+        outdated_deps = list({f"{a.library} {a.version}" for a in outdated_results})
 
     # Determine overall status
     if vulnerable_deps:
@@ -678,7 +687,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo (ex: https://example.com)")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",
@@ -699,11 +709,13 @@ def _async_run_once(args: argparse.Namespace) -> DepScanResult:
     categories = getattr(args, "categories", None)
     timeout = getattr(args, "timeout", DEFAULT_TIMEOUT)
 
-    result = safe_asyncio_run(scan_dependency(
-        base_url=url,
-        categories=categories,
-        timeout=timeout,
-    ))
+    result = safe_asyncio_run(
+        scan_dependency(
+            base_url=url,
+            categories=categories,
+            timeout=timeout,
+        )
+    )
 
     print_results(result)
 

@@ -50,9 +50,16 @@ class TestHeaderEdgeAttempt:
 
     def test_frozen(self) -> None:
         a = HeaderEdgeAttempt(
-            technique="t", category="c", raw_request="r",
-            status_baseline=200, status_test=200, size_baseline=0,
-            size_test=0, vulnerable=False, details="", error="",
+            technique="t",
+            category="c",
+            raw_request="r",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=0,
+            size_test=0,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -78,9 +85,16 @@ class TestHeaderEdgeResult:
 
     def test_frozen(self) -> None:
         r = HeaderEdgeResult(
-            target="t", host="h", port=443, tls=True,
-            baseline_status=200, baseline_size=0, attempts=[],
-            vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -266,7 +280,13 @@ class TestDuplicateHeaders:
             mock_conn.return_value = mock_sock
             mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"
             results = await _test_duplicate_headers(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.category == "duplicate_headers" for r in results)
@@ -275,7 +295,13 @@ class TestDuplicateHeaders:
     async def test_handles_exception(self) -> None:
         with patch("mytools.web.headeredge._create_connection", side_effect=OSError("fail")):
             results = await _test_duplicate_headers(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.error != "" for r in results)
@@ -292,7 +318,13 @@ class TestMalformedVersion:
             mock_conn.return_value = mock_sock
             mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\n\r\n"
             results = await _test_malformed_version(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.category == "malformed_version" for r in results)
@@ -309,7 +341,13 @@ class TestNullRequestByte:
             mock_conn.return_value = mock_sock
             mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\n\r\n"
             results = await _test_null_request_byte(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.category == "null_request_byte" for r in results)
@@ -326,7 +364,13 @@ class TestHeaderWhitespace:
             mock_conn.return_value = mock_sock
             mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\n\r\n"
             results = await _test_header_whitespace(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.category == "header_whitespace" for r in results)
@@ -343,7 +387,13 @@ class TestHeaderCase:
             mock_conn.return_value = mock_sock
             mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\n\r\n"
             results = await _test_header_case(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.category == "header_case" for r in results)
@@ -360,7 +410,13 @@ class TestAbsoluteUri:
             mock_conn.return_value = mock_sock
             mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\n\r\n"
             results = await _test_absolute_uri(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.category == "absolute_uri" for r in results)
@@ -377,7 +433,13 @@ class TestHttp09Request:
             mock_conn.return_value = mock_sock
             mock_sock.recv.return_value = b"HTTP/1.1 200 OK\r\n\r\n"
             results = await _test_http09_request(
-                "example.com", 80, "/", 5.0, False, 200, 100,
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
             )
             assert len(results) == 5
             assert all(r.category == "http09_request" for r in results)
@@ -395,10 +457,14 @@ class TestBuildParser:
 
     def test_has_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "https://example.com",
-            "-c", "duplicate_headers", "null_request_byte",
-        ])
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "-c",
+                "duplicate_headers",
+                "null_request_byte",
+            ]
+        )
         assert args.categories == ["duplicate_headers", "null_request_byte"]
 
     def test_no_categories_default(self) -> None:

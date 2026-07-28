@@ -53,16 +53,32 @@ logger = logging.getLogger("mytools.csrfscan")
 # Constants
 # ---------------------------------------------------------------------------
 
-_CSRF_FIELD_NAMES: frozenset[str] = frozenset({
-    "csrf_token", "_csrf", "csrf", "csrftoken", "_token",
-    "authenticity_token", "xsrf-token", "_xsrf", "_csrf_token",
-    "csrfmiddlewaretoken", "__requestverificationtoken",
-})
+_CSRF_FIELD_NAMES: frozenset[str] = frozenset(
+    {
+        "csrf_token",
+        "_csrf",
+        "csrf",
+        "csrftoken",
+        "_token",
+        "authenticity_token",
+        "xsrf-token",
+        "_xsrf",
+        "_csrf_token",
+        "csrfmiddlewaretoken",
+        "__requestverificationtoken",
+    }
+)
 
-_CSRF_COOKIE_NAMES: frozenset[str] = frozenset({
-    "csrf_token", "csrftoken", "xsrf-token", "_csrf",
-    "x-csrf-token", "csrfproof",
-})
+_CSRF_COOKIE_NAMES: frozenset[str] = frozenset(
+    {
+        "csrf_token",
+        "csrftoken",
+        "xsrf-token",
+        "_csrf",
+        "x-csrf-token",
+        "csrfproof",
+    }
+)
 
 _CONTENT_SIGNATURES: dict[str, list[bytes]] = {
     "form": [b"<form", b"<FORM"],
@@ -144,13 +160,15 @@ class _FormParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag == "form" and self._in_form:
             self._in_form = False
-            self.forms.append(ParsedForm(
-                action=self._form_action,
-                method=self._form_method,
-                fields=dict(self._form_fields),
-                has_csrf=self._has_csrf,
-                csrf_field_name=self._csrf_field,
-            ))
+            self.forms.append(
+                ParsedForm(
+                    action=self._form_action,
+                    method=self._form_method,
+                    fields=dict(self._form_fields),
+                    has_csrf=self._has_csrf,
+                    csrf_field_name=self._csrf_field,
+                )
+            )
 
 
 def _parse_forms(html: bytes) -> list[ParsedForm]:
@@ -206,7 +224,8 @@ class CSRFResult:
 
 
 async def _test_baseline(
-    client: httpx.AsyncClient, url: str,
+    client: httpx.AsyncClient,
+    url: str,
 ) -> tuple[int, bytes, dict[str, str]]:
     """Envia requisicao baseline para obter HTML + cookies."""
     try:
@@ -238,30 +257,27 @@ async def _test_form_detection(
 
             exploit = ""
             if vulnerable:
-                exploit = (
-                    f"curl -X {form.method} {form_url}"
-                    + " -d '&'.join(f'{k}={v}' for k,v in form.fields.items())"
-                )
+                exploit = f"curl -X {form.method} {form_url}" + " -d '&'.join(f'{k}={v}' for k,v in form.fields.items())"
 
-            attempts.append(CSRFAttempt(
-                technique="form_detection",
-                category="form_detection",
-                url=form_url,
-                method=form.method,
-                field_detected=form.has_csrf,
-                cookie_detected=False,
-                origin_bypassed=False,
-                token_entropy="",
-                vulnerable=vulnerable,
-                details=(
-                    f"Form {form.method} {form_url} sem campo CSRF"
-                    if vulnerable
-                    else f"Form {form.method} {form_url} com CSRF: {form.csrf_field_name}"
-                ),
-                error="",
-                exploit=exploit,
-                tool="curl",
-            ))
+            attempts.append(
+                CSRFAttempt(
+                    technique="form_detection",
+                    category="form_detection",
+                    url=form_url,
+                    method=form.method,
+                    field_detected=form.has_csrf,
+                    cookie_detected=False,
+                    origin_bypassed=False,
+                    token_entropy="",
+                    vulnerable=vulnerable,
+                    details=(
+                        f"Form {form.method} {form_url} sem campo CSRF" if vulnerable else f"Form {form.method} {form_url} com CSRF: {form.csrf_field_name}"
+                    ),
+                    error="",
+                    exploit=exploit,
+                    tool="curl",
+                )
+            )
 
     return attempts
 
@@ -299,19 +315,21 @@ async def _test_cookie_analysis(
 
             details = f"Cookie '{cookie_name}': {', '.join(details_parts)}" if details_parts else f"Cookie '{cookie_name}' protegido"
 
-            attempts.append(CSRFAttempt(
-                technique="cookie_analysis",
-                category="cookie_analysis",
-                url=url,
-                method="",
-                field_detected=False,
-                cookie_detected=True,
-                origin_bypassed=False,
-                token_entropy="",
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            attempts.append(
+                CSRFAttempt(
+                    technique="cookie_analysis",
+                    category="cookie_analysis",
+                    url=url,
+                    method="",
+                    field_detected=False,
+                    cookie_detected=True,
+                    origin_bypassed=False,
+                    token_entropy="",
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
 
     return attempts
 
@@ -346,46 +364,46 @@ async def _test_origin_referer(
 
                 exploit = ""
                 if origin_bypassed:
-                    exploit = (
-                        f"curl -X POST {form_url}"
-                        f" -H 'Origin: https://evil.com'"
-                        f" -d '{post_data}'"
-                    )
+                    exploit = f"curl -X POST {form_url} -H 'Origin: https://evil.com' -d '{post_data}'"
 
-                attempts.append(CSRFAttempt(
-                    technique="origin_referer",
-                    category="origin_referer",
-                    url=form_url,
-                    method=form.method,
-                    field_detected=form.has_csrf,
-                    cookie_detected=False,
-                    origin_bypassed=origin_bypassed,
-                    token_entropy="",
-                    vulnerable=origin_bypassed,
-                    details=(
-                        f"Cross-origin POST aceito (Status {resp.status_code})"
-                        if origin_bypassed
-                        else f"Cross-origin rejeitado (Status {resp.status_code})"
-                    ),
-                    error="",
-                    exploit=exploit,
-                    tool="curl",
-                ))
+                attempts.append(
+                    CSRFAttempt(
+                        technique="origin_referer",
+                        category="origin_referer",
+                        url=form_url,
+                        method=form.method,
+                        field_detected=form.has_csrf,
+                        cookie_detected=False,
+                        origin_bypassed=origin_bypassed,
+                        token_entropy="",
+                        vulnerable=origin_bypassed,
+                        details=(
+                            f"Cross-origin POST aceito (Status {resp.status_code})"
+                            if origin_bypassed
+                            else f"Cross-origin rejeitado (Status {resp.status_code})"
+                        ),
+                        error="",
+                        exploit=exploit,
+                        tool="curl",
+                    )
+                )
 
             except httpx.RequestError as exc:
-                attempts.append(CSRFAttempt(
-                    technique="origin_referer",
-                    category="origin_referer",
-                    url=form_url,
-                    method=form.method,
-                    field_detected=False,
-                    cookie_detected=False,
-                    origin_bypassed=False,
-                    token_entropy="",
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    CSRFAttempt(
+                        technique="origin_referer",
+                        category="origin_referer",
+                        url=form_url,
+                        method=form.method,
+                        field_detected=False,
+                        cookie_detected=False,
+                        origin_bypassed=False,
+                        token_entropy="",
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
     return attempts
 
@@ -406,25 +424,23 @@ async def _test_token_analysis(
 
             vulnerable = entropy in ("low_entropy", "sequential", "low_entropy")
 
-            details = (
-                f"Token '{form.csrf_field_name}' = '{token_value[:20]}...' ({entropy})"
-                if token_value
-                else f"Campo '{form.csrf_field_name}' vazio"
-            )
+            details = f"Token '{form.csrf_field_name}' = '{token_value[:20]}...' ({entropy})" if token_value else f"Campo '{form.csrf_field_name}' vazio"
 
-            attempts.append(CSRFAttempt(
-                technique="token_analysis",
-                category="token_analysis",
-                url=url,
-                method=form.method,
-                field_detected=True,
-                cookie_detected=False,
-                origin_bypassed=False,
-                token_entropy=entropy,
-                vulnerable=vulnerable,
-                details=details,
-                error="",
-            ))
+            attempts.append(
+                CSRFAttempt(
+                    technique="token_analysis",
+                    category="token_analysis",
+                    url=url,
+                    method=form.method,
+                    field_detected=True,
+                    cookie_detected=False,
+                    origin_bypassed=False,
+                    token_entropy=entropy,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
 
     return attempts
 
@@ -611,7 +627,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", nargs="?", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=["form_detection", "cookie_analysis", "origin_referer", "token_analysis", "all"],
         default="all",
         help="Categoria de testes (default: all)",

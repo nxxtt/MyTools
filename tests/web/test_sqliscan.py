@@ -46,7 +46,7 @@ class TestDetectDbError:
         assert _detect_db_error(body) == "oracle"
 
     def test_sqlite(self) -> None:
-        body = b"SQLITE_ERROR: unrecognized token: \"xyz\""
+        body = b'SQLITE_ERROR: unrecognized token: "xyz"'
         assert _detect_db_error(body) == "sqlite"
 
     def test_no_error(self) -> None:
@@ -132,28 +132,46 @@ class TestBuildParser:
 class TestSQLiAttempt:
     def test_frozen(self) -> None:
         a = SQLiAttempt(
-            technique="error", category="error",
-            injection_point="id", url="http://test.com",
-            payload="'", status_baseline=200, status_test=500,
-            size_baseline=100, size_test=500,
-            time_baseline=0.1, time_test=0.1,
-            db_detected="mysql", content_match=True,
-            timing_match=False, vulnerable=True,
-            details="DB detectado: mysql", error="",
+            technique="error",
+            category="error",
+            injection_point="id",
+            url="http://test.com",
+            payload="'",
+            status_baseline=200,
+            status_test=500,
+            size_baseline=100,
+            size_test=500,
+            time_baseline=0.1,
+            time_test=0.1,
+            db_detected="mysql",
+            content_match=True,
+            timing_match=False,
+            vulnerable=True,
+            details="DB detectado: mysql",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.vulnerable = False  # type: ignore[misc]
 
     def test_exploit_default(self) -> None:
         a = SQLiAttempt(
-            technique="error", category="error",
-            injection_point="id", url="http://test.com",
-            payload="'", status_baseline=200, status_test=500,
-            size_baseline=100, size_test=500,
-            time_baseline=0.1, time_test=0.1,
-            db_detected="mysql", content_match=True,
-            timing_match=False, vulnerable=True,
-            details="", error="",
+            technique="error",
+            category="error",
+            injection_point="id",
+            url="http://test.com",
+            payload="'",
+            status_baseline=200,
+            status_test=500,
+            size_baseline=100,
+            size_test=500,
+            time_baseline=0.1,
+            time_test=0.1,
+            db_detected="mysql",
+            content_match=True,
+            timing_match=False,
+            vulnerable=True,
+            details="",
+            error="",
         )
         assert a.exploit == ""
         assert a.tool == ""
@@ -200,18 +218,29 @@ class TestSQLiResult:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = SQLiResult(
-            target="http://test.com", baseline_status=200, baseline_size=100,
-            tls=False, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="secure",
+            target="http://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         assert "SECURE" in capsys.readouterr().out
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = SQLiResult(
-            target="http://test.com", baseline_status=200, baseline_size=100,
-            tls=False, attempts=[], vulnerable_techniques=["error"],
-            blocked_techniques=[], issues=["1 payload(s) confirmado(s)"],
+            target="http://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=["error"],
+            blocked_techniques=[],
+            issues=["1 payload(s) confirmado(s)"],
             overall_status="vulnerable",
         )
         print_results(r)
@@ -311,7 +340,10 @@ class TestBooleanBlind:
             async with client:
                 baseline = (200, 1000, b"<html>ok</html>", 0.1)
                 return await _test_boolean_blind(
-                    client, "http://test.com/?id=1", ["id"], baseline,
+                    client,
+                    "http://test.com/?id=1",
+                    ["id"],
+                    baseline,
                     pairs=[["' AND 1=1--", "' AND 1=2--"]],
                 )
 
@@ -338,7 +370,10 @@ class TestBooleanBlind:
             async with client:
                 baseline = (200, 1000, b"<html>ok</html>", 0.1)
                 return await _test_boolean_blind(
-                    client, "http://test.com/?id=1", ["id"], baseline,
+                    client,
+                    "http://test.com/?id=1",
+                    ["id"],
+                    baseline,
                     pairs=[["' AND 1=1--", "' AND 1=2--"]],
                 )
 
@@ -368,15 +403,15 @@ class TestTimeBlind:
 
             with patch("mytools.web.sqliscan.time") as mock_time:
                 call_n = [0]
-                mock_time.monotonic.side_effect = lambda: (
-                    (call_n.__setitem__(0, call_n[0] + 1) or 0.0) or
-                    (4.0 if call_n[0] % 2 == 0 else 0.1)
-                )
+                mock_time.monotonic.side_effect = lambda: (call_n.__setitem__(0, call_n[0] + 1) or 0.0) or (4.0 if call_n[0] % 2 == 0 else 0.1)
 
                 async with client:
                     baseline = (200, 1000, b"<html>ok</html>", 0.1)
                     return await _test_time_blind(
-                        client, "http://test.com/?id=1", ["id"], baseline,
+                        client,
+                        "http://test.com/?id=1",
+                        ["id"],
+                        baseline,
                         payloads=["' AND SLEEP(3)--"],
                     )
 
@@ -402,7 +437,10 @@ class TestTimeBlind:
                 async with client:
                     baseline = (200, 1000, b"<html>ok</html>", 0.1)
                     return await _test_time_blind(
-                        client, "http://test.com/?id=1", ["id"], baseline,
+                        client,
+                        "http://test.com/?id=1",
+                        ["id"],
+                        baseline,
                         payloads=["' AND SLEEP(3)--"],
                     )
 
@@ -432,7 +470,10 @@ class TestUnion:
             async with client:
                 baseline = (200, 1000, b"<html>ok</html>", 0.1)
                 return await _test_union(
-                    client, "http://test.com/?id=1", ["id"], baseline,
+                    client,
+                    "http://test.com/?id=1",
+                    ["id"],
+                    baseline,
                     payloads=["' UNION SELECT NULL--", "' UNION SELECT NULL,NULL--"],
                 )
 

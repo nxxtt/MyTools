@@ -160,14 +160,27 @@ def _method_count(refl: dict[str, Any]) -> int:
 
 
 def _make_attempt(
-    tech: str, cat: str, desc: str, vuln: bool, details: str, error: str,
-    endpoint: str, refl: dict[str, Any], code: int = 200,
+    tech: str,
+    cat: str,
+    desc: str,
+    vuln: bool,
+    details: str,
+    error: str,
+    endpoint: str,
+    refl: dict[str, Any],
+    code: int = 200,
 ) -> GrpcAttackAttempt:
     return GrpcAttackAttempt(
-        technique=tech, category=cat, description=desc,
-        vulnerable=vuln, details=details, error=error,
-        endpoint=endpoint, services_found=_svc_count(refl),
-        methods_found=_method_count(refl), response_code=code,
+        technique=tech,
+        category=cat,
+        description=desc,
+        vulnerable=vuln,
+        details=details,
+        error=error,
+        endpoint=endpoint,
+        services_found=_svc_count(refl),
+        methods_found=_method_count(refl),
+        response_code=code,
         exploit="grpcurl reflection <TARGET>",
         tool="grpcurl",
     )
@@ -308,7 +321,12 @@ async def _test_grpc_web(host: str, port: int, path: str, timeout: float, tls: b
     results: list[GrpcAttackAttempt] = []
     scheme = "https" if tls else "http"
     base = f"{scheme}://{host}:{port}" if port not in (80, 443) else f"{scheme}://{host}"
-    for tech, desc in [("web_bypass", "gRPC-Web bypass"), ("web_cors_abuse", "CORS abuse"), ("web_origin_spoof", "Origin spoof"), ("web_proxy_abuse", "Proxy abuse")]:
+    for tech, desc in [
+        ("web_bypass", "gRPC-Web bypass"),
+        ("web_cors_abuse", "CORS abuse"),
+        ("web_origin_spoof", "Origin spoof"),
+        ("web_proxy_abuse", "Proxy abuse"),
+    ]:
         try:
             async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=True) as client:
                 if tech == "web_bypass":
@@ -316,14 +334,20 @@ async def _test_grpc_web(host: str, port: int, path: str, timeout: float, tls: b
                     acao = resp.headers.get("access-control-allow-origin", "")
                     vuln, det = acao in ("*", "http://evil.com"), f"ACAO: {acao or 'not set'}"
                 elif tech == "web_cors_abuse":
-                    resp = await client.post(base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web", "Origin": "https://evil.com"})
+                    resp = await client.post(
+                        base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web", "Origin": "https://evil.com"}
+                    )
                     acao = resp.headers.get("access-control-allow-origin", "")
                     vuln, det = acao in ("*", "https://evil.com"), f"CORS: {acao or 'not set'}"
                 elif tech == "web_origin_spoof":
-                    resp = await client.post(base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web+proto", "Origin": "https://internal.company.com"})
+                    resp = await client.post(
+                        base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web+proto", "Origin": "https://internal.company.com"}
+                    )
                     vuln, det = resp.status_code == 200, f"Origin spoof: {resp.status_code}"
                 else:
-                    resp = await client.post(base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web", "X-Forwarded-For": "127.0.0.1"})
+                    resp = await client.post(
+                        base, content=b"\x00\x00\x00\x00\x00", headers={"Content-Type": "application/grpc-web", "X-Forwarded-For": "127.0.0.1"}
+                    )
                     vuln, det = resp.status_code == 200, f"Proxy: {resp.status_code}"
             results.append(_make_attempt(tech, "grpc_web", desc, vuln, det, "", endpoint, refl))
         except Exception as exc:
@@ -341,7 +365,13 @@ async def _test_protobuf(host: str, port: int, path: str, timeout: float, tls: b
         "oneof_confusion": b"\x0a\x02hi\x0a\x02hi",
         "enum_overflow": b"\x08\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01",
     }
-    for tech, desc in [("field_manipulation", "Field manipulation"), ("varint_overflow", "Varint overflow"), ("nested_message_abuse", "Nested abuse"), ("oneof_confusion", "Oneof confusion"), ("enum_overflow", "Enum overflow")]:
+    for tech, desc in [
+        ("field_manipulation", "Field manipulation"),
+        ("varint_overflow", "Varint overflow"),
+        ("nested_message_abuse", "Nested abuse"),
+        ("oneof_confusion", "Oneof confusion"),
+        ("enum_overflow", "Enum overflow"),
+    ]:
         try:
             vuln, det = await _try_call(target, tls, "/grpc.health.v1.Health/Check", payloads[tech], timeout)
             results.append(_make_attempt(tech, "protobuf", desc, vuln, det, "", endpoint, refl))
@@ -415,11 +445,18 @@ async def run_scan(target: str, categories: list[str] | None, timeout: float, ou
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
     overall = "vulnerable" if vuln_techs else "secure"
     result = GrpcAttackResult(
-        target=target, host=host, port=port, tls=tls, endpoint=endpoint,
+        target=target,
+        host=host,
+        port=port,
+        tls=tls,
+        endpoint=endpoint,
         reflection_enabled=refl.get("available", False),
-        services_count=_svc_count(refl), methods_count=_method_count(refl),
-        attempts=all_attempts, vulnerable_techniques=vuln_techs,
-        issues=issues, overall_status=overall,
+        services_count=_svc_count(refl),
+        methods_count=_method_count(refl),
+        attempts=all_attempts,
+        vulnerable_techniques=vuln_techs,
+        issues=issues,
+        overall_status=overall,
     )
     print_results(result)
     if output_file:
@@ -439,7 +476,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
-    result = safe_asyncio_run(run_scan(target=args.url, categories=getattr(args, "categories", None), timeout=getattr(args, "timeout", 5.0), output_file=getattr(args, "output", None)))
+    result = safe_asyncio_run(
+        run_scan(
+            target=args.url, categories=getattr(args, "categories", None), timeout=getattr(args, "timeout", 5.0), output_file=getattr(args, "output", None)
+        )
+    )
     return 1 if result.overall_status == "vulnerable" else 0
 
 

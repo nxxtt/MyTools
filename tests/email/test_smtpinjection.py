@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de SMTP Header Injection."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,8 +18,7 @@ from mytools.email.smtpinjection import (
 
 class TestInjectionAttempt:
     def test_frozen(self) -> None:
-        a = InjectionAttempt(field="To", payload_name="crlf", payload="x",
-                             status="blocked", server_response="501", error="")
+        a = InjectionAttempt(field="To", payload_name="crlf", payload="x", status="blocked", server_response="501", error="")
         with pytest.raises(AttributeError):
             a.field = "x"  # type: ignore[misc]
 
@@ -28,9 +28,7 @@ class TestInjectionAttempt:
 
 class TestInjectionResult:
     def test_frozen(self) -> None:
-        r = InjectionResult(target="a", port=25, tls=False, banner="",
-                            ehlo_response="", attempts=[], vulnerable_fields=[],
-                            issues=[])
+        r = InjectionResult(target="a", port=25, tls=False, banner="", ehlo_response="", attempts=[], vulnerable_fields=[], issues=[])
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
 
@@ -97,6 +95,7 @@ class TestConnectSmtp:
     @patch("mytools.email.smtpinjection.smtplib.SMTP")
     def test_connect_failure(self, mock_smtp: MagicMock) -> None:
         import smtplib
+
         mock_smtp.side_effect = smtplib.SMTPConnectError(421, b"Service unavailable")
         with pytest.raises(ConnectionError, match="Falha ao conectar"):
             _connect_smtp("bad.host", 25, 5.0, False)
@@ -120,49 +119,47 @@ class TestTestInjection:
 
     def test_injected(self) -> None:
         server = self._make_server()
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header",
-                                  "\r\nX-Injected: test")
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
         assert attempt.status == "injected"
 
     def test_blocked(self) -> None:
         import smtplib
+
         exc = smtplib.SMTPDataError(501, b"Bad syntax")
         server = self._make_server(sendmail_exc=exc)
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header",
-                                  "\r\nX-Injected: test")
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
         assert attempt.status == "blocked"
         assert "501" in attempt.server_response
 
     def test_blocked_554(self) -> None:
         import smtplib
+
         exc = smtplib.SMTPDataError(554, b"Transaction failed")
         server = self._make_server(sendmail_exc=exc)
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header",
-                                  "\r\nX-Injected: test")
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
         assert attempt.status == "blocked"
         assert "554" in attempt.server_response
 
     def test_blocked_556(self) -> None:
         import smtplib
+
         exc = smtplib.SMTPDataError(556, b"Domain does not accept mail")
         server = self._make_server(sendmail_exc=exc)
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header",
-                                  "\r\nX-Injected: test")
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test")
         assert attempt.status == "blocked"
         assert "556" in attempt.server_response
 
     def test_smtp_exception(self) -> None:
         import smtplib
+
         server = self._make_server(sendmail_exc=smtplib.SMTPException("fail"))
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "Subject", "crlf_bcc",
-                                  "\r\nBCC: evil@x.com")
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "Subject", "crlf_bcc", "\r\nBCC: evil@x.com")
         assert attempt.status == "error"
         assert "fail" in attempt.error
 
     def test_os_error_timeout(self) -> None:
         server = self._make_server(sendmail_exc=OSError("timed out"))
-        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_body",
-                                  "\r\n\r\nINJECTED")
+        attempt = _test_injection(server, "a@b.com", "x@y.com", "To", "crlf_body", "\r\n\r\nINJECTED")
         assert attempt.status == "timeout"
 
 
@@ -180,8 +177,12 @@ class TestScanSmtpInjection:
         mock_server = MagicMock()
         mock_connect.return_value = (mock_server, "banner", "ehlo")
         mock_inject.return_value = InjectionAttempt(
-            field="To", payload_name="crlf", payload="x",
-            status="blocked", server_response="501", error="",
+            field="To",
+            payload_name="crlf",
+            payload="x",
+            status="blocked",
+            server_response="501",
+            error="",
         )
         result = scan_smtp_injection("safe.host", 587)
         assert len(result.vulnerable_fields) == 0
@@ -195,10 +196,9 @@ class TestScanSmtpInjection:
 
         def side_effect(server, from_a, to_a, field, pname, payload):
             if field == "To":
-                return InjectionAttempt(field=field, payload_name=pname, payload=payload,
-                                        status="injected", server_response="250", error="")
-            return InjectionAttempt(field=field, payload_name=pname, payload=payload,
-                                    status="blocked", server_response="501", error="")
+                return InjectionAttempt(field=field, payload_name=pname, payload=payload, status="injected", server_response="250", error="")
+            return InjectionAttempt(field=field, payload_name=pname, payload=payload, status="blocked", server_response="501", error="")
+
         mock_inject.side_effect = side_effect
         result = scan_smtp_injection("vuln.host", 587)
         assert "To" in result.vulnerable_fields
@@ -216,10 +216,12 @@ class TestScanSmtpInjection:
 class TestPrintResults:
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = InjectionResult(
-            target="vuln.host", port=587, tls=True, banner="ESMTP",
+            target="vuln.host",
+            port=587,
+            tls=True,
+            banner="ESMTP",
             ehlo_response="250-SIZE",
-            attempts=[InjectionAttempt("To", "crlf", "\r\nX-Injected: t",
-                                       "injected", "250", "")],
+            attempts=[InjectionAttempt("To", "crlf", "\r\nX-Injected: t", "injected", "250", "")],
             vulnerable_fields=["To"],
             issues=["INJECAO DETECTADA"],
         )
@@ -229,10 +231,12 @@ class TestPrintResults:
 
     def test_safe(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = InjectionResult(
-            target="safe.host", port=587, tls=True, banner="ESMTP",
+            target="safe.host",
+            port=587,
+            tls=True,
+            banner="ESMTP",
             ehlo_response="250",
-            attempts=[InjectionAttempt("To", "crlf", "x",
-                                       "blocked", "501", "")],
+            attempts=[InjectionAttempt("To", "crlf", "x", "blocked", "501", "")],
             vulnerable_fields=[],
             issues=["Nenhuma injecao detectada"],
         )

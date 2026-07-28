@@ -69,7 +69,6 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.dnstransfer")
 
 
-
 BANNER_ART = r"""
 
  ____  _   _ _____     _   ___  _  __
@@ -85,23 +84,14 @@ BANNER_ART = r"""
 """
 
 
-
 AXFR_TIMEOUT = 10
-
-
-
 
 
 banner = create_banner(BANNER_ART, "   DNS zone transfer (AXFR) scanner")
 
 
-
-
-
 @dataclass(frozen=True, slots=True)
-
 class XfrResult:
-
     """Resultado de uma tentativa de zone transfer contra um nameserver."""
 
     domain: str
@@ -125,11 +115,7 @@ class XfrResult:
     tool: str = ""
 
 
-
-
-
 def get_nameservers(domain: str) -> list[str]:
-
     """Consulta os nameservers (NS) autoritativos para um domínio.
 
 
@@ -147,35 +133,27 @@ def get_nameservers(domain: str) -> list[str]:
     """
 
     try:
-
         answer = dns.resolver.resolve(domain, "NS")
 
         return sorted(str(rr.target).rstrip(".") for rr in answer)
 
     except dns.resolver.NoAnswer:
-
         logger.debug("nenhum registro NS encontrado para %s", domain)
 
         return []
 
     except dns.resolver.NXDOMAIN:
-
         logger.debug("dominio %s nao existe (NXDOMAIN)", domain)
 
         return []
 
     except dns.exception.DNSException as error:
-
         logger.debug("erro ao resolver NS para %s: %s", domain, error)
 
         return []
 
 
-
-
-
 def resolve_ns_to_ip(ns_hostname: str) -> str:
-
     """Resolve o hostname de um nameserver em seu endereço IP.
 
 
@@ -199,31 +177,20 @@ def resolve_ns_to_ip(ns_hostname: str) -> str:
     """
 
     try:
-
         answers = dns.resolver.resolve(ns_hostname, "A")
 
         return str(answers[0])
 
     except dns.exception.DNSException as error:
-
         raise ValueError(f"nao foi possivel resolver {ns_hostname}: {error}") from error
 
 
-
-
-
 def try_zone_transfer(
-
     domain: str,
-
     ns_hostname: str,
-
     ns_ip: str,
-
     timeout: float = AXFR_TIMEOUT,
-
 ) -> XfrResult:
-
     """Tenta realizar um zone transfer (AXFR) contra um nameserver.
 
 
@@ -249,25 +216,16 @@ def try_zone_transfer(
     start = time.monotonic()
 
     try:
-
         zone = dns.query.inbound_xfr(
-
             ns_ip,
-
             domain,  # pyright: ignore[reportArgumentType]
-
             timeout=timeout,
-
             lifetime=timeout,
-
         )
 
         elapsed = time.monotonic() - start
 
-
-
         if zone is None:
-
             return XfrResult(
                 domain=domain,
                 nameserver=ns_hostname,
@@ -275,45 +233,29 @@ def try_zone_transfer(
                 zone_transferred=False,
                 error="nameserver retornou zona vazia",
                 elapsed=elapsed,
-                exploit="", tool="",
+                exploit="",
+                tool="",
             )
-
 
         records: list[str] = []
 
         for name, node in zone.nodes.items():  # pyright: ignore[reportGeneralTypeIssues]
-
             for rdataset in node.rdatasets:
-
                 records.extend(f"{name} {dns.rdatatype.to_text(rdataset.rdtype)} {rdata}" for rdata in rdataset)
 
-
         return XfrResult(
-
             domain=domain,
-
             nameserver=ns_hostname,
-
             ns_ip=ns_ip,
-
             zone_transferred=True,
-
             record_count=len(records),
-
             records=sorted(records),
-
             elapsed=elapsed,
-
             exploit=f"dig axfr {domain} @{ns_hostname}",
-
             tool="dig",
-
         )
 
-
-
     except dns.exception.FormError as error:
-
         elapsed = time.monotonic() - start
 
         return XfrResult(
@@ -323,28 +265,23 @@ def try_zone_transfer(
             zone_transferred=False,
             error=f"AXFR recusado (FormError): {error}",
             elapsed=elapsed,
-            exploit="", tool="",
+            exploit="",
+            tool="",
         )
     except dns.exception.Timeout as error:
-
         elapsed = time.monotonic() - start
 
         return XfrResult(
-
             domain=domain,
-
             nameserver=ns_hostname,
-
             ns_ip=ns_ip,
-
             zone_transferred=False,
-
             error=f"timeout apos {timeout}s: {error}",
             elapsed=elapsed,
-            exploit="", tool="",
+            exploit="",
+            tool="",
         )
     except dns.exception.DNSException as error:
-
         elapsed = time.monotonic() - start
 
         return XfrResult(
@@ -354,42 +291,27 @@ def try_zone_transfer(
             zone_transferred=False,
             error=f"erro DNS: {error}",
             elapsed=elapsed,
-            exploit="", tool="",
+            exploit="",
+            tool="",
         )
     except Exception as error:
-
         elapsed = time.monotonic() - start
 
         return XfrResult(
-
             domain=domain,
-
             nameserver=ns_hostname,
-
             ns_ip=ns_ip,
-
             zone_transferred=False,
-
             error=f"erro inesperado: {error}",
-
             elapsed=elapsed,
-
             exploit="",
-
         )
 
 
-
-
-
 def run_xfr_scan(
-
     domain: str,
-
     timeout: float = AXFR_TIMEOUT,
-
 ) -> list[XfrResult]:
-
     """Executa o scan completo de zone transfer para todas as nameservers de um domínio.
 
 
@@ -411,102 +333,73 @@ def run_xfr_scan(
     domain = domain.strip().lower()
 
     if not domain:
-
         raise ValueError("informe um dominio valido")
-
-
 
     ns_list = get_nameservers(domain)
 
     if not ns_list:
-
         logger.error("Nenhum nameserver encontrado para %s", domain)
 
         return []
     logger.info("Nameservers encontrados: %d", len(ns_list))
 
     for ns in ns_list:
-
         logger.info("    -> %s", ns)
 
     print()
 
-
-
     results: list[XfrResult] = []
 
     for ns in ns_list:
-
         try:
-
             ns_ip = resolve_ns_to_ip(ns)
 
         except ValueError as error:
             logger.error("%s: %s", ns, error)
-            results.append(XfrResult(
-
-                domain=domain,
-
-                nameserver=ns,
-
-                ns_ip="",
-
-                zone_transferred=False,
-
-                error=str(error),
-
-                exploit="",
-
-            ))
+            results.append(
+                XfrResult(
+                    domain=domain,
+                    nameserver=ns,
+                    ns_ip="",
+                    zone_transferred=False,
+                    error=str(error),
+                    exploit="",
+                )
+            )
 
             continue
-
-
 
         logger.info("Testando AXFR em %s (%s)...", ns, ns_ip)
         result = try_zone_transfer(domain, ns, ns_ip, timeout)
         results.append(result)
 
-
-
         if result.zone_transferred:
-
             logger.warning("VULNERAVEL!")
 
         else:
-
             logger.info("recusado")
-
-
 
     return results
 
 
-
-
-
 def _print_results(results: list[XfrResult]) -> None:
-
     """Exibe os resultados em formato de tabela no terminal."""
 
     vulnerable = [r for r in results if r.zone_transferred]
 
-
-
     if vulnerable:
-
         print()
 
-        print(color("[!]", Cyber.RED, Cyber.BOLD), color(
-
-            f"ZONA TRANSFER PERMITIDA! {len(vulnerable)} nameserver(s) vulneravel(is)!",
-
-            Cyber.RED, Cyber.BOLD,
-
-        ))
+        print(
+            color("[!]", Cyber.RED, Cyber.BOLD),
+            color(
+                f"ZONA TRANSFER PERMITIDA! {len(vulnerable)} nameserver(s) vulneravel(is)!",
+                Cyber.RED,
+                Cyber.BOLD,
+            ),
+        )
 
         for result in vulnerable:
-
             print()
 
             print(color("  Nameserver:", Cyber.CYAN, Cyber.BOLD), color(result.nameserver, Cyber.WHITE))
@@ -518,53 +411,39 @@ def _print_results(results: list[XfrResult]) -> None:
             print(color("  Tempo:", Cyber.CYAN, Cyber.BOLD), color(f"{result.elapsed:.2f}s", Cyber.YELLOW))
 
             if result.records:
-
                 print(color("  Primeiros registros:", Cyber.CYAN))
 
                 for record in result.records[:20]:
-
                     print(color(f"    {record}", Cyber.GRAY))
 
                 if len(result.records) > 20:
-
                     print(color(f"    ... e mais {len(result.records) - 20} registros", Cyber.GRAY))
 
             print_exploit_info(result.exploit, result.tool)
 
     else:
-
         print()
 
-        print(color("[*]", Cyber.GREEN, Cyber.BOLD), color(
-
-            "Nenhum nameserver permitiu zone transfer.",
-
-            Cyber.GREEN,
-
-        ))
-
-
-
+        print(
+            color("[*]", Cyber.GREEN, Cyber.BOLD),
+            color(
+                "Nenhum nameserver permitiu zone transfer.",
+                Cyber.GREEN,
+            ),
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
-
     """Constrói e retorna o parser de argumentos CLI."""
 
     parser = argparse.ArgumentParser(
-
         description="Scanner de DNS Zone Transfer (AXFR) para detecção de configurações inseguras.",
-
     )
 
     parser.add_argument(
-
         "domain",
-
         nargs="?",
-
         help="Domínio alvo. Ex: example.com",
-
     )
 
     add_base_args(parser, timeout_default=AXFR_TIMEOUT)
@@ -572,29 +451,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-
-
-
 def run_once(args: argparse.Namespace) -> int:
-
     """Executa uma única varredura de zone transfer."""
 
     quiet = init_scanner(args)
 
-
-
     if args.timeout <= 0:
-
         raise ValueError("timeout precisa ser maior que zero")
-
-
 
     domain = args.domain.strip().lower()
 
-
-
     if getattr(args, "dry_run", False):
-
         logger.warning("Nenhuma consulta DNS sera realizada.")
 
         logger.info("Dominio: %s", domain)
@@ -603,104 +470,57 @@ def run_once(args: argparse.Namespace) -> int:
 
         return 0
 
-
-
     start = time.monotonic()
 
     results = run_xfr_scan(domain, timeout=args.timeout)
 
     elapsed = time.monotonic() - start
 
-
-
     if not quiet:
-
         _print_results(results)
 
         logger.info(
             "Finalizado em %.2fs. Nameservers: %d. Vulneraveis: %d.",
-            elapsed, len(results), sum(1 for r in results if r.zone_transferred),
+            elapsed,
+            len(results),
+            sum(1 for r in results if r.zone_transferred),
         )
 
-
-
     if args.output:
-
         rows = [asdict(r) for r in results]
 
         write_output(
-
             args.output,
-
             rows,
-
             ["domain", "nameserver", "ns_ip", "zone_transferred", "record_count", "records", "error", "elapsed"],
-
             quiet=quiet,
-
         )
-
-
 
     return 1 if any(r.zone_transferred for r in results) else 0
 
 
-
-
-
 def main() -> int:
-
     """Ponto de entrada principal do scanner."""
-
-
 
     def _validate(args: argparse.Namespace) -> None:
 
         if not args.domain:
-
             raise ValueError("Informe um dominio alvo.")
 
-
-
     return run_main_loop(
-
         parser=build_parser(),
-
         banner_fn=banner,
-
         run_fn=run_once,
-
         has_target=lambda a: bool(a.domain),
-
         prompt="dnsxfer> ",
-
         description="DNS Zone Transfer Scanner interativo.",
-
         example="example.com -t 15",
-
         validate_fn=_validate,
-
         contextual_help=(
-
-            "Uso: <dominio> [opcoes]\n"
-
-            "Exemplos:\n"
-
-            "  example.com\n"
-
-            "  example.com -t 15 -o xfr.json\n"
-
-            "  Use -l para arquivo com dominios (um por linha)"
-
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -t 15 -o xfr.json\n  Use -l para arquivo com dominios (um por linha)"
         ),
-
     )
 
 
-
-
-
 if __name__ == "__main__":
-
     raise SystemExit(main())
-

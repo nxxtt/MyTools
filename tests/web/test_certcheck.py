@@ -34,10 +34,18 @@ from mytools.web.certcheck import (
 class TestCertCheckAttempt:
     def test_creation(self) -> None:
         a = CertCheckAttempt(
-            technique="ocsp_stapling_check", category="ocsp_stapling",
-            description="desc", vulnerable=False, details="test", error="",
-            cert_issuer="CN=CA", cert_subject="CN=target", cert_expiry="2025",
-            ocsp_status="good", sct_count=3, hsts_preload=True,
+            technique="ocsp_stapling_check",
+            category="ocsp_stapling",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            cert_issuer="CN=CA",
+            cert_subject="CN=target",
+            cert_expiry="2025",
+            ocsp_status="good",
+            sct_count=3,
+            hsts_preload=True,
         )
         assert a.technique == "ocsp_stapling_check"
         assert a.category == "ocsp_stapling"
@@ -45,10 +53,18 @@ class TestCertCheckAttempt:
 
     def test_frozen(self) -> None:
         a = CertCheckAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="",
-            cert_issuer="", cert_subject="", cert_expiry="",
-            ocsp_status="", sct_count=0, hsts_preload=False,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            cert_issuer="",
+            cert_subject="",
+            cert_expiry="",
+            ocsp_status="",
+            sct_count=0,
+            hsts_preload=False,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -57,20 +73,36 @@ class TestCertCheckAttempt:
 class TestCertCheckResult:
     def test_creation(self) -> None:
         r = CertCheckResult(
-            target="https://example.com", host="example.com", port=443, tls=True,
-            cert_issuer="CN=CA", cert_subject="CN=target", cert_expiry="2025",
-            chain_valid=True, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            cert_issuer="CN=CA",
+            cert_subject="CN=target",
+            cert_expiry="2025",
+            chain_valid=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.chain_valid is True
 
     def test_frozen(self) -> None:
         r = CertCheckResult(
-            target="t", host="h", port=443, tls=True,
-            cert_issuer="", cert_subject="", cert_expiry="",
-            chain_valid=False, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            cert_issuer="",
+            cert_subject="",
+            cert_expiry="",
+            chain_valid=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -102,6 +134,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -162,10 +195,10 @@ class TestDetectMixedContent:
         assert len(result["passive_mixed"]) == 0
 
     def test_multiple_active(self) -> None:
-        html = '''
+        html = """
         <script src="http://a.com/x.js"></script>
         <iframe src="http://b.com/frame.html"></iframe>
-        '''
+        """
         result = _detect_mixed_content(html, "https://example.com")
         assert len(result["active_mixed"]) == 2
 
@@ -242,10 +275,18 @@ class TestConstants:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = CertCheckResult(
-            target="https://example.com", host="example.com", port=443, tls=True,
-            cert_issuer="CN=CA", cert_subject="CN=target", cert_expiry="2025",
-            chain_valid=True, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            cert_issuer="CN=CA",
+            cert_subject="CN=target",
+            cert_expiry="2025",
+            chain_valid=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -254,10 +295,18 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = CertCheckResult(
-            target="https://example.com", host="example.com", port=443, tls=True,
-            cert_issuer="CN=CA", cert_subject="CN=target", cert_expiry="2025",
-            chain_valid=False, attempts=[], vulnerable_techniques=["expired"],
-            issues=["Errors: test_error"], overall_status="vulnerable",
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            cert_issuer="CN=CA",
+            cert_subject="CN=target",
+            cert_expiry="2025",
+            chain_valid=False,
+            attempts=[],
+            vulnerable_techniques=["expired"],
+            issues=["Errors: test_error"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

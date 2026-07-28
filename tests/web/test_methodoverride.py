@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de HTTP Method Override."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -173,22 +174,40 @@ class TestCheckResponseContent:
 class TestOverrideAttempt:
     def test_frozen(self) -> None:
         a = OverrideAttempt(
-            technique="test", category="header", header_name="X-Method",
-            header_value="DELETE", method="GET", status_baseline=403,
-            status_test=200, size_baseline=100, size_test=200,
-            status_changed=True, size_changed=True, vulnerable=True,
-            details="test", error="",
+            technique="test",
+            category="header",
+            header_name="X-Method",
+            header_value="DELETE",
+            method="GET",
+            status_baseline=403,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=True,
+            size_changed=True,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         a = OverrideAttempt(
-            technique="test", category="header", header_name="X-Method",
-            header_value="DELETE", method="GET", status_baseline=403,
-            status_test=200, size_baseline=100, size_test=200,
-            status_changed=True, size_changed=True, vulnerable=True,
-            details="test", error="",
+            technique="test",
+            category="header",
+            header_name="X-Method",
+            header_value="DELETE",
+            method="GET",
+            status_baseline=403,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=True,
+            size_changed=True,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
@@ -196,10 +215,15 @@ class TestOverrideAttempt:
 class TestOverrideResult:
     def test_frozen(self) -> None:
         r = OverrideResult(
-            target="https://test.com", baseline_status=403,
-            baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            baseline_status=403,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -223,6 +247,7 @@ class TestBaseline:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -245,7 +270,9 @@ class TestHeader:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_header(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         vuln = [r for r in results if r.vulnerable]
@@ -255,13 +282,16 @@ class TestHeader:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_header(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         assert all(r.error for r in results)
@@ -280,7 +310,9 @@ class TestParam:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_param(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         assert all(r.category == "param" for r in results)
@@ -288,13 +320,16 @@ class TestParam:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_param(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         assert all(r.error for r in results)
@@ -313,7 +348,9 @@ class TestBody:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_body(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         assert all(r.category == "body" for r in results)
@@ -321,13 +358,16 @@ class TestBody:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_body(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         assert all(r.error for r in results)
@@ -346,7 +386,9 @@ class TestBypass:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_bypass(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         assert all(r.category == "bypass" for r in results)
@@ -365,7 +407,9 @@ class TestVerb:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_verb(
-            mock_client, "https://test.com", (403, 100, b"forbidden"),
+            mock_client,
+            "https://test.com",
+            (403, 100, b"forbidden"),
         )
         assert len(results) == 20
         assert all(r.category == "verb" for r in results)
@@ -381,7 +425,9 @@ class TestVerb:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_verb(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         for r in results:
             assert "->" in r.method
@@ -391,18 +437,31 @@ class TestVerb:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = OverrideResult(
-            target="https://test.com", baseline_status=403,
-            baseline_size=100, tls=True,
-            attempts=[OverrideAttempt(
-                technique="x_method_override", category="header",
-                header_name="X-HTTP-Method-Override", header_value="DELETE",
-                method="GET", status_baseline=403, status_test=200,
-                size_baseline=100, size_test=200, status_changed=True,
-                size_changed=True, vulnerable=True,
-                details="path=/admin", error="",
-            )],
+            target="https://test.com",
+            baseline_status=403,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                OverrideAttempt(
+                    technique="x_method_override",
+                    category="header",
+                    header_name="X-HTTP-Method-Override",
+                    header_value="DELETE",
+                    method="GET",
+                    status_baseline=403,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=True,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="path=/admin",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["x_method_override"],
-            blocked_techniques=[], issues=[],
+            blocked_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -412,10 +471,15 @@ class TestPrintResults:
 
     def test_no_vulns_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = OverrideResult(
-            target="https://test.com", baseline_status=200,
-            baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -423,9 +487,13 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = OverrideResult(
-            target="https://test.com", baseline_status=200,
-            baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
             issues=["Nenhum teste retornou resultado claro"],
             overall_status="unknown",
         )
@@ -467,6 +535,7 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
         from mytools.web.methodoverride import run_once
+
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()

@@ -339,9 +339,7 @@ class TestScanPath:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_finding_on_match(self, async_client):
-        respx.get("http://example.com/admin").mock(
-            return_value=httpx.Response(200, content=b"<title>Admin</title>", headers={"Content-Type": "text/html"})
-        )
+        respx.get("http://example.com/admin").mock(return_value=httpx.Response(200, content=b"<title>Admin</title>", headers={"Content-Type": "text/html"}))
         client = async_client
         limiter = RateLimiter()
         result = await scan_path(client, limiter, "http://example.com/", "admin", 5.0, {200})
@@ -352,9 +350,7 @@ class TestScanPath:
     @pytest.mark.asyncio
     @respx.mock
     async def test_returns_none_on_status_mismatch(self, async_client):
-        respx.get("http://example.com/admin").mock(
-            return_value=httpx.Response(404, text="not found")
-        )
+        respx.get("http://example.com/admin").mock(return_value=httpx.Response(404, text="not found"))
         client = async_client
         limiter = RateLimiter()
         result = await scan_path(client, limiter, "http://example.com/", "admin", 5.0, {200})
@@ -372,9 +368,7 @@ class TestScanPath:
     @pytest.mark.asyncio
     @respx.mock
     async def test_custom_method(self, async_client):
-        respx.post("http://example.com/api").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
+        respx.post("http://example.com/api").mock(return_value=httpx.Response(200, json={"ok": True}))
         client = async_client
         limiter = RateLimiter()
         result = await scan_path(client, limiter, "http://example.com/", "api", 5.0, {200}, method="POST")
@@ -543,12 +537,27 @@ class TestMain:
     def test_no_target_shells_interactive(self, mock_shell):
         mock_shell.return_value = 0
         from mytools.network.dirscanner import main
+
         args = argparse.Namespace(
-            url=None, target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            concurrency=40, method="GET", status=frozenset({200, 301, 403}),
-            wordlist=None, extensions=[], filter_size=None, filter_words=None,
-            output_dir=None, retries=3, dry_run=False, verify=False,
+            url=None,
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            concurrency=40,
+            method="GET",
+            status=frozenset({200, 301, 403}),
+            wordlist=None,
+            extensions=[],
+            filter_size=None,
+            filter_words=None,
+            output_dir=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
         )
         with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -557,12 +566,27 @@ class TestMain:
 
     def test_quiet_without_output_returns_1(self):
         from mytools.network.dirscanner import main
+
         args = argparse.Namespace(
-            url="http://example.com", target_list=None, quiet=True, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            concurrency=40, method="GET", status=frozenset({200, 301, 403}),
-            wordlist=None, extensions=[], filter_size=None, filter_words=None,
-            output_dir=None, retries=3, dry_run=False, verify=False,
+            url="http://example.com",
+            target_list=None,
+            quiet=True,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            concurrency=40,
+            method="GET",
+            status=frozenset({200, 301, 403}),
+            wordlist=None,
+            extensions=[],
+            filter_size=None,
+            filter_words=None,
+            output_dir=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
         )
         with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -572,12 +596,27 @@ class TestMain:
     def test_valid_url_calls_run_once(self, mock_run_once):
         mock_run_once.return_value = 0
         from mytools.network.dirscanner import main
+
         args = argparse.Namespace(
-            url="http://example.com", target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            concurrency=40, method="GET", status=frozenset({200, 301, 403}),
-            wordlist=None, extensions=[], filter_size=None, filter_words=None,
-            output_dir=None, retries=3, dry_run=False, verify=False,
+            url="http://example.com",
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            concurrency=40,
+            method="GET",
+            status=frozenset({200, 301, 403}),
+            wordlist=None,
+            extensions=[],
+            filter_size=None,
+            filter_words=None,
+            output_dir=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
         )
         with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
@@ -588,14 +627,28 @@ class TestMain:
     def test_exception_returns_1(self, mock_run_once):
         mock_run_once.side_effect = RuntimeError("fail")
         from mytools.network.dirscanner import main
+
         args = argparse.Namespace(
-            url="http://example.com", target_list=None, quiet=False, output=None,
-            verbose=False, color=None, log_file=None, timeout=5.0,
-            concurrency=40, method="GET", status=frozenset({200, 301, 403}),
-            wordlist=None, extensions=[], filter_size=None, filter_words=None,
-            output_dir=None, retries=3, dry_run=False, verify=False,
+            url="http://example.com",
+            target_list=None,
+            quiet=False,
+            output=None,
+            verbose=False,
+            color=None,
+            log_file=None,
+            timeout=5.0,
+            concurrency=40,
+            method="GET",
+            status=frozenset({200, 301, 403}),
+            wordlist=None,
+            extensions=[],
+            filter_size=None,
+            filter_words=None,
+            output_dir=None,
+            retries=3,
+            dry_run=False,
+            verify=False,
         )
         with patch("mytools.network.dirscanner.argparse.ArgumentParser.parse_args", return_value=args):
             result = main()
             assert result == 1
-

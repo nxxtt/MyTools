@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de DNS Amplification Detection."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,8 +19,7 @@ class TestRecordAmplification:
     """Testes do dataclass RecordAmplification."""
 
     def test_frozen(self) -> None:
-        r = RecordAmplification(record_type="A", response_bytes=100,
-                                amplification_factor=2.0, success=True, error="")
+        r = RecordAmplification(record_type="A", response_bytes=100, amplification_factor=2.0, success=True, error="")
         with pytest.raises(AttributeError):
             r.record_type = "B"  # type: ignore[misc]
 
@@ -32,9 +32,14 @@ class TestAmplificationResult:
 
     def test_frozen(self) -> None:
         r = AmplificationResult(
-            domain="a", nameserver="b", recursion_available=False,
-            is_open_resolver=False, records=[], max_amplification=0.0,
-            severity="safe", request_size=50,
+            domain="a",
+            nameserver="b",
+            recursion_available=False,
+            is_open_resolver=False,
+            records=[],
+            max_amplification=0.0,
+            severity="safe",
+            request_size=50,
         )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
@@ -106,13 +111,17 @@ class TestPrintResults:
 
     def test_output_safe(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = AmplificationResult(
-            domain="example.com", nameserver="8.8.8.8",
-            recursion_available=False, is_open_resolver=False,
+            domain="example.com",
+            nameserver="8.8.8.8",
+            recursion_available=False,
+            is_open_resolver=False,
             records=[
                 RecordAmplification("A", 80, 1.6, True, ""),
                 RecordAmplification("ANY", 500, 10.0, True, ""),
             ],
-            max_amplification=10.0, severity="critical", request_size=50,
+            max_amplification=10.0,
+            severity="critical",
+            request_size=50,
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -121,12 +130,16 @@ class TestPrintResults:
 
     def test_output_open_resolver(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = AmplificationResult(
-            domain="test.com", nameserver="1.1.1.1",
-            recursion_available=True, is_open_resolver=True,
+            domain="test.com",
+            nameserver="1.1.1.1",
+            recursion_available=True,
+            is_open_resolver=True,
             records=[
                 RecordAmplification("TXT", 4000, 80.0, True, ""),
             ],
-            max_amplification=80.0, severity="critical", request_size=50,
+            max_amplification=80.0,
+            severity="critical",
+            request_size=50,
         )
         print_results(result)
         out = capsys.readouterr().out
@@ -134,13 +147,17 @@ class TestPrintResults:
 
     def test_output_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = AmplificationResult(
-            domain="bad.com", nameserver="8.8.8.8",
-            recursion_available=False, is_open_resolver=False,
+            domain="bad.com",
+            nameserver="8.8.8.8",
+            recursion_available=False,
+            is_open_resolver=False,
             records=[
                 RecordAmplification("A", 0, 0.0, False, "TIMEOUT"),
                 RecordAmplification("MX", 0, 0.0, False, "NXDOMAIN"),
             ],
-            max_amplification=0.0, severity="safe", request_size=50,
+            max_amplification=0.0,
+            severity="safe",
+            request_size=50,
         )
         print_results(result)
         out = capsys.readouterr().out

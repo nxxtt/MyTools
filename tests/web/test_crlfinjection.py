@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de CRLF Injection."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -180,12 +181,20 @@ class TestCRLFAttempt:
 
     def test_frozen(self) -> None:
         att = CRLFAttempt(
-            technique="t", category="c", url="u", payload="p",
-            status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100,
-            status_changed=False, size_changed=False,
-            injected_headers=[], vulnerable=False,
-            details="d", error="",
+            technique="t",
+            category="c",
+            url="u",
+            payload="p",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            injected_headers=[],
+            vulnerable=False,
+            details="d",
+            error="",
         )
         with pytest.raises(AttributeError):
             att.technique = "new"  # type: ignore[misc]
@@ -229,6 +238,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
@@ -251,7 +261,9 @@ class TestTestParamCRLF:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_param_crlf(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
         assert all(isinstance(a, CRLFAttempt) for a in attempts)
@@ -259,11 +271,14 @@ class TestTestParamCRLF:
     @pytest.mark.asyncio
     async def test_error_handled(self) -> None:
         import httpx
+
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
         attempts = await _test_param_crlf(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
         assert any(a.error for a in attempts)
@@ -282,7 +297,9 @@ class TestTestHeaderCRLF:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_header_crlf(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
 
@@ -300,7 +317,9 @@ class TestTestPathCRLF:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_path_crlf(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
 
@@ -318,7 +337,9 @@ class TestTestSplit:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_split(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) == 4
 
@@ -336,7 +357,9 @@ class TestTestBypass:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_bypass(
-            client, "https://example.com", (200, 100, b"ok"),
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
         )
         assert len(attempts) > 0
 
@@ -384,6 +407,7 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         import re
+
         clean = re.sub(r"\033\[[0-9;]*m", "", captured.out)
         assert "CRLF INJECTION" in clean
 
@@ -402,6 +426,7 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         import re
+
         clean = re.sub(r"\033\[[0-9;]*m", "", captured.out)
         assert "VULNERAVEIS" in clean or "VULNERAVEL" in clean
 
@@ -410,8 +435,7 @@ class TestMain:
     """Testes para main."""
 
     def test_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-crlfinject"]), \
-             patch("mytools.web.crlfinjection.run_main_loop", return_value=1) as mock_loop:
+        with patch("sys.argv", ["mytools-crlfinject"]), patch("mytools.web.crlfinjection.run_main_loop", return_value=1) as mock_loop:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()

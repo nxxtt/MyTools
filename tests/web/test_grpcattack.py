@@ -26,10 +26,16 @@ from mytools.web.grpcattack import (
 class TestGrpcAttackAttempt:
     def test_creation(self) -> None:
         a = GrpcAttackAttempt(
-            technique="reflection_discovery", category="reflection",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="grpc://target.com:50051", services_found=3,
-            methods_found=10, response_code=200,
+            technique="reflection_discovery",
+            category="reflection",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="grpc://target.com:50051",
+            services_found=3,
+            methods_found=10,
+            response_code=200,
         )
         assert a.technique == "reflection_discovery"
         assert a.category == "reflection"
@@ -38,9 +44,16 @@ class TestGrpcAttackAttempt:
 
     def test_frozen(self) -> None:
         a = GrpcAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="",
-            endpoint="", services_found=0, methods_found=0, response_code=0,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="",
+            services_found=0,
+            methods_found=0,
+            response_code=0,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -49,20 +62,36 @@ class TestGrpcAttackAttempt:
 class TestGrpcAttackResult:
     def test_creation(self) -> None:
         r = GrpcAttackResult(
-            target="grpc://target.com:50051", host="target.com", port=50051, tls=False,
-            endpoint="grpc://target.com:50051", reflection_enabled=True,
-            services_count=3, methods_count=10,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="grpc://target.com:50051",
+            host="target.com",
+            port=50051,
+            tls=False,
+            endpoint="grpc://target.com:50051",
+            reflection_enabled=True,
+            services_count=3,
+            methods_count=10,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.reflection_enabled is True
 
     def test_frozen(self) -> None:
         r = GrpcAttackResult(
-            target="t", host="h", port=50051, tls=False,
-            endpoint="", reflection_enabled=False,
-            services_count=0, methods_count=0,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=50051,
+            tls=False,
+            endpoint="",
+            reflection_enabled=False,
+            services_count=0,
+            methods_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -94,6 +123,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -113,6 +143,7 @@ class TestVarint:
 
     def test_roundtrip(self) -> None:
         from mytools.web.grpcattack import _encode_varint
+
         for value in [0, 1, 127, 128, 300, 16384, 2097151]:
             encoded = _encode_varint(value)
             assert len(encoded) > 0
@@ -149,10 +180,18 @@ class TestParseUrl:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = GrpcAttackResult(
-            target="grpc://target.com:50051", host="target.com", port=50051, tls=False,
-            endpoint="grpc://target.com:50051", reflection_enabled=False,
-            services_count=0, methods_count=0,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="grpc://target.com:50051",
+            host="target.com",
+            port=50051,
+            tls=False,
+            endpoint="grpc://target.com:50051",
+            reflection_enabled=False,
+            services_count=0,
+            methods_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -161,11 +200,18 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = GrpcAttackResult(
-            target="grpc://target.com:50051", host="target.com", port=50051, tls=False,
-            endpoint="grpc://target.com:50051", reflection_enabled=True,
-            services_count=3, methods_count=10,
-            attempts=[], vulnerable_techniques=["reflection_discovery"],
-            issues=["Errors: test_error"], overall_status="vulnerable",
+            target="grpc://target.com:50051",
+            host="target.com",
+            port=50051,
+            tls=False,
+            endpoint="grpc://target.com:50051",
+            reflection_enabled=True,
+            services_count=3,
+            methods_count=10,
+            attempts=[],
+            vulnerable_techniques=["reflection_discovery"],
+            issues=["Errors: test_error"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

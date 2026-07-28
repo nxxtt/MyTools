@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de deteccao de backup files."""
+
 import argparse
 
 import httpx
@@ -41,8 +42,12 @@ class TestBackupFile:
 
     def test_all_fields(self):
         b = BackupFile(
-            backup_type="sql", url="http://x.com/dump.sql", path="dump.sql",
-            status=200, detail="SQL dump", raw_size=1024,
+            backup_type="sql",
+            url="http://x.com/dump.sql",
+            path="dump.sql",
+            status=200,
+            detail="SQL dump",
+            raw_size=1024,
         )
         assert b.backup_type == "sql"
         assert b.raw_size == 1024
@@ -267,8 +272,7 @@ class TestPrintResults:
 
     def test_with_results(self, capsys):
         results = [
-            BackupFile(backup_type="sql", url="http://x.com/dump.sql", path="dump.sql",
-                       status=200, detail="SQL dump", raw_size=1024),
+            BackupFile(backup_type="sql", url="http://x.com/dump.sql", path="dump.sql", status=200, detail="SQL dump", raw_size=1024),
         ]
         print_results(results)
         out = capsys.readouterr().out

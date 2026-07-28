@@ -248,10 +248,10 @@ class TorManager:
             sock.settimeout(5)
             sock.connect(("127.0.0.1", self._control_port))
             # AUTHENTICATE com cookie
-            sock.send(b'AUTHENTICATE\r\n')
+            sock.send(b"AUTHENTICATE\r\n")
             response = sock.recv(1024)
             if b"250" in response:
-                sock.send(b'SIGNAL NEWNYM\r\n')
+                sock.send(b"SIGNAL NEWNYM\r\n")
                 response = sock.recv(1024)
                 if b"250" in response:
                     await asyncio.sleep(2)
@@ -361,14 +361,16 @@ def waf_encode_url(url: str) -> str:
     if secrets.randbelow(2) == 0:
         encoded_path = encoded_path.replace("%", "%25")
 
-    return urlunparse((
-        parsed.scheme,
-        parsed.netloc,
-        encoded_path,
-        parsed.params,
-        parsed.query,
-        parsed.fragment,
-    ))
+    return urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            encoded_path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
 
 
 def waf_encode_headers(headers: dict[str, str]) -> dict[str, str]:

@@ -58,18 +58,41 @@ logger = logging.getLogger("mytools.cloudbucketenum")
 # ---------------------------------------------------------------------------
 
 _SUFFIXES_DEFAULT: list[str] = [
-    "", "-backup", "-logs", "-dev", "-staging", "-prod",
-    "-test", "-data", "-assets", "-media", "-static", "-config",
-    "-db", "-archive",
+    "",
+    "-backup",
+    "-logs",
+    "-dev",
+    "-staging",
+    "-prod",
+    "-test",
+    "-data",
+    "-assets",
+    "-media",
+    "-static",
+    "-config",
+    "-db",
+    "-archive",
 ]
 
 _PREFIXES_DEFAULT: list[str] = [
-    "", "backup-", "logs-", "dev-", "staging-", "prod-",
-    "test-", "data-", "assets-", "media-",
+    "",
+    "backup-",
+    "logs-",
+    "dev-",
+    "staging-",
+    "prod-",
+    "test-",
+    "data-",
+    "assets-",
+    "media-",
 ]
 
 _S3_OPEN_DEFAULT: list[str] = [
-    "ListBucketResult", "<Key>", "<Prefix>", "<Delimiter>", "<MaxKeys>",
+    "ListBucketResult",
+    "<Key>",
+    "<Prefix>",
+    "<Delimiter>",
+    "<MaxKeys>",
 ]
 
 _S3_EXISTS_DEFAULT: list[str] = ["NoSuchBucket"]
@@ -77,42 +100,57 @@ _S3_EXISTS_DEFAULT: list[str] = ["NoSuchBucket"]
 _S3_DENIED_DEFAULT: list[str] = ["AccessDenied", "AllAccessDisabled"]
 
 _GCP_OPEN_DEFAULT: list[str] = [
-    "items", "kind", "storage#buckets", "storage#objects",
+    "items",
+    "kind",
+    "storage#buckets",
+    "storage#objects",
 ]
 
 _GCP_NOT_FOUND_DEFAULT: list[str] = [
-    "NoSuchBucket", "Not Found", "The specified bucket does not exist",
+    "NoSuchBucket",
+    "Not Found",
+    "The specified bucket does not exist",
 ]
 
 _AZURE_OPEN_DEFAULT: list[str] = [
-    "EnumerationResults", "<Blobs>", "<Blob>", "<Name>", "<Url>",
+    "EnumerationResults",
+    "<Blobs>",
+    "<Blob>",
+    "<Name>",
+    "<Url>",
 ]
 
 _AZURE_NOT_FOUND_DEFAULT: list[str] = [
-    "BlobNotFound", "NotFound", "The specified container does not exist",
+    "BlobNotFound",
+    "NotFound",
+    "The specified container does not exist",
 ]
 
 
 def _load_payloads() -> dict[str, object]:
     from mytools.data import load_payloads
 
-    return load_payloads("web", "cloud_bucket_enum", default={
-        "suffixes": _SUFFIXES_DEFAULT,
-        "prefixes": _PREFIXES_DEFAULT,
-        "s3_indicators": {
-            "open": _S3_OPEN_DEFAULT,
-            "exists": _S3_EXISTS_DEFAULT,
-            "access_denied": _S3_DENIED_DEFAULT,
+    return load_payloads(
+        "web",
+        "cloud_bucket_enum",
+        default={
+            "suffixes": _SUFFIXES_DEFAULT,
+            "prefixes": _PREFIXES_DEFAULT,
+            "s3_indicators": {
+                "open": _S3_OPEN_DEFAULT,
+                "exists": _S3_EXISTS_DEFAULT,
+                "access_denied": _S3_DENIED_DEFAULT,
+            },
+            "gcp_indicators": {
+                "open": _GCP_OPEN_DEFAULT,
+                "not_found": _GCP_NOT_FOUND_DEFAULT,
+            },
+            "azure_indicators": {
+                "open": _AZURE_OPEN_DEFAULT,
+                "not_found": _AZURE_NOT_FOUND_DEFAULT,
+            },
         },
-        "gcp_indicators": {
-            "open": _GCP_OPEN_DEFAULT,
-            "not_found": _GCP_NOT_FOUND_DEFAULT,
-        },
-        "azure_indicators": {
-            "open": _AZURE_OPEN_DEFAULT,
-            "not_found": _AZURE_NOT_FOUND_DEFAULT,
-        },
-    })
+    )
 
 
 def _get_suffixes() -> list[str]:
@@ -320,32 +358,36 @@ async def _test_s3(
 
             open_b, exists, detail = _check_s3_response(resp.status_code, body, indicators)
 
-            attempts.append(BucketAttempt(
-                provider="s3",
-                bucket_name=bucket_name,
-                url=url,
-                status_code=resp.status_code,
-                response_size=len(resp.content),
-                response_time=round(elapsed, 3),
-                open_bucket=open_b,
-                exists=exists,
-                details=detail,
-            ))
+            attempts.append(
+                BucketAttempt(
+                    provider="s3",
+                    bucket_name=bucket_name,
+                    url=url,
+                    status_code=resp.status_code,
+                    response_size=len(resp.content),
+                    response_time=round(elapsed, 3),
+                    open_bucket=open_b,
+                    exists=exists,
+                    details=detail,
+                )
+            )
 
         except httpx.RequestError as exc:
             elapsed = time.monotonic() - start
-            attempts.append(BucketAttempt(
-                provider="s3",
-                bucket_name=bucket_name,
-                url=url,
-                status_code=0,
-                response_size=0,
-                response_time=round(elapsed, 3),
-                open_bucket=False,
-                exists=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                BucketAttempt(
+                    provider="s3",
+                    bucket_name=bucket_name,
+                    url=url,
+                    status_code=0,
+                    response_size=0,
+                    response_time=round(elapsed, 3),
+                    open_bucket=False,
+                    exists=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
     return attempts
 
@@ -370,32 +412,36 @@ async def _test_gcp(
 
         open_b, exists, detail = _check_gcp_response(resp.status_code, body, indicators)
 
-        attempts.append(BucketAttempt(
-            provider="gcp",
-            bucket_name=bucket_name,
-            url=url,
-            status_code=resp.status_code,
-            response_size=len(resp.content),
-            response_time=round(elapsed, 3),
-            open_bucket=open_b,
-            exists=exists,
-            details=detail,
-        ))
+        attempts.append(
+            BucketAttempt(
+                provider="gcp",
+                bucket_name=bucket_name,
+                url=url,
+                status_code=resp.status_code,
+                response_size=len(resp.content),
+                response_time=round(elapsed, 3),
+                open_bucket=open_b,
+                exists=exists,
+                details=detail,
+            )
+        )
 
     except httpx.RequestError as exc:
         elapsed = time.monotonic() - start
-        attempts.append(BucketAttempt(
-            provider="gcp",
-            bucket_name=bucket_name,
-            url=url,
-            status_code=0,
-            response_size=0,
-            response_time=round(elapsed, 3),
-            open_bucket=False,
-            exists=False,
-            details="",
-            error=str(exc),
-        ))
+        attempts.append(
+            BucketAttempt(
+                provider="gcp",
+                bucket_name=bucket_name,
+                url=url,
+                status_code=0,
+                response_size=0,
+                response_time=round(elapsed, 3),
+                open_bucket=False,
+                exists=False,
+                details="",
+                error=str(exc),
+            )
+        )
 
     return attempts
 
@@ -420,32 +466,36 @@ async def _test_azure(
 
         open_b, exists, detail = _check_azure_response(resp.status_code, body, indicators)
 
-        attempts.append(BucketAttempt(
-            provider="azure",
-            bucket_name=bucket_name,
-            url=url,
-            status_code=resp.status_code,
-            response_size=len(resp.content),
-            response_time=round(elapsed, 3),
-            open_bucket=open_b,
-            exists=exists,
-            details=detail,
-        ))
+        attempts.append(
+            BucketAttempt(
+                provider="azure",
+                bucket_name=bucket_name,
+                url=url,
+                status_code=resp.status_code,
+                response_size=len(resp.content),
+                response_time=round(elapsed, 3),
+                open_bucket=open_b,
+                exists=exists,
+                details=detail,
+            )
+        )
 
     except httpx.RequestError as exc:
         elapsed = time.monotonic() - start
-        attempts.append(BucketAttempt(
-            provider="azure",
-            bucket_name=bucket_name,
-            url=url,
-            status_code=0,
-            response_size=0,
-            response_time=round(elapsed, 3),
-            open_bucket=False,
-            exists=False,
-            details="",
-            error=str(exc),
-        ))
+        attempts.append(
+            BucketAttempt(
+                provider="azure",
+                bucket_name=bucket_name,
+                url=url,
+                status_code=0,
+                response_size=0,
+                response_time=round(elapsed, 3),
+                open_bucket=False,
+                exists=False,
+                details="",
+                error=str(exc),
+            )
+        )
 
     return attempts
 
@@ -607,7 +657,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com)")
     parser.add_argument(
-        "-p", "--providers",
+        "-p",
+        "--providers",
         choices=["s3", "gcp", "azure", "all"],
         default="all",
         help="Provedores para testar (default: all)",

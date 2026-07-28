@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo Business Logic Attack Detection."""
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,9 @@ def test_category_map_has_three_categories() -> None:
 
 def test_category_map_keys() -> None:
     assert _CATEGORY_MAP.keys() == {
-        "integer_overflow", "negative_quantity", "race_condition",
+        "integer_overflow",
+        "negative_quantity",
+        "race_condition",
     }
 
 
@@ -112,7 +115,7 @@ def test_find_checkout_url_with_action() -> None:
 
 
 def test_find_checkout_url_not_found() -> None:
-    body = '<html><body>Safe page</body></html>'
+    body = "<html><body>Safe page</body></html>"
     result = _find_checkout_url("https://example.com", body)
     assert result is None
 
@@ -146,7 +149,7 @@ def test_find_checkout_url_relative_path() -> None:
 
 
 def test_find_checkout_url_no_forms() -> None:
-    body = '<html><body><p>Hello world</p></body></html>'
+    body = "<html><body><p>Hello world</p></body></html>"
     result = _find_checkout_url("https://example.com", body)
     assert result is None
 
@@ -159,7 +162,7 @@ def test_find_checkout_url_action_single_quotes() -> None:
 
 
 def test_find_checkout_url_bare_url_in_text() -> None:
-    body = 'Visit https://example.com/checkout?x=1 to buy'
+    body = "Visit https://example.com/checkout?x=1 to buy"
     result = _find_checkout_url("https://example.com", body)
     assert result is not None
     assert "checkout" in result
@@ -170,11 +173,17 @@ def test_find_checkout_url_bare_url_in_text() -> None:
 
 def test_attempt_dataclass_frozen() -> None:
     a = BizLogicAttempt(
-        technique="test", category="integer_overflow",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=100,
-        status_changed=False, size_changed=False,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="integer_overflow",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=False,
+        size_changed=False,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -182,22 +191,33 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = BizLogicAttempt(
-        technique="test", category="integer_overflow",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=100,
-        status_changed=False, size_changed=False,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="integer_overflow",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=False,
+        size_changed=False,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = BizLogicResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        checkout_url=None, attempts=[],
-        vulnerable_techniques=[], blocked_techniques=[],
-        issues=[], overall_status="safe",
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        checkout_url=None,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     with pytest.raises(AttributeError):
         r.target = "changed"  # type: ignore[reportAttributeAccessIssue]
@@ -205,11 +225,16 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = BizLogicResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        checkout_url=None, attempts=[],
-        vulnerable_techniques=[], blocked_techniques=[],
-        issues=[], overall_status="safe",
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        checkout_url=None,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     assert not hasattr(r, "__dict__")
 
@@ -231,7 +256,11 @@ class TestIntegerOverflowCategory:
     async def test_safe_response(self) -> None:
         client = _mock_client_post(403, "Forbidden")
         results = await _test_integer_overflow_category(
-            client, _CHECKOUT_URL, 10, 200, 100,
+            client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 5
         assert all(not r.vulnerable for r in results)
@@ -241,7 +270,11 @@ class TestIntegerOverflowCategory:
     async def test_vulnerable_response(self) -> None:
         client = _mock_client_post(200, "Your total is overflowed")
         results = await _test_integer_overflow_category(
-            client, _CHECKOUT_URL, 10, 200, 100,
+            client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert any(r.vulnerable for r in results)
 
@@ -250,7 +283,11 @@ class TestIntegerOverflowCategory:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("timeout")
         results = await _test_integer_overflow_category(
-            mock_client, _CHECKOUT_URL, 10, 200, 100,
+            mock_client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 5
         assert all(r.error for r in results)
@@ -262,7 +299,11 @@ class TestNegativeQuantityCategory:
     async def test_safe_response(self) -> None:
         client = _mock_client_post(403, "Forbidden")
         results = await _test_negative_quantity_category(
-            client, _CHECKOUT_URL, 10, 200, 100,
+            client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 5
         assert all(not r.vulnerable for r in results)
@@ -271,7 +312,11 @@ class TestNegativeQuantityCategory:
     async def test_vulnerable_response(self) -> None:
         client = _mock_client_post(200, "total: -50")
         results = await _test_negative_quantity_category(
-            client, _CHECKOUT_URL, 10, 200, 100,
+            client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert any(r.vulnerable for r in results)
 
@@ -280,7 +325,11 @@ class TestNegativeQuantityCategory:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
         results = await _test_negative_quantity_category(
-            mock_client, _CHECKOUT_URL, 10, 200, 100,
+            mock_client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 5
         assert all(r.error for r in results)
@@ -292,7 +341,11 @@ class TestRaceConditionCategory:
         mock_client = AsyncMock()
         mock_client.post.return_value = httpx.Response(403)
         results = await _test_race_condition_category(
-            mock_client, _CHECKOUT_URL, 10, 200, 100,
+            mock_client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 5
         assert all(not r.vulnerable for r in results)
@@ -302,7 +355,11 @@ class TestRaceConditionCategory:
         mock_client = AsyncMock()
         mock_client.post.return_value = httpx.Response(200)
         results = await _test_race_condition_category(
-            mock_client, _CHECKOUT_URL, 10, 200, 100,
+            mock_client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 5
         assert all(r.vulnerable for r in results)
@@ -312,7 +369,11 @@ class TestRaceConditionCategory:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
         results = await _test_race_condition_category(
-            mock_client, _CHECKOUT_URL, 10, 200, 100,
+            mock_client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 5
         assert all(not r.vulnerable for r in results)
@@ -327,8 +388,10 @@ def _make_result(
     overall_status: str = "safe",
 ) -> BizLogicResult:
     return BizLogicResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
         checkout_url=_CHECKOUT_URL,
         attempts=attempts or [],
         vulnerable_techniques=[],
@@ -347,12 +410,19 @@ def test_print_results_no_vulns(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_print_results_with_vulns(capsys: pytest.CaptureFixture[str]) -> None:
     attempt = BizLogicAttempt(
-        technique="price_overflow", category="integer_overflow",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=120,
-        status_changed=False, size_changed=True,
-        vulnerable=True, details="overflow detected", error="",
-        exploit="price_quantity_manipulation", tool="wfuzz",
+        technique="price_overflow",
+        category="integer_overflow",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=120,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="overflow detected",
+        error="",
+        exploit="price_quantity_manipulation",
+        tool="wfuzz",
     )
     result = _make_result(attempts=[attempt], overall_status="vulnerable")
     print_results(result)
@@ -414,11 +484,17 @@ class TestRunScan:
                 mock_fetch.return_value = (200, {}, b"<html>checkout</html>", b"")
                 with patch("mytools.web.businesslogic._CATEGORY_TESTERS") as mock_testers:
                     mock_attempt = BizLogicAttempt(
-                        technique="price_overflow", category="integer_overflow",
-                        status_baseline=200, status_test=200,
-                        size_baseline=100, size_test=120,
-                        status_changed=False, size_changed=True,
-                        vulnerable=True, details="overflow", error="",
+                        technique="price_overflow",
+                        category="integer_overflow",
+                        status_baseline=200,
+                        status_test=200,
+                        size_baseline=100,
+                        size_test=120,
+                        status_changed=False,
+                        size_changed=True,
+                        vulnerable=True,
+                        details="overflow",
+                        error="",
                     )
                     mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
                     result = await run_scan(_TARGET, ["integer_overflow"], 10, None)
@@ -434,11 +510,17 @@ class TestRunScan:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
                 with patch("mytools.web.businesslogic._CATEGORY_TESTERS") as mock_testers:
                     mock_attempt = BizLogicAttempt(
-                        technique="price_overflow", category="integer_overflow",
-                        status_baseline=200, status_test=403,
-                        size_baseline=100, size_test=100,
-                        status_changed=True, size_changed=False,
-                        vulnerable=False, details="", error="",
+                        technique="price_overflow",
+                        category="integer_overflow",
+                        status_baseline=200,
+                        status_test=403,
+                        size_baseline=100,
+                        size_test=100,
+                        status_changed=True,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error="",
                     )
                     mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
                     result = await run_scan(_TARGET, ["integer_overflow"], 10, None)
@@ -496,8 +578,10 @@ class TestRunScan:
 class TestRunOnce:
     def test_extracts_single_category(self) -> None:
         args = argparse.Namespace(
-            url=_TARGET, category="integer_overflow",
-            timeout=10, output=None,
+            url=_TARGET,
+            category="integer_overflow",
+            timeout=10,
+            output=None,
         )
         with patch("mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
             run_once(args)
@@ -505,8 +589,10 @@ class TestRunOnce:
 
     def test_all_category_passes_empty_list(self) -> None:
         args = argparse.Namespace(
-            url=_TARGET, category="all",
-            timeout=10, output=None,
+            url=_TARGET,
+            category="all",
+            timeout=10,
+            output=None,
         )
         with patch("mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
             run_once(args)

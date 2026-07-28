@@ -137,21 +137,50 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
-_HSTS_PRELOAD_DOMAINS = frozenset({
-    "google.com", "www.google.com", "gmail.com", "youtube.com",
-    "facebook.com", "www.facebook.com", "twitter.com", "github.com",
-    "amazon.com", "www.amazon.com", "microsoft.com", "apple.com",
-    "cloudflare.com", "mozilla.org", "wikipedia.org",
-})
+_HSTS_PRELOAD_DOMAINS = frozenset(
+    {
+        "google.com",
+        "www.google.com",
+        "gmail.com",
+        "youtube.com",
+        "facebook.com",
+        "www.facebook.com",
+        "twitter.com",
+        "github.com",
+        "amazon.com",
+        "www.amazon.com",
+        "microsoft.com",
+        "apple.com",
+        "cloudflare.com",
+        "mozilla.org",
+        "wikipedia.org",
+    }
+)
 
-_CT_SPLIT_WORLD_CAS = frozenset({
-    "Let's Encrypt", "DigiCert", "Comodo", "Sectigo", "GeoTrust",
-    "Symantec", "Thawte", "GlobalSign", "GoDaddy", "Entrust",
-})
+_CT_SPLIT_WORLD_CAS = frozenset(
+    {
+        "Let's Encrypt",
+        "DigiCert",
+        "Comodo",
+        "Sectigo",
+        "GeoTrust",
+        "Symantec",
+        "Thawte",
+        "GlobalSign",
+        "GoDaddy",
+        "Entrust",
+    }
+)
 
-_CT_REGIONAL_CAS = frozenset({
-    "CNNIC", "CFCA", "Buypass", "SSL.com", "TrustCor",
-})
+_CT_REGIONAL_CAS = frozenset(
+    {
+        "CNNIC",
+        "CFCA",
+        "Buypass",
+        "SSL.com",
+        "TrustCor",
+    }
+)
 
 
 # ─── URL Parser ──────────────────────────────────────────────────────────────
@@ -223,7 +252,7 @@ def _extract_dn(dn_tuple: Any) -> str:
         for rdn in dn_tuple:
             for attr_type, attr_value in rdn:
                 parts.append(f"{attr_type}={attr_value}")
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         pass
     return ", ".join(parts)
 
@@ -507,13 +536,22 @@ async def _test_ocsp_stapling(
 
     cert_info = _get_cert_info(host, port, timeout)
     if "error" in cert_info:
-        return [CertCheckAttempt(
-            technique="ocsp_stapling_check", category="ocsp_stapling",
-            description="OCSP Stapling availability",
-            vulnerable=False, details="", error=cert_info["error"],
-            cert_issuer="", cert_subject="", cert_expiry="",
-            ocsp_status="error", sct_count=0, hsts_preload=False,
-        )]
+        return [
+            CertCheckAttempt(
+                technique="ocsp_stapling_check",
+                category="ocsp_stapling",
+                description="OCSP Stapling availability",
+                vulnerable=False,
+                details="",
+                error=cert_info["error"],
+                cert_issuer="",
+                cert_subject="",
+                cert_expiry="",
+                ocsp_status="error",
+                sct_count=0,
+                hsts_preload=False,
+            )
+        ]
 
     cert_issuer = cert_info.get("issuer", "")
     cert_subject = cert_info.get("subject", "")
@@ -553,22 +591,39 @@ async def _test_ocsp_stapling(
                 vulnerable = False
                 details = ""
 
-            results.append(CertCheckAttempt(
-                technique=tech, category="ocsp_stapling", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry,
-                ocsp_status=ocsp_info.get("response_status", "unknown"),
-                sct_count=0, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="ocsp_stapling",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status=ocsp_info.get("response_status", "unknown"),
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
         except Exception as exc:
-            results.append(CertCheckAttempt(
-                technique=tech, category="ocsp_stapling", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="error",
-                sct_count=0, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="ocsp_stapling",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="error",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
 
     return results
 
@@ -590,13 +645,22 @@ async def _test_cert_chain(
 
     cert_info = _get_cert_info(host, port, timeout)
     if "error" in cert_info:
-        return [CertCheckAttempt(
-            technique="full_chain", category="cert_chain",
-            description="Certificate chain verification",
-            vulnerable=False, details="", error=cert_info["error"],
-            cert_issuer="", cert_subject="", cert_expiry="",
-            ocsp_status="", sct_count=0, hsts_preload=False,
-        )]
+        return [
+            CertCheckAttempt(
+                technique="full_chain",
+                category="cert_chain",
+                description="Certificate chain verification",
+                vulnerable=False,
+                details="",
+                error=cert_info["error"],
+                cert_issuer="",
+                cert_subject="",
+                cert_expiry="",
+                ocsp_status="",
+                sct_count=0,
+                hsts_preload=False,
+            )
+        ]
 
     cert_issuer = cert_info.get("issuer", "")
     cert_subject = cert_info.get("subject", "")
@@ -628,10 +692,7 @@ async def _test_cert_chain(
     intermediate_missing = chain_length < 3 and not self_signed
     hostname_mismatch = True
     if san:
-        hostname_mismatch = not any(
-            host == entry[1] or (entry[0] == "DNS" and host.endswith(entry[1].lstrip("*.")))
-            for entry in san
-        )
+        hostname_mismatch = not any(host == entry[1] or (entry[0] == "DNS" and host.endswith(entry[1].lstrip("*."))) for entry in san)
 
     weak_key = key_size < 2048 and key_size > 0
     pinned = bool(cert_info.get("ca_issuers")) and bool(cert_info.get("crl_distribution"))
@@ -677,21 +738,39 @@ async def _test_cert_chain(
                 vulnerable = False
                 details = ""
 
-            results.append(CertCheckAttempt(
-                technique=tech, category="cert_chain", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="", sct_count=0,
-                hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="cert_chain",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
         except Exception as exc:
-            results.append(CertCheckAttempt(
-                technique=tech, category="cert_chain", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="", sct_count=0,
-                hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="cert_chain",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
 
     return results
 
@@ -713,13 +792,22 @@ async def _test_ct_sct(
 
     cert_info = _get_cert_info(host, port, timeout)
     if "error" in cert_info:
-        return [CertCheckAttempt(
-            technique="sct_tls_extension", category="ct_sct",
-            description="SCT via TLS extension",
-            vulnerable=False, details="", error=cert_info["error"],
-            cert_issuer="", cert_subject="", cert_expiry="",
-            ocsp_status="", sct_count=0, hsts_preload=False,
-        )]
+        return [
+            CertCheckAttempt(
+                technique="sct_tls_extension",
+                category="ct_sct",
+                description="SCT via TLS extension",
+                vulnerable=False,
+                details="",
+                error=cert_info["error"],
+                cert_issuer="",
+                cert_subject="",
+                cert_expiry="",
+                ocsp_status="",
+                sct_count=0,
+                hsts_preload=False,
+            )
+        ]
 
     cert_issuer = cert_info.get("issuer", "")
     cert_subject = cert_info.get("subject", "")
@@ -755,21 +843,39 @@ async def _test_ct_sct(
                 vulnerable = False
                 details = ""
 
-            results.append(CertCheckAttempt(
-                technique=tech, category="ct_sct", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=total_sct, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="ct_sct",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=total_sct,
+                    hsts_preload=False,
+                )
+            )
         except Exception as exc:
-            results.append(CertCheckAttempt(
-                technique=tech, category="ct_sct", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=total_sct, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="ct_sct",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=total_sct,
+                    hsts_preload=False,
+                )
+            )
 
     return results
 
@@ -826,21 +932,39 @@ async def _test_ct_split_world(
                 vulnerable = False
                 details = ""
 
-            results.append(CertCheckAttempt(
-                technique=tech, category="ct_split_world", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="ct_split_world",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
         except Exception as exc:
-            results.append(CertCheckAttempt(
-                technique=tech, category="ct_split_world", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="ct_split_world",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
 
     return results
 
@@ -900,21 +1024,39 @@ async def _test_hsts_preload(
                 vulnerable = False
                 details = ""
 
-            results.append(CertCheckAttempt(
-                technique=tech, category="hsts_preload", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=in_preload,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="hsts_preload",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=in_preload,
+                )
+            )
         except Exception as exc:
-            results.append(CertCheckAttempt(
-                technique=tech, category="hsts_preload", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=in_preload,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="hsts_preload",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=in_preload,
+                )
+            )
 
     return results
 
@@ -946,13 +1088,22 @@ async def _test_mixed_content(
             ("upgrade_insecure", "Upgrade-Insecure-Requests"),
             ("csp_upgrade", "CSP upgrade-insecure"),
         ]:
-            results.append(CertCheckAttempt(
-                technique=tech, category="mixed_content", description=desc,
-                vulnerable=False, details="Target is not HTTPS",
-                error="", cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="mixed_content",
+                    description=desc,
+                    vulnerable=False,
+                    details="Target is not HTTPS",
+                    error="",
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
         return results
 
     scheme = "https" if tls else "http"
@@ -999,21 +1150,39 @@ async def _test_mixed_content(
                 vulnerable = False
                 details = ""
 
-            results.append(CertCheckAttempt(
-                technique=tech, category="mixed_content", description=desc,
-                vulnerable=vulnerable, details=details, error="",
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="mixed_content",
+                    description=desc,
+                    vulnerable=vulnerable,
+                    details=details,
+                    error="",
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
         except Exception as exc:
-            results.append(CertCheckAttempt(
-                technique=tech, category="mixed_content", description=desc,
-                vulnerable=False, details="", error=str(exc)[:100],
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=False,
-            ))
+            results.append(
+                CertCheckAttempt(
+                    technique=tech,
+                    category="mixed_content",
+                    description=desc,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc)[:100],
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
 
     return results
 
@@ -1102,13 +1271,22 @@ async def run_scan(
             raw = await tester(host, port, path, timeout, tls, 0, 0)
             all_attempts.extend(raw)
         except Exception as e:
-            all_attempts.append(CertCheckAttempt(
-                technique=f"{cat}_error", category=cat, description="",
-                vulnerable=False, details="", error=str(e)[:100],
-                cert_issuer=cert_issuer, cert_subject=cert_subject,
-                cert_expiry=cert_expiry, ocsp_status="",
-                sct_count=0, hsts_preload=False,
-            ))
+            all_attempts.append(
+                CertCheckAttempt(
+                    technique=f"{cat}_error",
+                    category=cat,
+                    description="",
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                    cert_issuer=cert_issuer,
+                    cert_subject=cert_subject,
+                    cert_expiry=cert_expiry,
+                    ocsp_status="",
+                    sct_count=0,
+                    hsts_preload=False,
+                )
+            )
 
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
     issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
@@ -1116,12 +1294,18 @@ async def run_scan(
     overall = "vulnerable" if vuln_techs else "secure"
 
     result = CertCheckResult(
-        target=target, host=host, port=port, tls=tls,
-        cert_issuer=cert_issuer, cert_subject=cert_subject,
-        cert_expiry=cert_expiry, chain_valid=chain_valid,
+        target=target,
+        host=host,
+        port=port,
+        tls=tls,
+        cert_issuer=cert_issuer,
+        cert_subject=cert_subject,
+        cert_expiry=cert_expiry,
+        chain_valid=chain_valid,
         attempts=all_attempts,
         vulnerable_techniques=vuln_techs,
-        issues=issues, overall_status=overall,
+        issues=issues,
+        overall_status=overall,
     )
 
     if json_output:
@@ -1146,7 +1330,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo (https://)")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",

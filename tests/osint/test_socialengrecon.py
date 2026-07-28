@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Social Engineering Recon."""
+
 import httpx
 import pytest
 import respx
@@ -38,9 +39,14 @@ class TestEmployeeInfo:
 
     def test_all_fields(self):
         e = EmployeeInfo(
-            domain="x.com", name="John Doe", email="john@x.com",
-            position="Engineer", seniority="senior", department="engineering",
-            source="github", profile_url="https://github.com/john",
+            domain="x.com",
+            name="John Doe",
+            email="john@x.com",
+            position="Engineer",
+            seniority="senior",
+            department="engineering",
+            source="github",
+            profile_url="https://github.com/john",
         )
         assert e.position == "Engineer"
         assert e.source == "github"
@@ -169,10 +175,20 @@ async def test_github_error():
 
 @pytest.mark.asyncio
 async def test_hunter_found():
-    resp = {"data": {"emails": [
-        {"first_name": "John", "last_name": "Doe", "value": "john@example.com",
-         "position": "Engineer", "seniority": "senior", "department": "engineering"},
-    ]}}
+    resp = {
+        "data": {
+            "emails": [
+                {
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "value": "john@example.com",
+                    "position": "Engineer",
+                    "seniority": "senior",
+                    "department": "engineering",
+                },
+            ]
+        }
+    }
     with respx.mock:
         respx.route(method="GET", url__startswith="https://api.hunter.io/").mock(
             return_value=httpx.Response(200, json=resp),
@@ -314,8 +330,7 @@ class TestPrintResults:
 
     def test_with_results(self, capsys):
         employees = [
-            EmployeeInfo(domain="x.com", name="John Doe", email="john@x.com",
-                         position="Engineer", source="github"),
+            EmployeeInfo(domain="x.com", name="John Doe", email="john@x.com", position="Engineer", source="github"),
         ]
         print_results(employees)
         out = capsys.readouterr().out

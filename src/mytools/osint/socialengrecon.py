@@ -12,6 +12,7 @@ Fluxo:
   3. Web: busca paginas /about, /team e parseia com BeautifulSoup
   4. Mescla resultados sem duplicatas
 """
+
 import argparse
 import json
 import logging
@@ -48,14 +49,33 @@ GITHUB_API = "https://api.github.com"
 HUNTER_API = "https://api.hunter.io/v2"
 
 _TEAM_PATHS_DEFAULT: list[str] = [
-    "/about", "/about-us", "/team", "/our-team", "/people",
-    "/company", "/company/about", "/about/team",
+    "/about",
+    "/about-us",
+    "/team",
+    "/our-team",
+    "/people",
+    "/company",
+    "/company/about",
+    "/about/team",
 ]
 
 _JOB_TITLE_KEYWORDS_DEFAULT: list[str] = [
-    "engineer", "manager", "director", "ceo", "cto", "cfo",
-    "lead", "developer", "designer", "analyst", "architect",
-    "head", "vp", "president", "founder", "co-founder",
+    "engineer",
+    "manager",
+    "director",
+    "ceo",
+    "cto",
+    "cfo",
+    "lead",
+    "developer",
+    "designer",
+    "analyst",
+    "architect",
+    "head",
+    "vp",
+    "president",
+    "founder",
+    "co-founder",
 ]
 
 
@@ -63,10 +83,14 @@ def _load_social_data() -> tuple[list[str], list[str]]:
     """Carrega team paths e job keywords de YAML com fallback."""
     from mytools.data import load_payloads
 
-    data = load_payloads("osint", "team_paths", default={
-        "team_paths": _TEAM_PATHS_DEFAULT,
-        "job_title_keywords": _JOB_TITLE_KEYWORDS_DEFAULT,
-    })
+    data = load_payloads(
+        "osint",
+        "team_paths",
+        default={
+            "team_paths": _TEAM_PATHS_DEFAULT,
+            "job_title_keywords": _JOB_TITLE_KEYWORDS_DEFAULT,
+        },
+    )
     return (
         data.get("team_paths", _TEAM_PATHS_DEFAULT),
         data.get("job_title_keywords", _JOB_TITLE_KEYWORDS_DEFAULT),
@@ -135,8 +159,11 @@ async def _query_github(
     await rate_limiter.wait()
     try:
         status, _headers, body, _ = await fetch(
-            client, f"{GITHUB_API}/orgs/{quote(org_name)}/repos?per_page=30&sort=updated",
-            timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+            client,
+            f"{GITHUB_API}/orgs/{quote(org_name)}/repos?per_page=30&sort=updated",
+            timeout=timeout,
+            max_retries=1,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return []
@@ -146,7 +173,7 @@ async def _query_github(
 
     try:
         repos = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return []
 
     if not isinstance(repos, list):
@@ -166,8 +193,11 @@ async def _query_github(
         await rate_limiter.wait()
         try:
             status, _headers, body, _ = await fetch(
-                client, f"{GITHUB_API}/repos/{repo_name}/contributors?per_page=30",
-                timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+                client,
+                f"{GITHUB_API}/repos/{repo_name}/contributors?per_page=30",
+                timeout=timeout,
+                max_retries=1,
+                rate_limiter=rate_limiter,
             )
         except FetchError:
             continue
@@ -177,7 +207,7 @@ async def _query_github(
 
         try:
             contributors = json.loads(body)
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             continue
 
         if not isinstance(contributors, list):
@@ -196,8 +226,11 @@ async def _query_github(
             await rate_limiter.wait()
             try:
                 status, _headers, body, _ = await fetch(
-                    client, f"{GITHUB_API}/users/{quote(login)}",
-                    timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+                    client,
+                    f"{GITHUB_API}/users/{quote(login)}",
+                    timeout=timeout,
+                    max_retries=1,
+                    rate_limiter=rate_limiter,
                 )
             except FetchError:
                 continue
@@ -207,7 +240,7 @@ async def _query_github(
 
             try:
                 user = json.loads(body)
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError, ValueError:
                 continue
 
             if not isinstance(user, dict):
@@ -228,16 +261,18 @@ async def _query_github(
                             break
 
             if name or email:
-                employees.append(EmployeeInfo(
-                    domain=domain,
-                    name=name,
-                    email=email,
-                    position=position,
-                    source="github",
-                    profile_url=profile,
-                    exploit=f"site:linkedin.com/in {name}" if name else "",
-                    tool="linkedin",
-                ))
+                employees.append(
+                    EmployeeInfo(
+                        domain=domain,
+                        name=name,
+                        email=email,
+                        position=position,
+                        source="github",
+                        profile_url=profile,
+                        exploit=f"site:linkedin.com/in {name}" if name else "",
+                        tool="linkedin",
+                    )
+                )
 
     return employees
 
@@ -259,7 +294,11 @@ async def _query_hunter(
 
     try:
         status, _headers, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=1,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return []
@@ -269,7 +308,7 @@ async def _query_hunter(
 
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return []
 
     emails_data = data.get("data", {}).get("emails", [])
@@ -280,17 +319,21 @@ async def _query_hunter(
     for item in emails_data:
         if not isinstance(item, dict):
             continue
-        employees.append(EmployeeInfo(
-            domain=domain,
-            name=f"{item.get('first_name', '')} {item.get('last_name', '')}".strip(),
-            email=item.get("value", ""),
-            position=item.get("position", ""),
-            seniority=item.get("seniority", ""),
-            department=item.get("department", ""),
-            source="hunter",
-            exploit=f"site:linkedin.com/in {item.get('first_name', '')} {item.get('last_name', '')}".strip() if (item.get('first_name') or item.get('last_name')) else "",
-            tool="linkedin",
-        ))
+        employees.append(
+            EmployeeInfo(
+                domain=domain,
+                name=f"{item.get('first_name', '')} {item.get('last_name', '')}".strip(),
+                email=item.get("value", ""),
+                position=item.get("position", ""),
+                seniority=item.get("seniority", ""),
+                department=item.get("department", ""),
+                source="hunter",
+                exploit=f"site:linkedin.com/in {item.get('first_name', '')} {item.get('last_name', '')}".strip()
+                if (item.get("first_name") or item.get("last_name"))
+                else "",
+                tool="linkedin",
+            )
+        )
 
     return employees
 
@@ -315,7 +358,11 @@ async def _query_webpages(
 
         try:
             status, _headers, body, _ = await fetch(
-                client, url, timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+                client,
+                url,
+                timeout=timeout,
+                max_retries=1,
+                rate_limiter=rate_limiter,
             )
         except FetchError:
             continue
@@ -325,7 +372,7 @@ async def _query_webpages(
 
         try:
             html = body.decode("utf-8", errors="replace")
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             continue
 
         soup = BeautifulSoup(html, "html.parser")
@@ -347,15 +394,17 @@ async def _query_webpages(
                     if len(pos_text) < 60 and any(kw in pos_text.lower() for kw in _JOB_TITLE_KEYWORDS):
                         position = pos_text
 
-                employees.append(EmployeeInfo(
-                    domain=domain,
-                    name=text,
-                    position=position,
-                    source="web",
-                    profile_url=url,
-                    exploit=f"site:linkedin.com/in {text}",
-                    tool="linkedin",
-                ))
+                employees.append(
+                    EmployeeInfo(
+                        domain=domain,
+                        name=text,
+                        position=position,
+                        source="web",
+                        profile_url=url,
+                        exploit=f"site:linkedin.com/in {text}",
+                        tool="linkedin",
+                    )
+                )
 
     return employees
 
@@ -448,7 +497,8 @@ def print_results(employees: list[EmployeeInfo]) -> None:
             (e.position or "-")[:30],
             e.seniority or "-",
             e.source,
-        ) for e in employees
+        )
+        for e in employees
     ]
 
     def _row_styles(_row: tuple[str, ...]) -> list[tuple[str, ...]]:

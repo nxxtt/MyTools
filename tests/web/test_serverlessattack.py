@@ -22,18 +22,30 @@ from mytools.web.serverlessattack import (
 class TestServerlessAttackAttempt:
     def test_creation(self) -> None:
         a = ServerlessAttackAttempt(
-            technique="cold_start_leak", category="generic",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="https://target.com", response_code=200, timing_ms=150.0,
+            technique="cold_start_leak",
+            category="generic",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://target.com",
+            response_code=200,
+            timing_ms=150.0,
         )
         assert a.technique == "cold_start_leak"
         assert a.timing_ms == 150.0
 
     def test_frozen(self) -> None:
         a = ServerlessAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            response_code=200, timing_ms=0.0,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            response_code=200,
+            timing_ms=0.0,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -42,18 +54,32 @@ class TestServerlessAttackAttempt:
 class TestServerlessAttackResult:
     def test_creation(self) -> None:
         r = ServerlessAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", techniques_count=2,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            techniques_count=2,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.techniques_count == 2
 
     def test_frozen(self) -> None:
         r = ServerlessAttackResult(
-            target="t", host="h", port=443, tls=True, endpoint="e",
-            techniques_count=0, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            endpoint="e",
+            techniques_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.host = "changed"  # type: ignore[misc]
@@ -76,6 +102,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -116,9 +143,16 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = ServerlessAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", techniques_count=2,
-            attempts=[], vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            techniques_count=2,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -127,15 +161,27 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = ServerlessAttackAttempt(
-            technique="cold_start_leak", category="generic", description="desc",
-            vulnerable=True, details="leak found", error="",
-            endpoint="https://target.com", response_code=200, timing_ms=1500.0,
+            technique="cold_start_leak",
+            category="generic",
+            description="desc",
+            vulnerable=True,
+            details="leak found",
+            error="",
+            endpoint="https://target.com",
+            response_code=200,
+            timing_ms=1500.0,
         )
         r = ServerlessAttackResult(
-            target="https://target.com", host="target.com", port=443, tls=True,
-            endpoint="https://target.com", techniques_count=2,
-            attempts=[a], vulnerable_techniques=["cold_start_leak"],
-            issues=["Test issue"], overall_status="vulnerable",
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            techniques_count=2,
+            attempts=[a],
+            vulnerable_techniques=["cold_start_leak"],
+            issues=["Test issue"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out

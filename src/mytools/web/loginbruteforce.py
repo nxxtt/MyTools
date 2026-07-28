@@ -58,45 +58,87 @@ logger = logging.getLogger("mytools.loginbruteforce")
 # ---------------------------------------------------------------------------
 
 _USERNAMES_DEFAULT: list[str] = [
-    "admin", "administrator", "root", "user", "test",
-    "guest", "info", "support", "webmaster", "administrator@example",
+    "admin",
+    "administrator",
+    "root",
+    "user",
+    "test",
+    "guest",
+    "info",
+    "support",
+    "webmaster",
+    "administrator@example",
 ]
 
 _PASSWORDS_DEFAULT: list[str] = [
-    "password", "123456", "admin", "root", "letmein",
-    "welcome", "monkey", "dragon", "master", "qwerty",
+    "password",
+    "123456",
+    "admin",
+    "root",
+    "letmein",
+    "welcome",
+    "monkey",
+    "dragon",
+    "master",
+    "qwerty",
 ]
 
 _LOCKOUT_INDICATORS_DEFAULT: list[str] = [
-    "account locked", "too many attempts", "try again later",
-    "temporarily locked", "maximum login attempts", "brute force",
-    "rate limit", "slow down", "too many failed", "security lockout",
-    "locked out", "account has been locked", "login attempts exceeded",
+    "account locked",
+    "too many attempts",
+    "try again later",
+    "temporarily locked",
+    "maximum login attempts",
+    "brute force",
+    "rate limit",
+    "slow down",
+    "too many failed",
+    "security lockout",
+    "locked out",
+    "account has been locked",
+    "login attempts exceeded",
     "security block",
 ]
 
 _RATE_LIMIT_INDICATORS_DEFAULT: list[str] = [
-    "rate limit", "too many requests", "slow down", "throttle",
-    "try again", "429", "retry-after", "please wait",
-    "request throttled", "temporarily unavailable",
+    "rate limit",
+    "too many requests",
+    "slow down",
+    "throttle",
+    "try again",
+    "429",
+    "retry-after",
+    "please wait",
+    "request throttled",
+    "temporarily unavailable",
 ]
 
 _SUCCESS_INDICATORS_DEFAULT: list[str] = [
-    "dashboard", "welcome back", "my account", "logout",
-    "sign out", "profile", "settings", "account overview",
+    "dashboard",
+    "welcome back",
+    "my account",
+    "logout",
+    "sign out",
+    "profile",
+    "settings",
+    "account overview",
 ]
 
 
 def _load_payloads() -> dict[str, object]:
     from mytools.data import load_payloads
 
-    return load_payloads("web", "login_bruteforce", default={
-        "usernames": _USERNAMES_DEFAULT,
-        "passwords": _PASSWORDS_DEFAULT,
-        "lockout_indicators": _LOCKOUT_INDICATORS_DEFAULT,
-        "rate_limit_indicators": _RATE_LIMIT_INDICATORS_DEFAULT,
-        "success_indicators": _SUCCESS_INDICATORS_DEFAULT,
-    })
+    return load_payloads(
+        "web",
+        "login_bruteforce",
+        default={
+            "usernames": _USERNAMES_DEFAULT,
+            "passwords": _PASSWORDS_DEFAULT,
+            "lockout_indicators": _LOCKOUT_INDICATORS_DEFAULT,
+            "rate_limit_indicators": _RATE_LIMIT_INDICATORS_DEFAULT,
+            "success_indicators": _SUCCESS_INDICATORS_DEFAULT,
+        },
+    )
 
 
 def _get_usernames() -> list[str]:
@@ -156,11 +198,13 @@ class _LoginFormParser(HTMLParser):
             input_type = (attr_dict.get("type") or "text").lower()
             name = attr_dict.get("name", "")
             if name and input_type not in ("submit", "button", "hidden"):
-                self._fields.append({
-                    "type": input_type,
-                    "name": name,
-                    "value": attr_dict.get("value", ""),
-                })
+                self._fields.append(
+                    {
+                        "type": input_type,
+                        "name": name,
+                        "value": attr_dict.get("value", ""),
+                    }
+                )
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "form" and self._current_form is not None:
@@ -241,9 +285,7 @@ def _check_rate_limit(
         if indicator.lower() in body_lower:
             return True, indicator
 
-    if status == 403 and any(
-        ind.lower() in body_lower for ind in ("rate limit", "throttle", "slow down")
-    ):
+    if status == 403 and any(ind.lower() in body_lower for ind in ("rate limit", "throttle", "slow down")):
         return True, "HTTP 403 com indicador de rate limit"
 
     return False, ""
@@ -348,43 +390,47 @@ async def _test_rate_limit(
             if detected:
                 rate_limited = True
 
-            attempts.append(BruteForceAttempt(
-                technique="rate_limit",
-                category="rate_limit",
-                url=login_url,
-                username=username,
-                payload=payload,
-                status_code=resp.status_code,
-                response_size=len(resp.content),
-                response_time=round(elapsed, 3),
-                lockout_detected=False,
-                rate_limit_detected=detected,
-                login_success=False,
-                vulnerable=not detected,
-                details=detail if detected else f"Request {i + 1}/{count} sem rate limit",
-            ))
+            attempts.append(
+                BruteForceAttempt(
+                    technique="rate_limit",
+                    category="rate_limit",
+                    url=login_url,
+                    username=username,
+                    payload=payload,
+                    status_code=resp.status_code,
+                    response_size=len(resp.content),
+                    response_time=round(elapsed, 3),
+                    lockout_detected=False,
+                    rate_limit_detected=detected,
+                    login_success=False,
+                    vulnerable=not detected,
+                    details=detail if detected else f"Request {i + 1}/{count} sem rate limit",
+                )
+            )
 
             if rate_limited:
                 break
 
         except httpx.RequestError as exc:
             elapsed = time.monotonic() - start
-            attempts.append(BruteForceAttempt(
-                technique="rate_limit",
-                category="rate_limit",
-                url=login_url,
-                username=username,
-                payload=payload,
-                status_code=0,
-                response_size=0,
-                response_time=round(elapsed, 3),
-                lockout_detected=False,
-                rate_limit_detected=False,
-                login_success=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                BruteForceAttempt(
+                    technique="rate_limit",
+                    category="rate_limit",
+                    url=login_url,
+                    username=username,
+                    payload=payload,
+                    status_code=0,
+                    response_size=0,
+                    response_time=round(elapsed, 3),
+                    lockout_detected=False,
+                    rate_limit_detected=False,
+                    login_success=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
         if delay > 0:
             await asyncio.sleep(delay)
@@ -392,14 +438,23 @@ async def _test_rate_limit(
     if not rate_limited and not any(a.error for a in attempts):
         attempts = [
             BruteForceAttempt(
-                technique=a.technique, category=a.category, url=a.url,
-                username=a.username, payload=a.payload,
-                status_code=a.status_code, response_size=a.response_size,
-                response_time=a.response_time, lockout_detected=a.lockout_detected,
+                technique=a.technique,
+                category=a.category,
+                url=a.url,
+                username=a.username,
+                payload=a.payload,
+                status_code=a.status_code,
+                response_size=a.response_size,
+                response_time=a.response_time,
+                lockout_detected=a.lockout_detected,
                 rate_limit_detected=a.rate_limit_detected,
-                login_success=a.login_success, vulnerable=True,
-                details=a.details, error=a.error,
-            ) if not a.rate_limit_detected else a
+                login_success=a.login_success,
+                vulnerable=True,
+                details=a.details,
+                error=a.error,
+            )
+            if not a.rate_limit_detected
+            else a
             for a in attempts
         ]
 
@@ -434,43 +489,47 @@ async def _test_lockout(
             if detected:
                 lockout_found = True
 
-            attempts.append(BruteForceAttempt(
-                technique="lockout",
-                category="lockout",
-                url=login_url,
-                username=username,
-                payload=f"{wrong_password}_{i}",
-                status_code=resp.status_code,
-                response_size=len(resp.content),
-                response_time=round(elapsed, 3),
-                lockout_detected=detected,
-                rate_limit_detected=False,
-                login_success=False,
-                vulnerable=not detected,
-                details=detail if detected else f"Request {i + 1}/{count} sem lockout",
-            ))
+            attempts.append(
+                BruteForceAttempt(
+                    technique="lockout",
+                    category="lockout",
+                    url=login_url,
+                    username=username,
+                    payload=f"{wrong_password}_{i}",
+                    status_code=resp.status_code,
+                    response_size=len(resp.content),
+                    response_time=round(elapsed, 3),
+                    lockout_detected=detected,
+                    rate_limit_detected=False,
+                    login_success=False,
+                    vulnerable=not detected,
+                    details=detail if detected else f"Request {i + 1}/{count} sem lockout",
+                )
+            )
 
             if lockout_found:
                 break
 
         except httpx.RequestError as exc:
             elapsed = time.monotonic() - start
-            attempts.append(BruteForceAttempt(
-                technique="lockout",
-                category="lockout",
-                url=login_url,
-                username=username,
-                payload=f"{wrong_password}_{i}",
-                status_code=0,
-                response_size=0,
-                response_time=round(elapsed, 3),
-                lockout_detected=False,
-                rate_limit_detected=False,
-                login_success=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                BruteForceAttempt(
+                    technique="lockout",
+                    category="lockout",
+                    url=login_url,
+                    username=username,
+                    payload=f"{wrong_password}_{i}",
+                    status_code=0,
+                    response_size=0,
+                    response_time=round(elapsed, 3),
+                    lockout_detected=False,
+                    rate_limit_detected=False,
+                    login_success=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
         if delay > 0:
             await asyncio.sleep(delay)
@@ -478,14 +537,23 @@ async def _test_lockout(
     if not lockout_found and not any(a.error for a in attempts):
         attempts = [
             BruteForceAttempt(
-                technique=a.technique, category=a.category, url=a.url,
-                username=a.username, payload=a.payload,
-                status_code=a.status_code, response_size=a.response_size,
-                response_time=a.response_time, lockout_detected=a.lockout_detected,
+                technique=a.technique,
+                category=a.category,
+                url=a.url,
+                username=a.username,
+                payload=a.payload,
+                status_code=a.status_code,
+                response_size=a.response_size,
+                response_time=a.response_time,
+                lockout_detected=a.lockout_detected,
                 rate_limit_detected=a.rate_limit_detected,
-                login_success=a.login_success, vulnerable=True,
-                details=a.details, error=a.error,
-            ) if not a.lockout_detected else a
+                login_success=a.login_success,
+                vulnerable=True,
+                details=a.details,
+                error=a.error,
+            )
+            if not a.lockout_detected
+            else a
             for a in attempts
         ]
 
@@ -517,43 +585,50 @@ async def _test_credentials(
                 location = resp.headers.get("location", "")
 
                 login_ok, detail = _check_login_success(
-                    resp.status_code, body, success_indicators, location,
+                    resp.status_code,
+                    body,
+                    success_indicators,
+                    location,
                 )
 
-                attempts.append(BruteForceAttempt(
-                    technique="credential",
-                    category="credential",
-                    url=login_url,
-                    username=username,
-                    payload=password,
-                    status_code=resp.status_code,
-                    response_size=len(resp.content),
-                    response_time=round(elapsed, 3),
-                    lockout_detected=False,
-                    rate_limit_detected=False,
-                    login_success=login_ok,
-                    vulnerable=login_ok,
-                    details=detail if login_ok else f"{username}:{password} - sem indicacao de sucesso",
-                ))
+                attempts.append(
+                    BruteForceAttempt(
+                        technique="credential",
+                        category="credential",
+                        url=login_url,
+                        username=username,
+                        payload=password,
+                        status_code=resp.status_code,
+                        response_size=len(resp.content),
+                        response_time=round(elapsed, 3),
+                        lockout_detected=False,
+                        rate_limit_detected=False,
+                        login_success=login_ok,
+                        vulnerable=login_ok,
+                        details=detail if login_ok else f"{username}:{password} - sem indicacao de sucesso",
+                    )
+                )
 
             except httpx.RequestError as exc:
                 elapsed = time.monotonic() - start
-                attempts.append(BruteForceAttempt(
-                    technique="credential",
-                    category="credential",
-                    url=login_url,
-                    username=username,
-                    payload=password,
-                    status_code=0,
-                    response_size=0,
-                    response_time=round(elapsed, 3),
-                    lockout_detected=False,
-                    rate_limit_detected=False,
-                    login_success=False,
-                    vulnerable=False,
-                    details="",
-                    error=str(exc),
-                ))
+                attempts.append(
+                    BruteForceAttempt(
+                        technique="credential",
+                        category="credential",
+                        url=login_url,
+                        username=username,
+                        payload=password,
+                        status_code=0,
+                        response_size=0,
+                        response_time=round(elapsed, 3),
+                        lockout_detected=False,
+                        rate_limit_detected=False,
+                        login_success=False,
+                        vulnerable=False,
+                        details="",
+                        error=str(exc),
+                    )
+                )
 
             if delay > 0:
                 await asyncio.sleep(delay)
@@ -585,43 +660,50 @@ async def _test_password_spray(
             location = resp.headers.get("location", "")
 
             login_ok, detail = _check_login_success(
-                resp.status_code, body, success_indicators, location,
+                resp.status_code,
+                body,
+                success_indicators,
+                location,
             )
 
-            attempts.append(BruteForceAttempt(
-                technique="spray",
-                category="spray",
-                url=login_url,
-                username=username,
-                payload=password,
-                status_code=resp.status_code,
-                response_size=len(resp.content),
-                response_time=round(elapsed, 3),
-                lockout_detected=False,
-                rate_limit_detected=False,
-                login_success=login_ok,
-                vulnerable=login_ok,
-                details=detail if login_ok else f"{username}:{password} - sem indicacao de sucesso",
-            ))
+            attempts.append(
+                BruteForceAttempt(
+                    technique="spray",
+                    category="spray",
+                    url=login_url,
+                    username=username,
+                    payload=password,
+                    status_code=resp.status_code,
+                    response_size=len(resp.content),
+                    response_time=round(elapsed, 3),
+                    lockout_detected=False,
+                    rate_limit_detected=False,
+                    login_success=login_ok,
+                    vulnerable=login_ok,
+                    details=detail if login_ok else f"{username}:{password} - sem indicacao de sucesso",
+                )
+            )
 
         except httpx.RequestError as exc:
             elapsed = time.monotonic() - start
-            attempts.append(BruteForceAttempt(
-                technique="spray",
-                category="spray",
-                url=login_url,
-                username=username,
-                payload=password,
-                status_code=0,
-                response_size=0,
-                response_time=round(elapsed, 3),
-                lockout_detected=False,
-                rate_limit_detected=False,
-                login_success=False,
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            ))
+            attempts.append(
+                BruteForceAttempt(
+                    technique="spray",
+                    category="spray",
+                    url=login_url,
+                    username=username,
+                    payload=password,
+                    status_code=0,
+                    response_size=0,
+                    response_time=round(elapsed, 3),
+                    lockout_detected=False,
+                    rate_limit_detected=False,
+                    login_success=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(exc),
+                )
+            )
 
         if delay > 0:
             await asyncio.sleep(delay)
@@ -712,8 +794,13 @@ async def run_scan(
         if category in ("all", "rate_limit"):
             logger.info("Testando rate limiting...")
             rl_attempts = await _test_rate_limit(
-                client, login_url, username, password, field_map,
-                count=15, delay=delay,
+                client,
+                login_url,
+                username,
+                password,
+                field_map,
+                count=15,
+                delay=delay,
             )
             all_attempts.extend(rl_attempts)
             if any(a.rate_limit_detected for a in rl_attempts):
@@ -725,8 +812,13 @@ async def run_scan(
         if category in ("all", "lockout"):
             logger.info("Testando account lockout...")
             lo_attempts = await _test_lockout(
-                client, login_url, username, "wrongpassword", field_map,
-                count=8, delay=delay,
+                client,
+                login_url,
+                username,
+                "wrongpassword",
+                field_map,
+                count=8,
+                delay=delay,
             )
             all_attempts.extend(lo_attempts)
             if any(a.lockout_detected for a in lo_attempts):
@@ -736,36 +828,48 @@ async def run_scan(
                 issues.append("Account lockout NAO detectado (ruim)")
 
         if category == "credential":
-            print(color(
-                "ATENCAO: Executando credential stuffing. Use apenas com autorizacao.",
-                Cyber.YELLOW,
-            ), file=sys.stderr)
+            print(
+                color(
+                    "ATENCAO: Executando credential stuffing. Use apenas com autorizacao.",
+                    Cyber.YELLOW,
+                ),
+                file=sys.stderr,
+            )
             logger.info("Testando credenciais comuns...")
             usernames = _get_usernames()[:5]
             passwords = _get_passwords()[:5]
             cr_attempts = await _test_credentials(
-                client, login_url, usernames, passwords, field_map, delay=delay,
+                client,
+                login_url,
+                usernames,
+                passwords,
+                field_map,
+                delay=delay,
             )
             all_attempts.extend(cr_attempts)
-            weak_credentials.extend(
-                f"{a.username}:{a.payload}" for a in cr_attempts if a.login_success
-            )
+            weak_credentials.extend(f"{a.username}:{a.payload}" for a in cr_attempts if a.login_success)
 
         if category == "spray":
-            print(color(
-                "ATENCAO: Executando password spray. Use apenas com autorizacao.",
-                Cyber.YELLOW,
-            ), file=sys.stderr)
+            print(
+                color(
+                    "ATENCAO: Executando password spray. Use apenas com autorizacao.",
+                    Cyber.YELLOW,
+                ),
+                file=sys.stderr,
+            )
             logger.info("Testando password spray...")
             usernames = _get_usernames()[:10]
             spray_password = password if password != "password" else "password"
             sp_attempts = await _test_password_spray(
-                client, login_url, usernames, spray_password, field_map, delay=delay,
+                client,
+                login_url,
+                usernames,
+                spray_password,
+                field_map,
+                delay=delay,
             )
             all_attempts.extend(sp_attempts)
-            weak_credentials.extend(
-                f"{a.username}:{a.payload}" for a in sp_attempts if a.login_success
-            )
+            weak_credentials.extend(f"{a.username}:{a.payload}" for a in sp_attempts if a.login_success)
 
         has_vulnerable = any(a.vulnerable for a in all_attempts)
         overall = "vulnerable" if has_vulnerable else "secure"
@@ -799,10 +903,8 @@ def print_results(result: BruteForceResult) -> None:
     status_color = Cyber.RED if result.overall_status == "vulnerable" else Cyber.GREEN
     print(color(f"\n  Status: {result.overall_status.upper()}", status_color))
 
-    print(color(f"\n  Rate Limit: {'Detectado' if result.rate_limit_found else 'NAO detectado'}",
-               Cyber.GREEN if result.rate_limit_found else Cyber.RED))
-    print(color(f"  Lockout: {'Detectado' if result.lockout_found else 'NAO detectado'}",
-               Cyber.GREEN if result.lockout_found else Cyber.RED))
+    print(color(f"\n  Rate Limit: {'Detectado' if result.rate_limit_found else 'NAO detectado'}", Cyber.GREEN if result.rate_limit_found else Cyber.RED))
+    print(color(f"  Lockout: {'Detectado' if result.lockout_found else 'NAO detectado'}", Cyber.GREEN if result.lockout_found else Cyber.RED))
 
     if result.weak_credentials:
         print(color("\n  [CREDENCIAIS FRACAS]", Cyber.RED))
@@ -857,7 +959,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", nargs="?", help="URL do endpoint de login")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         choices=["rate_limit", "lockout", "credential", "spray", "all"],
         default="all",
         help="Categoria de testes (default: all = rate_limit + lockout)",

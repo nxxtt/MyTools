@@ -139,12 +139,15 @@ def _parse_dns_response(wire_data: bytes) -> list[DotRecord]:
     try:
         response = dns.message.from_wire(wire_data)
         for rrset in response.answer:
-            records.extend(DotRecord(
-                name=str(rrset.name),
-                rdtype=dns.rdatatype.to_text(rrset.rdtype),
-                ttl=rrset.ttl,
-                rdata=str(rdata),
-            ) for rdata in rrset)
+            records.extend(
+                DotRecord(
+                    name=str(rrset.name),
+                    rdtype=dns.rdatatype.to_text(rrset.rdtype),
+                    ttl=rrset.ttl,
+                    rdata=str(rdata),
+                )
+                for rdata in rrset
+            )
     except Exception:
         pass
     return records
@@ -185,12 +188,15 @@ def _traditional_resolve(domain: str, rdtype_str: str, timeout: float) -> tuple[
     start = time.monotonic()
     try:
         answer = resolver.resolve(domain, rdtype_str.upper())
-        records.extend(DotRecord(
-            name=str(answer.qname),
-            rdtype=rdtype_str.upper(),
-            ttl=answer.rrset.ttl if answer.rrset else 0,
-            rdata=str(rdata),
-        ) for rdata in answer)
+        records.extend(
+            DotRecord(
+                name=str(answer.qname),
+                rdtype=rdtype_str.upper(),
+                ttl=answer.rrset.ttl if answer.rrset else 0,
+                rdata=str(rdata),
+            )
+            for rdata in answer
+        )
     except dns.resolver.NoAnswer:
         error = "no_answer"
     except dns.resolver.NXDOMAIN:
@@ -206,7 +212,10 @@ def _traditional_resolve(domain: str, rdtype_str: str, timeout: float) -> tuple[
 
 
 def _dot_query(
-    host: str, port: int, wire_query: bytes, timeout: float,
+    host: str,
+    port: int,
+    wire_query: bytes,
+    timeout: float,
 ) -> tuple[bytes, DotTlsInfo, str]:
     tls_info = DotTlsInfo(issuer="", subject="", not_before="", not_after="", san=[], serial="", version="")
     try:
@@ -246,7 +255,8 @@ def _dot_query(
 
 
 def _compare_records(
-    dot_records: list[DotRecord], trad_records: list[DotRecord],
+    dot_records: list[DotRecord],
+    trad_records: list[DotRecord],
 ) -> tuple[bool, list[str]]:
     inconsistencies: list[str] = []
     dot_rdata = sorted(r.rdata for r in dot_records)
@@ -281,16 +291,18 @@ async def scan_dot(
         data, tls_info, error = _dot_query(prov["host"], prov["port"], wire_query, timeout)
         elapsed = (time.monotonic() - start) * 1000
         records = _parse_dns_response(data) if data else []
-        resolver_results.append(DotResolverResult(
-            resolver=rk,
-            resolver_name=prov["name"],
-            host=prov["host"],
-            port=prov["port"],
-            records=records,
-            tls_info=tls_info,
-            latency_ms=round(elapsed, 2),
-            error=error,
-        ))
+        resolver_results.append(
+            DotResolverResult(
+                resolver=rk,
+                resolver_name=prov["name"],
+                host=prov["host"],
+                port=prov["port"],
+                records=records,
+                tls_info=tls_info,
+                latency_ms=round(elapsed, 2),
+                error=error,
+            )
+        )
     all_filtering = False
     all_inconsistencies: list[str] = []
     for rr in resolver_results:
@@ -371,12 +383,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("domain", help="Dominio alvo")
     parser.add_argument(
-        "-T", "--type", default="A",
+        "-T",
+        "--type",
+        default="A",
         choices=["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "SRV", "CAA"],
         help="Tipo de registro DNS (default: A)",
     )
     parser.add_argument(
-        "-r", "--resolvers", nargs="+",
+        "-r",
+        "--resolvers",
+        nargs="+",
         choices=list(_DOT_RESOLVERS.keys()),
         default=None,
         help="Resolvers DoT para testar (default: todos)",

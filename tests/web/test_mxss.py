@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo Mutation XSS."""
+
 from __future__ import annotations
 
 import pytest
@@ -30,8 +31,12 @@ def test_category_map_has_seven_categories() -> None:
 
 def test_category_map_keys() -> None:
     assert _CATEGORY_MAP.keys() == {
-        "entity_decode", "namespace_switch", "mathml_inject",
-        "rawtext_abuse", "comment_parse", "template_deprecated",
+        "entity_decode",
+        "namespace_switch",
+        "mathml_inject",
+        "rawtext_abuse",
+        "comment_parse",
+        "template_deprecated",
         "encoding_tricks",
     }
 
@@ -70,19 +75,19 @@ def test_encoding_payloads_count() -> None:
 
 
 def test_all_payloads_have_four_elements() -> None:
-    all_lists = (
-        _ENTITY_PAYLOADS + _NAMESPACE_PAYLOADS + _MATHML_PAYLOADS
-        + _RAWTEXT_PAYLOADS + _COMMENT_PAYLOADS + _TEMPLATE_PAYLOADS
-        + _ENCODING_PAYLOADS
-    )
+    all_lists = _ENTITY_PAYLOADS + _NAMESPACE_PAYLOADS + _MATHML_PAYLOADS + _RAWTEXT_PAYLOADS + _COMMENT_PAYLOADS + _TEMPLATE_PAYLOADS + _ENCODING_PAYLOADS
     for p in all_lists:
         assert len(p) == 4, f"Payload {p[0]} should have 4 elements"
 
 
 def test_all_category_map_keys_match_payload_lists() -> None:
     expected = {
-        "entity_decode", "namespace_switch", "mathml_inject",
-        "rawtext_abuse", "comment_parse", "template_deprecated",
+        "entity_decode",
+        "namespace_switch",
+        "mathml_inject",
+        "rawtext_abuse",
+        "comment_parse",
+        "template_deprecated",
         "encoding_tricks",
     }
     assert _CATEGORY_MAP.keys() == expected
@@ -107,17 +112,17 @@ def test_inject_payload_special_chars() -> None:
 
 
 def test_check_mxss_reflection_true() -> None:
-    body = '<div>&lt;script&gt;alert(1)&lt;/script&gt;</div>'
+    body = "<div>&lt;script&gt;alert(1)&lt;/script&gt;</div>"
     assert _check_mxss_reflection(body, "&lt;script&gt;alert(1)&lt;/script&gt;") is True
 
 
 def test_check_mxss_reflection_case_insensitive() -> None:
-    body = '<SCRIPT>alert(1)</SCRIPT>'
+    body = "<SCRIPT>alert(1)</SCRIPT>"
     assert _check_mxss_reflection(body, "<script>alert(1)</script>") is True
 
 
 def test_check_mxss_reflection_false() -> None:
-    body = '<div>safe content</div>'
+    body = "<div>safe content</div>"
     assert _check_mxss_reflection(body, "<script>alert(1)</script>") is False
 
 
@@ -136,7 +141,7 @@ def test_detect_entity_decoding_no_decoding() -> None:
 
 
 def test_detect_namespace_contexts_svg() -> None:
-    ctxs = _detect_namespace_contexts('<svg><foreignObject><div></div></foreignObject></svg>')
+    ctxs = _detect_namespace_contexts("<svg><foreignObject><div></div></foreignObject></svg>")
     assert "svg" in ctxs
     assert "svg_foreignobject" in ctxs
 
@@ -164,14 +169,23 @@ def test_detect_namespace_contexts_xmp() -> None:
 
 def test_attempt_dataclass_frozen() -> None:
     a = MXSSAttempt(
-        technique="test", category="entity_decode",
-        context="test_ctx", payload="p", method="GET",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=110,
-        status_changed=False, size_changed=True,
-        entities_decoded=True, decoded_reflected=True,
-        namespace_contexts=["svg"], vulnerable=True,
-        details="test", error="",
+        technique="test",
+        category="entity_decode",
+        context="test_ctx",
+        payload="p",
+        method="GET",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=110,
+        status_changed=False,
+        size_changed=True,
+        entities_decoded=True,
+        decoded_reflected=True,
+        namespace_contexts=["svg"],
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -179,24 +193,37 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = MXSSAttempt(
-        technique="test", category="entity_decode",
-        context="test_ctx", payload="p", method="GET",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=110,
-        status_changed=False, size_changed=True,
-        entities_decoded=True, decoded_reflected=True,
-        namespace_contexts=["svg"], vulnerable=True,
-        details="test", error="",
+        technique="test",
+        category="entity_decode",
+        context="test_ctx",
+        payload="p",
+        method="GET",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=110,
+        status_changed=False,
+        size_changed=True,
+        entities_decoded=True,
+        decoded_reflected=True,
+        namespace_contexts=["svg"],
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = MXSSResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     with pytest.raises(AttributeError):
@@ -205,10 +232,14 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = MXSSResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     assert not hasattr(r, "__dict__")
@@ -224,8 +255,12 @@ def test_no_duplicate_technique_names_across_categories() -> None:
 def test_no_duplicate_payload_names_across_lists() -> None:
     all_names: list[str] = []
     for lst in (
-        _ENTITY_PAYLOADS, _NAMESPACE_PAYLOADS, _MATHML_PAYLOADS,
-        _RAWTEXT_PAYLOADS, _COMMENT_PAYLOADS, _TEMPLATE_PAYLOADS,
+        _ENTITY_PAYLOADS,
+        _NAMESPACE_PAYLOADS,
+        _MATHML_PAYLOADS,
+        _RAWTEXT_PAYLOADS,
+        _COMMENT_PAYLOADS,
+        _TEMPLATE_PAYLOADS,
         _ENCODING_PAYLOADS,
     ):
         all_names.extend(p[0] for p in lst)
@@ -233,10 +268,6 @@ def test_no_duplicate_payload_names_across_lists() -> None:
 
 
 def test_all_payloads_have_indicators() -> None:
-    all_lists = (
-        _ENTITY_PAYLOADS + _NAMESPACE_PAYLOADS + _MATHML_PAYLOADS
-        + _RAWTEXT_PAYLOADS + _COMMENT_PAYLOADS + _TEMPLATE_PAYLOADS
-        + _ENCODING_PAYLOADS
-    )
+    all_lists = _ENTITY_PAYLOADS + _NAMESPACE_PAYLOADS + _MATHML_PAYLOADS + _RAWTEXT_PAYLOADS + _COMMENT_PAYLOADS + _TEMPLATE_PAYLOADS + _ENCODING_PAYLOADS
     for p in all_lists:
         assert len(p[3]) >= 1, f"Payload {p[0]} must have at least 1 indicator"

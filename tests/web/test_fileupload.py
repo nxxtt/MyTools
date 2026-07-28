@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo File Upload Attacks."""
+
 from __future__ import annotations
 
 import argparse
@@ -49,8 +50,13 @@ def test_category_map_has_seven_categories() -> None:
 
 def test_category_map_keys() -> None:
     assert _CATEGORY_MAP.keys() == {
-        "polyglot", "svg_xxe", "image_magic", "zip_slip",
-        "filename_inject", "content_type", "multipart_boundary",
+        "polyglot",
+        "svg_xxe",
+        "image_magic",
+        "zip_slip",
+        "filename_inject",
+        "content_type",
+        "multipart_boundary",
     }
 
 
@@ -88,10 +94,7 @@ def test_boundary_payloads_count() -> None:
 
 
 def test_all_payloads_have_five_elements() -> None:
-    all_lists = (
-        _POLYGLOT_PAYLOADS + _SVG_XXE_PAYLOADS + _IMAGIC_PAYLOADS
-        + _ZIP_SLIP_PAYLOADS + _FILENAME_PAYLOADS + _CONTENT_TYPE_PAYLOADS
-    )
+    all_lists = _POLYGLOT_PAYLOADS + _SVG_XXE_PAYLOADS + _IMAGIC_PAYLOADS + _ZIP_SLIP_PAYLOADS + _FILENAME_PAYLOADS + _CONTENT_TYPE_PAYLOADS
     for p in all_lists:
         assert len(p) == 5, f"Payload {p[0]} should have 5 elements"
 
@@ -102,12 +105,12 @@ def test_check_upload_reflection_true() -> None:
 
 
 def test_check_upload_reflection_false() -> None:
-    body = '<div>safe content</div>'
+    body = "<div>safe content</div>"
     assert _check_upload_reflection(body, ["<?php"]) is False
 
 
 def test_check_upload_reflection_case_insensitive() -> None:
-    body = '<div><?PHP SYSTEM() ?></div>'
+    body = "<div><?PHP SYSTEM() ?></div>"
     assert _check_upload_reflection(body, ["<?php"]) is True
 
 
@@ -121,13 +124,20 @@ def test_check_upload_reflection_empty_body() -> None:
 
 def test_attempt_dataclass_frozen() -> None:
     a = UploadAttempt(
-        technique="test", category="polyglot",
-        filename="test.jpg", content_type="image/jpeg",
+        technique="test",
+        category="polyglot",
+        filename="test.jpg",
+        content_type="image/jpeg",
         method="POST",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=110,
-        status_changed=False, size_changed=True,
-        vulnerable=True, details="test", error="",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=110,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -135,24 +145,35 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = UploadAttempt(
-        technique="test", category="polyglot",
-        filename="test.jpg", content_type="image/jpeg",
+        technique="test",
+        category="polyglot",
+        filename="test.jpg",
+        content_type="image/jpeg",
         method="POST",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=110,
-        status_changed=False, size_changed=True,
-        vulnerable=True, details="test", error="",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=110,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = UploadResult(
-        target=_TARGET, tls=True,
+        target=_TARGET,
+        tls=True,
         upload_endpoint=None,
-        baseline_status=200, baseline_size=100,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        baseline_status=200,
+        baseline_size=100,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     with pytest.raises(AttributeError):
@@ -161,11 +182,15 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = UploadResult(
-        target=_TARGET, tls=True,
+        target=_TARGET,
+        tls=True,
         upload_endpoint=None,
-        baseline_status=200, baseline_size=100,
-        attempts=[], vulnerable_techniques=[],
-        blocked_techniques=[], issues=[],
+        baseline_status=200,
+        baseline_size=100,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
         overall_status="safe",
     )
     assert not hasattr(r, "__dict__")
@@ -181,18 +206,19 @@ def test_no_duplicate_technique_names_across_categories() -> None:
 def test_no_duplicate_payload_names_across_lists() -> None:
     all_names: list[str] = []
     for lst in (
-        _POLYGLOT_PAYLOADS, _SVG_XXE_PAYLOADS, _IMAGIC_PAYLOADS,
-        _ZIP_SLIP_PAYLOADS, _FILENAME_PAYLOADS, _CONTENT_TYPE_PAYLOADS,
+        _POLYGLOT_PAYLOADS,
+        _SVG_XXE_PAYLOADS,
+        _IMAGIC_PAYLOADS,
+        _ZIP_SLIP_PAYLOADS,
+        _FILENAME_PAYLOADS,
+        _CONTENT_TYPE_PAYLOADS,
     ):
         all_names.extend(p[0] for p in lst)
     assert len(all_names) == len(set(all_names))
 
 
 def test_all_payloads_have_indicators() -> None:
-    all_lists = (
-        _POLYGLOT_PAYLOADS + _SVG_XXE_PAYLOADS + _IMAGIC_PAYLOADS
-        + _ZIP_SLIP_PAYLOADS + _FILENAME_PAYLOADS + _CONTENT_TYPE_PAYLOADS
-    )
+    all_lists = _POLYGLOT_PAYLOADS + _SVG_XXE_PAYLOADS + _IMAGIC_PAYLOADS + _ZIP_SLIP_PAYLOADS + _FILENAME_PAYLOADS + _CONTENT_TYPE_PAYLOADS
     for p in all_lists:
         assert len(p[4]) >= 1, f"Payload {p[0]} must have at least 1 indicator"
 
@@ -235,13 +261,13 @@ class TestFindUploadEndpoint:
         assert "/upload" in result
 
     def test_common_path_file_upload(self) -> None:
-        body = '<html><p>Go to /attachments</p></html>'
+        body = "<html><p>Go to /attachments</p></html>"
         result = _find_upload_endpoint("https://example.com", body)
         assert result is not None
         assert "/attachments" in result
 
     def test_no_forms_returns_base_url(self) -> None:
-        body = '<html><body>No forms here</body></html>'
+        body = "<html><body>No forms here</body></html>"
         result = _find_upload_endpoint("https://example.com", body)
         assert result == "https://example.com"
 
@@ -317,7 +343,11 @@ class TestMultipartBoundary:
     async def test_safe_response(self) -> None:
         client = _mock_client_post(200, "OK")
         results = await _test_multipart_boundary_category(
-            client, _UPLOAD_URL, 10, 200, 100,
+            client,
+            _UPLOAD_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 6
         assert all(not r.vulnerable for r in results)
@@ -326,7 +356,11 @@ class TestMultipartBoundary:
     async def test_vulnerable_response(self) -> None:
         client = _mock_client_post(200, "Content-Disposition: form-data onmouseover=alert(1)")
         results = await _test_multipart_boundary_category(
-            client, _UPLOAD_URL, 10, 200, 100,
+            client,
+            _UPLOAD_URL,
+            10,
+            200,
+            100,
         )
         assert any(r.vulnerable for r in results)
 
@@ -335,7 +369,11 @@ class TestMultipartBoundary:
         mock_client = AsyncMock()
         mock_client.post.side_effect = httpx.RequestError("fail")
         results = await _test_multipart_boundary_category(
-            mock_client, _UPLOAD_URL, 10, 200, 100,
+            mock_client,
+            _UPLOAD_URL,
+            10,
+            200,
+            100,
         )
         assert len(results) == 6
         assert all(r.error for r in results)
@@ -350,9 +388,11 @@ def _make_result(
     overall_status: str = "safe",
 ) -> UploadResult:
     return UploadResult(
-        target=_TARGET, tls=True,
+        target=_TARGET,
+        tls=True,
         upload_endpoint=_UPLOAD_URL,
-        baseline_status=200, baseline_size=100,
+        baseline_status=200,
+        baseline_size=100,
         attempts=attempts or [],
         vulnerable_techniques=[],
         blocked_techniques=[],
@@ -370,14 +410,22 @@ def test_print_results_no_vulns(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_print_results_with_vulns(capsys: pytest.CaptureFixture[str]) -> None:
     attempt = UploadAttempt(
-        technique="jpg_php", category="polyglot",
-        filename="polyglot.jpg.php", content_type="image/jpeg",
+        technique="jpg_php",
+        category="polyglot",
+        filename="polyglot.jpg.php",
+        content_type="image/jpeg",
         method="POST",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=200,
-        status_changed=False, size_changed=True,
-        vulnerable=True, details="Polyglot aceito e refletido", error="",
-        exploit="polyglot_file_content", tool="curl",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=200,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="Polyglot aceito e refletido",
+        error="",
+        exploit="polyglot_file_content",
+        tool="curl",
     )
     result = _make_result(attempts=[attempt], overall_status="vulnerable")
     print_results(result)
@@ -439,13 +487,20 @@ class TestRunScan:
                 mock_fetch.return_value = (200, {}, b"<html>upload</html>", b"")
                 with patch("mytools.web.fileupload._CATEGORY_TESTERS") as mock_testers:
                     mock_attempt = UploadAttempt(
-                        technique="jpg_php", category="polyglot",
-                        filename="polyglot.jpg.php", content_type="image/jpeg",
+                        technique="jpg_php",
+                        category="polyglot",
+                        filename="polyglot.jpg.php",
+                        content_type="image/jpeg",
                         method="POST",
-                        status_baseline=200, status_test=200,
-                        size_baseline=100, size_test=200,
-                        status_changed=False, size_changed=True,
-                        vulnerable=True, details="polyglot detected", error="",
+                        status_baseline=200,
+                        status_test=200,
+                        size_baseline=100,
+                        size_test=200,
+                        status_changed=False,
+                        size_changed=True,
+                        vulnerable=True,
+                        details="polyglot detected",
+                        error="",
                     )
                     mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
                     result = await run_scan(_TARGET, ["polyglot"], 10, None)
@@ -461,13 +516,20 @@ class TestRunScan:
                 mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
                 with patch("mytools.web.fileupload._CATEGORY_TESTERS") as mock_testers:
                     mock_attempt = UploadAttempt(
-                        technique="jpg_php", category="polyglot",
-                        filename="polyglot.jpg.php", content_type="image/jpeg",
+                        technique="jpg_php",
+                        category="polyglot",
+                        filename="polyglot.jpg.php",
+                        content_type="image/jpeg",
                         method="POST",
-                        status_baseline=200, status_test=403,
-                        size_baseline=100, size_test=100,
-                        status_changed=True, size_changed=False,
-                        vulnerable=False, details="", error="",
+                        status_baseline=200,
+                        status_test=403,
+                        size_baseline=100,
+                        size_test=100,
+                        status_changed=True,
+                        size_changed=False,
+                        vulnerable=False,
+                        details="",
+                        error="",
                     )
                     mock_testers.get.return_value = AsyncMock(return_value=[mock_attempt])
                     result = await run_scan(_TARGET, ["polyglot"], 10, None)
@@ -508,8 +570,10 @@ class TestRunScan:
 class TestRunOnce:
     def test_extracts_single_category(self) -> None:
         args = argparse.Namespace(
-            url=_TARGET, category="polyglot",
-            timeout=10, output=None,
+            url=_TARGET,
+            category="polyglot",
+            timeout=10,
+            output=None,
         )
         with patch("mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
             run_once(args)
@@ -517,8 +581,10 @@ class TestRunOnce:
 
     def test_all_category_passes_empty_list(self) -> None:
         args = argparse.Namespace(
-            url=_TARGET, category="all",
-            timeout=10, output=None,
+            url=_TARGET,
+            category="all",
+            timeout=10,
+            output=None,
         )
         with patch("mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0) as mock_scan:
             run_once(args)

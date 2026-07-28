@@ -13,23 +13,25 @@ from mytools.core.utils import _fetch_cache, create_async_client
 def base_ns():
     """Namespace base com defaults de todos os modulos, construido uma vez por sessao."""
     defaults = get_parser_defaults()
-    defaults.update({
-        "output": None,
-        "quiet": True,
-        "log_file": None,
-        "color": None,
-        "verbose": 0,
-        "timeout": 10,
-        "dry_run": False,
-        "output_dir": None,
-        "user_agent": "MyTools/test",
-        "verify": False,
-        "threads": None,
-        "auth": None,
-        "bearer_token": None,
-        "cookie": None,
-        "header": None,
-    })
+    defaults.update(
+        {
+            "output": None,
+            "quiet": True,
+            "log_file": None,
+            "color": None,
+            "verbose": 0,
+            "timeout": 10,
+            "dry_run": False,
+            "output_dir": None,
+            "user_agent": "MyTools/test",
+            "verify": False,
+            "threads": None,
+            "auth": None,
+            "bearer_token": None,
+            "cookie": None,
+            "header": None,
+        }
+    )
     return argparse.Namespace(**defaults)
 
 

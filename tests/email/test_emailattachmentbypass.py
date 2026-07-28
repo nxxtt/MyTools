@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Attachment Bypass."""
+
 import smtplib
 from unittest.mock import MagicMock, patch
 
@@ -23,9 +24,12 @@ from mytools.email.emailattachmentbypass import (
 class TestBypassAttempt:
     def test_frozen(self) -> None:
         a = BypassAttempt(
-            technique="double_ext_php_jpg", filename="shell.php.jpg",
-            content_type="application/octet-stream", status="accepted",
-            server_response="250 OK", error="",
+            technique="double_ext_php_jpg",
+            filename="shell.php.jpg",
+            content_type="application/octet-stream",
+            status="accepted",
+            server_response="250 OK",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "x"  # type: ignore[misc]
@@ -37,9 +41,15 @@ class TestBypassAttempt:
 class TestBypassResult:
     def test_frozen(self) -> None:
         r = BypassResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[], accepted_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="secure",
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
@@ -89,7 +99,7 @@ class TestParser:
 
 class TestPayloads:
     def test_all_payloads_have_required_fields(self) -> None:
-        for (filename, content_type, payload) in _ATTACH_BYPASS_PAYLOADS.values():
+        for filename, content_type, payload in _ATTACH_BYPASS_PAYLOADS.values():
             assert isinstance(filename, str) and filename
             assert isinstance(content_type, str) and "/" in content_type
             assert isinstance(payload, bytes) and len(payload) > 0
@@ -102,8 +112,14 @@ class TestPayloads:
 
     def test_category_map_keys(self) -> None:
         expected = {
-            "double_ext", "mime_spoof", "polyglot", "null_byte",
-            "case", "trailing", "semicolon", "magic_bytes",
+            "double_ext",
+            "mime_spoof",
+            "polyglot",
+            "null_byte",
+            "case",
+            "trailing",
+            "semicolon",
+            "magic_bytes",
         }
         assert set(_CATEGORY_MAP.keys()) == expected
 
@@ -111,7 +127,11 @@ class TestPayloads:
 class TestBuildAttachmentEmail:
     def test_basic_email(self) -> None:
         msg = _build_attachment_email(
-            "from@test.com", "to@test.com", "test.php", "image/jpeg", b"content",
+            "from@test.com",
+            "to@test.com",
+            "test.php",
+            "image/jpeg",
+            b"content",
         )
         assert msg["From"] == "from@test.com"
         assert msg["To"] == "to@test.com"
@@ -120,7 +140,11 @@ class TestBuildAttachmentEmail:
 
     def test_attachment_filename(self) -> None:
         msg = _build_attachment_email(
-            "a@b.com", "c@d.com", "shell.php.jpg", "application/octet-stream", b"x",
+            "a@b.com",
+            "c@d.com",
+            "shell.php.jpg",
+            "application/octet-stream",
+            b"x",
         )
         part = msg.get_payload()[1]  # type: ignore[reportArgumentType]
         disp = part["Content-Disposition"]  # type: ignore[reportArgumentType]
@@ -128,7 +152,11 @@ class TestBuildAttachmentEmail:
 
     def test_content_type_override(self) -> None:
         msg = _build_attachment_email(
-            "a@b.com", "c@d.com", "test.php", "image/jpeg", b"php_code",
+            "a@b.com",
+            "c@d.com",
+            "test.php",
+            "image/jpeg",
+            b"php_code",
         )
         part = msg.get_payload()[1]  # type: ignore[reportArgumentType]
         assert "image/jpeg" in part["Content-Type"]  # type: ignore[reportArgumentType]
@@ -193,7 +221,12 @@ class TestSendBypassEmail:
         mock_server = MagicMock()
         mock_smtp.return_value = mock_server
         accepted, details = _send_bypass_email(
-            mock_server, "a@b.com", "c@d.com", "test.php", "image/jpeg", b"content",
+            mock_server,
+            "a@b.com",
+            "c@d.com",
+            "test.php",
+            "image/jpeg",
+            b"content",
         )
         assert accepted is True
         assert details == "accepted"
@@ -201,11 +234,17 @@ class TestSendBypassEmail:
     @patch("mytools.email.emailattachmentbypass.smtplib.SMTP")
     def test_send_rejected(self, mock_smtp: MagicMock) -> None:
         from smtplib import SMTPResponseException
+
         mock_server = MagicMock()
         mock_server.data.side_effect = SMTPResponseException(550, b"Rejected")
         mock_smtp.return_value = mock_server
         accepted, details = _send_bypass_email(
-            mock_server, "a@b.com", "c@d.com", "test.php", "image/jpeg", b"content",
+            mock_server,
+            "a@b.com",
+            "c@d.com",
+            "test.php",
+            "image/jpeg",
+            b"content",
         )
         assert accepted is False
         assert "550" in details
@@ -336,12 +375,20 @@ class TestScanAttachmentBypass:
 class TestPrintResults:
     def test_print_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BypassResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[BypassAttempt(
-                technique="double_ext_php_jpg", filename="shell.php.jpg",
-                content_type="application/octet-stream", status="accepted",
-                server_response="250 OK", error="",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[
+                BypassAttempt(
+                    technique="double_ext_php_jpg",
+                    filename="shell.php.jpg",
+                    content_type="application/octet-stream",
+                    status="accepted",
+                    server_response="250 OK",
+                    error="",
+                )
+            ],
             accepted_techniques=["double_ext_php_jpg"],
             blocked_techniques=[],
             issues=["1/14 bypasses aceitos"],
@@ -353,12 +400,20 @@ class TestPrintResults:
 
     def test_print_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BypassResult(
-            target="mail.test.com", port=587, tls=True, banner="220",
-            attempts=[BypassAttempt(
-                technique="double_ext_php_jpg", filename="shell.php.jpg",
-                content_type="application/octet-stream", status="rejected",
-                server_response="550 Rejected", error="",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=True,
+            banner="220",
+            attempts=[
+                BypassAttempt(
+                    technique="double_ext_php_jpg",
+                    filename="shell.php.jpg",
+                    content_type="application/octet-stream",
+                    status="rejected",
+                    server_response="550 Rejected",
+                    error="",
+                )
+            ],
             accepted_techniques=[],
             blocked_techniques=["double_ext_php_jpg"],
             issues=["Todas as tecnicas bloqueadas"],
@@ -370,9 +425,15 @@ class TestPrintResults:
 
     def test_print_error(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BypassResult(
-            target="mail.test.com", port=587, tls=False, banner="",
-            attempts=[], accepted_techniques=[], blocked_techniques=[],
-            issues=["Falha de conexao"], overall_status="error",
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=["Falha de conexao"],
+            overall_status="error",
         )
         print_results(result)
         captured = capsys.readouterr()
@@ -380,12 +441,20 @@ class TestPrintResults:
 
     def test_print_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BypassResult(
-            target="mail.test.com", port=587, tls=False, banner="220",
-            attempts=[BypassAttempt(
-                technique="polyglot_jpg_php", filename="polyglot.jpg",
-                content_type="image/jpeg", status="error",
-                server_response="", error="timeout",
-            )],
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[
+                BypassAttempt(
+                    technique="polyglot_jpg_php",
+                    filename="polyglot.jpg",
+                    content_type="image/jpeg",
+                    status="error",
+                    server_response="",
+                    error="timeout",
+                )
+            ],
             accepted_techniques=[],
             blocked_techniques=[],
             issues=[],

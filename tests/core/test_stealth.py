@@ -313,21 +313,57 @@ class TestAddStealthArgs:
 
 class TestValidateStealthArgs:
     def test_compatible_flags_pass(self):
-        args = argparse.Namespace(tor=True, jitter=0.5, proxy=None, delay=0.0, random_delay=False,
-                                  user_agent_rotate=False, impersonate=None, fragment=0, fragment_tcp=0,
-                                  waf_evasion=False, pad_headers=0, src_port_random=False, rate_limit=0.0)
+        args = argparse.Namespace(
+            tor=True,
+            jitter=0.5,
+            proxy=None,
+            delay=0.0,
+            random_delay=False,
+            user_agent_rotate=False,
+            impersonate=None,
+            fragment=0,
+            fragment_tcp=0,
+            waf_evasion=False,
+            pad_headers=0,
+            src_port_random=False,
+            rate_limit=0.0,
+        )
         validate_stealth_args(args, module_type="web")
 
     def test_incompatible_flag_aborts(self):
-        args = argparse.Namespace(tor=False, jitter=0.0, proxy=None, delay=0.0, random_delay=False,
-                                  user_agent_rotate=False, impersonate="chrome", fragment=0, fragment_tcp=0,
-                                  waf_evasion=False, pad_headers=0, src_port_random=False, rate_limit=0.0)
+        args = argparse.Namespace(
+            tor=False,
+            jitter=0.0,
+            proxy=None,
+            delay=0.0,
+            random_delay=False,
+            user_agent_rotate=False,
+            impersonate="chrome",
+            fragment=0,
+            fragment_tcp=0,
+            waf_evasion=False,
+            pad_headers=0,
+            src_port_random=False,
+            rate_limit=0.0,
+        )
         with pytest.raises(SystemExit) as exc_info:
             validate_stealth_args(args, module_type="dns")
         assert exc_info.value.code == 2
 
     def test_no_stealth_flags_pass(self):
-        args = argparse.Namespace(tor=False, jitter=0.0, proxy=None, delay=0.0, random_delay=False,
-                                  user_agent_rotate=False, impersonate=None, fragment=0, fragment_tcp=0,
-                                  waf_evasion=False, pad_headers=0, src_port_random=False, rate_limit=0.0)
+        args = argparse.Namespace(
+            tor=False,
+            jitter=0.0,
+            proxy=None,
+            delay=0.0,
+            random_delay=False,
+            user_agent_rotate=False,
+            impersonate=None,
+            fragment=0,
+            fragment_tcp=0,
+            waf_evasion=False,
+            pad_headers=0,
+            src_port_random=False,
+            rate_limit=0.0,
+        )
         validate_stealth_args(args, module_type="network")

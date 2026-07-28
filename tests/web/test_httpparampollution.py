@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de HTTP Parameter Pollution."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -146,22 +147,40 @@ class TestCheckResponseContent:
 class TestHPPAttempt:
     def test_frozen(self) -> None:
         a = HPPAttempt(
-            technique="test", category="query", param_name="id",
-            payload="id=1&id=2", method="GET", status_baseline=200,
-            status_test=403, size_baseline=100, size_test=200,
-            status_changed=True, size_changed=True, vulnerable=True,
-            details="test", error="",
+            technique="test",
+            category="query",
+            param_name="id",
+            payload="id=1&id=2",
+            method="GET",
+            status_baseline=200,
+            status_test=403,
+            size_baseline=100,
+            size_test=200,
+            status_changed=True,
+            size_changed=True,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         a = HPPAttempt(
-            technique="test", category="query", param_name="id",
-            payload="id=1&id=2", method="GET", status_baseline=200,
-            status_test=403, size_baseline=100, size_test=200,
-            status_changed=True, size_changed=True, vulnerable=True,
-            details="test", error="",
+            technique="test",
+            category="query",
+            param_name="id",
+            payload="id=1&id=2",
+            method="GET",
+            status_baseline=200,
+            status_test=403,
+            size_baseline=100,
+            size_test=200,
+            status_changed=True,
+            size_changed=True,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
@@ -169,10 +188,15 @@ class TestHPPAttempt:
 class TestHPPResult:
     def test_frozen(self) -> None:
         r = HPPResult(
-            target="https://test.com", baseline_status=200,
-            baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -196,6 +220,7 @@ class TestBaseline:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -218,7 +243,9 @@ class TestQuery:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_query(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         assert len(results) == 20
         vuln = [r for r in results if r.vulnerable]
@@ -227,13 +254,16 @@ class TestQuery:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_query(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         assert len(results) == 20
         assert all(r.error for r in results)
@@ -252,7 +282,9 @@ class TestBody:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_body(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         assert len(results) == 20
         assert all(r.category == "body" for r in results)
@@ -260,13 +292,16 @@ class TestBody:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_body(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         assert len(results) == 20
         assert all(r.error for r in results)
@@ -285,7 +320,9 @@ class TestHeader:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_header(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         assert len(results) == 20
         assert all(r.category == "header" for r in results)
@@ -304,7 +341,9 @@ class TestJSON:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_json(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         assert len(results) == 20
         assert all(r.category == "json" for r in results)
@@ -323,7 +362,9 @@ class TestBypass:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_bypass(
-            mock_client, "https://test.com", (200, 100, b"ok"),
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
         )
         assert len(results) == 20
         assert all(r.category == "bypass" for r in results)
@@ -333,17 +374,31 @@ class TestBypass:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = HPPResult(
-            target="https://test.com", baseline_status=200,
-            baseline_size=100, tls=True,
-            attempts=[HPPAttempt(
-                technique="dup_id", category="query", param_name="id",
-                payload="id=1&id=2", method="GET", status_baseline=200,
-                status_test=403, size_baseline=100, size_test=200,
-                status_changed=True, size_changed=True, vulnerable=True,
-                details="path=/admin", error="",
-            )],
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                HPPAttempt(
+                    technique="dup_id",
+                    category="query",
+                    param_name="id",
+                    payload="id=1&id=2",
+                    method="GET",
+                    status_baseline=200,
+                    status_test=403,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=True,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="path=/admin",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["dup_id"],
-            blocked_techniques=[], issues=[],
+            blocked_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -353,10 +408,15 @@ class TestPrintResults:
 
     def test_no_vulns_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = HPPResult(
-            target="https://test.com", baseline_status=200,
-            baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -364,9 +424,13 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = HPPResult(
-            target="https://test.com", baseline_status=200,
-            baseline_size=100, tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
             issues=["Nenhum teste retornou resultado claro"],
             overall_status="unknown",
         )
@@ -408,6 +472,7 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
         from mytools.web.httpparampollution import run_once
+
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()

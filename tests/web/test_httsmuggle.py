@@ -58,11 +58,22 @@ class TestSmuggleAttempt:
 
     def test_frozen(self) -> None:
         a = SmuggleAttempt(
-            technique="t", category="c", method="M", path="/",
-            te_header="", cl_header="", smuggled_request="",
-            status_baseline=200, status_test=200, size_baseline=0,
-            size_test=0, response_differs=False, smuggled_executed=False,
-            vulnerable=False, details="", error="",
+            technique="t",
+            category="c",
+            method="M",
+            path="/",
+            te_header="",
+            cl_header="",
+            smuggled_request="",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=0,
+            size_test=0,
+            response_differs=False,
+            smuggled_executed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -89,10 +100,17 @@ class TestSmuggleResult:
 
     def test_frozen(self) -> None:
         r = SmuggleResult(
-            target="https://x", host="x", port=443, tls=True,
-            baseline_status=200, baseline_size=0, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://x",
+            host="x",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]

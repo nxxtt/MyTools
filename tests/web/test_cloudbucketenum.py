@@ -156,7 +156,9 @@ class TestCheckGCPResponse:
 class TestCheckAzureResponse:
     def test_open_container(self) -> None:
         indicators = {"open": ["EnumerationResults", "<Blobs>"], "not_found": ["BlobNotFound"]}
-        open_b, exists, _detail = _check_azure_response(200, "<EnumerationResults><Blobs><Blob><Name>file.txt</Name></Blob></Blobs></EnumerationResults>", indicators)
+        open_b, exists, _detail = _check_azure_response(
+            200, "<EnumerationResults><Blobs><Blob><Name>file.txt</Name></Blob></Blobs></EnumerationResults>", indicators
+        )
         assert open_b is True
         assert exists is True
 
@@ -181,26 +183,44 @@ class TestCheckAzureResponse:
 class TestBucketAttempt:
     def test_frozen(self) -> None:
         attempt = BucketAttempt(
-            provider="s3", bucket_name="test", url="http://x",
-            status_code=200, response_size=100, response_time=0.1,
-            open_bucket=True, exists=True, details="open",
+            provider="s3",
+            bucket_name="test",
+            url="http://x",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            open_bucket=True,
+            exists=True,
+            details="open",
         )
         with pytest.raises(AttributeError):
             attempt.provider = "gcp"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         attempt = BucketAttempt(
-            provider="s3", bucket_name="test", url="http://x",
-            status_code=200, response_size=100, response_time=0.1,
-            open_bucket=True, exists=True, details="open",
+            provider="s3",
+            bucket_name="test",
+            url="http://x",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            open_bucket=True,
+            exists=True,
+            details="open",
         )
         assert not hasattr(attempt, "__dict__")
 
     def test_asdict(self) -> None:
         attempt = BucketAttempt(
-            provider="s3", bucket_name="test", url="http://x",
-            status_code=200, response_size=100, response_time=0.1,
-            open_bucket=True, exists=True, details="open",
+            provider="s3",
+            bucket_name="test",
+            url="http://x",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            open_bucket=True,
+            exists=True,
+            details="open",
         )
         d = asdict(attempt)
         assert d["provider"] == "s3"
@@ -210,16 +230,24 @@ class TestBucketAttempt:
 class TestBucketResult:
     def test_frozen(self) -> None:
         result = BucketResult(
-            domain="example.com", attempts=[], open_buckets=[],
-            existing_buckets=[], issues=[], overall_status="secure",
+            domain="example.com",
+            attempts=[],
+            open_buckets=[],
+            existing_buckets=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.domain = "other.com"  # type: ignore[misc]
 
     def test_asdict(self) -> None:
         result = BucketResult(
-            domain="example.com", attempts=[], open_buckets=["s3:test"],
-            existing_buckets=[], issues=[], overall_status="vulnerable",
+            domain="example.com",
+            attempts=[],
+            open_buckets=["s3:test"],
+            existing_buckets=[],
+            issues=[],
+            overall_status="vulnerable",
         )
         d = asdict(result)
         assert d["open_buckets"] == ["s3:test"]
@@ -271,8 +299,11 @@ class TestBuildParser:
 class TestPrintResults:
     def test_secure_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BucketResult(
-            domain="example.com", attempts=[], open_buckets=[],
-            existing_buckets=[], issues=["Nenhum bucket aberto"],
+            domain="example.com",
+            attempts=[],
+            open_buckets=[],
+            existing_buckets=[],
+            issues=["Nenhum bucket aberto"],
             overall_status="secure",
         )
         print_results(result)
@@ -282,8 +313,11 @@ class TestPrintResults:
 
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BucketResult(
-            domain="example.com", attempts=[], open_buckets=["s3:example"],
-            existing_buckets=[], issues=["Buckets ABERTOS"],
+            domain="example.com",
+            attempts=[],
+            open_buckets=["s3:example"],
+            existing_buckets=[],
+            issues=["Buckets ABERTOS"],
             overall_status="vulnerable",
         )
         print_results(result)

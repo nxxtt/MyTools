@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de RTL Override."""
+
 import argparse
 from unittest.mock import patch
 
@@ -146,11 +147,21 @@ class TestRTLAttempt:
 
     def test_frozen(self) -> None:
         att = RTLAttempt(
-            technique="rlo", label="RTL Override", url_display="http://x.com",
-            url_real="http://x.com", rtl_char="\u202e", position="before_domain",
-            status_baseline=200, status_test=200, size_baseline=100, size_test=100,
-            status_changed=False, size_changed=False, vulnerable=False,
-            details="", error="",
+            technique="rlo",
+            label="RTL Override",
+            url_display="http://x.com",
+            url_real="http://x.com",
+            rtl_char="\u202e",
+            position="before_domain",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             att.technique = "changed"  # type: ignore[misc]
@@ -161,9 +172,15 @@ class TestRTLResult:
 
     def test_frozen(self) -> None:
         result = RTLResult(
-            target="http://x.com", baseline_status=200, baseline_size=100,
-            tls=False, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="safe",
+            target="http://x.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             result.target = "changed"  # type: ignore[misc]
@@ -174,9 +191,15 @@ class TestPrintResults:
 
     def test_print_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = RTLResult(
-            target="https://example.com", baseline_status=200, baseline_size=100,
-            tls=True, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="blocked",
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="blocked",
         )
         print_results(result)
         captured = capsys.readouterr()
@@ -184,15 +207,29 @@ class TestPrintResults:
 
     def test_print_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = RTLResult(
-            target="https://example.com", baseline_status=200, baseline_size=100,
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
             tls=True,
-            attempts=[RTLAttempt(
-                technique="rlo", label="RTL Override", url_display="https://example.com",
-                url_real="https://example.com\u202eadmin", rtl_char="\u202e",
-                position="before_domain", status_baseline=200, status_test=200,
-                size_baseline=100, size_test=200, status_changed=False,
-                size_changed=True, vulnerable=True, details="size changed", error="",
-            )],
+            attempts=[
+                RTLAttempt(
+                    technique="rlo",
+                    label="RTL Override",
+                    url_display="https://example.com",
+                    url_real="https://example.com\u202eadmin",
+                    rtl_char="\u202e",
+                    position="before_domain",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=False,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="size changed",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["rlo"],
             blocked_techniques=[],
             issues=["1 tecnicas vulneraveis"],

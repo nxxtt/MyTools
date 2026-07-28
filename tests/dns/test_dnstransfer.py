@@ -232,7 +232,10 @@ class TestRunXfrScan:
     @patch("mytools.dns.dnstransfer.get_nameservers", return_value=["ns1.example.com", "ns2.example.com"])
     def test_multiple_ns(self, mock_ns, mock_ip, mock_xfr):
         mock_xfr.return_value = XfrResult(
-            domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4", zone_transferred=False,
+            domain="example.com",
+            nameserver="ns1.example.com",
+            ns_ip="1.2.3.4",
+            zone_transferred=False,
         )
         results = run_xfr_scan("example.com")
         assert len(results) == 2
@@ -243,8 +246,12 @@ class TestRunXfrScan:
     @patch("mytools.dns.dnstransfer.get_nameservers", return_value=["ns1.example.com"])
     def test_vulnerable_detected(self, mock_ns, mock_ip, mock_xfr):
         mock_xfr.return_value = XfrResult(
-            domain="example.com", nameserver="ns1.example.com", ns_ip="1.2.3.4",
-            zone_transferred=True, record_count=10, records=["a A 1.2.3.4"],
+            domain="example.com",
+            nameserver="ns1.example.com",
+            ns_ip="1.2.3.4",
+            zone_transferred=True,
+            record_count=10,
+            records=["a A 1.2.3.4"],
         )
         results = run_xfr_scan("example.com")
         assert results[0].zone_transferred is True

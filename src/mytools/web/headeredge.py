@@ -167,7 +167,7 @@ def _send_raw(
                         break
                     else:
                         break
-        except (TimeoutError, OSError):
+        except TimeoutError, OSError:
             break
 
     status = 0
@@ -325,35 +325,39 @@ async def _test_duplicate_headers(
                 raw_req = request
                 status, response = _send_raw(sock, request.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) or (len(response) != b_size)
-                results.append(HeaderEdgeAttempt(
-                exploit="header_smuggling_payload",
-                tool="curl",
-                    technique=technique,
-                    category="duplicate_headers",
-                    raw_request=raw_req,
-                    status_baseline=b_status,
-                    status_test=status,
-                    size_baseline=b_size,
-                    size_test=len(response),
-                    vulnerable=vulnerable,
-                    details=f"Status: {status} (baseline: {b_status}), size: {len(response)} (baseline: {b_size})",
-                    error="",
-                ))
+                results.append(
+                    HeaderEdgeAttempt(
+                        exploit="header_smuggling_payload",
+                        tool="curl",
+                        technique=technique,
+                        category="duplicate_headers",
+                        raw_request=raw_req,
+                        status_baseline=b_status,
+                        status_test=status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        vulnerable=vulnerable,
+                        details=f"Status: {status} (baseline: {b_status}), size: {len(response)} (baseline: {b_size})",
+                        error="",
+                    )
+                )
             finally:
                 sock.close()
         except Exception as e:
-            results.append(HeaderEdgeAttempt(
-                technique=technique,
-                category="duplicate_headers",
-                raw_request=raw_headers,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+            results.append(
+                HeaderEdgeAttempt(
+                    technique=technique,
+                    category="duplicate_headers",
+                    raw_request=raw_headers,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -387,35 +391,39 @@ async def _test_malformed_version(
             try:
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
-                results.append(HeaderEdgeAttempt(
-                exploit="header_smuggling_payload",
-                tool="curl",
+                results.append(
+                    HeaderEdgeAttempt(
+                        exploit="header_smuggling_payload",
+                        tool="curl",
+                        technique=technique,
+                        category="malformed_version",
+                        raw_request=raw_req,
+                        status_baseline=b_status,
+                        status_test=status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        vulnerable=vulnerable,
+                        details=f"Version: {desc}, status: {status} (baseline: {b_status})",
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+        except Exception as e:
+            results.append(
+                HeaderEdgeAttempt(
                     technique=technique,
                     category="malformed_version",
                     raw_request=raw_req,
                     status_baseline=b_status,
-                    status_test=status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    vulnerable=vulnerable,
-                    details=f"Version: {desc}, status: {status} (baseline: {b_status})",
-                    error="",
-                ))
-            finally:
-                sock.close()
-        except Exception as e:
-            results.append(HeaderEdgeAttempt(
-                technique=technique,
-                category="malformed_version",
-                raw_request=raw_req,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -469,35 +477,39 @@ async def _test_null_request_byte(
             try:
                 status, response = _send_raw(sock, raw_req, timeout)
                 vulnerable = (status != b_status) and status != 0
-                results.append(HeaderEdgeAttempt(
-                exploit="header_smuggling_payload",
-                tool="curl",
-                    technique=technique,
-                    category="null_request_byte",
-                    raw_request=repr(raw_req),
-                    status_baseline=b_status,
-                    status_test=status,
-                    size_baseline=b_size,
-                    size_test=len(response),
-                    vulnerable=vulnerable,
-                    details=f"{desc}, status: {status} (baseline: {b_status})",
-                    error="",
-                ))
+                results.append(
+                    HeaderEdgeAttempt(
+                        exploit="header_smuggling_payload",
+                        tool="curl",
+                        technique=technique,
+                        category="null_request_byte",
+                        raw_request=repr(raw_req),
+                        status_baseline=b_status,
+                        status_test=status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        vulnerable=vulnerable,
+                        details=f"{desc}, status: {status} (baseline: {b_status})",
+                        error="",
+                    )
+                )
             finally:
                 sock.close()
         except Exception as e:
-            results.append(HeaderEdgeAttempt(
-                technique=technique,
-                category="null_request_byte",
-                raw_request=desc,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+            results.append(
+                HeaderEdgeAttempt(
+                    technique=technique,
+                    category="null_request_byte",
+                    raw_request=desc,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -551,35 +563,39 @@ async def _test_header_whitespace(
             try:
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
-                results.append(HeaderEdgeAttempt(
-                exploit="header_smuggling_payload",
-                tool="curl",
+                results.append(
+                    HeaderEdgeAttempt(
+                        exploit="header_smuggling_payload",
+                        tool="curl",
+                        technique=technique,
+                        category="header_whitespace",
+                        raw_request=raw_req,
+                        status_baseline=b_status,
+                        status_test=status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        vulnerable=vulnerable,
+                        details=f"{desc}, status: {status} (baseline: {b_status})",
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+        except Exception as e:
+            results.append(
+                HeaderEdgeAttempt(
                     technique=technique,
                     category="header_whitespace",
                     raw_request=raw_req,
                     status_baseline=b_status,
-                    status_test=status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    vulnerable=vulnerable,
-                    details=f"{desc}, status: {status} (baseline: {b_status})",
-                    error="",
-                ))
-            finally:
-                sock.close()
-        except Exception as e:
-            results.append(HeaderEdgeAttempt(
-                technique=technique,
-                category="header_whitespace",
-                raw_request=raw_req,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -633,35 +649,39 @@ async def _test_header_case(
             try:
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
-                results.append(HeaderEdgeAttempt(
-                exploit="header_smuggling_payload",
-                tool="curl",
+                results.append(
+                    HeaderEdgeAttempt(
+                        exploit="header_smuggling_payload",
+                        tool="curl",
+                        technique=technique,
+                        category="header_case",
+                        raw_request=raw_req,
+                        status_baseline=b_status,
+                        status_test=status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        vulnerable=vulnerable,
+                        details=f"{desc}, status: {status} (baseline: {b_status})",
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+        except Exception as e:
+            results.append(
+                HeaderEdgeAttempt(
                     technique=technique,
                     category="header_case",
                     raw_request=raw_req,
                     status_baseline=b_status,
-                    status_test=status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    vulnerable=vulnerable,
-                    details=f"{desc}, status: {status} (baseline: {b_status})",
-                    error="",
-                ))
-            finally:
-                sock.close()
-        except Exception as e:
-            results.append(HeaderEdgeAttempt(
-                technique=technique,
-                category="header_case",
-                raw_request=raw_req,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -721,35 +741,39 @@ async def _test_absolute_uri(
             try:
                 status, response = _send_raw(sock, raw_req.encode("latin-1", errors="replace"), timeout)
                 vulnerable = (status != b_status) and status != 0
-                results.append(HeaderEdgeAttempt(
-                exploit="header_smuggling_payload",
-                tool="curl",
+                results.append(
+                    HeaderEdgeAttempt(
+                        exploit="header_smuggling_payload",
+                        tool="curl",
+                        technique=technique,
+                        category="absolute_uri",
+                        raw_request=raw_req,
+                        status_baseline=b_status,
+                        status_test=status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        vulnerable=vulnerable,
+                        details=f"{desc}, status: {status} (baseline: {b_status})",
+                        error="",
+                    )
+                )
+            finally:
+                sock.close()
+        except Exception as e:
+            results.append(
+                HeaderEdgeAttempt(
                     technique=technique,
                     category="absolute_uri",
                     raw_request=raw_req,
                     status_baseline=b_status,
-                    status_test=status,
+                    status_test=0,
                     size_baseline=b_size,
-                    size_test=len(response),
-                    vulnerable=vulnerable,
-                    details=f"{desc}, status: {status} (baseline: {b_status})",
-                    error="",
-                ))
-            finally:
-                sock.close()
-        except Exception as e:
-            results.append(HeaderEdgeAttempt(
-                technique=technique,
-                category="absolute_uri",
-                raw_request=raw_req,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -803,35 +827,39 @@ async def _test_http09_request(
             try:
                 status, response = _send_raw(sock, raw_req, timeout)
                 vulnerable = (status != b_status) and status != 0
-                results.append(HeaderEdgeAttempt(
-                exploit="header_smuggling_payload",
-                tool="curl",
-                    technique=technique,
-                    category="http09_request",
-                    raw_request=repr(raw_req),
-                    status_baseline=b_status,
-                    status_test=status,
-                    size_baseline=b_size,
-                    size_test=len(response),
-                    vulnerable=vulnerable,
-                    details=f"{desc}, status: {status} (baseline: {b_status})",
-                    error="",
-                ))
+                results.append(
+                    HeaderEdgeAttempt(
+                        exploit="header_smuggling_payload",
+                        tool="curl",
+                        technique=technique,
+                        category="http09_request",
+                        raw_request=repr(raw_req),
+                        status_baseline=b_status,
+                        status_test=status,
+                        size_baseline=b_size,
+                        size_test=len(response),
+                        vulnerable=vulnerable,
+                        details=f"{desc}, status: {status} (baseline: {b_status})",
+                        error="",
+                    )
+                )
             finally:
                 sock.close()
         except Exception as e:
-            results.append(HeaderEdgeAttempt(
-                technique=technique,
-                category="http09_request",
-                raw_request=desc,
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+            results.append(
+                HeaderEdgeAttempt(
+                    technique=technique,
+                    category="http09_request",
+                    raw_request=desc,
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -913,24 +941,23 @@ async def run_scan(
             raw = await tester(host, port, path, timeout, tls, b_status, b_size)
             all_attempts.extend(raw)
         except Exception as e:
-            all_attempts.append(HeaderEdgeAttempt(
-                technique=f"{cat}_error",
-                category=cat,
-                raw_request="",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                vulnerable=False,
-                details="",
-                error=str(e)[:100],
-            ))
+            all_attempts.append(
+                HeaderEdgeAttempt(
+                    technique=f"{cat}_error",
+                    category=cat,
+                    raw_request="",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
+                )
+            )
 
     vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-    issue_techs = [
-        a.technique for a in all_attempts
-        if a.error and not a.vulnerable
-    ]
+    issue_techs = [a.technique for a in all_attempts if a.error and not a.vulnerable]
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
     overall = "vulnerable" if vuln_techs else "secure"
 
@@ -966,7 +993,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",

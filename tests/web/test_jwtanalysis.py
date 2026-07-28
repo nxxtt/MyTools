@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo JWT Analysis."""
+
 from __future__ import annotations
 
 import time
@@ -32,8 +33,12 @@ def test_category_map_has_six_categories() -> None:
 
 def test_category_map_keys() -> None:
     assert _CATEGORY_MAP.keys() == {
-        "weak_algorithm", "signature_bypass", "expiration",
-        "claims", "header_injection", "replay",
+        "weak_algorithm",
+        "signature_bypass",
+        "expiration",
+        "claims",
+        "header_injection",
+        "replay",
     }
 
 
@@ -134,7 +139,9 @@ def test_forge_token_hs256() -> None:
 
 def test_forge_token_with_header() -> None:
     token = _forge_token_with_header(
-        {"sub": "admin"}, "secret123", {"kid": "../../dev/null"},
+        {"sub": "admin"},
+        "secret123",
+        {"kid": "../../dev/null"},
     )
     header = _decode_jwt_header(token)
     assert header is not None
@@ -143,8 +150,11 @@ def test_forge_token_with_header() -> None:
 
 def test_attempt_dataclass_frozen() -> None:
     a = JWTAnalysisAttempt(
-        technique="test", category="weak_algorithm",
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="weak_algorithm",
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -152,19 +162,26 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = JWTAnalysisAttempt(
-        technique="test", category="weak_algorithm",
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="weak_algorithm",
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = JWTAnalysisResult(
-        target=None, token_valid=True,
-        header={"alg": "HS256"}, payload={"sub": "1234"},
+        target=None,
+        token_valid=True,
+        header={"alg": "HS256"},
+        payload={"sub": "1234"},
         algorithm="HS256",
-        attempts=[], vulnerable_techniques=[],
-        issues=[], overall_status="safe",
+        attempts=[],
+        vulnerable_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     with pytest.raises(AttributeError):
         r.target = "changed"  # type: ignore[reportAttributeAccessIssue]
@@ -172,11 +189,15 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = JWTAnalysisResult(
-        target=None, token_valid=True,
-        header={"alg": "HS256"}, payload={"sub": "1234"},
+        target=None,
+        token_valid=True,
+        header={"alg": "HS256"},
+        payload={"sub": "1234"},
         algorithm="HS256",
-        attempts=[], vulnerable_techniques=[],
-        issues=[], overall_status="safe",
+        attempts=[],
+        vulnerable_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     assert not hasattr(r, "__dict__")
 

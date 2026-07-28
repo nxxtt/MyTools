@@ -14,6 +14,7 @@ Uso:
 Em scanners, use o prefixo @ para referenciar credenciais salvas:
     mytools attackaudit https://target.com --bearer-token @meu_token
 """
+
 import argparse
 import getpass
 import logging

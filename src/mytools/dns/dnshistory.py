@@ -12,6 +12,7 @@ Fluxo principal:
   3. Consolida, ordena por data e exibe tabela
   4. Salva saida em JSON se --output especificado
 """
+
 import argparse
 import json
 import logging
@@ -88,45 +89,53 @@ def _parse_dnslytics(body: bytes, domain: str) -> list[DnsHistoryRecord]:
         for item in nested.get("ipv4", [])
     ]
 
-    records.extend([
-        DnsHistoryRecord(
-            record_type="aaaa",
-            value=item.get("ip", ""),
-            last_seen=item.get("updatedate"),
-            source="dnslytics",
-        )
-        for item in nested.get("ipv6", [])
-    ])
+    records.extend(
+        [
+            DnsHistoryRecord(
+                record_type="aaaa",
+                value=item.get("ip", ""),
+                last_seen=item.get("updatedate"),
+                source="dnslytics",
+            )
+            for item in nested.get("ipv6", [])
+        ]
+    )
 
-    records.extend([
-        DnsHistoryRecord(
-            record_type="ns",
-            value=item.get("dns", ""),
-            last_seen=item.get("updatedate"),
-            source="dnslytics",
-        )
-        for item in nested.get("dns", [])
-    ])
+    records.extend(
+        [
+            DnsHistoryRecord(
+                record_type="ns",
+                value=item.get("dns", ""),
+                last_seen=item.get("updatedate"),
+                source="dnslytics",
+            )
+            for item in nested.get("dns", [])
+        ]
+    )
 
-    records.extend([
-        DnsHistoryRecord(
-            record_type="mx",
-            value=item.get("mx", ""),
-            last_seen=item.get("updatedate"),
-            source="dnslytics",
-        )
-        for item in nested.get("mx", [])
-    ])
+    records.extend(
+        [
+            DnsHistoryRecord(
+                record_type="mx",
+                value=item.get("mx", ""),
+                last_seen=item.get("updatedate"),
+                source="dnslytics",
+            )
+            for item in nested.get("mx", [])
+        ]
+    )
 
-    records.extend([
-        DnsHistoryRecord(
-            record_type="txt",
-            value=item.get("record", ""),
-            last_seen=item.get("updatedate"),
-            source="dnslytics",
-        )
-        for item in nested.get("spf", [])
-    ])
+    records.extend(
+        [
+            DnsHistoryRecord(
+                record_type="txt",
+                value=item.get("record", ""),
+                last_seen=item.get("updatedate"),
+                source="dnslytics",
+            )
+            for item in nested.get("spf", [])
+        ]
+    )
 
     return records
 
@@ -154,14 +163,16 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[DnsHistoryRecord]:
 
         for val_obj in item.get("values", []):
             value = val_obj.get("ip") or val_obj.get("host") or val_obj.get("txt") or ""
-            records.append(DnsHistoryRecord(
-                record_type=data.get("type", "a").split("/")[0],
-                value=str(value),
-                first_seen=first,
-                last_seen=last,
-                owner=owner,
-                source="securitytrails",
-            ))
+            records.append(
+                DnsHistoryRecord(
+                    record_type=data.get("type", "a").split("/")[0],
+                    value=str(value),
+                    first_seen=first,
+                    last_seen=last,
+                    owner=owner,
+                    source="securitytrails",
+                )
+            )
 
     return records
 
@@ -199,6 +210,7 @@ def _parse_viewdns(body: bytes, domain: str) -> list[DnsHistoryRecord]:
 # Query dispatcher
 # ---------------------------------------------------------------------------
 
+
 async def _query_source(
     source: str,
     domain: str,
@@ -227,7 +239,9 @@ async def _query_source(
             for rtype in record_types:
                 url = _ST_URL.format(domain=domain, record_type=rtype)
                 status, _headers, body, _raw = await fetch(
-                    client, url, timeout=timeout,
+                    client,
+                    url,
+                    timeout=timeout,
                     method="GET",
                 )
                 if status == 200:
@@ -309,14 +323,13 @@ def run_history(
 
     keys = api_keys or {}
     rtypes = list(record_types or ["a", "aaaa", "mx", "ns", "txt"])
-    return safe_asyncio_run(
-        _query_all_sources(domain, sources, keys, rtypes, timeout)
-    )
+    return safe_asyncio_run(_query_all_sources(domain, sources, keys, rtypes, timeout))
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Monta o parser de argumentos CLI."""
@@ -401,12 +414,15 @@ def run_once(args: argparse.Namespace) -> int:
         if s != "dnslytics" and not api_keys.get(s):
             logger.warning(
                 "%s requer API key (use --%s-api-key)",
-                s, s.replace('securitytrails', 'st').replace('viewdns', 'viewdns'),
+                s,
+                s.replace("securitytrails", "st").replace("viewdns", "viewdns"),
             )
 
     logger.info(
         "Records: %d | Elapsed: %.1fs | Sources: %s",
-        len(records), elapsed, ", ".join(sources),
+        len(records),
+        elapsed,
+        ", ".join(sources),
     )
 
     if getattr(args, "output", None):

@@ -22,19 +22,32 @@ from mytools.web.dockerattack import (
 class TestDockerAttackAttempt:
     def test_creation(self) -> None:
         a = DockerAttackAttempt(
-            technique="registry_exposed", category="docker",
-            description="desc", vulnerable=False, details="test", error="",
-            endpoint="https://registry.target.com", registry_url="https://registry.target.com",
-            repositories=[], response_code=200,
+            technique="registry_exposed",
+            category="docker",
+            description="desc",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://registry.target.com",
+            registry_url="https://registry.target.com",
+            repositories=[],
+            response_code=200,
         )
         assert a.technique == "registry_exposed"
         assert a.repositories == []
 
     def test_frozen(self) -> None:
         a = DockerAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            registry_url="r", repositories=[], response_code=200,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            registry_url="r",
+            repositories=[],
+            response_code=200,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -43,9 +56,16 @@ class TestDockerAttackAttempt:
 class TestDockerAttackResult:
     def test_creation(self) -> None:
         r = DockerAttackResult(
-            target="https://registry.target.com", host="registry.target.com", port=443, tls=True,
-            endpoint="https://registry.target.com", registry_detected=False,
-            repositories=[], attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://registry.target.com",
+            host="registry.target.com",
+            port=443,
+            tls=True,
+            endpoint="https://registry.target.com",
+            registry_detected=False,
+            repositories=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         assert r.overall_status == "secure"
@@ -53,9 +73,17 @@ class TestDockerAttackResult:
 
     def test_frozen(self) -> None:
         r = DockerAttackResult(
-            target="t", host="h", port=443, tls=True, endpoint="e",
-            registry_detected=False, repositories=[], attempts=[],
-            vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            endpoint="e",
+            registry_detected=False,
+            repositories=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.host = "changed"  # type: ignore[misc]
@@ -78,6 +106,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -113,9 +142,16 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = DockerAttackResult(
-            target="https://registry.target.com", host="registry.target.com", port=443, tls=True,
-            endpoint="https://registry.target.com", registry_detected=False,
-            repositories=[], attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://registry.target.com",
+            host="registry.target.com",
+            port=443,
+            tls=True,
+            endpoint="https://registry.target.com",
+            registry_detected=False,
+            repositories=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         print_results(r)
@@ -125,16 +161,28 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = DockerAttackAttempt(
-            technique="registry_exposed", category="docker", description="desc",
-            vulnerable=True, details="registry accessible", error="",
-            endpoint="https://registry.target.com", registry_url="https://registry.target.com",
-            repositories=["library/nginx", "library/alpine"], response_code=200,
+            technique="registry_exposed",
+            category="docker",
+            description="desc",
+            vulnerable=True,
+            details="registry accessible",
+            error="",
+            endpoint="https://registry.target.com",
+            registry_url="https://registry.target.com",
+            repositories=["library/nginx", "library/alpine"],
+            response_code=200,
         )
         r = DockerAttackResult(
-            target="https://registry.target.com", host="registry.target.com", port=443, tls=True,
-            endpoint="https://registry.target.com", registry_detected=True,
-            repositories=["library/nginx", "library/alpine"], attempts=[a],
-            vulnerable_techniques=["registry_exposed"], issues=["Test issue"],
+            target="https://registry.target.com",
+            host="registry.target.com",
+            port=443,
+            tls=True,
+            endpoint="https://registry.target.com",
+            registry_detected=True,
+            repositories=["library/nginx", "library/alpine"],
+            attempts=[a],
+            vulnerable_techniques=["registry_exposed"],
+            issues=["Test issue"],
             overall_status="vulnerable",
         )
         print_results(r)

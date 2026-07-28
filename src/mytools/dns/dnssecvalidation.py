@@ -18,6 +18,7 @@ Fluxo:
   5. Avalia forca dos algoritmos
   6. Retorna status geral (secure/insecure/broken)
 """
+
 import argparse
 import datetime
 import logging
@@ -50,10 +51,18 @@ MEDIUM_ALGORITHMS = {8, 10}  # RSASHA256, RSASHA512
 STRONG_ALGORITHMS = {13, 14, 15, 16}  # ECDSA, ED25519, ED448
 
 ALGORITHM_NAMES = {
-    1: "RSAMD5", 3: "DSA", 5: "RSASHA1", 6: "DSA-NSEC3-SHA1",
-    7: "RSASHA1-NSEC3-SHA1", 8: "RSASHA256", 10: "RSASHA512",
-    12: "ECC-GOST", 13: "ECDSAP256SHA256", 14: "ECDSAP384SHA384",
-    15: "ED25519", 16: "ED448",
+    1: "RSAMD5",
+    3: "DSA",
+    5: "RSASHA1",
+    6: "DSA-NSEC3-SHA1",
+    7: "RSASHA1-NSEC3-SHA1",
+    8: "RSASHA256",
+    10: "RSASHA512",
+    12: "ECC-GOST",
+    13: "ECDSAP256SHA256",
+    14: "ECDSAP384SHA384",
+    15: "ED25519",
+    16: "ED448",
 }
 
 
@@ -109,64 +118,89 @@ def _check_dnskey(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, l
                 ksk_count += 1
 
         if ksk_count == 0:
-            checks.append(DnssecCheck(
-                check="dnskey_ksk",
-                status="warn",
-                detail="Nenhuma KSK (flags=257) encontrada",
-                severity="medium",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="dnskey_ksk",
+                    status="warn",
+                    detail="Nenhuma KSK (flags=257) encontrada",
+                    severity="medium",
+                )
+            )
         else:
-            checks.append(DnssecCheck(
-                check="dnskey_ksk",
-                status="pass",
-                detail=f"{ksk_count} KSK encontrada(s)",
-                severity="low",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="dnskey_ksk",
+                    status="pass",
+                    detail=f"{ksk_count} KSK encontrada(s)",
+                    severity="low",
+                )
+            )
 
         if zsk_count == 0:
-            checks.append(DnssecCheck(
-                check="dnskey_zsk",
-                status="warn",
-                detail="Nenhuma ZSK (flags=256) encontrada",
-                severity="medium",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="dnskey_zsk",
+                    status="warn",
+                    detail="Nenhuma ZSK (flags=256) encontrada",
+                    severity="medium",
+                )
+            )
         else:
-            checks.append(DnssecCheck(
-                check="dnskey_zsk",
-                status="pass",
-                detail=f"{zsk_count} ZSK encontrada(s)",
-                severity="low",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="dnskey_zsk",
+                    status="pass",
+                    detail=f"{zsk_count} ZSK encontrada(s)",
+                    severity="low",
+                )
+            )
 
         algo_strs = [ALGORITHM_NAMES.get(a, f"algo-{a}") for a in sorted(algorithms)]
-        checks.append(DnssecCheck(
-            check="dnskey_algorithms",
-            status="pass",
-            detail=f"Algoritmos: {', '.join(algo_strs)}",
-            severity="low",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="dnskey_algorithms",
+                status="pass",
+                detail=f"Algoritmos: {', '.join(algo_strs)}",
+                severity="low",
+            )
+        )
 
     except dns.resolver.NXDOMAIN:
-        checks.append(DnssecCheck(
-            check="dnskey", status="fail",
-            detail="Dominio nao existe", severity="high",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="dnskey",
+                status="fail",
+                detail="Dominio nao existe",
+                severity="high",
+            )
+        )
     except dns.resolver.NoAnswer:
-        checks.append(DnssecCheck(
-            check="dnskey", status="missing",
-            detail="Nenhum registro DNSKEY encontrado — zona nao assinada",
-            severity="high",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="dnskey",
+                status="missing",
+                detail="Nenhum registro DNSKEY encontrado — zona nao assinada",
+                severity="high",
+            )
+        )
     except dns.exception.Timeout:
-        checks.append(DnssecCheck(
-            check="dnskey", status="fail",
-            detail="Timeout ao consultar DNSKEY", severity="medium",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="dnskey",
+                status="fail",
+                detail="Timeout ao consultar DNSKEY",
+                severity="medium",
+            )
+        )
     except dns.exception.DNSException as e:
-        checks.append(DnssecCheck(
-            check="dnskey", status="fail",
-            detail=f"Erro DNS: {str(e)[:60]}", severity="medium",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="dnskey",
+                status="fail",
+                detail=f"Erro DNS: {str(e)[:60]}",
+                severity="medium",
+            )
+        )
 
     return has_dnskey, checks
 
@@ -181,34 +215,51 @@ def _check_ds(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, list[
         has_ds = True
 
         ds_count = len(list(answer))
-        checks.append(DnssecCheck(
-            check="ds_record",
-            status="pass",
-            detail=f"{ds_count} DS record(s) encontrado(s)",
-            severity="low",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="ds_record",
+                status="pass",
+                detail=f"{ds_count} DS record(s) encontrado(s)",
+                severity="low",
+            )
+        )
 
     except dns.resolver.NoAnswer:
-        checks.append(DnssecCheck(
-            check="ds_record", status="missing",
-            detail="Nenhum registro DS — zona pode nao ter delegacao DNSSEC",
-            severity="medium",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="ds_record",
+                status="missing",
+                detail="Nenhum registro DS — zona pode nao ter delegacao DNSSEC",
+                severity="medium",
+            )
+        )
     except dns.resolver.NXDOMAIN:
-        checks.append(DnssecCheck(
-            check="ds_record", status="fail",
-            detail="Dominio nao existe", severity="high",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="ds_record",
+                status="fail",
+                detail="Dominio nao existe",
+                severity="high",
+            )
+        )
     except dns.exception.Timeout:
-        checks.append(DnssecCheck(
-            check="ds_record", status="fail",
-            detail="Timeout ao consultar DS", severity="medium",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="ds_record",
+                status="fail",
+                detail="Timeout ao consultar DS",
+                severity="medium",
+            )
+        )
     except dns.exception.DNSException as e:
-        checks.append(DnssecCheck(
-            check="ds_record", status="fail",
-            detail=f"Erro DNS: {str(e)[:60]}", severity="medium",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="ds_record",
+                status="fail",
+                detail=f"Erro DNS: {str(e)[:60]}",
+                severity="medium",
+            )
+        )
 
     return has_ds, checks
 
@@ -239,41 +290,60 @@ def _check_rrsig(domain: str, resolver: dns.resolver.Resolver) -> tuple[bool, li
                 valid += 1
 
         if expired > 0:
-            checks.append(DnssecCheck(
-                check="rrsig_expiry",
-                status="warn",
-                detail=f"{expired} assinatura(s) expirada(s), {valid} valida(s)",
-                severity="high",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="rrsig_expiry",
+                    status="warn",
+                    detail=f"{expired} assinatura(s) expirada(s), {valid} valida(s)",
+                    severity="high",
+                )
+            )
         else:
-            checks.append(DnssecCheck(
-                check="rrsig_expiry",
-                status="pass",
-                detail=f"{valid} assinatura(s) valida(s)",
-                severity="low",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="rrsig_expiry",
+                    status="pass",
+                    detail=f"{valid} assinatura(s) valida(s)",
+                    severity="low",
+                )
+            )
 
     except dns.resolver.NoAnswer:
-        checks.append(DnssecCheck(
-            check="rrsig", status="missing",
-            detail="Nenhum registro RRSIG — zona nao assinada",
-            severity="high",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="rrsig",
+                status="missing",
+                detail="Nenhum registro RRSIG — zona nao assinada",
+                severity="high",
+            )
+        )
     except dns.resolver.NXDOMAIN:
-        checks.append(DnssecCheck(
-            check="rrsig", status="fail",
-            detail="Dominio nao existe", severity="high",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="rrsig",
+                status="fail",
+                detail="Dominio nao existe",
+                severity="high",
+            )
+        )
     except dns.exception.Timeout:
-        checks.append(DnssecCheck(
-            check="rrsig", status="fail",
-            detail="Timeout ao consultar RRSIG", severity="medium",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="rrsig",
+                status="fail",
+                detail="Timeout ao consultar RRSIG",
+                severity="medium",
+            )
+        )
     except dns.exception.DNSException as e:
-        checks.append(DnssecCheck(
-            check="rrsig", status="fail",
-            detail=f"Erro DNS: {str(e)[:60]}", severity="medium",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="rrsig",
+                status="fail",
+                detail=f"Erro DNS: {str(e)[:60]}",
+                severity="medium",
+            )
+        )
 
     return has_rrsig, checks
 
@@ -285,38 +355,53 @@ def _check_nsec(domain: str, resolver: dns.resolver.Resolver) -> list[DnssecChec
     try:
         answer = resolver.resolve(domain, "NSEC")
         nsec_count = len(list(answer))
-        checks.append(DnssecCheck(
-            check="nsec",
-            status="pass",
-            detail=f"{nsec_count} NSEC record(s) encontrado(s)",
-            severity="low",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="nsec",
+                status="pass",
+                detail=f"{nsec_count} NSEC record(s) encontrado(s)",
+                severity="low",
+            )
+        )
     except dns.resolver.NoAnswer:
         try:
             answer = resolver.resolve(domain, "NSEC3")
             nsec3_count = len(list(answer))
-            checks.append(DnssecCheck(
-                check="nsec3",
-                status="pass",
-                detail=f"{nsec3_count} NSEC3 record(s) encontrado(s)",
-                severity="low",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="nsec3",
+                    status="pass",
+                    detail=f"{nsec3_count} NSEC3 record(s) encontrado(s)",
+                    severity="low",
+                )
+            )
         except dns.resolver.NoAnswer:
-            checks.append(DnssecCheck(
-                check="nsec", status="missing",
-                detail="Nenhum NSEC/NSEC3 encontrado",
-                severity="low",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="nsec",
+                    status="missing",
+                    detail="Nenhum NSEC/NSEC3 encontrado",
+                    severity="low",
+                )
+            )
         except dns.exception.DNSException:
-            checks.append(DnssecCheck(
-                check="nsec3", status="fail",
-                detail="Erro ao consultar NSEC3", severity="low",
-            ))
+            checks.append(
+                DnssecCheck(
+                    check="nsec3",
+                    status="fail",
+                    detail="Erro ao consultar NSEC3",
+                    severity="low",
+                )
+            )
     except dns.exception.DNSException:
-        checks.append(DnssecCheck(
-            check="nsec", status="fail",
-            detail="Erro ao consultar NSEC", severity="low",
-        ))
+        checks.append(
+            DnssecCheck(
+                check="nsec",
+                status="fail",
+                detail="Erro ao consultar NSEC",
+                severity="low",
+            )
+        )
 
     return checks
 
@@ -368,19 +453,23 @@ def scan_dnssec(
     algo_strength = _evaluate_algorithm_strength(domain, resolver)
 
     if algo_strength == "weak":
-        all_checks.append(DnssecCheck(
-            check="algorithm_strength",
-            status="warn",
-            detail="Algoritmos fracos detectados (SHA-1/DSA)",
-            severity="medium",
-        ))
+        all_checks.append(
+            DnssecCheck(
+                check="algorithm_strength",
+                status="warn",
+                detail="Algoritmos fracos detectados (SHA-1/DSA)",
+                severity="medium",
+            )
+        )
     elif algo_strength == "strong":
-        all_checks.append(DnssecCheck(
-            check="algorithm_strength",
-            status="pass",
-            detail="Algoritmos fortes (ECDSA/ED25519)",
-            severity="low",
-        ))
+        all_checks.append(
+            DnssecCheck(
+                check="algorithm_strength",
+                status="pass",
+                detail="Algoritmos fortes (ECDSA/ED25519)",
+                severity="low",
+            )
+        )
 
     chain_valid = has_dnskey and has_ds and has_rrsig
     is_signed = has_dnskey and has_rrsig
@@ -476,7 +565,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo para validacao DNSSEC.")
     parser.add_argument(
-        "--nameserver", "-s",
+        "--nameserver",
+        "-s",
         default="8.8.8.8",
         help="Nameserver para queries. Padrao: 8.8.8.8",
     )
@@ -517,8 +607,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         write_output(
             args.output,
             [asdict(result)],
-            ["domain", "nameserver", "is_signed", "has_ds", "has_dnskey",
-             "has_rrsig", "chain_valid", "algorithm_strength", "overall_status"],
+            ["domain", "nameserver", "is_signed", "has_ds", "has_dnskey", "has_rrsig", "chain_valid", "algorithm_strength", "overall_status"],
             quiet=quiet,
         )
     return 0
@@ -539,13 +628,7 @@ def main() -> int:
         prompt="dnssec> ",
         description="DNSSEC Validation interativo.",
         example="example.com --nameserver 8.8.8.8",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --nameserver 1.1.1.1\n"
-            "  example.com --query-timeout 10"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1\n  example.com --query-timeout 10"),
     )
 
 

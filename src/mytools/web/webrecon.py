@@ -70,100 +70,104 @@ As assinaturas de fingerprinting usam 4 sinais:
 
 def _lower_signatures(sigs: dict[str, dict[str, list[str]]]) -> dict[str, dict[str, list[str]]]:
     """Pré-computa valores lowercase de todas as assinaturas."""
-    return {
-        name: {k: [v.lower() for v in vals] for k, vals in sigs_dict.items()}
-        for name, sigs_dict in sigs.items()
+    return {name: {k: [v.lower() for v in vals] for k, vals in sigs_dict.items()} for name, sigs_dict in sigs.items()}
+
+
+CMS_SIGNATURES = _lower_signatures(
+    {
+        "WordPress": {
+            "headers": ["x-pingback"],
+            "body": ["wp-content", "wp-includes", "wp-json", "wp-api", "wordpress"],
+            "cookies": ["wordpress_", "wp-settings-"],
+            "urls": ["/wp-admin", "/wp-login.php", "/xmlrpc.php"],
+        },
+        "Joomla": {
+            "headers": ["x-content-encoded-by"],
+            "body": ["/media/jui/", "Joomla!", "com_content", "joomla"],
+            "cookies": ["joomla_"],
+            "urls": ["/administrator/"],
+        },
+        "Drupal": {
+            "headers": ["x-generator: Drupal", "x-drupal-cache"],
+            "body": ["drupal.js", "Drupal.settings", "/sites/default/files/"],
+            "cookies": ["SESS", "Drupal.toolbar"],
+            "urls": ["/node/", "/user/login"],
+        },
+        "Shopify": {
+            "headers": ["x-shopify-stage"],
+            "body": ["Shopify.theme", "cdn.shopify.com"],
+            "cookies": ["_shopify_"],
+            "urls": [],
+        },
+        "Magento": {
+            "headers": [],
+            "body": ["Mage.Cookies", "magento", "skin/frontend/"],
+            "cookies": ["frontend", "guest_view"],
+            "urls": ["/admin/"],
+        },
     }
+)
 
-CMS_SIGNATURES = _lower_signatures({
-    "WordPress": {
-        "headers": ["x-pingback"],
-        "body": ["wp-content", "wp-includes", "wp-json", "wp-api", "wordpress"],
-        "cookies": ["wordpress_", "wp-settings-"],
-        "urls": ["/wp-admin", "/wp-login.php", "/xmlrpc.php"],
-    },
-    "Joomla": {
-        "headers": ["x-content-encoded-by"],
-        "body": ["/media/jui/", "Joomla!", "com_content", "joomla"],
-        "cookies": ["joomla_"],
-        "urls": ["/administrator/"],
-    },
-    "Drupal": {
-        "headers": ["x-generator: Drupal", "x-drupal-cache"],
-        "body": ["drupal.js", "Drupal.settings", "/sites/default/files/"],
-        "cookies": ["SESS", "Drupal.toolbar"],
-        "urls": ["/node/", "/user/login"],
-    },
-    "Shopify": {
-        "headers": ["x-shopify-stage"],
-        "body": ["Shopify.theme", "cdn.shopify.com"],
-        "cookies": ["_shopify_"],
-        "urls": [],
-    },
-    "Magento": {
-        "headers": [],
-        "body": ["Mage.Cookies", "magento", "skin/frontend/"],
-        "cookies": ["frontend", "guest_view"],
-        "urls": ["/admin/"],
-    },
-})
+FRAMEWORK_SIGNATURES = _lower_signatures(
+    {
+        "Laravel": {
+            "headers": [],
+            "body": ["csrf-token", "laravel"],
+            "cookies": ["laravel_session", "XSRF-TOKEN"],
+            "urls": [],
+        },
+        "Django": {
+            "headers": [],
+            "body": ["csrfmiddlewaretoken", "__admin_media_prefix__"],
+            "cookies": ["csrftoken", "sessionid"],
+            "urls": ["/admin/"],
+        },
+        "Express": {
+            "headers": ["x-powered-by: Express"],
+            "body": [],
+            "cookies": ["connect.sid"],
+            "urls": [],
+        },
+        "Flask": {
+            "headers": ["x-powered-by: Flask"],
+            "body": [],
+            "cookies": ["session=ey"],
+            "urls": [],
+        },
+        "ASP.NET": {
+            "headers": ["x-aspnet-version", "x-powered-by: ASP.NET"],
+            "body": ["__VIEWSTATE", "__VIEWSTATEENCRYPTED"],
+            "cookies": ["ASP.NET_SessionId", ".ASPXAUTH"],
+            "urls": [],
+        },
+        "Spring": {
+            "headers": [],
+            "body": [],
+            "cookies": ["JSESSIONID"],
+            "urls": [],
+        },
+    }
+)
 
-FRAMEWORK_SIGNATURES = _lower_signatures({
-    "Laravel": {
-        "headers": [],
-        "body": ["csrf-token", "laravel"],
-        "cookies": ["laravel_session", "XSRF-TOKEN"],
-        "urls": [],
-    },
-    "Django": {
-        "headers": [],
-        "body": ["csrfmiddlewaretoken", "__admin_media_prefix__"],
-        "cookies": ["csrftoken", "sessionid"],
-        "urls": ["/admin/"],
-    },
-    "Express": {
-        "headers": ["x-powered-by: Express"],
-        "body": [],
-        "cookies": ["connect.sid"],
-        "urls": [],
-    },
-    "Flask": {
-        "headers": ["x-powered-by: Flask"],
-        "body": [],
-        "cookies": ["session=ey"],
-        "urls": [],
-    },
-    "ASP.NET": {
-        "headers": ["x-aspnet-version", "x-powered-by: ASP.NET"],
-        "body": ["__VIEWSTATE", "__VIEWSTATEENCRYPTED"],
-        "cookies": ["ASP.NET_SessionId", ".ASPXAUTH"],
-        "urls": [],
-    },
-    "Spring": {
-        "headers": [],
-        "body": [],
-        "cookies": ["JSESSIONID"],
-        "urls": [],
-    },
-})
-
-LIBRARY_SIGNATURES = _lower_signatures({
-    "jQuery": {
-        "body": ["jquery", "jQuery("],
-    },
-    "Bootstrap": {
-        "body": ["bootstrap.min.css", "bootstrap.min.js", "bootstrap/"],
-    },
-    "React": {
-        "body": ["__REACT_DEVTOOLS_GLOBAL_HOOK__", "react.production", "react-dom"],
-    },
-    "Vue.js": {
-        "body": ["Vue.__vue__", "vue.min.js", "__vue__"],
-    },
-    "Angular": {
-        "body": ["ng-version", "angular.min.js", "ng-app"],
-    },
-})
+LIBRARY_SIGNATURES = _lower_signatures(
+    {
+        "jQuery": {
+            "body": ["jquery", "jQuery("],
+        },
+        "Bootstrap": {
+            "body": ["bootstrap.min.css", "bootstrap.min.js", "bootstrap/"],
+        },
+        "React": {
+            "body": ["__REACT_DEVTOOLS_GLOBAL_HOOK__", "react.production", "react-dom"],
+        },
+        "Vue.js": {
+            "body": ["Vue.__vue__", "vue.min.js", "__vue__"],
+        },
+        "Angular": {
+            "body": ["ng-version", "angular.min.js", "ng-app"],
+        },
+    }
+)
 
 SERVER_PATTERNS: dict[str, re.Pattern[str]] = {
     "Apache": re.compile(r"Apache", re.IGNORECASE),
@@ -180,80 +184,82 @@ SERVER_PATTERNS: dict[str, re.Pattern[str]] = {
 # WAF detection signatures
 # ---------------------------------------------------------------------------
 
-WAF_SIGNATURES: dict[str, dict[str, list[str]]] = _lower_signatures({
-    "Cloudflare": {
-        "headers": ["cf-ray", "cf-cache-status", "server: cloudflare"],
-        "body": ["_cf_chl_opt", "cf_chl_opt"],
-        "cookies": ["__cfduid", "cf_clearance"],
-        "urls": [],
-    },
-    "Akamai": {
-        "headers": ["x-akamai-transformed", "server: akamai"],
-        "body": ["akamai"],
-        "cookies": ["akamai_"],
-        "urls": [],
-    },
-    "Sucuri": {
-        "headers": ["x-sucuri-id", "x-sucuri-cache"],
-        "body": [],
-        "cookies": ["sucuri_"],
-        "urls": [],
-    },
-    "Imperva": {
-        "headers": ["x-iinfo", "server: incapsula"],
-        "body": ["_incap_"],
-        "cookies": ["incap_ses", "visid_incap_"],
-        "urls": [],
-    },
-    "F5 BIG-IP": {
-        "headers": ["server: bigip", "x-cnection"],
-        "body": [],
-        "cookies": ["bigipserver"],
-        "urls": [],
-    },
-    "AWS WAF": {
-        "headers": ["x-amzn-requestid", "server: awselb"],
-        "body": [],
-        "cookies": ["aws-waf-token"],
-        "urls": [],
-    },
-    "ModSecurity": {
-        "headers": ["server: mod_security", "server: mod_security_v2"],
-        "body": ["mod_security"],
-        "cookies": [],
-        "urls": [],
-    },
-    "Fortinet": {
-        "headers": ["server: fortigate", "x-fortinet"],
-        "body": [],
-        "cookies": ["svpncookie"],
-        "urls": [],
-    },
-    "Barracuda": {
-        "headers": ["server: barracuda"],
-        "body": [],
-        "cookies": ["barra_counter_session_"],
-        "urls": [],
-    },
-    "Radware": {
-        "headers": ["server: radware"],
-        "body": [],
-        "cookies": ["rdwr_"],
-        "urls": [],
-    },
-    "Varnish": {
-        "headers": ["server: varnish", "x-varnish"],
-        "body": [],
-        "cookies": [],
-        "urls": [],
-    },
-    "NAXSI": {
-        "headers": [],
-        "body": ["naxsi_"],
-        "cookies": [],
-        "urls": [],
-    },
-})
+WAF_SIGNATURES: dict[str, dict[str, list[str]]] = _lower_signatures(
+    {
+        "Cloudflare": {
+            "headers": ["cf-ray", "cf-cache-status", "server: cloudflare"],
+            "body": ["_cf_chl_opt", "cf_chl_opt"],
+            "cookies": ["__cfduid", "cf_clearance"],
+            "urls": [],
+        },
+        "Akamai": {
+            "headers": ["x-akamai-transformed", "server: akamai"],
+            "body": ["akamai"],
+            "cookies": ["akamai_"],
+            "urls": [],
+        },
+        "Sucuri": {
+            "headers": ["x-sucuri-id", "x-sucuri-cache"],
+            "body": [],
+            "cookies": ["sucuri_"],
+            "urls": [],
+        },
+        "Imperva": {
+            "headers": ["x-iinfo", "server: incapsula"],
+            "body": ["_incap_"],
+            "cookies": ["incap_ses", "visid_incap_"],
+            "urls": [],
+        },
+        "F5 BIG-IP": {
+            "headers": ["server: bigip", "x-cnection"],
+            "body": [],
+            "cookies": ["bigipserver"],
+            "urls": [],
+        },
+        "AWS WAF": {
+            "headers": ["x-amzn-requestid", "server: awselb"],
+            "body": [],
+            "cookies": ["aws-waf-token"],
+            "urls": [],
+        },
+        "ModSecurity": {
+            "headers": ["server: mod_security", "server: mod_security_v2"],
+            "body": ["mod_security"],
+            "cookies": [],
+            "urls": [],
+        },
+        "Fortinet": {
+            "headers": ["server: fortigate", "x-fortinet"],
+            "body": [],
+            "cookies": ["svpncookie"],
+            "urls": [],
+        },
+        "Barracuda": {
+            "headers": ["server: barracuda"],
+            "body": [],
+            "cookies": ["barra_counter_session_"],
+            "urls": [],
+        },
+        "Radware": {
+            "headers": ["server: radware"],
+            "body": [],
+            "cookies": ["rdwr_"],
+            "urls": [],
+        },
+        "Varnish": {
+            "headers": ["server: varnish", "x-varnish"],
+            "body": [],
+            "cookies": [],
+            "urls": [],
+        },
+        "NAXSI": {
+            "headers": [],
+            "body": ["naxsi_"],
+            "cookies": [],
+            "urls": [],
+        },
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Version extraction patterns (headers + body)
@@ -574,7 +580,8 @@ async def lookup_cves(
                     severity=result["severity"],
                     technology=tech_name,
                     version=version,
-                ) for result in results
+                )
+                for result in results
             ]
             return findings
 
@@ -715,13 +722,16 @@ class ReconResult:
     whois_data: WhoisResult | None = None
 
 
-banner = create_banner(r"""
+banner = create_banner(
+    r"""
  _       __     __    ____
 | |     / /__  / /_  / __ \___  _________  ____
 | | /| / / _ \/ __ \/ /_/ / _ \/ ___/ __ \/ __ \
 | |/ |/ /  __/ /_/ / _, _/  __/ /__/ /_/ / / / /
 |__/|__/\___/_.___/_/ |_|\___/\___/\____/_/ /_/
-""", "   HTTP recon | headers + robots + security checks")
+""",
+    "   HTTP recon | headers + robots + security checks",
+)
 
 
 def candidate_urls(url: str) -> list[str]:
@@ -869,7 +879,7 @@ async def run_recon(
 def print_result(result: ReconResult) -> None:
     """Exibe o resultado do reconhecimento formatado no terminal."""
     print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"URL: {color(result.url, Cyber.WHITE, Cyber.BOLD)}")
-    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {status_text(result.status)} | Tempo: {color(f"{result.elapsed:.2f}s", Cyber.YELLOW)}")
+    print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Status: {status_text(result.status)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}")
 
     if result.redirect:
         print(color("[>]", Cyber.YELLOW, Cyber.BOLD), f"Redirect: {color(result.redirect, Cyber.YELLOW)}")
@@ -908,7 +918,7 @@ def print_result(result: ReconResult) -> None:
         for email in result.emails[:30]:
             print(f"  {color('[+]', Cyber.GREEN, Cyber.BOLD)} {color(email, Cyber.GREEN)}")
         if len(result.emails) > 30:
-            print(f"  {color(f"... e mais {len(result.emails) - 30} emails", Cyber.GRAY)}")
+            print(f"  {color(f'... e mais {len(result.emails) - 30} emails', Cyber.GRAY)}")
 
     if result.whois_data:
         _print_whois(result.whois_data)
@@ -951,13 +961,13 @@ def _print_cve_findings(findings: list[CVEFinding]) -> None:
             f"  {color('[!]', sev_color, Cyber.BOLD)} "
             f"{color(finding.cve_id, sev_color, Cyber.BOLD)} "
             f"({finding.technology} {finding.version}) "
-            f"Score: {color(f"{finding.score:.1f}", sev_color, Cyber.BOLD)} "
+            f"Score: {color(f'{finding.score:.1f}', sev_color, Cyber.BOLD)} "
             f"[{finding.severity.upper()}]"
         )
         print(f"    {color(finding.description[:120], Cyber.GRAY)}")
 
     if len(findings) > 20:
-        print(f"  {color(f"... e mais {len(findings) - 20} CVEs", Cyber.GRAY)}")
+        print(f"  {color(f'... e mais {len(findings) - 20} CVEs', Cyber.GRAY)}")
 
 
 def _print_whois(w: WhoisResult) -> None:
@@ -995,16 +1005,16 @@ def status_text(status: int | None) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="HTTP recon rapido para laboratorios e hosts autorizados."
-    )
+    parser = argparse.ArgumentParser(description="HTTP recon rapido para laboratorios e hosts autorizados.")
     add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
     parser.add_argument("-l", "--list", dest="target_list", help="Arquivo com URLs alvo (uma por linha).")
     parser.add_argument("--output-dir", dest="output_dir", help="Diretorio para salvos individuais (hostname.json).")
     parser.add_argument("--cve", action="store_true", help="Busca CVEs para versoes detectadas (via NIST NVD).")
     parser.add_argument("--nvd-api-key", dest="nvd_api_key", help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).")
-    parser.add_argument("--crawl-limit", dest="crawl_limit", type=int, default=10, help="Limite de links internos para crawl de emails. Padrao: 10. Requer --deep.")
+    parser.add_argument(
+        "--crawl-limit", dest="crawl_limit", type=int, default=10, help="Limite de links internos para crawl de emails. Padrao: 10. Requer --deep."
+    )
     parser.add_argument("--deep", action="store_true", help="Ativa crawl de links internos para coleta de emails.")
     parser.set_defaults(user_agent=f"Mozilla/5.0 (X11; Linux x86_64) WebRecon/{__version__}")
     return parser
@@ -1013,7 +1023,10 @@ def build_parser() -> argparse.ArgumentParser:
 async def _run_single(url: str, args: argparse.Namespace, quiet: bool = False) -> ReconResult:
     """Executa recon em uma unica URL."""
     result = await run_recon(
-        url, args.timeout, args.user_agent, proxy=args.proxy,
+        url,
+        args.timeout,
+        args.user_agent,
+        proxy=args.proxy,
         verify=getattr(args, "verify", False),
         auth=getattr(args, "auth", None),
         bearer_token=getattr(args, "bearer_token", None),

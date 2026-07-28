@@ -19,6 +19,7 @@ from mytools.web.techfingerprint import (
 
 # _detect_header_versions
 
+
 class TestDetectHeaderVersions:
     def test_apache_version(self):
         blob = "Server: Apache/2.4.57 (Ubuntu)"
@@ -73,6 +74,7 @@ class TestDetectHeaderVersions:
 
 # _detect_meta_generators
 
+
 class TestDetectMetaGenerators:
     def test_wordpress(self):
         body = '<meta name="generator" content="WordPress 6.4.2" />'
@@ -109,12 +111,13 @@ class TestDetectMetaGenerators:
         assert any(r.name == "Squarespace" for r in results)
 
     def test_no_generator(self):
-        body = '<html><head><title>Test</title></head></html>'
+        body = "<html><head><title>Test</title></head></html>"
         results = _detect_meta_generators(body)
         assert results == []
 
 
 # _detect_script_versions
+
 
 class TestDetectScriptVersions:
     def test_jquery_cdn(self):
@@ -155,6 +158,7 @@ class TestDetectScriptVersions:
 
 # _detect_css_versions
 
+
 class TestDetectCssVersions:
     def test_bootstrap_css(self):
         body = '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />'
@@ -178,6 +182,7 @@ class TestDetectCssVersions:
 
 
 # _detect_cookie_techs
+
 
 class TestDetectCookieTechs:
     def test_php_session(self):
@@ -229,6 +234,7 @@ class TestDetectCookieTechs:
 
 # _detect_body_techs
 
+
 class TestDetectBodyTechs:
     def test_angular_ng_version(self):
         body = '<app-root ng-version="17.0.5"></app-root>'
@@ -236,12 +242,12 @@ class TestDetectBodyTechs:
         assert any(r.name == "Angular" and r.version == "17.0.5" for r in results)
 
     def test_react_data_reactroot(self):
-        body = '<div data-reactroot></div>'
+        body = "<div data-reactroot></div>"
         results = _detect_body_techs(body)
         assert any(r.name == "React" for r in results)
 
     def test_vue_data_v(self):
-        body = '<div data-v-12345678></div>'
+        body = "<div data-v-12345678></div>"
         results = _detect_body_techs(body)
         assert any(r.name == "Vue.js" for r in results)
 
@@ -256,7 +262,7 @@ class TestDetectBodyTechs:
         assert any(r.name == "Next.js" for r in results)
 
     def test_nuxtjs(self):
-        body = '<script>window.__NUXT__={}</script>'
+        body = "<script>window.__NUXT__={}</script>"
         results = _detect_body_techs(body)
         assert any(r.name == "Nuxt.js" for r in results)
 
@@ -277,6 +283,7 @@ class TestDetectBodyTechs:
 
 
 # fingerprint (integration)
+
 
 class TestFingerprint:
     def test_wordpress_stack(self):
@@ -318,6 +325,7 @@ class TestFingerprint:
 
 
 # _scan_url (async)
+
 
 class TestScanUrl:
     @pytest.mark.asyncio
@@ -380,6 +388,7 @@ class TestScanUrl:
 
 # build_parser
 
+
 @pytest.mark.smoke
 class TestBuildParser:
     def test_has_urls(self):
@@ -410,6 +419,7 @@ class TestBuildParser:
 
 # run_once
 
+
 class TestRunOnce:
     def test_no_urls_returns_1(self):
         args = build_parser().parse_args([])
@@ -438,6 +448,7 @@ class TestRunOnce:
     @patch("mytools.web.techfingerprint._scan_url")
     def test_scan_returns_error_for_fetch(self, mock_scan):
         from mytools.core.utils import FetchError
+
         mock_scan.side_effect = FetchError("https://example.com", 3, Exception("timeout"))
         args = build_parser().parse_args(["https://example.com"])
         args.urls = ["https://example.com"]

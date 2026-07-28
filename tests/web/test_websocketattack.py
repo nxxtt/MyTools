@@ -46,9 +46,16 @@ class TestWSAttackAttempt:
 
     def test_frozen(self) -> None:
         a = WSAttackAttempt(
-            technique="t", category="c", description="d",
-            status_baseline=200, status_test=200, size_baseline=0,
-            size_test=0, vulnerable=False, details="", error="",
+            technique="t",
+            category="c",
+            description="d",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=0,
+            size_test=0,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -74,9 +81,16 @@ class TestWSAttackResult:
 
     def test_frozen(self) -> None:
         r = WSAttackResult(
-            target="t", host="h", port=443, tls=True,
-            baseline_status=200, baseline_size=0, attempts=[],
-            vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -270,10 +284,14 @@ class TestBuildParser:
 
     def test_has_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "wss://example.com/ws",
-            "-c", "ws_scanner", "ws_dos",
-        ])
+        args = parser.parse_args(
+            [
+                "wss://example.com/ws",
+                "-c",
+                "ws_scanner",
+                "ws_dos",
+            ]
+        )
         assert args.categories == ["ws_scanner", "ws_dos"]
 
     def test_no_categories_default(self) -> None:
@@ -419,7 +437,7 @@ class TestPayloadFuzzDetection:
     async def test_reflection_detected(self) -> None:
         mock_sock = MagicMock()
         ws_key = "dGVzdA=="
-        reflected = b'<script>alert(1)</script>'
+        reflected = b"<script>alert(1)</script>"
 
         with (
             patch("mytools.web.websocketattack._ws_handshake", return_value=(mock_sock, ws_key)),
@@ -515,8 +533,12 @@ class TestPayloadFuzzParser:
 
     def test_parser_accepts_mixed_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "wss://example.com/ws",
-            "-c", "ws_scanner", "ws_payload_fuzz",
-        ])
+        args = parser.parse_args(
+            [
+                "wss://example.com/ws",
+                "-c",
+                "ws_scanner",
+                "ws_payload_fuzz",
+            ]
+        )
         assert "ws_payload_fuzz" in args.categories

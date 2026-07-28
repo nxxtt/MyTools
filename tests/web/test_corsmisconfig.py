@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de CORS Misconfiguration."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -54,7 +55,8 @@ class TestDomainVariants:
 class TestCheckCORSHeaders:
     def test_null_origin_accepted(self) -> None:
         vuln, details = _check_cors_headers(
-            {"access-control-allow-origin": "null"}, "null",
+            {"access-control-allow-origin": "null"},
+            "null",
         )
         assert vuln is True
         assert "null" in details.lower()
@@ -70,7 +72,8 @@ class TestCheckCORSHeaders:
     def test_reflected_origin(self) -> None:
         origin = "https://evil.com"
         vuln, details = _check_cors_headers(
-            {"access-control-allow-origin": origin}, origin,
+            {"access-control-allow-origin": origin},
+            origin,
         )
         assert vuln is True
         assert "refletido" in details.lower()
@@ -82,13 +85,15 @@ class TestCheckCORSHeaders:
 
     def test_acao_not_matching(self) -> None:
         vuln, _details = _check_cors_headers(
-            {"access-control-allow-origin": "https://safe.com"}, "https://evil.com",
+            {"access-control-allow-origin": "https://safe.com"},
+            "https://evil.com",
         )
         assert vuln is False
 
     def test_wildcard_without_credentials(self) -> None:
         vuln, _details = _check_cors_headers(
-            {"access-control-allow-origin": "*"}, "https://evil.com",
+            {"access-control-allow-origin": "*"},
+            "https://evil.com",
         )
         assert vuln is False
 
@@ -97,18 +102,30 @@ class TestCheckCORSHeaders:
 class TestCORSAttempt:
     def test_frozen(self) -> None:
         a = CORSAttempt(
-            technique="test", category="null_origin", origin="null",
-            acao="null", acac="true", status=200,
-            vulnerable=True, details="test", error="",
+            technique="test",
+            category="null_origin",
+            origin="null",
+            acao="null",
+            acac="true",
+            status=200,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         a = CORSAttempt(
-            technique="test", category="null_origin", origin="null",
-            acao="null", acac="true", status=200,
-            vulnerable=True, details="test", error="",
+            technique="test",
+            category="null_origin",
+            origin="null",
+            acao="null",
+            acac="true",
+            status=200,
+            vulnerable=True,
+            details="test",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
@@ -116,9 +133,13 @@ class TestCORSAttempt:
 class TestCORSResult:
     def test_frozen(self) -> None:
         r = CORSResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -148,6 +169,7 @@ class TestNullOrigin:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -174,7 +196,9 @@ class TestSubdomain:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_subdomain(
-            mock_client, "https://test.com", "https://test.com",
+            mock_client,
+            "https://test.com",
+            "https://test.com",
         )
         assert len(results) == 5
         assert all(r.category == "subdomain" for r in results)
@@ -196,7 +220,9 @@ class TestCredentials:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_credentials(
-            mock_client, "https://test.com", "https://test.com",
+            mock_client,
+            "https://test.com",
+            "https://test.com",
         )
         assert len(results) == 5
         assert all(r.category == "credentials" for r in results)
@@ -217,7 +243,9 @@ class TestReflected:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_reflected(
-            mock_client, "https://test.com", "https://test.com",
+            mock_client,
+            "https://test.com",
+            "https://test.com",
         )
         assert len(results) == 5
         assert all(r.category == "reflected" for r in results)
@@ -238,7 +266,9 @@ class TestBypass:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         results = await _test_bypass(
-            mock_client, "https://test.com", "https://test.com",
+            mock_client,
+            "https://test.com",
+            "https://test.com",
         )
         assert len(results) == 5
         assert all(r.category == "bypass" for r in results)
@@ -248,15 +278,24 @@ class TestBypass:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CORSResult(
-            target="https://test.com", tls=True,
-            attempts=[CORSAttempt(
-                technique="null_origin", category="null_origin",
-                origin="null", acao="null", acac="true",
-                status=200, vulnerable=True,
-                details="Origin null aceito", error="",
-            )],
+            target="https://test.com",
+            tls=True,
+            attempts=[
+                CORSAttempt(
+                    technique="null_origin",
+                    category="null_origin",
+                    origin="null",
+                    acao="null",
+                    acac="true",
+                    status=200,
+                    vulnerable=True,
+                    details="Origin null aceito",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["null_origin"],
-            blocked_techniques=[], issues=[],
+            blocked_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -266,9 +305,13 @@ class TestPrintResults:
 
     def test_no_vulns_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CORSResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -276,8 +319,11 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CORSResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
             issues=["Nenhum teste retornou resultado claro"],
             overall_status="unknown",
         )
@@ -319,6 +365,7 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
         from mytools.web.corsmisconfig import run_once
+
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()

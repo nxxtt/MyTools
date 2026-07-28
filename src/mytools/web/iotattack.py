@@ -78,15 +78,33 @@ _OPCUA_SECURITY_POLICIES: list[str] = [
 ]
 
 _SNMP_COMMUNITIES_DEFAULT: list[str] = [
-    "public", "private", "manager", "admin", "test", "default",
-    "secret", "password", "community", "snmp", "monitor", "internal",
-    "guest", "readonly", "readwrite", "monitoring", "network",
-    "system", "equipment", "scada", "plc",
+    "public",
+    "private",
+    "manager",
+    "admin",
+    "test",
+    "default",
+    "secret",
+    "password",
+    "community",
+    "snmp",
+    "monitor",
+    "internal",
+    "guest",
+    "readonly",
+    "readwrite",
+    "monitoring",
+    "network",
+    "system",
+    "equipment",
+    "scada",
+    "plc",
 ]
 
 
 def _load_iot_data() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "iot_attack", default={"snmp_communities": _SNMP_COMMUNITIES_DEFAULT})
     return data.get("snmp_communities", _SNMP_COMMUNITIES_DEFAULT)
 
@@ -104,13 +122,22 @@ _SNMP_OIDS: dict[str, str] = {
 }
 
 _MQTT_TOPICS_DEFAULT: list[str] = [
-    "$SYS/#", "#", "+", "home/#", "device/#",
-    "sensor/#", "iot/#", "data/#", "telemetry/#", "status/#",
+    "$SYS/#",
+    "#",
+    "+",
+    "home/#",
+    "device/#",
+    "sensor/#",
+    "iot/#",
+    "data/#",
+    "telemetry/#",
+    "status/#",
 ]
 
 
 def _load_mqtt_topics() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "iot_attack", default={"mqtt_topics": _MQTT_TOPICS_DEFAULT})
     return data.get("mqtt_topics", _MQTT_TOPICS_DEFAULT)
 
@@ -118,10 +145,20 @@ def _load_mqtt_topics() -> list[str]:
 _MQTT_TOPICS = _load_mqtt_topics()
 
 _MQTT_PACKET_TYPES: dict[int, str] = {
-    1: "CONNECT", 2: "CONNACK", 3: "PUBLISH", 4: "PUBACK",
-    5: "PUBREC", 6: "PUBREL", 7: "PUBCOMP", 8: "SUBSCRIBE",
-    9: "SUBACK", 10: "UNSUBSCRIBE", 11: "UNSUBACK", 12: "PINGREQ",
-    13: "PINGRESP", 14: "DISCONNECT",
+    1: "CONNECT",
+    2: "CONNACK",
+    3: "PUBLISH",
+    4: "PUBACK",
+    5: "PUBREC",
+    6: "PUBREL",
+    7: "PUBCOMP",
+    8: "SUBSCRIBE",
+    9: "SUBACK",
+    10: "UNSUBSCRIBE",
+    11: "UNSUBACK",
+    12: "PINGREQ",
+    13: "PINGRESP",
+    14: "DISCONNECT",
 }
 
 
@@ -167,15 +204,29 @@ def _parse_target(target: str) -> tuple[str, int]:
 
 
 def _make_attempt(
-    tech: str, cat: str, desc: str, vuln: bool, details: str, error: str,
-    endpoint: str, protocol: str, port: int, device_info: dict[str, Any] | None = None,
+    tech: str,
+    cat: str,
+    desc: str,
+    vuln: bool,
+    details: str,
+    error: str,
+    endpoint: str,
+    protocol: str,
+    port: int,
+    device_info: dict[str, Any] | None = None,
 ) -> IoTAttackAttempt:
     return IoTAttackAttempt(
         exploit="protocol_specific_payload",
         tool="metasploit",
-        technique=tech, category=cat, description=desc,
-        vulnerable=vuln, details=details, error=error,
-        endpoint=endpoint, protocol=protocol, port=port,
+        technique=tech,
+        category=cat,
+        description=desc,
+        vulnerable=vuln,
+        details=details,
+        error=error,
+        endpoint=endpoint,
+        protocol=protocol,
+        port=port,
         device_info=device_info or {},
     )
 
@@ -227,13 +278,7 @@ def _snmp_build_get_request(community: str, oid: str, request_id: int = 1) -> by
     comm = b"\x04" + _snmp_encode_length(len(community)) + community.encode()
     oid_bytes = _snmp_encode_oid(oid)
     varbind = b"\x30" + _snmp_encode_length(len(oid_bytes) + 2) + oid_bytes + b"\x05\x00"
-    pdu = (
-        b"\xa0" + _snmp_encode_length(10 + len(varbind))
-        + b"\x02\x04" + struct.pack(">I", request_id)
-        + b"\x02\x01\x00"
-        + b"\x02\x01\x00"
-        + varbind
-    )
+    pdu = b"\xa0" + _snmp_encode_length(10 + len(varbind)) + b"\x02\x04" + struct.pack(">I", request_id) + b"\x02\x01\x00" + b"\x02\x01\x00" + varbind
     return b"\x30" + _snmp_encode_length(len(version) + len(comm) + len(pdu)) + version + comm + pdu
 
 
@@ -245,9 +290,9 @@ def _snmp_parse_value(data: bytes, offset: int) -> tuple[Any, int]:
     length = data[offset]
     offset += 1
     if tag == 0x02:
-        return int.from_bytes(data[offset:offset + length], "big"), offset + length
+        return int.from_bytes(data[offset : offset + length], "big"), offset + length
     elif tag == 0x04:
-        return data[offset:offset + length].decode("utf-8", errors="replace"), offset + length
+        return data[offset : offset + length].decode("utf-8", errors="replace"), offset + length
     elif tag == 0x06:
         oid_parts: list[int] = []
         if length > 0:
@@ -269,7 +314,7 @@ def _snmp_parse_value(data: bytes, offset: int) -> tuple[Any, int]:
     elif tag == 0x05:
         return None, offset
     else:
-        return data[offset:offset + length], offset + length
+        return data[offset : offset + length], offset + length
 
 
 def _snmp_parse_response(data: bytes) -> dict[str, Any]:
@@ -284,13 +329,13 @@ def _snmp_parse_response(data: bytes) -> dict[str, Any]:
             offset += 1
             vlen = data[offset]
             offset += 1
-            result["version"] = int.from_bytes(data[offset:offset + vlen], "big")
+            result["version"] = int.from_bytes(data[offset : offset + vlen], "big")
             offset += vlen
         if data[offset] == 0x04:
             offset += 1
             clen = data[offset]
             offset += 1
-            result["community"] = data[offset:offset + clen].decode("utf-8", errors="replace")
+            result["community"] = data[offset : offset + clen].decode("utf-8", errors="replace")
             offset += clen
         if data[offset] in (0xA1, 0xA2):
             pdu_tag = data[offset]
@@ -300,19 +345,19 @@ def _snmp_parse_response(data: bytes) -> dict[str, Any]:
                 offset += 1
                 rlen = data[offset]
                 offset += 1
-                result["request_id"] = int.from_bytes(data[offset:offset + rlen], "big")
+                result["request_id"] = int.from_bytes(data[offset : offset + rlen], "big")
                 offset += rlen
             if data[offset] == 0x02:
                 offset += 1
                 elen = data[offset]
                 offset += 1
-                result["error_status"] = int.from_bytes(data[offset:offset + elen], "big")
+                result["error_status"] = int.from_bytes(data[offset : offset + elen], "big")
                 offset += elen
             if data[offset] == 0x02:
                 offset += 1
                 ilen = data[offset]
                 offset += 1
-                result["error_index"] = int.from_bytes(data[offset:offset + ilen], "big")
+                result["error_index"] = int.from_bytes(data[offset : offset + ilen], "big")
                 offset += ilen
             if pdu_tag == 0xA2 and result.get("error_status", 0) == 0 and data[offset] == 0x30:
                 offset += 1
@@ -351,13 +396,15 @@ async def _test_modbus_scan(host: str, port: int, timeout: float) -> IoTAttackAt
                     if resp_fc & 0x80:
                         exc_code = response[8] if len(response) > 8 else 0
                         if exc_code in _MODBUS_EXCEPTIONS and unit_id not in [d.get("unit_id") for d in device_info.get("devices", [])]:
-                            device_info.setdefault("devices", []).append({
-                                "unit_id": unit_id,
-                                "exception": _MODBUS_EXCEPTIONS[exc_code],
-                            })
+                            device_info.setdefault("devices", []).append(
+                                {
+                                    "unit_id": unit_id,
+                                    "exception": _MODBUS_EXCEPTIONS[exc_code],
+                                }
+                            )
                     elif resp_fc in _MODBUS_FC:
                         data_len = response[8] if len(response) > 8 else 0
-                        regs = [struct.unpack(">H", response[i:i + 2])[0] for i in range(9, min(9 + data_len, len(response)), 2) if i + 1 < len(response)]
+                        regs = [struct.unpack(">H", response[i : i + 2])[0] for i in range(9, min(9 + data_len, len(response)), 2) if i + 1 < len(response)]
                         device_info["functions_supported"].append(_MODBUS_FC[resp_fc])
                         device_info["registers"][f"fc{resp_fc:02x}_unit{unit_id}"] = regs
                         device_info["device_id"] = unit_id
@@ -397,13 +444,7 @@ async def _test_opcua_discovery(host: str, port: int, timeout: float) -> IoTAtta
                 device_info["server"]["send_buffer"] = send_buf
 
         node_id = b"\x01\x00\x00" + b"\x00"
-        request_header = (
-            b"\x00\x00\x00\x00"
-            + b"\xff\xff\xff\xff"
-            + b"\x00" * 8
-            + node_id
-            + b"\xff\xff\xff\xff"
-        )
+        request_header = b"\x00\x00\x00\x00" + b"\xff\xff\xff\xff" + b"\x00" * 8 + node_id + b"\xff\xff\xff\xff"
 
         get_eps_payload = request_header + b"\x01\x00\x00\x00\x00\x00"
         msg_size = 12 + len(get_eps_payload)
@@ -439,21 +480,27 @@ async def _test_bacnet_scan(host: str, port: int, timeout: float) -> IoTAttackAt
     device_info: dict[str, Any] = {"devices": []}
     endpoint = f"{host}:{port}"
 
-    who_is = bytes([
-        0x81, 0x0B, 0x12, 0x01,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00,
-        0x00,
-    ])
-    who_is = who_is[:2] + struct.pack(">B", len(who_is) - 2) + who_is[3:]
-    who_is_fixed = (
-        0x81.to_bytes(1, "big")
-        + 0x0B.to_bytes(1, "big")
-        + b"\x0c"
-        + struct.pack(">BB", 0x00, 0xFF)
-        + struct.pack(">HH", 0x00, 0x00)
-        + b"\x00"
+    who_is = bytes(
+        [
+            0x81,
+            0x0B,
+            0x12,
+            0x01,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+        ]
     )
+    who_is = who_is[:2] + struct.pack(">B", len(who_is) - 2) + who_is[3:]
+    who_is_fixed = 0x81.to_bytes(1, "big") + 0x0B.to_bytes(1, "big") + b"\x0c" + struct.pack(">BB", 0x00, 0xFF) + struct.pack(">HH", 0x00, 0x00) + b"\x00"
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -468,13 +515,15 @@ async def _test_bacnet_scan(host: str, port: int, timeout: float) -> IoTAttackAt
                     if pdu_type == 1:
                         offset = 14
                         if offset < len(data):
-                            device_id = int.from_bytes(data[offset:offset + 4], "big") if offset + 4 <= len(data) else 0
-                            vendor_id = int.from_bytes(data[offset + 4:offset + 6], "big") if offset + 6 <= len(data) else 0
-                            device_info["devices"].append({
-                                "device_id": device_id,
-                                "vendor_id": vendor_id,
-                                "address": f"{addr[0]}:{addr[1]}",
-                            })
+                            device_id = int.from_bytes(data[offset : offset + 4], "big") if offset + 4 <= len(data) else 0
+                            vendor_id = int.from_bytes(data[offset + 4 : offset + 6], "big") if offset + 6 <= len(data) else 0
+                            device_info["devices"].append(
+                                {
+                                    "device_id": device_id,
+                                    "vendor_id": vendor_id,
+                                    "address": f"{addr[0]}:{addr[1]}",
+                                }
+                            )
             except TimeoutError:
                 break
         sock.close()
@@ -537,13 +586,7 @@ async def _test_mqtt_enum(host: str, port: int, timeout: float) -> IoTAttackAtte
         sock.connect((host, port))
 
         client_id = f"iot_{random.randint(10000, 99999)}"
-        var_header = (
-            struct.pack(">H", 4)
-            + b"MQTT"
-            + bytes([4])
-            + bytes([0x02])
-            + struct.pack(">H", 60)
-        )
+        var_header = struct.pack(">H", 4) + b"MQTT" + bytes([4]) + bytes([0x02]) + struct.pack(">H", 60)
         payload = struct.pack(">H", len(client_id)) + client_id.encode()
         remaining = var_header + payload
         connect_pkt = bytes([0x10]) + _encode_varint(len(remaining)) + remaining
@@ -578,8 +621,8 @@ async def _test_mqtt_enum(host: str, port: int, timeout: float) -> IoTAttackAtte
                         device_info["broker_info"]["subscriptions_granted"] = len(granted_qos)
                 elif msg_type == 3:
                     topic_len = struct.unpack(">H", data[1:3])[0] if len(data) >= 3 else 0
-                    topic_name = data[3:3 + topic_len].decode("utf-8", errors="replace") if topic_len > 0 else ""
-                    msg_payload = data[3 + topic_len:].decode("utf-8", errors="replace")
+                    topic_name = data[3 : 3 + topic_len].decode("utf-8", errors="replace") if topic_len > 0 else ""
+                    msg_payload = data[3 + topic_len :].decode("utf-8", errors="replace")
                     device_info["topics"].append(topic_name)
                     device_info["messages"].append({"topic": topic_name, "payload": msg_payload[:200]})
             except TimeoutError:
@@ -601,7 +644,9 @@ async def _test_mqtt_enum(host: str, port: int, timeout: float) -> IoTAttackAtte
 
 
 async def _test_iot(
-    host: str, port: int, timeout: float,
+    host: str,
+    port: int,
+    timeout: float,
 ) -> list[IoTAttackAttempt]:
     results: list[IoTAttackAttempt] = []
     for tech, fn, default_port in [
@@ -658,7 +703,10 @@ def print_results(result: IoTAttackResult) -> None:
 
 
 async def run_scan(
-    target: str, categories: list[str] | None, timeout: float, output_file: str | None,
+    target: str,
+    categories: list[str] | None,
+    timeout: float,
+    output_file: str | None,
 ) -> IoTAttackResult:
     host, port = _parse_target(target)
     protocols_found: list[str] = []
@@ -679,10 +727,14 @@ async def run_scan(
     issues = [f"Errors: {', '.join(issue_techs)}"] if issue_techs else []
     overall = "vulnerable" if vuln_techs else "secure"
     result = IoTAttackResult(
-        target=target, host=host, port=port,
+        target=target,
+        host=host,
+        port=port,
         protocols_found=list(set(protocols_found)),
-        attempts=all_attempts, vulnerable_techniques=vuln_techs,
-        issues=issues, overall_status=overall,
+        attempts=all_attempts,
+        vulnerable_techniques=vuln_techs,
+        issues=issues,
+        overall_status=overall,
     )
     print_results(result)
     if output_file:
@@ -702,12 +754,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
-    result = safe_asyncio_run(run_scan(
-        target=args.target,
-        categories=getattr(args, "categories", None),
-        timeout=getattr(args, "timeout", 5.0),
-        output_file=getattr(args, "output", None),
-    ))
+    result = safe_asyncio_run(
+        run_scan(
+            target=args.target,
+            categories=getattr(args, "categories", None),
+            timeout=getattr(args, "timeout", 5.0),
+            output_file=getattr(args, "output", None),
+        )
+    )
     return 1 if result.overall_status == "vulnerable" else 0
 
 

@@ -304,8 +304,8 @@ def _make_attempt(
 ) -> TenantAttempt:
     """Cria TenantAttempt com campos derivados preenchidos."""
     return TenantAttempt(
-    exploit="tenant_id_switch_payload",
-    tool="curl",
+        exploit="tenant_id_switch_payload",
+        tool="curl",
         technique=technique,
         category=category,
         tenant_id=tenant_id,
@@ -411,32 +411,43 @@ async def _test_tenant_id(
     for header_name, header_val, technique in _TENANT_ID_HEADERS:
         try:
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, target, timeout=timeout, headers={header_name: header_val},
+                client,
+                target,
+                timeout=timeout,
+                headers={header_name: header_val},
             )
             vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=target,
-                payload=f"{header_name}: {header_val}",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=target,
+                    payload=f"{header_name}: {header_val}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=target,
-                payload=f"{header_name}: {header_val}",
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=target,
+                    payload=f"{header_name}: {header_val}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     # 2. Query params
     for param_name, param_val, technique in _TENANT_ID_PARAMS:
@@ -444,104 +455,136 @@ async def _test_tenant_id(
             sep = "&" if "?" in target else "?"
             test_url = f"{target}{sep}{param_name}={param_val}"
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, test_url, timeout=timeout,
+                client,
+                test_url,
+                timeout=timeout,
             )
             vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=test_url,
-                payload=f"{param_name}={param_val}",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=test_url,
+                    payload=f"{param_name}={param_val}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=target,
-                payload=f"{param_name}={param_val}",
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=target,
+                    payload=f"{param_name}={param_val}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     # 3. Cookies
     for cookie_name, cookie_val, technique in _TENANT_ID_COOKIES:
         try:
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, target, timeout=timeout,
+                client,
+                target,
+                timeout=timeout,
                 headers={"Cookie": f"{cookie_name}={cookie_val}"},
             )
             vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=target,
-                payload=f"Cookie: {cookie_name}={cookie_val}",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=target,
+                    payload=f"Cookie: {cookie_name}={cookie_val}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=target,
-                payload=f"Cookie: {cookie_name}={cookie_val}",
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=target,
+                    payload=f"Cookie: {cookie_name}={cookie_val}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     # 4. JSON body
     for body_key, body_val, technique in _TENANT_ID_JSON_BODY:
         try:
             body_dict = {body_key: body_val}
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, target, timeout=timeout,
+                client,
+                target,
+                timeout=timeout,
                 method="post",
                 content=json.dumps(body_dict).encode(),
                 headers={"Content-Type": "application/json"},
             )
             vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=target,
-                payload=json.dumps(body_dict),
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=target,
+                    payload=json.dumps(body_dict),
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique=technique,
-                category="tenant_id",
-                tenant_id=other_tenant,
-                endpoint=target,
-                payload=json.dumps({body_key: body_val}),
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="tenant_id",
+                    tenant_id=other_tenant,
+                    endpoint=target,
+                    payload=json.dumps({body_key: body_val}),
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     # 5. JWT tenant claim (se Authorization Bearer existe)
     try:
         _b_status, _b_headers, _b_body, _b_raw = await fetch(
-            client, target, timeout=timeout,
+            client,
+            target,
+            timeout=timeout,
         )
         auth_header = _b_headers.get("authorization", "")
         if auth_header.lower().startswith("bearer "):
@@ -553,33 +596,43 @@ async def _test_tenant_id(
                     new_token = _encode_jwt_payload(modified_payload)
                     try:
                         t_status, _t_headers, t_body, _t_raw = await fetch(
-                            client, target, timeout=timeout,
+                            client,
+                            target,
+                            timeout=timeout,
                             headers={"Authorization": f"Bearer {new_token}"},
                         )
                         vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-                        results.append(_make_attempt(
-                            technique=technique,
-                            category="tenant_id",
-                            tenant_id=other_tenant,
-                            endpoint=target,
-                            payload=f"JWT claim {claim_name}={claim_val}",
-                            b_status=b_status, b_size=b_size,
-                            t_status=t_status, t_size=len(t_body),
-                            vulnerable=vuln,
-                            details=details,
-                        ))
+                        results.append(
+                            _make_attempt(
+                                technique=technique,
+                                category="tenant_id",
+                                tenant_id=other_tenant,
+                                endpoint=target,
+                                payload=f"JWT claim {claim_name}={claim_val}",
+                                b_status=b_status,
+                                b_size=b_size,
+                                t_status=t_status,
+                                t_size=len(t_body),
+                                vulnerable=vuln,
+                                details=details,
+                            )
+                        )
                     except Exception as e:
-                        results.append(_make_attempt(
-                            technique=technique,
-                            category="tenant_id",
-                            tenant_id=other_tenant,
-                            endpoint=target,
-                            payload=f"JWT claim {claim_name}={claim_val}",
-                            b_status=b_status, b_size=b_size,
-                            t_status=0, t_size=0,
-                            vulnerable=False,
-                            error=str(e)[:100],
-                        ))
+                        results.append(
+                            _make_attempt(
+                                technique=technique,
+                                category="tenant_id",
+                                tenant_id=other_tenant,
+                                endpoint=target,
+                                payload=f"JWT claim {claim_name}={claim_val}",
+                                b_status=b_status,
+                                b_size=b_size,
+                                t_status=0,
+                                t_size=0,
+                                vulnerable=False,
+                                error=str(e)[:100],
+                            )
+                        )
     except Exception:
         pass
 
@@ -603,89 +656,117 @@ async def _test_subdomain_isolation(
     # 1. Verifica cookie Domain wildcard
     try:
         t_status, t_headers, t_body, _t_raw = await fetch(
-            client, target, timeout=timeout,
+            client,
+            target,
+            timeout=timeout,
         )
         cookie_domain = _extract_cookie_domain(dict(t_headers))
         if cookie_domain:
             is_wildcard = cookie_domain.startswith(".")
             vuln = is_wildcard
-            results.append(_make_attempt(
-                technique="cookie_domain_wildcard",
-                category="subdomain_isolation",
-                tenant_id="current",
-                endpoint=target,
-                payload=f"Set-Cookie Domain={cookie_domain}",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=f"Cookie domain '{cookie_domain}' may leak to subdomains" if vuln else "",
-            ))
+            results.append(
+                _make_attempt(
+                    technique="cookie_domain_wildcard",
+                    category="subdomain_isolation",
+                    tenant_id="current",
+                    endpoint=target,
+                    payload=f"Set-Cookie Domain={cookie_domain}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=f"Cookie domain '{cookie_domain}' may leak to subdomains" if vuln else "",
+                )
+            )
         else:
-            results.append(_make_attempt(
+            results.append(
+                _make_attempt(
+                    technique="cookie_domain_wildcard",
+                    category="subdomain_isolation",
+                    tenant_id="current",
+                    endpoint=target,
+                    payload="no Set-Cookie",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=False,
+                    details="No Set-Cookie header found",
+                )
+            )
+    except Exception as e:
+        results.append(
+            _make_attempt(
                 technique="cookie_domain_wildcard",
                 category="subdomain_isolation",
                 tenant_id="current",
                 endpoint=target,
-                payload="no Set-Cookie",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
+                payload="",
+                b_status=b_status,
+                b_size=b_size,
+                t_status=0,
+                t_size=0,
                 vulnerable=False,
-                details="No Set-Cookie header found",
-            ))
-    except Exception as e:
-        results.append(_make_attempt(
-            technique="cookie_domain_wildcard",
-            category="subdomain_isolation",
-            tenant_id="current",
-            endpoint=target,
-            payload="",
-            b_status=b_status, b_size=b_size,
-            t_status=0, t_size=0,
-            vulnerable=False,
-            error=str(e)[:100],
-        ))
+                error=str(e)[:100],
+            )
+        )
 
     # 2. Verifica SameSite=None
     try:
         t_status, t_headers, t_body, _t_raw = await fetch(
-            client, target, timeout=timeout,
+            client,
+            target,
+            timeout=timeout,
         )
         samesite = _extract_cookie_samesite(dict(t_headers))
         if samesite and samesite.lower() == "none":
-            results.append(_make_attempt(
-                technique="samesite_none_bypass",
-                category="subdomain_isolation",
-                tenant_id="current",
-                endpoint=target,
-                payload=f"SameSite={samesite}",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=True,
-                details="SameSite=None allows cross-origin cookie sending",
-            ))
+            results.append(
+                _make_attempt(
+                    technique="samesite_none_bypass",
+                    category="subdomain_isolation",
+                    tenant_id="current",
+                    endpoint=target,
+                    payload=f"SameSite={samesite}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=True,
+                    details="SameSite=None allows cross-origin cookie sending",
+                )
+            )
         else:
-            results.append(_make_attempt(
+            results.append(
+                _make_attempt(
+                    technique="samesite_none_bypass",
+                    category="subdomain_isolation",
+                    tenant_id="current",
+                    endpoint=target,
+                    payload=f"SameSite={samesite or 'not set'}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=False,
+                )
+            )
+    except Exception as e:
+        results.append(
+            _make_attempt(
                 technique="samesite_none_bypass",
                 category="subdomain_isolation",
                 tenant_id="current",
                 endpoint=target,
-                payload=f"SameSite={samesite or 'not set'}",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
+                payload="",
+                b_status=b_status,
+                b_size=b_size,
+                t_status=0,
+                t_size=0,
                 vulnerable=False,
-            ))
-    except Exception as e:
-        results.append(_make_attempt(
-            technique="samesite_none_bypass",
-            category="subdomain_isolation",
-            tenant_id="current",
-            endpoint=target,
-            payload="",
-            b_status=b_status, b_size=b_size,
-            t_status=0, t_size=0,
-            vulnerable=False,
-            error=str(e)[:100],
-        ))
+                error=str(e)[:100],
+            )
+        )
 
     # 3. Cross-subdomain Referer
     parsed = httpx.URL(target)
@@ -702,33 +783,43 @@ async def _test_subdomain_isolation(
             try:
                 referer = f"https://{subdomain}/dashboard"
                 t_status, _t_headers, t_body, _t_raw = await fetch(
-                    client, target, timeout=timeout,
+                    client,
+                    target,
+                    timeout=timeout,
                     headers={"Referer": referer},
                 )
                 vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-                results.append(_make_attempt(
-                    technique="cross_subdomain_referer",
-                    category="subdomain_isolation",
-                    tenant_id="OTHER",
-                    endpoint=target,
-                    payload=f"Referer: {referer}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=t_status, t_size=len(t_body),
-                    vulnerable=vuln,
-                    details=details,
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="cross_subdomain_referer",
+                        category="subdomain_isolation",
+                        tenant_id="OTHER",
+                        endpoint=target,
+                        payload=f"Referer: {referer}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=t_status,
+                        t_size=len(t_body),
+                        vulnerable=vuln,
+                        details=details,
+                    )
+                )
             except Exception as e:
-                results.append(_make_attempt(
-                    technique="cross_subdomain_referer",
-                    category="subdomain_isolation",
-                    tenant_id="OTHER",
-                    endpoint=target,
-                    payload=f"Referer: https://{subdomain}/",
-                    b_status=b_status, b_size=b_size,
-                    t_status=0, t_size=0,
-                    vulnerable=False,
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="cross_subdomain_referer",
+                        category="subdomain_isolation",
+                        tenant_id="OTHER",
+                        endpoint=target,
+                        payload=f"Referer: https://{subdomain}/",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=0,
+                        t_size=0,
+                        vulnerable=False,
+                        error=str(e)[:100],
+                    )
+                )
 
     # 4. Cross-subdomain Origin
     if len(parts) >= 2:
@@ -736,33 +827,43 @@ async def _test_subdomain_isolation(
         origin = f"https://app-OTHER.{base_domain}"
         try:
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, target, timeout=timeout,
+                client,
+                target,
+                timeout=timeout,
                 headers={"Origin": origin},
             )
             vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-            results.append(_make_attempt(
-                technique="cross_subdomain_origin",
-                category="subdomain_isolation",
-                tenant_id="OTHER",
-                endpoint=target,
-                payload=f"Origin: {origin}",
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique="cross_subdomain_origin",
+                    category="subdomain_isolation",
+                    tenant_id="OTHER",
+                    endpoint=target,
+                    payload=f"Origin: {origin}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique="cross_subdomain_origin",
-                category="subdomain_isolation",
-                tenant_id="OTHER",
-                endpoint=target,
-                payload=f"Origin: {origin}",
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique="cross_subdomain_origin",
+                    category="subdomain_isolation",
+                    tenant_id="OTHER",
+                    endpoint=target,
+                    payload=f"Origin: {origin}",
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -790,32 +891,42 @@ async def _test_shared_resource(
                 base += f":{parsed.port}"
             test_url = f"{base}{path}"
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, test_url, timeout=timeout,
+                client,
+                test_url,
+                timeout=timeout,
             )
             vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-            results.append(_make_attempt(
-                technique=technique,
-                category="shared_resource",
-                tenant_id="OTHER_TENANT_999",
-                endpoint=test_url,
-                payload=path,
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="shared_resource",
+                    tenant_id="OTHER_TENANT_999",
+                    endpoint=test_url,
+                    payload=path,
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique=technique,
-                category="shared_resource",
-                tenant_id="OTHER_TENANT_999",
-                endpoint=target,
-                payload=path,
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="shared_resource",
+                    tenant_id="OTHER_TENANT_999",
+                    endpoint=target,
+                    payload=path,
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     # 2. UUID enumeration
     for uuid in _FAKE_UUIDS:
@@ -826,34 +937,44 @@ async def _test_shared_resource(
                 base += f":{parsed.port}"
             test_url = f"{base}/api/v1/files/{uuid}"
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, test_url, timeout=timeout,
+                client,
+                test_url,
+                timeout=timeout,
             )
             # UUIDs que retornam 200 (não 404) são suspeitos
             vuln = t_status == 200
             details = f"UUID returned HTTP {t_status}" if vuln else ""
-            results.append(_make_attempt(
-                technique="uuid_enumeration",
-                category="shared_resource",
-                tenant_id="OTHER_TENANT_999",
-                endpoint=test_url,
-                payload=uuid,
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique="uuid_enumeration",
+                    category="shared_resource",
+                    tenant_id="OTHER_TENANT_999",
+                    endpoint=test_url,
+                    payload=uuid,
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique="uuid_enumeration",
-                category="shared_resource",
-                tenant_id="OTHER_TENANT_999",
-                endpoint=target,
-                payload=uuid,
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique="uuid_enumeration",
+                    category="shared_resource",
+                    tenant_id="OTHER_TENANT_999",
+                    endpoint=target,
+                    payload=uuid,
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     # 3. Shared API endpoints
     for path, technique, _cat in _SHARED_RESOURCE_PATHS:
@@ -864,32 +985,42 @@ async def _test_shared_resource(
                 base += f":{parsed.port}"
             test_url = f"{base}{path}"
             t_status, _t_headers, t_body, _t_raw = await fetch(
-                client, test_url, timeout=timeout,
+                client,
+                test_url,
+                timeout=timeout,
             )
             vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-            results.append(_make_attempt(
-                technique=technique,
-                category="shared_resource",
-                tenant_id="shared",
-                endpoint=test_url,
-                payload=path,
-                b_status=b_status, b_size=b_size,
-                t_status=t_status, t_size=len(t_body),
-                vulnerable=vuln,
-                details=details,
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="shared_resource",
+                    tenant_id="shared",
+                    endpoint=test_url,
+                    payload=path,
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=t_status,
+                    t_size=len(t_body),
+                    vulnerable=vuln,
+                    details=details,
+                )
+            )
         except Exception as e:
-            results.append(_make_attempt(
-                technique=technique,
-                category="shared_resource",
-                tenant_id="shared",
-                endpoint=target,
-                payload=path,
-                b_status=b_status, b_size=b_size,
-                t_status=0, t_size=0,
-                vulnerable=False,
-                error=str(e)[:100],
-            ))
+            results.append(
+                _make_attempt(
+                    technique=technique,
+                    category="shared_resource",
+                    tenant_id="shared",
+                    endpoint=target,
+                    payload=path,
+                    b_status=b_status,
+                    b_size=b_size,
+                    t_status=0,
+                    t_size=0,
+                    vulnerable=False,
+                    error=str(e)[:100],
+                )
+            )
 
     return results
 
@@ -909,8 +1040,7 @@ async def _test_cross_tenant_ssrf(
     results: list[TenantAttempt] = []
 
     # Parâmetros comuns que podem conter URLs
-    ssrf_params = ["url", "redirect", "callback", "webhook", "fetch", "load",
-                    "src", "href", "link", "target", "next", "return_to"]
+    ssrf_params = ["url", "redirect", "callback", "webhook", "fetch", "load", "src", "href", "link", "target", "next", "return_to"]
 
     # 1. Metadata service
     for ip in _SSRF_METADATA_IPS:
@@ -919,34 +1049,44 @@ async def _test_cross_tenant_ssrf(
                 sep = "&" if "?" in target else "?"
                 test_url = f"{target}{sep}{param}=http://{ip}/latest/meta-data/"
                 t_status, _t_headers, t_body, _t_raw = await fetch(
-                    client, test_url, timeout=timeout,
+                    client,
+                    test_url,
+                    timeout=timeout,
                 )
                 body_str = t_body.decode("utf-8", errors="replace").lower()
                 vuln = any(ind in body_str for ind in ["ami-id", "instance-id", "metadata"])
                 details = "Metadata service accessible" if vuln else ""
-                results.append(_make_attempt(
-                    technique="metadata_service",
-                    category="cross_tenant_ssrf",
-                    tenant_id="current",
-                    endpoint=test_url,
-                    payload=f"{param}=http://{ip}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=t_status, t_size=len(t_body),
-                    vulnerable=vuln,
-                    details=details,
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="metadata_service",
+                        category="cross_tenant_ssrf",
+                        tenant_id="current",
+                        endpoint=test_url,
+                        payload=f"{param}=http://{ip}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=t_status,
+                        t_size=len(t_body),
+                        vulnerable=vuln,
+                        details=details,
+                    )
+                )
             except Exception as e:
-                results.append(_make_attempt(
-                    technique="metadata_service",
-                    category="cross_tenant_ssrf",
-                    tenant_id="current",
-                    endpoint=target,
-                    payload=f"{param}=http://{ip}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=0, t_size=0,
-                    vulnerable=False,
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="metadata_service",
+                        category="cross_tenant_ssrf",
+                        tenant_id="current",
+                        endpoint=target,
+                        payload=f"{param}=http://{ip}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=0,
+                        t_size=0,
+                        vulnerable=False,
+                        error=str(e)[:100],
+                    )
+                )
 
     # 2. Internal service discovery
     for service in _SSRF_INTERNAL_SERVICES:
@@ -955,32 +1095,42 @@ async def _test_cross_tenant_ssrf(
                 sep = "&" if "?" in target else "?"
                 test_url = f"{target}{sep}{param}=http://{service}/"
                 t_status, _t_headers, t_body, _t_raw = await fetch(
-                    client, test_url, timeout=timeout,
+                    client,
+                    test_url,
+                    timeout=timeout,
                 )
                 vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-                results.append(_make_attempt(
-                    technique="internal_service_discovery",
-                    category="cross_tenant_ssrf",
-                    tenant_id="current",
-                    endpoint=test_url,
-                    payload=f"{param}=http://{service}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=t_status, t_size=len(t_body),
-                    vulnerable=vuln,
-                    details=details,
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="internal_service_discovery",
+                        category="cross_tenant_ssrf",
+                        tenant_id="current",
+                        endpoint=test_url,
+                        payload=f"{param}=http://{service}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=t_status,
+                        t_size=len(t_body),
+                        vulnerable=vuln,
+                        details=details,
+                    )
+                )
             except Exception as e:
-                results.append(_make_attempt(
-                    technique="internal_service_discovery",
-                    category="cross_tenant_ssrf",
-                    tenant_id="current",
-                    endpoint=target,
-                    payload=f"{param}=http://{service}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=0, t_size=0,
-                    vulnerable=False,
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="internal_service_discovery",
+                        category="cross_tenant_ssrf",
+                        tenant_id="current",
+                        endpoint=target,
+                        payload=f"{param}=http://{service}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=0,
+                        t_size=0,
+                        vulnerable=False,
+                        error=str(e)[:100],
+                    )
+                )
 
     # 3. Tenant internal hostnames
     for hostname in _SSRF_TENANT_HOSTNAMES:
@@ -989,32 +1139,42 @@ async def _test_cross_tenant_ssrf(
                 sep = "&" if "?" in target else "?"
                 test_url = f"{target}{sep}{param}=http://{hostname}/"
                 t_status, _t_headers, t_body, _t_raw = await fetch(
-                    client, test_url, timeout=timeout,
+                    client,
+                    test_url,
+                    timeout=timeout,
                 )
                 vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-                results.append(_make_attempt(
-                    technique="tenant_internal_hostname",
-                    category="cross_tenant_ssrf",
-                    tenant_id="OTHER",
-                    endpoint=test_url,
-                    payload=f"{param}=http://{hostname}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=t_status, t_size=len(t_body),
-                    vulnerable=vuln,
-                    details=details,
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="tenant_internal_hostname",
+                        category="cross_tenant_ssrf",
+                        tenant_id="OTHER",
+                        endpoint=test_url,
+                        payload=f"{param}=http://{hostname}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=t_status,
+                        t_size=len(t_body),
+                        vulnerable=vuln,
+                        details=details,
+                    )
+                )
             except Exception as e:
-                results.append(_make_attempt(
-                    technique="tenant_internal_hostname",
-                    category="cross_tenant_ssrf",
-                    tenant_id="OTHER",
-                    endpoint=target,
-                    payload=f"{param}=http://{hostname}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=0, t_size=0,
-                    vulnerable=False,
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="tenant_internal_hostname",
+                        category="cross_tenant_ssrf",
+                        tenant_id="OTHER",
+                        endpoint=target,
+                        payload=f"{param}=http://{hostname}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=0,
+                        t_size=0,
+                        vulnerable=False,
+                        error=str(e)[:100],
+                    )
+                )
 
     # 4. Internal IP ranges
     for ip in _SSRF_INTERNAL_IPS:
@@ -1023,32 +1183,42 @@ async def _test_cross_tenant_ssrf(
                 sep = "&" if "?" in target else "?"
                 test_url = f"{target}{sep}{param}=http://{ip}/"
                 t_status, _t_headers, t_body, _t_raw = await fetch(
-                    client, test_url, timeout=timeout,
+                    client,
+                    test_url,
+                    timeout=timeout,
                 )
                 vuln, details = _check_vulnerable(t_body, _VULN_INDICATORS)
-                results.append(_make_attempt(
-                    technique="internal_ip_range",
-                    category="cross_tenant_ssrf",
-                    tenant_id="current",
-                    endpoint=test_url,
-                    payload=f"{param}=http://{ip}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=t_status, t_size=len(t_body),
-                    vulnerable=vuln,
-                    details=details,
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="internal_ip_range",
+                        category="cross_tenant_ssrf",
+                        tenant_id="current",
+                        endpoint=test_url,
+                        payload=f"{param}=http://{ip}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=t_status,
+                        t_size=len(t_body),
+                        vulnerable=vuln,
+                        details=details,
+                    )
+                )
             except Exception as e:
-                results.append(_make_attempt(
-                    technique="internal_ip_range",
-                    category="cross_tenant_ssrf",
-                    tenant_id="current",
-                    endpoint=target,
-                    payload=f"{param}=http://{ip}",
-                    b_status=b_status, b_size=b_size,
-                    t_status=0, t_size=0,
-                    vulnerable=False,
-                    error=str(e)[:100],
-                ))
+                results.append(
+                    _make_attempt(
+                        technique="internal_ip_range",
+                        category="cross_tenant_ssrf",
+                        tenant_id="current",
+                        endpoint=target,
+                        payload=f"{param}=http://{ip}",
+                        b_status=b_status,
+                        b_size=b_size,
+                        t_status=0,
+                        t_size=0,
+                        vulnerable=False,
+                        error=str(e)[:100],
+                    )
+                )
 
     return results
 
@@ -1126,10 +1296,7 @@ async def run_scan(
 
         # Classifica resultados
         vuln_techs = [a.technique for a in all_attempts if a.vulnerable]
-        blocked_techs = [
-            a.technique for a in all_attempts
-            if not a.vulnerable and a.status_changed and a.status_test in (403, 401, 302)
-        ]
+        blocked_techs = [a.technique for a in all_attempts if not a.vulnerable and a.status_changed and a.status_test in (403, 401, 302)]
 
         # Issues
         issues: list[str] = []
@@ -1172,7 +1339,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("url", help="URL alvo para teste")
     parser.add_argument(
-        "-c", "--categories",
+        "-c",
+        "--categories",
         nargs="+",
         choices=list(_CATEGORY_MAP.keys()),
         help="Categorias para testar (default: todas)",

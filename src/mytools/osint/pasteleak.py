@@ -20,6 +20,7 @@ Fluxo:
   3. Dedup por (fonte, url, padrao)
   4. Mascara trechos sensiveis na exibicao
 """
+
 import argparse
 import json
 import logging
@@ -69,8 +70,7 @@ _SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("api_key_assign", re.compile(r"""(?:api[_-]?key|apikey)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
     ("secret_assign", re.compile(r"""(?:secret|secret[_-]?key)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
     ("token_assign", re.compile(r"""(?:auth[_-]?token|access[_-]?token)\s*[:=]\s*['"]?([^\s'"<>]{8,80})['"]?""", re.IGNORECASE)),
-    ("connection_string", re.compile(
-        r"(?:mysql|postgres|mongodb|redis)://[^\s\"'<>]{10,}", re.IGNORECASE)),
+    ("connection_string", re.compile(r"(?:mysql|postgres|mongodb|redis)://[^\s\"'<>]{10,}", re.IGNORECASE)),
 ]
 
 
@@ -150,7 +150,11 @@ async def _query_github_gists(
     try:
         await rate_limiter.wait()
         status, _h, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=2,
+            rate_limiter=rate_limiter,
         )
     except FetchError as e:
         logger.debug("GitHub Gists fetch error: %s", e)
@@ -162,30 +166,34 @@ async def _query_github_gists(
 
     try:
         gists = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return leaks
     for gist in gists[:max_results]:
-            description = gist.get("description", "") or ""
-            files = gist.get("files", {})
-            gist_url = gist.get("html_url", "")
+        description = gist.get("description", "") or ""
+        files = gist.get("files", {})
+        gist_url = gist.get("html_url", "")
 
-            if _contains_domain(description, domain):
-                for fname, fdata in files.items():
-                    raw_url = fdata.get("raw_url", "")
-                    if raw_url:
-                        try:
-                            await rate_limiter.wait()
-                            s2, _, c, _ = await fetch(
-                                client, raw_url, timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
-                            )
-                            if s2 == 200:
-                                content = c.decode("utf-8", errors="replace")
-                                leaks.extend(_scan_content(content, "github_gists", gist_url, fname))
-                        except FetchError:
-                            pass
+        if _contains_domain(description, domain):
+            for fname, fdata in files.items():
+                raw_url = fdata.get("raw_url", "")
+                if raw_url:
+                    try:
+                        await rate_limiter.wait()
+                        s2, _, c, _ = await fetch(
+                            client,
+                            raw_url,
+                            timeout=timeout,
+                            max_retries=1,
+                            rate_limiter=rate_limiter,
+                        )
+                        if s2 == 200:
+                            content = c.decode("utf-8", errors="replace")
+                            leaks.extend(_scan_content(content, "github_gists", gist_url, fname))
+                    except FetchError:
+                        pass
 
-            if len(leaks) >= max_results:
-                break
+        if len(leaks) >= max_results:
+            break
 
     return leaks
 
@@ -204,7 +212,11 @@ async def _query_pastebin_rss(
     try:
         await rate_limiter.wait()
         status, _h, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=2,
+            rate_limiter=rate_limiter,
         )
     except FetchError as e:
         logger.debug("Pastebin RSS fetch error: %s", e)
@@ -242,7 +254,11 @@ async def _query_pastebin_rss(
         try:
             await rate_limiter.wait()
             s2, _, c, _ = await fetch(
-                client, paste_url, timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+                client,
+                paste_url,
+                timeout=timeout,
+                max_retries=1,
+                rate_limiter=rate_limiter,
             )
             if s2 == 200:
                 content = c.decode("utf-8", errors="replace")
@@ -270,7 +286,11 @@ async def _query_gitlab_snippets(
     try:
         await rate_limiter.wait()
         status, _h, body, _ = await fetch(
-            client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+            client,
+            url,
+            timeout=timeout,
+            max_retries=2,
+            rate_limiter=rate_limiter,
         )
     except FetchError as e:
         logger.debug("GitLab Snippets fetch error: %s", e)
@@ -291,7 +311,11 @@ async def _query_gitlab_snippets(
                 try:
                     await rate_limiter.wait()
                     s2, _, c, _ = await fetch(
-                        client, raw_url, timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+                        client,
+                        raw_url,
+                        timeout=timeout,
+                        max_retries=1,
+                        rate_limiter=rate_limiter,
                     )
                     if s2 == 200:
                         content = c.decode("utf-8", errors="replace")
@@ -332,7 +356,11 @@ async def _query_github_code(
         try:
             await rate_limiter.wait()
             status, _h, body, _ = await fetch(
-                client, url, timeout=timeout, max_retries=2, rate_limiter=rate_limiter,
+                client,
+                url,
+                timeout=timeout,
+                max_retries=2,
+                rate_limiter=rate_limiter,
                 headers=auth_headers,
             )
         except FetchError as e:
@@ -345,7 +373,7 @@ async def _query_github_code(
 
         try:
             items = json.loads(body).get("items", [])
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             items = []
         for item in items[:max_results]:
             file_path = item.get("path", "")
@@ -356,7 +384,11 @@ async def _query_github_code(
                 try:
                     await rate_limiter.wait()
                     s2, _, c, _ = await fetch(
-                        client, download_url, timeout=timeout, max_retries=1, rate_limiter=rate_limiter,
+                        client,
+                        download_url,
+                        timeout=timeout,
+                        max_retries=1,
+                        rate_limiter=rate_limiter,
                     )
                     if s2 == 200:
                         content = c.decode("utf-8", errors="replace")
@@ -428,18 +460,12 @@ def print_results(leaks: list[LeakRecord]) -> None:
 
     total = len(leaks)
     sources_count = len(by_source)
-    print(
-        color(f"\n[+] {total} leak(s) encontrado(s) em {sources_count} fonte(s):", Cyber.GREEN, Cyber.BOLD)
-    )
+    print(color(f"\n[+] {total} leak(s) encontrado(s) em {sources_count} fonte(s):", Cyber.GREEN, Cyber.BOLD))
 
     for source, source_leaks in by_source.items():
         print(color(f"\n  Fonte: {source}", Cyber.CYAN, Cyber.BOLD))
         for leak in source_leaks:
-            print(
-                f"    {color(leak.matched_pattern, Cyber.RED, Cyber.BOLD)}"
-                f" | {color(leak.filename, Cyber.YELLOW)}"
-                f" | {leak.matched_text}"
-            )
+            print(f"    {color(leak.matched_pattern, Cyber.RED, Cyber.BOLD)} | {color(leak.filename, Cyber.YELLOW)} | {leak.matched_text}")
             print(f"      {color(leak.url, Cyber.GRAY)}")
             print_exploit_info(leak.exploit, leak.tool)
 

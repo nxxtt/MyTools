@@ -31,7 +31,9 @@ _SECRET_PATTERNS: dict[str, re.Pattern[bytes]] = {
     "Stripe Publishable Key": re.compile(rb"pk_live_[0-9a-zA-Z]{24,}"),
     "PayPal Braintree": re.compile(rb"access_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}"),
     "Twilio SID": re.compile(rb"SK[0-9a-fA-F]{32}"),
-    "Alphanumeric Secret": re.compile(rb"(?i)(?:secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|client[_-]?secret)\s*[=:]\s*['\"]([A-Za-z0-9\-._]{20,})['\"]"),
+    "Alphanumeric Secret": re.compile(
+        rb"(?i)(?:secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|client[_-]?secret)\s*[=:]\s*['\"]([A-Za-z0-9\-._]{20,})['\"]"
+    ),
     "Hardcoded Password": re.compile(rb"(?i)(?:password|passwd|pwd)\s*[=:]\s*['\"]([^'\"]{8,})['\"]"),
     "Hardcoded URL with creds": re.compile(rb"(?i)https?://[^:]+:[^@]+@[a-zA-Z0-9]"),
     "Base64 Encoded Secret": re.compile(rb"(?i)(?:secret|key|token|password)\s*[=:]\s*['\"]([A-Za-z0-9+/]{40,}={0,2})['\"]"),

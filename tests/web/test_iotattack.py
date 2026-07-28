@@ -35,10 +35,16 @@ from mytools.web.iotattack import (
 class TestIoTAttackAttempt:
     def test_creation(self) -> None:
         a = IoTAttackAttempt(
-            technique="modbus_scan", category="iot",
-            description="Modbus TCP scanner", vulnerable=False,
-            details="test", error="", endpoint="192.168.1.1:502",
-            protocol="modbus", port=502, device_info={},
+            technique="modbus_scan",
+            category="iot",
+            description="Modbus TCP scanner",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="192.168.1.1:502",
+            protocol="modbus",
+            port=502,
+            device_info={},
         )
         assert a.technique == "modbus_scan"
         assert a.vulnerable is False
@@ -46,9 +52,16 @@ class TestIoTAttackAttempt:
 
     def test_frozen(self) -> None:
         a = IoTAttackAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            protocol="p", port=1, device_info={},
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            protocol="p",
+            port=1,
+            device_info={},
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -57,17 +70,27 @@ class TestIoTAttackAttempt:
 class TestIoTAttackResult:
     def test_creation(self) -> None:
         r = IoTAttackResult(
-            target="192.168.1.1", host="192.168.1.1", port=502,
-            protocols_found=[], attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="192.168.1.1",
+            host="192.168.1.1",
+            port=502,
+            protocols_found=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         assert r.overall_status == "secure"
         assert r.port == 502
 
     def test_frozen(self) -> None:
         r = IoTAttackResult(
-            target="t", host="h", port=1, protocols_found=[],
-            attempts=[], vulnerable_techniques=[], issues=[],
+            target="t",
+            host="h",
+            port=1,
+            protocols_found=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         with pytest.raises(AttributeError):
@@ -80,7 +103,11 @@ class TestCategoryMap:
 
     def test_iot_techniques(self) -> None:
         assert set(_CATEGORY_MAP["iot"]) == {
-            "modbus_scan", "opcua_discovery", "bacnet_scan", "snmp_brute", "mqtt_enum",
+            "modbus_scan",
+            "opcua_discovery",
+            "bacnet_scan",
+            "snmp_brute",
+            "mqtt_enum",
         }
 
     def test_total_techniques(self) -> None:
@@ -230,6 +257,7 @@ class TestMqttConstants:
 
     def test_topics(self) -> None:
         from mytools.web.iotattack import _MQTT_TOPICS
+
         assert "$SYS/#" in _MQTT_TOPICS
         assert "#" in _MQTT_TOPICS
 
@@ -237,8 +265,15 @@ class TestMqttConstants:
 class TestMakeAttempt:
     def test_creation(self) -> None:
         a = _make_attempt(
-            "modbus_scan", "iot", "Modbus scanner", True,
-            "details", "", "192.168.1.1:502", "modbus", 502,
+            "modbus_scan",
+            "iot",
+            "Modbus scanner",
+            True,
+            "details",
+            "",
+            "192.168.1.1:502",
+            "modbus",
+            502,
         )
         assert a.vulnerable is True
         assert a.technique == "modbus_scan"
@@ -246,8 +281,16 @@ class TestMakeAttempt:
     def test_with_device_info(self) -> None:
         info = {"device_id": 1}
         a = _make_attempt(
-            "opcua_discovery", "iot", "desc", False,
-            "details", "", "endpoint", "opcua", 4840, info,
+            "opcua_discovery",
+            "iot",
+            "desc",
+            False,
+            "details",
+            "",
+            "endpoint",
+            "opcua",
+            4840,
+            info,
         )
         assert a.device_info == info
 
@@ -255,9 +298,14 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = IoTAttackResult(
-            target="192.168.1.1", host="192.168.1.1", port=502,
-            protocols_found=[], attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="192.168.1.1",
+            host="192.168.1.1",
+            port=502,
+            protocols_found=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -266,16 +314,26 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = IoTAttackAttempt(
-            technique="modbus_scan", category="iot", description="desc",
-            vulnerable=True, details="modbus found", error="",
-            endpoint="192.168.1.1:502", protocol="modbus", port=502,
+            technique="modbus_scan",
+            category="iot",
+            description="desc",
+            vulnerable=True,
+            details="modbus found",
+            error="",
+            endpoint="192.168.1.1:502",
+            protocol="modbus",
+            port=502,
             device_info={},
         )
         r = IoTAttackResult(
-            target="192.168.1.1", host="192.168.1.1", port=502,
-            protocols_found=["modbus"], attempts=[a],
+            target="192.168.1.1",
+            host="192.168.1.1",
+            port=502,
+            protocols_found=["modbus"],
+            attempts=[a],
             vulnerable_techniques=["modbus_scan"],
-            issues=["Test issue"], overall_status="vulnerable",
+            issues=["Test issue"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -284,19 +342,37 @@ class TestPrintResults:
 
     def test_multiple_categories(self, capsys: pytest.CaptureFixture[str]) -> None:
         a1 = IoTAttackAttempt(
-            technique="modbus_scan", category="iot", description="d",
-            vulnerable=True, details="found", error="",
-            endpoint="e", protocol="modbus", port=502, device_info={},
+            technique="modbus_scan",
+            category="iot",
+            description="d",
+            vulnerable=True,
+            details="found",
+            error="",
+            endpoint="e",
+            protocol="modbus",
+            port=502,
+            device_info={},
         )
         a2 = IoTAttackAttempt(
-            technique="mqtt_enum", category="iot", description="d",
-            vulnerable=False, details="none", error="",
-            endpoint="e", protocol="mqtt", port=1883, device_info={},
+            technique="mqtt_enum",
+            category="iot",
+            description="d",
+            vulnerable=False,
+            details="none",
+            error="",
+            endpoint="e",
+            protocol="mqtt",
+            port=1883,
+            device_info={},
         )
         r = IoTAttackResult(
-            target="t", host="h", port=502,
-            protocols_found=["modbus"], attempts=[a1, a2],
-            vulnerable_techniques=["modbus_scan"], issues=[],
+            target="t",
+            host="h",
+            port=502,
+            protocols_found=["modbus"],
+            attempts=[a1, a2],
+            vulnerable_techniques=["modbus_scan"],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(r)

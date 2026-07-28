@@ -19,10 +19,17 @@ from mytools.web.timingattack import (
 class TestTimingAttempt:
     def test_creation(self) -> None:
         a = TimingAttempt(
-            technique="login_timing", category="timing",
-            description="Login timing", vulnerable=False,
-            details="test", error="", endpoint="https://target.com",
-            timing_ms=10.0, threshold_ms=50.0, samples=10, stdev_ms=5.0,
+            technique="login_timing",
+            category="timing",
+            description="Login timing",
+            vulnerable=False,
+            details="test",
+            error="",
+            endpoint="https://target.com",
+            timing_ms=10.0,
+            threshold_ms=50.0,
+            samples=10,
+            stdev_ms=5.0,
         )
         assert a.technique == "login_timing"
         assert a.vulnerable is False
@@ -30,9 +37,17 @@ class TestTimingAttempt:
 
     def test_frozen(self) -> None:
         a = TimingAttempt(
-            technique="t", category="c", description="d",
-            vulnerable=False, details="", error="", endpoint="e",
-            timing_ms=0, threshold_ms=0, samples=0, stdev_ms=0,
+            technique="t",
+            category="c",
+            description="d",
+            vulnerable=False,
+            details="",
+            error="",
+            endpoint="e",
+            timing_ms=0,
+            threshold_ms=0,
+            samples=0,
+            stdev_ms=0,
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
@@ -41,8 +56,11 @@ class TestTimingAttempt:
 class TestTimingResult:
     def test_creation(self) -> None:
         r = TimingResult(
-            target="https://target.com", url="https://target.com",
-            attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://target.com",
+            url="https://target.com",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         assert r.overall_status == "secure"
@@ -50,8 +68,12 @@ class TestTimingResult:
 
     def test_frozen(self) -> None:
         r = TimingResult(
-            target="t", url="u", attempts=[],
-            vulnerable_techniques=[], issues=[], overall_status="secure",
+            target="t",
+            url="u",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -63,7 +85,10 @@ class TestCategoryMap:
 
     def test_timing_techniques(self) -> None:
         assert set(_CATEGORY_MAP["timing"]) == {
-            "login_timing", "token_timing", "cache_timing", "dns_timing",
+            "login_timing",
+            "token_timing",
+            "cache_timing",
+            "dns_timing",
         }
 
     def test_total_techniques(self) -> None:
@@ -76,6 +101,7 @@ class TestCategoryMap:
 
     def test_all_dispatches_are_coroutines(self) -> None:
         import inspect
+
         for cat, fn in _CATEGORY_DISPATCH.items():
             assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
 
@@ -83,8 +109,17 @@ class TestCategoryMap:
 class TestMakeAttempt:
     def test_creation(self) -> None:
         a = _make_attempt(
-            "login_timing", "timing", "Login timing", True,
-            "details", "", "https://target.com", 100.0, 50.0, 10, 25.0,
+            "login_timing",
+            "timing",
+            "Login timing",
+            True,
+            "details",
+            "",
+            "https://target.com",
+            100.0,
+            50.0,
+            10,
+            25.0,
         )
         assert a.vulnerable is True
         assert a.timing_ms == 100.0
@@ -92,8 +127,17 @@ class TestMakeAttempt:
 
     def test_no_vuln(self) -> None:
         a = _make_attempt(
-            "token_timing", "timing", "Token timing", False,
-            "details", "", "https://target.com", 5.0, 10.0, 20, 2.0,
+            "token_timing",
+            "timing",
+            "Token timing",
+            False,
+            "details",
+            "",
+            "https://target.com",
+            5.0,
+            10.0,
+            20,
+            2.0,
         )
         assert a.vulnerable is False
         assert a.samples == 20
@@ -102,8 +146,11 @@ class TestMakeAttempt:
 class TestPrintResults:
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         r = TimingResult(
-            target="https://target.com", url="https://target.com",
-            attempts=[], vulnerable_techniques=[], issues=[],
+            target="https://target.com",
+            url="https://target.com",
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
             overall_status="secure",
         )
         print_results(r)
@@ -113,15 +160,25 @@ class TestPrintResults:
 
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         a = TimingAttempt(
-            technique="login_timing", category="timing", description="desc",
-            vulnerable=True, details="timing diff: 100ms", error="",
-            endpoint="https://target.com", timing_ms=100.0,
-            threshold_ms=50.0, samples=10, stdev_ms=25.0,
+            technique="login_timing",
+            category="timing",
+            description="desc",
+            vulnerable=True,
+            details="timing diff: 100ms",
+            error="",
+            endpoint="https://target.com",
+            timing_ms=100.0,
+            threshold_ms=50.0,
+            samples=10,
+            stdev_ms=25.0,
         )
         r = TimingResult(
-            target="https://target.com", url="https://target.com",
-            attempts=[a], vulnerable_techniques=["login_timing"],
-            issues=["Test issue"], overall_status="vulnerable",
+            target="https://target.com",
+            url="https://target.com",
+            attempts=[a],
+            vulnerable_techniques=["login_timing"],
+            issues=["Test issue"],
+            overall_status="vulnerable",
         )
         print_results(r)
         output = capsys.readouterr().out
@@ -130,20 +187,37 @@ class TestPrintResults:
 
     def test_multiple_categories(self, capsys: pytest.CaptureFixture[str]) -> None:
         a1 = TimingAttempt(
-            technique="login_timing", category="timing", description="d",
-            vulnerable=True, details="found", error="",
-            endpoint="e", timing_ms=100, threshold_ms=50,
-            samples=10, stdev_ms=25,
+            technique="login_timing",
+            category="timing",
+            description="d",
+            vulnerable=True,
+            details="found",
+            error="",
+            endpoint="e",
+            timing_ms=100,
+            threshold_ms=50,
+            samples=10,
+            stdev_ms=25,
         )
         a2 = TimingAttempt(
-            technique="dns_timing", category="timing", description="d",
-            vulnerable=False, details="none", error="",
-            endpoint="e", timing_ms=5, threshold_ms=50,
-            samples=10, stdev_ms=2,
+            technique="dns_timing",
+            category="timing",
+            description="d",
+            vulnerable=False,
+            details="none",
+            error="",
+            endpoint="e",
+            timing_ms=5,
+            threshold_ms=50,
+            samples=10,
+            stdev_ms=2,
         )
         r = TimingResult(
-            target="t", url="u", attempts=[a1, a2],
-            vulnerable_techniques=["login_timing"], issues=[],
+            target="t",
+            url="u",
+            attempts=[a1, a2],
+            vulnerable_techniques=["login_timing"],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(r)

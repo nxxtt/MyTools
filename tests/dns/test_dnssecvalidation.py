@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de DNSSEC Validation."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,10 +31,16 @@ class TestDnssecResult:
 
     def test_frozen(self) -> None:
         r = DnssecResult(
-            domain="a", nameserver="b", is_signed=False,
-            has_ds=False, has_dnskey=False, has_rrsig=False,
-            chain_valid=False, algorithm_strength="unknown",
-            checks=[], overall_status="unsigned",
+            domain="a",
+            nameserver="b",
+            is_signed=False,
+            has_ds=False,
+            has_dnskey=False,
+            has_rrsig=False,
+            chain_valid=False,
+            algorithm_strength="unknown",
+            checks=[],
+            overall_status="unsigned",
         )
         with pytest.raises(AttributeError):
             r.domain = "x"  # type: ignore[misc]
@@ -66,9 +73,13 @@ class TestPrintResults:
 
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = DnssecResult(
-            domain="example.com", nameserver="8.8.8.8",
-            is_signed=True, has_ds=True, has_dnskey=True,
-            has_rrsig=True, chain_valid=True,
+            domain="example.com",
+            nameserver="8.8.8.8",
+            is_signed=True,
+            has_ds=True,
+            has_dnskey=True,
+            has_rrsig=True,
+            chain_valid=True,
             algorithm_strength="strong",
             checks=[
                 DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low"),
@@ -83,9 +94,13 @@ class TestPrintResults:
 
     def test_unsigned(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = DnssecResult(
-            domain="test.com", nameserver="8.8.8.8",
-            is_signed=False, has_ds=False, has_dnskey=False,
-            has_rrsig=False, chain_valid=False,
+            domain="test.com",
+            nameserver="8.8.8.8",
+            is_signed=False,
+            has_ds=False,
+            has_dnskey=False,
+            has_rrsig=False,
+            chain_valid=False,
             algorithm_strength="unknown",
             checks=[
                 DnssecCheck("dnskey", "missing", "Nenhum DNSKEY", "high"),
@@ -98,9 +113,13 @@ class TestPrintResults:
 
     def test_broken(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = DnssecResult(
-            domain="broken.com", nameserver="8.8.8.8",
-            is_signed=True, has_ds=False, has_dnskey=True,
-            has_rrsig=True, chain_valid=False,
+            domain="broken.com",
+            nameserver="8.8.8.8",
+            is_signed=True,
+            has_ds=False,
+            has_dnskey=True,
+            has_rrsig=True,
+            chain_valid=False,
             algorithm_strength="medium",
             checks=[
                 DnssecCheck("rrsig_expiry", "warn", "2 expiradas", "high"),
@@ -121,8 +140,11 @@ class TestScanDnssec:
     @patch("mytools.dns.dnssecvalidation._check_ds")
     @patch("mytools.dns.dnssecvalidation._check_dnskey")
     def test_secure(
-        self, mock_dnskey: MagicMock, mock_ds: MagicMock,
-        mock_rrsig: MagicMock, mock_nsec: MagicMock,
+        self,
+        mock_dnskey: MagicMock,
+        mock_ds: MagicMock,
+        mock_rrsig: MagicMock,
+        mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
         mock_dnskey.return_value = (True, [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")])
@@ -139,8 +161,11 @@ class TestScanDnssec:
     @patch("mytools.dns.dnssecvalidation._check_ds")
     @patch("mytools.dns.dnssecvalidation._check_dnskey")
     def test_unsigned(
-        self, mock_dnskey: MagicMock, mock_ds: MagicMock,
-        mock_rrsig: MagicMock, mock_nsec: MagicMock,
+        self,
+        mock_dnskey: MagicMock,
+        mock_ds: MagicMock,
+        mock_rrsig: MagicMock,
+        mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
         mock_dnskey.return_value = (False, [DnssecCheck("dnskey", "missing", "Nenhum", "high")])
@@ -157,8 +182,11 @@ class TestScanDnssec:
     @patch("mytools.dns.dnssecvalidation._check_ds")
     @patch("mytools.dns.dnssecvalidation._check_dnskey")
     def test_weak_algo(
-        self, mock_dnskey: MagicMock, mock_ds: MagicMock,
-        mock_rrsig: MagicMock, mock_nsec: MagicMock,
+        self,
+        mock_dnskey: MagicMock,
+        mock_ds: MagicMock,
+        mock_rrsig: MagicMock,
+        mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
         mock_dnskey.return_value = (True, [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")])
@@ -175,17 +203,20 @@ class TestAlgorithmSets:
 
     def test_weak_algorithms(self) -> None:
         from mytools.dns.dnssecvalidation import WEAK_ALGORITHMS
+
         assert 5 in WEAK_ALGORITHMS  # RSASHA1
         assert 7 in WEAK_ALGORITHMS  # RSASHA1-NSEC3-SHA1
         assert 8 not in WEAK_ALGORITHMS  # RSASHA256 should NOT be weak
 
     def test_medium_algorithms(self) -> None:
         from mytools.dns.dnssecvalidation import MEDIUM_ALGORITHMS
+
         assert 8 in MEDIUM_ALGORITHMS  # RSASHA256
         assert 10 in MEDIUM_ALGORITHMS  # RSASHA512
 
     def test_strong_algorithms(self) -> None:
         from mytools.dns.dnssecvalidation import STRONG_ALGORITHMS
+
         assert 13 in STRONG_ALGORITHMS  # ECDSAP256SHA256
         assert 14 in STRONG_ALGORITHMS  # ECDSAP384SHA384
         assert 15 in STRONG_ALGORITHMS  # ED25519
@@ -193,11 +224,13 @@ class TestAlgorithmSets:
 
     def test_algorithm_8_not_in_weak(self) -> None:
         from mytools.dns.dnssecvalidation import MEDIUM_ALGORITHMS, WEAK_ALGORITHMS
+
         assert 8 not in WEAK_ALGORITHMS
         assert 8 in MEDIUM_ALGORITHMS
 
     def test_no_overlap_between_sets(self) -> None:
         from mytools.dns.dnssecvalidation import MEDIUM_ALGORITHMS, STRONG_ALGORITHMS, WEAK_ALGORITHMS
+
         assert set() == WEAK_ALGORITHMS & MEDIUM_ALGORITHMS
         assert set() == WEAK_ALGORITHMS & STRONG_ALGORITHMS
         assert set() == MEDIUM_ALGORITHMS & STRONG_ALGORITHMS

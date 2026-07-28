@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Clickjacking via Embedded Frames."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,30 +77,22 @@ class TestCheckCSPFrameAncestors:
         assert "sem frame-ancestors" in details
 
     def test_frame_ancestors_none(self) -> None:
-        vuln, details = _check_csp_frame_ancestors(
-            {"content-security-policy": "frame-ancestors 'none'"}
-        )
+        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors 'none'"})
         assert vuln is True
         assert "'none'" in details
 
     def test_frame_ancestors_self(self) -> None:
-        vuln, details = _check_csp_frame_ancestors(
-            {"content-security-policy": "frame-ancestors 'self'"}
-        )
+        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors 'self'"})
         assert vuln is True
         assert "'self'" in details
 
     def test_frame_ancestors_wildcard(self) -> None:
-        vuln, details = _check_csp_frame_ancestors(
-            {"content-security-policy": "frame-ancestors *"}
-        )
+        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors *"})
         assert vuln is True
         assert "wildcard" in details.lower()
 
     def test_frame_ancestors_configured(self) -> None:
-        vuln, details = _check_csp_frame_ancestors(
-            {"content-security-policy": "frame-ancestors https://example.com"}
-        )
+        vuln, details = _check_csp_frame_ancestors({"content-security-policy": "frame-ancestors https://example.com"})
         assert vuln is True
         assert "configurado" in details
 
@@ -108,16 +101,26 @@ class TestCheckCSPFrameAncestors:
 class TestClickjackAttempt:
     def test_frozen(self) -> None:
         a = ClickjackAttempt(
-            technique="test", category="xframe", header_tested="X-Frame-Options",
-            header_value="DENY", vulnerable=True, details="test", error="",
+            technique="test",
+            category="xframe",
+            header_tested="X-Frame-Options",
+            header_value="DENY",
+            vulnerable=True,
+            details="test",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "other"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         a = ClickjackAttempt(
-            technique="test", category="xframe", header_tested="X-Frame-Options",
-            header_value="DENY", vulnerable=True, details="test", error="",
+            technique="test",
+            category="xframe",
+            header_tested="X-Frame-Options",
+            header_value="DENY",
+            vulnerable=True,
+            details="test",
+            error="",
         )
         assert not hasattr(a, "__dict__")
 
@@ -125,9 +128,13 @@ class TestClickjackAttempt:
 class TestClickjackResult:
     def test_frozen(self) -> None:
         r = ClickjackResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], protected_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         with pytest.raises(AttributeError):
             r.target = "other"  # type: ignore[misc]
@@ -154,6 +161,7 @@ class TestBaseline:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -256,6 +264,7 @@ class TestBypass:
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -308,14 +317,22 @@ class TestLegacy:
 class TestPrintResults:
     def test_vulnerable_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = ClickjackResult(
-            target="https://test.com", tls=True,
-            attempts=[ClickjackAttempt(
-                technique="xframe_absent", category="xframe",
-                header_tested="X-Frame-Options", header_value="",
-                vulnerable=True, details="X-Frame-Options ausente", error="",
-            )],
+            target="https://test.com",
+            tls=True,
+            attempts=[
+                ClickjackAttempt(
+                    technique="xframe_absent",
+                    category="xframe",
+                    header_tested="X-Frame-Options",
+                    header_value="",
+                    vulnerable=True,
+                    details="X-Frame-Options ausente",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["xframe_absent"],
-            protected_techniques=[], issues=[],
+            protected_techniques=[],
+            issues=[],
             overall_status="vulnerable",
         )
         print_results(result)
@@ -325,9 +342,13 @@ class TestPrintResults:
 
     def test_safe_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = ClickjackResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], protected_techniques=[],
-            issues=[], overall_status="safe",
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
+            issues=[],
+            overall_status="safe",
         )
         print_results(result)
         output = capsys.readouterr().out
@@ -335,8 +356,11 @@ class TestPrintResults:
 
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = ClickjackResult(
-            target="https://test.com", tls=True, attempts=[],
-            vulnerable_techniques=[], protected_techniques=[],
+            target="https://test.com",
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
             issues=["Nenhum teste retornou resultado claro"],
             overall_status="unknown",
         )
@@ -378,6 +402,7 @@ class TestRunOnce:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
         from mytools.web.clickjacking import run_once
+
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()

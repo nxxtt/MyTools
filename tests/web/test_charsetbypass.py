@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Charset Detection Bypass."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -195,11 +196,19 @@ class TestCharsetBypassAttempt:
 
     def test_frozen(self) -> None:
         att = CharsetBypassAttempt(
-            technique="t", category="c", url="u", payload="p",
-            status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100,
-            status_changed=False, size_changed=False,
-            vulnerable=False, details="d", error="",
+            technique="t",
+            category="c",
+            url="u",
+            payload="p",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="d",
+            error="",
         )
         with pytest.raises(AttributeError):
             att.technique = "new"  # type: ignore[misc]
@@ -243,6 +252,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
@@ -264,7 +274,9 @@ class TestTestMetaCharset:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_meta_charset(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) > 0
         assert all(isinstance(a, CharsetBypassAttempt) for a in attempts)
@@ -282,7 +294,9 @@ class TestTestContentTypeCharset:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_content_type_charset(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 10
 
@@ -299,7 +313,9 @@ class TestTestBomCharset:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_bom_charset(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -316,7 +332,9 @@ class TestTestXmlCharset:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_xml_charset(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -333,7 +351,9 @@ class TestTestMixedCharset:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_mixed_charset(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -403,8 +423,7 @@ class TestMain:
     """Testes para main."""
 
     def test_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-charsetbypass"]), \
-             patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop:
+        with patch("sys.argv", ["mytools-charsetbypass"]), patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()
@@ -473,7 +492,9 @@ class TestContentTypeCharsetWithMismatch:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_content_type_charset(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) >= 10
 
@@ -486,7 +507,9 @@ class TestContentTypeCharsetWithMismatch:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_content_type_charset(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         techniques = [a.technique for a in attempts]
         assert "ct_utf8_as_latin1" in techniques

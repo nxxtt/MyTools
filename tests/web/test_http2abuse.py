@@ -44,9 +44,14 @@ class TestHTTP2Attempt:
 
     def test_frozen(self) -> None:
         a = HTTP2Attempt(
-            technique="t", category="c", description="d",
-            h2_supported=True, settings_observed={},
-            vulnerable=False, details="", error="",
+            technique="t",
+            category="c",
+            description="d",
+            h2_supported=True,
+            settings_observed={},
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "x"  # type: ignore[misc]
@@ -73,9 +78,15 @@ class TestHTTP2Result:
 
     def test_frozen(self) -> None:
         r = HTTP2Result(
-            target="t", host="h", port=443, h2_supported=True,
-            server_settings={}, attempts=[], vulnerable_techniques=[],
-            issues=[], overall_status="secure",
+            target="t",
+            host="h",
+            port=443,
+            h2_supported=True,
+            server_settings={},
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "x"  # type: ignore[misc]
@@ -303,10 +314,14 @@ class TestBuildParser:
 
     def test_has_categories(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "https://example.com",
-            "-c", "h2_downgrade", "h2_fingerprint",
-        ])
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "-c",
+                "h2_downgrade",
+                "h2_fingerprint",
+            ]
+        )
         assert args.categories == ["h2_downgrade", "h2_fingerprint"]
 
     def test_no_categories_default(self) -> None:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Path Traversal via Encoding."""
+
 import argparse
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -88,6 +89,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
+
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.ConnectError("Connection refused")
 
@@ -234,20 +236,38 @@ class TestPathTraversalAttempt:
 
     def test_frozen(self) -> None:
         att = PathTraversalAttempt(
-            technique="test", category="path", url="http://x.com",
-            payload="..%2fetc/passwd", status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100, status_changed=False,
-            size_changed=False, vulnerable=False, details="", error="",
+            technique="test",
+            category="path",
+            url="http://x.com",
+            payload="..%2fetc/passwd",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             att.technique = "changed"  # type: ignore[misc]
 
     def test_slots(self) -> None:
         att = PathTraversalAttempt(
-            technique="test", category="path", url="http://x.com",
-            payload="..%2fetc/passwd", status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100, status_changed=False,
-            size_changed=False, vulnerable=False, details="", error="",
+            technique="test",
+            category="path",
+            url="http://x.com",
+            payload="..%2fetc/passwd",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         assert not hasattr(att, "__dict__")
 
@@ -257,9 +277,15 @@ class TestPathTraversalResult:
 
     def test_frozen(self) -> None:
         result = PathTraversalResult(
-            target="http://x.com", baseline_status=200, baseline_size=100,
-            tls=False, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="secure",
+            target="http://x.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             result.target = "changed"  # type: ignore[misc]
@@ -267,9 +293,15 @@ class TestPathTraversalResult:
     def test_overall_status_values(self) -> None:
         for status in ["vulnerable", "blocked", "secure", "error"]:
             result = PathTraversalResult(
-                target="http://x.com", baseline_status=200, baseline_size=100,
-                tls=False, attempts=[], vulnerable_techniques=[],
-                blocked_techniques=[], issues=[], overall_status=status,
+                target="http://x.com",
+                baseline_status=200,
+                baseline_size=100,
+                tls=False,
+                attempts=[],
+                vulnerable_techniques=[],
+                blocked_techniques=[],
+                issues=[],
+                overall_status=status,
             )
             assert result.overall_status == status
 
@@ -279,14 +311,27 @@ class TestPrintResults:
 
     def test_print_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = PathTraversalResult(
-            target="https://example.com", baseline_status=200, baseline_size=100,
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
             tls=True,
-            attempts=[PathTraversalAttempt(
-                technique="url_encoded", category="path", url="https://example.com/test",
-                payload="..%2fetc/passwd", status_baseline=200, status_test=200,
-                size_baseline=100, size_test=200, status_changed=True,
-                size_changed=True, vulnerable=True, details="Mudanca detectada", error="",
-            )],
+            attempts=[
+                PathTraversalAttempt(
+                    technique="url_encoded",
+                    category="path",
+                    url="https://example.com/test",
+                    payload="..%2fetc/passwd",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=True,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="Mudanca detectada",
+                    error="",
+                )
+            ],
             vulnerable_techniques=["url_encoded"],
             blocked_techniques=[],
             issues=["1 tecnicas vulneraveis"],
@@ -299,9 +344,15 @@ class TestPrintResults:
 
     def test_print_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = PathTraversalResult(
-            target="https://example.com", baseline_status=200, baseline_size=100,
-            tls=True, attempts=[], vulnerable_techniques=[],
-            blocked_techniques=[], issues=[], overall_status="secure",
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         print_results(result)
         captured = capsys.readouterr()

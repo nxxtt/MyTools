@@ -132,12 +132,15 @@ def _parse_dns_response(wire_data: bytes) -> list[DohRecord]:
     try:
         response = dns.message.from_wire(wire_data)
         for rrset in response.answer:
-            records.extend(DohRecord(
-                name=str(rrset.name),
-                rdtype=dns.rdatatype.to_text(rrset.rdtype),
-                ttl=rrset.ttl,
-                rdata=str(rdata),
-            ) for rdata in rrset)
+            records.extend(
+                DohRecord(
+                    name=str(rrset.name),
+                    rdtype=dns.rdatatype.to_text(rrset.rdtype),
+                    ttl=rrset.ttl,
+                    rdata=str(rdata),
+                )
+                for rdata in rrset
+            )
     except Exception:
         pass
     return records
@@ -152,12 +155,15 @@ def _traditional_resolve(domain: str, rdtype_str: str, timeout: float) -> tuple[
     start = time.monotonic()
     try:
         answer = resolver.resolve(domain, rdtype_str.upper())
-        records.extend(DohRecord(
-            name=str(answer.qname),
-            rdtype=rdtype_str.upper(),
-            ttl=answer.rrset.ttl if answer.rrset else 0,
-            rdata=str(rdata),
-        ) for rdata in answer)
+        records.extend(
+            DohRecord(
+                name=str(answer.qname),
+                rdtype=rdtype_str.upper(),
+                ttl=answer.rrset.ttl if answer.rrset else 0,
+                rdata=str(rdata),
+            )
+            for rdata in answer
+        )
     except dns.resolver.NoAnswer:
         error = "no_answer"
     except dns.resolver.NXDOMAIN:
@@ -173,7 +179,9 @@ def _traditional_resolve(domain: str, rdtype_str: str, timeout: float) -> tuple[
 
 
 async def _doh_query_post(
-    url: str, wire_query: bytes, timeout: float,
+    url: str,
+    wire_query: bytes,
+    timeout: float,
 ) -> tuple[bytes, int, str]:
     headers = {"Content-Type": "application/dns-message", "Accept": "application/dns-message"}
     try:
@@ -191,7 +199,9 @@ async def _doh_query_post(
 
 
 async def _doh_query_get(
-    url: str, wire_query: bytes, timeout: float,
+    url: str,
+    wire_query: bytes,
+    timeout: float,
 ) -> tuple[bytes, int, str]:
     b64 = base64.urlsafe_b64encode(wire_query).rstrip(b"=").decode("ascii")
     full_url = f"{url}?dns={b64}"
@@ -211,7 +221,8 @@ async def _doh_query_get(
 
 
 def _compare_records(
-    doh_records: list[DohRecord], trad_records: list[DohRecord],
+    doh_records: list[DohRecord],
+    trad_records: list[DohRecord],
 ) -> tuple[bool, list[str]]:
     inconsistencies: list[str] = []
     doh_rdata = sorted(r.rdata for r in doh_records)
@@ -229,8 +240,12 @@ def _compare_records(
 
 
 async def _test_provider(
-    provider_key: str, provider: dict[str, Any],
-    wire_query: bytes, domain: str, rdtype: str, timeout: float,
+    provider_key: str,
+    provider: dict[str, Any],
+    wire_query: bytes,
+    domain: str,
+    rdtype: str,
+    timeout: float,
 ) -> DohProviderResult:
     start = time.monotonic()
     if provider["method"] == "POST":
@@ -345,12 +360,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("domain", help="Dominio alvo")
     parser.add_argument(
-        "-T", "--type", default="A",
+        "-T",
+        "--type",
+        default="A",
         choices=["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "SRV", "CAA"],
         help="Tipo de registro DNS (default: A)",
     )
     parser.add_argument(
-        "-p", "--providers", nargs="+",
+        "-p",
+        "--providers",
+        nargs="+",
         choices=list(_DOH_PROVIDERS.keys()),
         default=None,
         help="Providers DoH para testar (default: todos)",

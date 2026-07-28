@@ -85,9 +85,7 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                             # Try extracting XML from CMS signed data
                             import re
 
-                            xml_match = re.search(
-                                rb"(<\?xml.*</plist>)", prov_data, re.DOTALL
-                            )
+                            xml_match = re.search(rb"(<\?xml.*</plist>)", prov_data, re.DOTALL)
                             if xml_match:
                                 prov_plist = plistlib.loads(xml_match.group(1))
                             else:
@@ -99,25 +97,15 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                             "team_id": prov_plist.get("TeamIdentifier", ""),
                             "created": str(prov_plist.get("CreationDate", "")),
                             "expires": str(prov_plist.get("ExpirationDate", "")),
-                            "app_id": prov_plist.get("Entitlements", {}).get(
-                                "application-identifier", ""
-                            ),
+                            "app_id": prov_plist.get("Entitlements", {}).get("application-identifier", ""),
                             "devices": len(prov_plist.get("ProvisionedDevices", []) or []),
-                            "push": bool(
-                                prov_plist.get("Entitlements", {}).get(
-                                    "aps-environment", ""
-                                )
-                            ),
+                            "push": bool(prov_plist.get("Entitlements", {}).get("aps-environment", "")),
                         }
 
                         # Extract entitlements
                         ent = prov_plist.get("Entitlements", {})
                         if ent:
-                            result["entitlements"] = {
-                                k: v
-                                for k, v in ent.items()
-                                if not k.startswith("com.apple")
-                            }
+                            result["entitlements"] = {k: v for k, v in ent.items() if not k.startswith("com.apple")}
                     except Exception as e:
                         logger.warning("Failed to parse provisioning: %s", e)
                     break
@@ -127,16 +115,12 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                 import lief
 
                 for name in ipa.namelist():
-                    if name.endswith((".arm64", ".arm64e")) or (
-                        "Frameworks/" in name and not name.endswith((".plist", ".bundle", ".nib"))
-                    ):
+                    if name.endswith((".arm64", ".arm64e")) or ("Frameworks/" in name and not name.endswith((".plist", ".bundle", ".nib"))):
                         continue
                     # Main binary: typically in Payload/*.app/*
                     if (
                         ".app/" in name
-                        and not name.endswith(
-                            (".plist", ".nib", ".storyboardc", ".strings", ".lproj")
-                        )
+                        and not name.endswith((".plist", ".nib", ".storyboardc", ".strings", ".lproj"))
                         and "/" in name
                         and "." not in name.split("/")[-1]
                     ):
@@ -153,7 +137,9 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                                 # Imports
                                 if hasattr(binary, "libraries"):
                                     macho_info["libraries"] = [
-                                        lib.name for lib in binary.libraries if lib.name  # type: ignore[union-attr]
+                                        lib.name
+                                        for lib in binary.libraries
+                                        if lib.name  # type: ignore[union-attr]
                                     ]
 
                                 # Exports

@@ -23,6 +23,7 @@ class TestPkcePair:
         _, challenge = _make_pkce_pair()
         # Should be valid base64url
         import base64
+
         # Add padding back
         padded = challenge + "=" * (4 - len(challenge) % 4)
         decoded = base64.urlsafe_b64decode(padded)
@@ -79,11 +80,7 @@ class TestClientCredentials:
 class TestValidateJwt:
     def test_valid_jwt_structure(self) -> None:
         # HS256 JWT with known payload (not verifying signature)
-        token = (
-            "eyJhbGciOiJIUzI1NiJ9."
-            "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ."
-            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-        )
+        token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
         result = validate_jwt(token)
         assert result.get("valid_structure") is True
         assert result["header"]["alg"] == "HS256"

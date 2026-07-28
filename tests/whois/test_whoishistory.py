@@ -168,17 +168,19 @@ class TestQuerySource:
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.content = json.dumps({
-            "result": {
-                "items": [
-                    {
-                        "ended": 1512131429698,
-                        "nameServers": ["NS1.EXAMPLE.COM"],
-                        "contact": [{"name": "Admin", "type": "registrant"}],
-                    }
-                ]
+        mock_resp.content = json.dumps(
+            {
+                "result": {
+                    "items": [
+                        {
+                            "ended": 1512131429698,
+                            "nameServers": ["NS1.EXAMPLE.COM"],
+                            "contact": [{"name": "Admin", "type": "registrant"}],
+                        }
+                    ]
+                }
             }
-        }).encode()
+        ).encode()
         mock_resp.headers = {}
 
         with patch("mytools.whois.whoishistory.create_async_client") as mock_client_fn:
@@ -216,9 +218,7 @@ class TestRunHistory:
 
     def test_calls_with_sources(self):
         with patch("mytools.core.utils.safe_asyncio_run") as mock_run:
-            mock_run.return_value = [
-                WhoisHistoryRecord(domain="example.com", date="2024-01-01", source="securitytrails")
-            ]
+            mock_run.return_value = [WhoisHistoryRecord(domain="example.com", date="2024-01-01", source="securitytrails")]
             result = run_history("example.com", sources=["securitytrails"], api_keys={"securitytrails": "key"})
             assert len(result) == 1
             assert mock_run.called

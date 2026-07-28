@@ -164,8 +164,11 @@ def banner() -> None:
 /_/  /_/\__, /   /_/  \____/\____/_/____/
        /____/
 """
-    create_banner(art, "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory + oas + bak + dork + breach + soceng",
-                  extra=lambda: print(color("   by Default\n", Cyber.GRAY)))()
+    create_banner(
+        art,
+        "   port scanner + dir scanner + web recon + attack audit + dns xfer + subenum + dnshistory + whoishistory + oas + bak + dork + breach + soceng",
+        extra=lambda: print(color("   by Default\n", Cyber.GRAY)),
+    )()
 
 
 def menu() -> None:
@@ -429,7 +432,9 @@ def launch_portscanner() -> None:
             raise ValueError("Informe pelo menos um alvo.")
 
     run_interactive_shell(
-        parser, "scanner> ", portscanner.run_once,
+        parser,
+        "scanner> ",
+        portscanner.run_once,
         description="PortScanner interativo.",
         example="192.168.0.10 -p 1-1024 -b",
         validate_fn=_validate,
@@ -449,16 +454,14 @@ def launch_dirscanner() -> None:
     """Inicia o módulo DirScanner em modo interativo."""
     parser = dirscanner.build_parser()
     run_interactive_shell(
-        parser, "dirscan> ", dirscanner.run_once,
+        parser,
+        "dirscan> ",
+        dirscanner.run_once,
         description="DirScanner interativo.",
         example="http://localhost:8000 -x php,txt,bak -s 200,301,403",
         banner_fn=dirscanner.banner,
         contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  http://localhost:8000 -x php,txt,bak\n"
-            "  http://target.com -s 200,301,403\n"
-            "  -l urls.txt -o out.json"
+            "Uso: <url> [opcoes]\nExemplos:\n  http://localhost:8000 -x php,txt,bak\n  http://target.com -s 200,301,403\n  -l urls.txt -o out.json"
         ),
     )
 
@@ -467,17 +470,13 @@ def launch_webrecon() -> None:
     """Inicia o módulo WebRecon em modo interativo."""
     parser = webrecon.build_parser()
     run_interactive_shell(
-        parser, "webrecon> ", webrecon.run_once,
+        parser,
+        "webrecon> ",
+        webrecon.run_once,
         description="WebRecon interativo.",
         example="https://example.com -o recon.json",
         banner_fn=webrecon.banner,
-        contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  https://example.com\n"
-            "  https://example.com --cve --deep\n"
-            "  -l urls.txt -o recon.json"
-        ),
+        contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com --cve --deep\n  -l urls.txt -o recon.json"),
     )
 
 
@@ -485,16 +484,14 @@ def launch_attackaudit() -> None:
     """Inicia o módulo AttackAudit em modo interativo."""
     parser = attackaudit.build_parser()
     run_interactive_shell(
-        parser, "audit> ", attackaudit.run_once,
+        parser,
+        "audit> ",
+        attackaudit.run_once,
         description="AttackAudit interativo.",
         example="https://example.com --deep --test-vulns -o audit.json",
         banner_fn=attackaudit.banner,
         contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  https://example.com --deep\n"
-            "  https://example.com --deep --test-vulns\n"
-            "  -l urls.txt -o audit.json"
+            "Uso: <url> [opcoes]\nExemplos:\n  https://example.com --deep\n  https://example.com --deep --test-vulns\n  -l urls.txt -o audit.json"
         ),
     )
 
@@ -503,16 +500,13 @@ def launch_dnstransfer() -> None:
     """Inicia o módulo DNS Zone Transfer em modo interativo."""
     parser = dnstransfer.build_parser()
     run_interactive_shell(
-        parser, "dnsxfer> ", dnstransfer.run_once,
+        parser,
+        "dnsxfer> ",
+        dnstransfer.run_once,
         description="DNS Zone Transfer interativo.",
         example="example.com -o xfr.json",
         banner_fn=dnstransfer.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com -o xfr.json"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -o xfr.json"),
     )
 
 
@@ -520,16 +514,13 @@ def launch_subdomainenum() -> None:
     """Inicia o módulo Subdomain Enumeration em modo interativo."""
     parser = subdomainenum.build_parser()
     run_interactive_shell(
-        parser, "subenum> ", subdomainenum.run_once,
+        parser,
+        "subenum> ",
+        subdomainenum.run_once,
         description="Subdomain Enumeration interativo.",
         example="example.com -o subs.json",
         banner_fn=subdomainenum.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com -w wordlist.txt -o subs.json"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -w wordlist.txt -o subs.json"),
     )
 
 
@@ -537,7 +528,9 @@ def launch_dnshistory() -> None:
     """Inicia o módulo DNS History em modo interativo."""
     parser = dnshistory.build_parser()
     run_interactive_shell(
-        parser, "dns-history> ", dnshistory.run_once,
+        parser,
+        "dns-history> ",
+        dnshistory.run_once,
         description="DNS History interativo — consulta historico de registros DNS via OSINT.",
         example="example.com --source dnslytics",
         banner_fn=create_banner(dnshistory.BANNER_ART, "DNS History"),
@@ -555,7 +548,9 @@ def launch_whoishistory() -> None:
     """Inicia o módulo WHOIS History em modo interativo."""
     parser = whoishistory.build_parser()
     run_interactive_shell(
-        parser, "whois-history> ", whoishistory.run_once,
+        parser,
+        "whois-history> ",
+        whoishistory.run_once,
         description="WHOIS History interativo — consulta historico de WHOIS via OSINT.",
         example="example.com --source securitytrails",
         banner_fn=create_banner(whoishistory.BANNER_ART, "WHOIS History"),
@@ -574,7 +569,9 @@ def launch_ipasninfo() -> None:
     """Inicia o módulo IP ASN Info em modo interativo."""
     parser = ipasninfo.build_parser()
     run_interactive_shell(
-        parser, "ip-asn> ", ipasninfo.run_once,
+        parser,
+        "ip-asn> ",
+        ipasninfo.run_once,
         description="IP ASN Info interativo — enriquece IPs com dados BGP (ASN, org, ISP, pais).",
         example="8.8.8.8 1.1.1.1",
         banner_fn=create_banner(ipasninfo.BANNER_ART, "IP ASN Info"),
@@ -593,17 +590,13 @@ def launch_techfingerprint() -> None:
     """Inicia o modulo Tech Fingerprint em modo interativo."""
     parser = techfingerprint.build_parser()
     run_interactive_shell(
-        parser, "techfp> ", techfingerprint.run_once,
+        parser,
+        "techfp> ",
+        techfingerprint.run_once,
         description="Tech Fingerprint interativo — detecta tecnologias com versoes exatas.",
         example="https://example.com -o tech.json",
         banner_fn=create_banner(techfingerprint.BANNER_ART, "Technology Fingerprint"),
-        contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  https://example.com\n"
-            "  https://example.com -o tech.json\n"
-            "  -l urls.txt -o results.json"
-        ),
+        contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"),
     )
 
 
@@ -611,17 +604,13 @@ def launch_openapidiscovery() -> None:
     """Inicia o modulo OpenAPI/Swagger Discovery em modo interativo."""
     parser = openapidiscovery.build_parser()
     run_interactive_shell(
-        parser, "oas> ", openapidiscovery.run_once,
+        parser,
+        "oas> ",
+        openapidiscovery.run_once,
         description="OpenAPI/Swagger Discovery interativo — busca specs expostas.",
         example="http://target.com --endpoints",
         banner_fn=openapidiscovery.banner,
-        contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  http://target.com\n"
-            "  http://target.com --endpoints\n"
-            "  -l urls.txt -o oas.json"
-        ),
+        contextual_help=("Uso: <url> [opcoes]\nExemplos:\n  http://target.com\n  http://target.com --endpoints\n  -l urls.txt -o oas.json"),
     )
 
 
@@ -629,7 +618,9 @@ def launch_graphqlplayground() -> None:
     """Inicia o modulo GraphQL Playground Discovery em modo interativo."""
     parser = graphqlplayground.build_parser()
     run_interactive_shell(
-        parser, "gql> ", graphqlplayground.run_once,
+        parser,
+        "gql> ",
+        graphqlplayground.run_once,
         description="GraphQL Playground Discovery interativo — descobre endpoints GraphQL expostos.",
         example="http://target.com --introspect",
         banner_fn=graphqlplayground.banner,
@@ -648,7 +639,9 @@ def launch_sourcemapdiscovery() -> None:
     """Inicia o modulo Source Map Discovery em modo interativo."""
     parser = sourcemapdiscovery.build_parser()
     run_interactive_shell(
-        parser, "sm> ", sourcemapdiscovery.run_once,
+        parser,
+        "sm> ",
+        sourcemapdiscovery.run_once,
         description="Source Map Discovery interativo — busca .map files de JavaScript expostos.",
         example="http://target.com --sources",
         banner_fn=sourcemapdiscovery.banner,
@@ -667,17 +660,14 @@ def launch_vcsleak() -> None:
     """Inicia o modulo VCS Leak Detection em modo interativo."""
     parser = vcsleak.build_parser()
     run_interactive_shell(
-        parser, "vcs> ", vcsleak.run_once,
+        parser,
+        "vcs> ",
+        vcsleak.run_once,
         description="VCS Leak Detection interativo — detecta .git, .svn, .hg expostos.",
         example="http://target.com --git-only",
         banner_fn=vcsleak.banner,
         contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  http://target.com\n"
-            "  http://target.com --git-only\n"
-            "  http://target.com --svn-only\n"
-            "  -l urls.txt -o results.json"
+            "Uso: <url> [opcoes]\nExemplos:\n  http://target.com\n  http://target.com --git-only\n  http://target.com --svn-only\n  -l urls.txt -o results.json"
         ),
     )
 
@@ -686,7 +676,9 @@ def launch_configfiledetect() -> None:
     """Inicia o modulo Config File Detection em modo interativo."""
     parser = configfiledetect.build_parser()
     run_interactive_shell(
-        parser, "cfg> ", configfiledetect.run_once,
+        parser,
+        "cfg> ",
+        configfiledetect.run_once,
         description="Config File Detection interativo — busca .env, config.json, settings.py expostos.",
         example="http://target.com --category env",
         banner_fn=configfiledetect.banner,
@@ -705,7 +697,9 @@ def launch_backupfiledetect() -> None:
     """Inicia o modulo Backup File Detection em modo interativo."""
     parser = backupfiledetect.build_parser()
     run_interactive_shell(
-        parser, "bak> ", backupfiledetect.run_once,
+        parser,
+        "bak> ",
+        backupfiledetect.run_once,
         description="Backup File Detection interativo — busca .bak, .old, .swp, .sql, .zip expostos.",
         example="http://target.com --type sql",
         banner_fn=backupfiledetect.banner,
@@ -724,7 +718,9 @@ def launch_googledorking() -> None:
     """Inicia o modulo Google Dorking em modo interativo."""
     parser = googledorking.build_parser()
     run_interactive_shell(
-        parser, "dork> ", googledorking.run_once,
+        parser,
+        "dork> ",
+        googledorking.run_once,
         description="Google Dorking interativo — gera dorks e busca via DuckDuckGo.",
         example="example.com --category sensitive",
         banner_fn=googledorking.banner,
@@ -744,7 +740,9 @@ def launch_emailbreachcheck() -> None:
     """Inicia o modulo Email Breach Check em modo interativo."""
     parser = emailbreachcheck.build_parser()
     run_interactive_shell(
-        parser, "breach> ", emailbreachcheck.run_once,
+        parser,
+        "breach> ",
+        emailbreachcheck.run_once,
         description="Email Breach Check interativo — verifica emails em vazamentos de dados.",
         example="user@example.com --source xposedornot",
         banner_fn=emailbreachcheck.banner,
@@ -763,7 +761,9 @@ def launch_socialengrecon() -> None:
     """Inicia o modulo Social Engineering Recon em modo interativo."""
     parser = socialengrecon.build_parser()
     run_interactive_shell(
-        parser, "soceng> ", socialengrecon.run_once,
+        parser,
+        "soceng> ",
+        socialengrecon.run_once,
         description="Social Engineering Recon interativo — coleta emails, nomes, cargos de funcionarios.",
         example="example.com --source github",
         banner_fn=socialengrecon.banner,
@@ -782,7 +782,9 @@ def launch_pasteleak() -> None:
     """Inicia o módulo Paste/Leak Monitoring em modo interativo."""
     parser = pasteleak.build_parser()
     run_interactive_shell(
-        parser, "leak> ", pasteleak.run_once,
+        parser,
+        "leak> ",
+        pasteleak.run_once,
         description="Paste/Leak Monitoring interativo.",
         example="example.com --source github_gists",
         banner_fn=pasteleak.banner,
@@ -801,7 +803,9 @@ def launch_darkwebmonitor() -> None:
     """Inicia o módulo Dark Web Monitoring em modo interativo."""
     parser = darkwebmonitor.build_parser()
     run_interactive_shell(
-        parser, "darkweb> ", darkwebmonitor.run_once,
+        parser,
+        "darkweb> ",
+        darkwebmonitor.run_once,
         description="Dark Web Monitoring interativo.",
         example="example.com --source ahmia",
         banner_fn=darkwebmonitor.banner,
@@ -820,17 +824,13 @@ def launch_dnsrebinding() -> None:
     """Inicia o módulo DNS Rebinding Detection em modo interativo."""
     parser = dnsrebinding.build_parser()
     run_interactive_shell(
-        parser, "rebind> ", dnsrebinding.run_once,
+        parser,
+        "rebind> ",
+        dnsrebinding.run_once,
         description="DNS Rebinding Detection interativo.",
         example="example.com --queries 10",
         banner_fn=dnsrebinding.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --queries 10\n"
-            "  -l domains.txt -o results.json"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 10\n  -l domains.txt -o results.json"),
     )
 
 
@@ -838,7 +838,9 @@ def launch_dnswatorture() -> None:
     """Inicia o módulo DNS Water Torture em modo interativo."""
     parser = dnswatorture.build_parser()
     run_interactive_shell(
-        parser, "dwt> ", dnswatorture.run_once,
+        parser,
+        "dwt> ",
+        dnswatorture.run_once,
         description="DNS Water Torture interativo.",
         example="example.com --rate 100 --duration 10",
         banner_fn=dnswatorture.banner,
@@ -857,17 +859,13 @@ def launch_dnsamplification() -> None:
     """Inicia o módulo DNS Amplification Detection em modo interativo."""
     parser = dnsamplification.build_parser()
     run_interactive_shell(
-        parser, "amp> ", dnsamplification.run_once,
+        parser,
+        "amp> ",
+        dnsamplification.run_once,
         description="DNS Amplification Detection interativo.",
         example="example.com --record-types ANY,TXT,MX",
         banner_fn=dnsamplification.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  8.8.8.8 --nameserver 1.1.1.1\n"
-            "  example.com --record-types ANY,TXT,MX"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types ANY,TXT,MX"),
     )
 
 
@@ -875,16 +873,14 @@ def launch_dnstunnel() -> None:
     """Inicia o módulo DNS Tunnel Detection em modo interativo."""
     parser = dnstunnel.build_parser()
     run_interactive_shell(
-        parser, "tunnel> ", dnstunnel.run_once,
+        parser,
+        "tunnel> ",
+        dnstunnel.run_once,
         description="DNS Tunnel Detection interativo.",
         example="example.com --num-queries 100 --min-entropy 3.5",
         banner_fn=dnstunnel.banner,
         contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --num-queries 100\n"
-            "  example.com --min-entropy 3.5 --max-label-length 30"
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --num-queries 100\n  example.com --min-entropy 3.5 --max-label-length 30"
         ),
     )
 
@@ -893,17 +889,13 @@ def launch_dnssecvalidation() -> None:
     """Inicia o módulo DNSSEC Validation em modo interativo."""
     parser = dnssecvalidation.build_parser()
     run_interactive_shell(
-        parser, "dnssec> ", dnssecvalidation.run_once,
+        parser,
+        "dnssec> ",
+        dnssecvalidation.run_once,
         description="DNSSEC Validation interativo.",
         example="example.com --nameserver 8.8.8.8",
         banner_fn=dnssecvalidation.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --nameserver 1.1.1.1\n"
-            "  example.com --query-timeout 10"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1\n  example.com --query-timeout 10"),
     )
 
 
@@ -911,17 +903,13 @@ def launch_nsecwalking() -> None:
     """Inicia o módulo NSEC Walking em modo interativo."""
     parser = nsecwalking.build_parser()
     run_interactive_shell(
-        parser, "nsec> ", nsecwalking.run_once,
+        parser,
+        "nsec> ",
+        nsecwalking.run_once,
         description="NSEC Walking interativo.",
         example="example.com --max-hops 500",
         banner_fn=nsecwalking.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --max-hops 500\n"
-            "  example.com --nameserver 1.1.1.1"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --max-hops 500\n  example.com --nameserver 1.1.1.1"),
     )
 
 
@@ -929,16 +917,13 @@ def launch_caacheck() -> None:
     """Inicia o módulo CAA Record Check em modo interativo."""
     parser = caacheck.build_parser()
     run_interactive_shell(
-        parser, "caa> ", caacheck.run_once,
+        parser,
+        "caa> ",
+        caacheck.run_once,
         description="CAA Record Check interativo.",
         example="example.com --nameserver 8.8.8.8",
         banner_fn=caacheck.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --nameserver 1.1.1.1"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1"),
     )
 
 
@@ -946,17 +931,13 @@ def launch_emailsecurity() -> None:
     """Inicia o módulo Email Security em modo interativo."""
     parser = emailsecurity.build_parser()
     run_interactive_shell(
-        parser, "secemail> ", emailsecurity.run_once,
+        parser,
+        "secemail> ",
+        emailsecurity.run_once,
         description="Email Security interativo — verifica DMARC/SPF/DKIM.",
         example="example.com --selectors default,google",
         banner_fn=emailsecurity.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --selectors default,google,s1\n"
-            "  example.com --nameserver 1.1.1.1"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"),
     )
 
 
@@ -964,17 +945,13 @@ def launch_emailspoof() -> None:
     """Inicia o módulo Email Spoofing em modo interativo."""
     parser = emailspoof.build_parser()
     run_interactive_shell(
-        parser, "spoof> ", emailspoof.run_once,
+        parser,
+        "spoof> ",
+        emailspoof.run_once,
         description="Email Spoofing — analise de vulnerabilidade a spoofing.",
         example="example.com --selectors default,google",
         banner_fn=emailspoof.banner,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --selectors default,google,s1\n"
-            "  example.com --nameserver 1.1.1.1"
-        ),
+        contextual_help=("Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"),
     )
 
 
@@ -982,17 +959,13 @@ def launch_smtpinjection() -> None:
     """Inicia o módulo SMTP Injection em modo interativo."""
     parser = smtpinjection.build_parser()
     run_interactive_shell(
-        parser, "smtpinject> ", smtpinjection.run_once,
+        parser,
+        "smtpinject> ",
+        smtpinjection.run_once,
         description="SMTP Injection — testa injecao CRLF em campos de email.",
         example="mail.example.com --port 587 --from-addr admin@test.com",
         banner_fn=smtpinjection.banner_art,
-        contextual_help=(
-            "Uso: <host> [opcoes]\n"
-            "Exemplos:\n"
-            "  mail.example.com\n"
-            "  mail.example.com --port 25 --no-tls\n"
-            "  mail.example.com --fields To,Subject"
-        ),
+        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25 --no-tls\n  mail.example.com --fields To,Subject"),
     )
 
 
@@ -1000,17 +973,13 @@ def launch_smtpdowngrade() -> None:
     """Inicia o módulo SMTP Downgrade em modo interativo."""
     parser = smtpdowngrade.build_parser()
     run_interactive_shell(
-        parser, "smtpdown> ", smtpdowngrade.run_once,
+        parser,
+        "smtpdown> ",
+        smtpdowngrade.run_once,
         description="SMTP Downgrade — testa forcar downgrade de STARTTLS.",
         example="mail.example.com --port 587",
         banner_fn=smtpdowngrade.banner_art,
-        contextual_help=(
-            "Uso: <host> [opcoes]\n"
-            "Exemplos:\n"
-            "  mail.example.com\n"
-            "  mail.example.com --port 25\n"
-            "  mail.example.com --from-addr admin@test.com"
-        ),
+        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"),
     )
 
 
@@ -1018,17 +987,13 @@ def launch_emailtemplateinject() -> None:
     """Inicia o módulo Email Template Injection em modo interativo."""
     parser = emailtemplateinject.build_parser()
     run_interactive_shell(
-        parser, "templeti> ", emailtemplateinject.run_once,
+        parser,
+        "templeti> ",
+        emailtemplateinject.run_once,
         description="Email Template Injection — testa injecao de codigo em templates de email.",
         example="mail.example.com --port 587",
         banner_fn=emailtemplateinject.banner_art,
-        contextual_help=(
-            "Uso: <host> [opcoes]\n"
-            "Exemplos:\n"
-            "  mail.example.com\n"
-            "  mail.example.com --port 25\n"
-            "  mail.example.com --from-addr admin@test.com"
-        ),
+        contextual_help=("Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"),
     )
 
 
@@ -1036,7 +1001,9 @@ def launch_emailattachmentbypass() -> None:
     """Inicia o módulo Email Attachment Bypass em modo interativo."""
     parser = emailattachmentbypass.build_parser()
     run_interactive_shell(
-        parser, "attachbypass> ", emailattachmentbypass.run_once,
+        parser,
+        "attachbypass> ",
+        emailattachmentbypass.run_once,
         description="Email Attachment Bypass — testa bypass de filtros de anexos de email.",
         example="mail.example.com --port 587",
         banner_fn=emailattachmentbypass.banner_art,
@@ -1056,7 +1023,9 @@ def launch_emailaddressbypass() -> None:
     """Inicia o módulo Email Address Quoting Bypass em modo interativo."""
     parser = emailaddressbypass.build_parser()
     run_interactive_shell(
-        parser, "addrbypass> ", emailaddressbypass.run_once,
+        parser,
+        "addrbypass> ",
+        emailaddressbypass.run_once,
         description="Email Address Quoting Bypass — testa bypass de blocklists via local-parts citados.",
         example="mail.example.com --port 587",
         banner_fn=emailaddressbypass.banner_art,
@@ -1076,7 +1045,9 @@ def launch_emaillinktracking() -> None:
     """Inicia o módulo Email Link Tracking em modo interativo."""
     parser = emaillinktracking.build_parser()
     run_interactive_shell(
-        parser, "linktrack> ", emaillinktracking.run_once,
+        parser,
+        "linktrack> ",
+        emaillinktracking.run_once,
         description="Email Link Tracking — detecta tracking pixels e link rewrites em emails.",
         example="mail.example.com --port 587",
         banner_fn=emaillinktracking.banner_art,
@@ -1096,7 +1067,9 @@ def launch_nullbyteinject() -> None:
     """Inicia o módulo Null Byte Injection em modo interativo."""
     parser = nullbyteinject.build_parser()
     run_interactive_shell(
-        parser, "nullbyte> ", nullbyteinject.run_once,
+        parser,
+        "nullbyte> ",
+        nullbyteinject.run_once,
         description="Null Byte Injection — testa injecao de null bytes em URLs, headers e parametros.",
         example="https://target.com -c url",
         banner_fn=nullbyteinject.banner_art,
@@ -1115,7 +1088,9 @@ def launch_doubleurlencode() -> None:
     """Inicia o módulo Double URL Encoding Bypass em modo interativo."""
     parser = doubleurlencode.build_parser()
     run_interactive_shell(
-        parser, "dblurl> ", doubleurlencode.run_once,
+        parser,
+        "dblurl> ",
+        doubleurlencode.run_once,
         description="Double URL Encoding Bypass — testa bypass de filtros via encoding duplo.",
         example="https://target.com -c url",
         banner_fn=doubleurlencode.banner_art,
@@ -1134,7 +1109,9 @@ def launch_pathtraversal() -> None:
     """Inicia o módulo Path Traversal via Encoding em modo interativo."""
     parser = pathtraversal.build_parser()
     run_interactive_shell(
-        parser, "ptraversal> ", pathtraversal.run_once,
+        parser,
+        "ptraversal> ",
+        pathtraversal.run_once,
         description="Path Traversal via Encoding — detecta bypass de traversal via encoding.",
         example="https://target.com -c path",
         banner_fn=pathtraversal.banner_art,
@@ -1153,7 +1130,9 @@ def launch_lfidetect() -> None:
     """Inicia o módulo LFI/RFI em modo interativo."""
     parser = lfidetect.build_parser()
     run_interactive_shell(
-        parser, "lfi> ", lfidetect.run_once,
+        parser,
+        "lfi> ",
+        lfidetect.run_once,
         description="LFI/RFI — detecta Local/Remote File Inclusion.",
         example="https://target.com/?page=home",
         banner_fn=lfidetect.banner_art,
@@ -1172,7 +1151,9 @@ def launch_cmdinject() -> None:
     """Inicia o módulo Command Injection em modo interativo."""
     parser = cmdinject.build_parser()
     run_interactive_shell(
-        parser, "cmd> ", cmdinject.run_once,
+        parser,
+        "cmd> ",
+        cmdinject.run_once,
         description="Command Injection — detecta OS command injection.",
         example="https://target.com/?cmd=ls",
         banner_fn=cmdinject.banner_art,
@@ -1191,7 +1172,9 @@ def launch_csrfscan() -> None:
     """Inicia o módulo CSRF Scanner em modo interativo."""
     parser = csrfscan.build_parser()
     run_interactive_shell(
-        parser, "csrf> ", csrfscan.run_once,
+        parser,
+        "csrf> ",
+        csrfscan.run_once,
         description="CSRF Scanner — detecta e testa protecao CSRF.",
         example="https://target.com/login",
         banner_fn=csrfscan.banner_art,
@@ -1210,7 +1193,9 @@ def launch_sqliscan() -> None:
     """Inicia o módulo SQL Injection Scanner em modo interativo."""
     parser = sqliscan.build_parser()
     run_interactive_shell(
-        parser, "sqli> ", sqliscan.run_once,
+        parser,
+        "sqli> ",
+        sqliscan.run_once,
         description="SQL Injection Scanner — error, blind, union, bypass.",
         example="https://target.com/search?q=test",
         banner_fn=sqliscan.banner_art,
@@ -1230,7 +1215,9 @@ def launch_loginbruteforce() -> None:
     """Inicia o módulo Login Brute Force em modo interativo."""
     parser = loginbruteforce.build_parser()
     run_interactive_shell(
-        parser, "brute> ", loginbruteforce.run_once,
+        parser,
+        "brute> ",
+        loginbruteforce.run_once,
         description="Login Brute Force / Credential Testing — testa seguranca de endpoints de auth.",
         example="https://target.com/login",
         banner_fn=loginbruteforce.banner_art,
@@ -1249,17 +1236,13 @@ def launch_cloudbucketenum() -> None:
     """Inicia o módulo Cloud Bucket Enumeration em modo interativo."""
     parser = cloudbucketenum.build_parser()
     run_interactive_shell(
-        parser, "bucket> ", cloudbucketenum.run_once,
+        parser,
+        "bucket> ",
+        cloudbucketenum.run_once,
         description="Cloud Bucket Enumeration — detecta buckets abertos em S3, GCP, Azure.",
         example="example.com",
         banner_fn=cloudbucketenum.banner_art,
-        contextual_help=(
-            "Uso: <domain> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com -p s3\n"
-            "  example.com -p gcp --timeout 15"
-        ),
+        contextual_help=("Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com -p s3\n  example.com -p gcp --timeout 15"),
     )
 
 
@@ -1267,7 +1250,9 @@ def launch_restapifuzz() -> None:
     """Inicia o módulo REST API Fuzzer em modo interativo."""
     parser = restapifuzz.build_parser()
     run_interactive_shell(
-        parser, "restfuzz> ", restapifuzz.run_once,
+        parser,
+        "restfuzz> ",
+        restapifuzz.run_once,
         description="REST API Fuzzer — auth bypass, content-type, version enum, HATEOAS.",
         example="https://api.example.com",
         banner_fn=restapifuzz.banner_art,
@@ -1285,17 +1270,13 @@ def launch_subdomaintakeover() -> None:
     """Inicia o módulo Subdomain Takeover em modo interativo."""
     parser = subdomaintakeover.build_parser()
     run_interactive_shell(
-        parser, "subtakeover> ", subdomaintakeover.run_once,
+        parser,
+        "subtakeover> ",
+        subdomaintakeover.run_once,
         description="Subdomain Takeover — detecta dangling CNAMEs para servicos nao reclamados.",
         example="example.com",
         banner_fn=subdomaintakeover.banner_art,
-        contextual_help=(
-            "Uso: <domain> [opcoes]\n"
-            "Exemplos:\n"
-            "  example.com\n"
-            "  example.com --wordlist extras.txt\n"
-            "  example.com --concurrency 20"
-        ),
+        contextual_help=("Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20"),
     )
 
 
@@ -1303,7 +1284,9 @@ def launch_reconall() -> None:
     """Inicia o módulo ReconAll em modo interativo."""
     parser = reconall.build_parser()
     run_interactive_shell(
-        parser, "reconall> ", reconall.run_all,
+        parser,
+        "reconall> ",
+        reconall.run_all,
         description="ReconAll interativo — executa todos os modulos contra um alvo.",
         example="https://example.com --deep",
         banner_fn=reconall.banner,
@@ -1322,13 +1305,18 @@ def launch_rtloverride() -> None:
     """Inicia o módulo RTL Override em modo interativo."""
     parser = rtloverride.build_parser()
     run_interactive_shell(
-        parser, "rtlo> ", rtloverride.run_once,
+        parser,
+        "rtlo> ",
+        rtloverride.run_once,
         description="RTL Override — detecta bypass via Unicode RTL override.",
         example="https://target.com -m scan",
-        banner_fn=lambda: print(color(
-            "RTL Override Bypass — detecta bypass via Unicode RTL",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "RTL Override Bypass — detecta bypass via Unicode RTL",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1344,13 +1332,18 @@ def launch_overlongencoding() -> None:
     """Inicia o módulo Overlong UTF-8 Encoding em modo interativo."""
     parser = overlongencoding.build_parser()
     run_interactive_shell(
-        parser, "overlong> ", overlongencoding.run_once,
+        parser,
+        "overlong> ",
+        overlongencoding.run_once,
         description="Overlong UTF-8 Encoding — detecta bypass via overlong encoding.",
         example="https://target.com -c url",
-        banner_fn=lambda: print(color(
-            "Overlong UTF-8 Encoding Bypass — detecta bypass via overlong encoding",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Overlong UTF-8 Encoding Bypass — detecta bypass via overlong encoding",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1366,13 +1359,18 @@ def launch_bominjection() -> None:
     """Inicia o módulo BOM Injection em modo interativo."""
     parser = bominjection.build_parser()
     run_interactive_shell(
-        parser, "bom> ", bominjection.run_once,
+        parser,
+        "bom> ",
+        bominjection.run_once,
         description="BOM Injection — detecta injecao de Byte Order Mark.",
         example="https://target.com -c url",
-        banner_fn=lambda: print(color(
-            "BOM Injection — detecta injecao de Byte Order Mark em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "BOM Injection — detecta injecao de Byte Order Mark em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1388,13 +1386,18 @@ def launch_charsetbypass() -> None:
     """Inicia o módulo Charset Detection Bypass em modo interativo."""
     parser = charsetbypass.build_parser()
     run_interactive_shell(
-        parser, "charset> ", charsetbypass.run_once,
+        parser,
+        "charset> ",
+        charsetbypass.run_once,
         description="Charset Detection Bypass — detecta bypass via charset manipulacao.",
         example="https://target.com -c meta",
-        banner_fn=lambda: print(color(
-            "Charset Detection Bypass — detecta bypass via charset manipulacao",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Charset Detection Bypass — detecta bypass via charset manipulacao",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1410,13 +1413,18 @@ def launch_openredirect() -> None:
     """Inicia o módulo Open Redirect em modo interativo."""
     parser = openredirect.build_parser()
     run_interactive_shell(
-        parser, "redirect> ", openredirect.run_once,
+        parser,
+        "redirect> ",
+        openredirect.run_once,
         description="Open Redirect — detecta redirecionamentos abusivos.",
         example="https://target.com -c param",
-        banner_fn=lambda: print(color(
-            "Open Redirect — detecta redirecionamentos abusivos em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Open Redirect — detecta redirecionamentos abusivos em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1432,13 +1440,18 @@ def launch_crlfinject() -> None:
     """Inicia o módulo CRLF Injection em modo interativo."""
     parser = crlfinjection.build_parser()
     run_interactive_shell(
-        parser, "crlf> ", crlfinjection.run_once,
+        parser,
+        "crlf> ",
+        crlfinjection.run_once,
         description="CRLF Injection — detecta injecao de headers via \\r\\n em HTTP.",
         example="https://target.com -c param",
-        banner_fn=lambda: print(color(
-            "CRLF Injection — detecta injecao de headers via \\r\\n em HTTP",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "CRLF Injection — detecta injecao de headers via \\r\\n em HTTP",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1454,13 +1467,18 @@ def launch_sstdetect() -> None:
     """Inicia o módulo SSTI Detection em modo interativo."""
     parser = sstidetect.build_parser()
     run_interactive_shell(
-        parser, "ssti> ", sstidetect.run_once,
+        parser,
+        "ssti> ",
+        sstidetect.run_once,
         description="SSTI — detecta Server-Side Template Injection em web apps.",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "SSTI — detecta Server-Side Template Injection em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "SSTI — detecta Server-Side Template Injection em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1476,13 +1494,18 @@ def launch_ssrfdetect() -> None:
     """Inicia o módulo SSRF Detection em modo interativo."""
     parser = ssrfdetect.build_parser()
     run_interactive_shell(
-        parser, "ssrf> ", ssrfdetect.run_once,
+        parser,
+        "ssrf> ",
+        ssrfdetect.run_once,
         description="SSRF — detecta Server-Side Request Forgery em web apps.",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "SSRF — detecta Server-Side Request Forgery em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "SSRF — detecta Server-Side Request Forgery em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1498,13 +1521,18 @@ def launch_xxedetect() -> None:
     """Inicia o módulo XXE Detection em modo interativo."""
     parser = xxedetect.build_parser()
     run_interactive_shell(
-        parser, "xxe> ", xxedetect.run_once,
+        parser,
+        "xxe> ",
+        xxedetect.run_once,
         description="XXE — detecta XML External Entity em web apps.",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "XXE — detecta XML External Entity em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "XXE — detecta XML External Entity em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1520,13 +1548,18 @@ def launch_nosqli() -> None:
     """Inicia o módulo NoSQL Injection em modo interativo."""
     parser = nosqliinject.build_parser()
     run_interactive_shell(
-        parser, "nosql> ", nosqliinject.run_once,
+        parser,
+        "nosql> ",
+        nosqliinject.run_once,
         description="NoSQL Injection — detecta injecao NoSQL em web apps (MongoDB, Redis, CouchDB).",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "NoSQL Injection — detecta injecao NoSQL em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "NoSQL Injection — detecta injecao NoSQL em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1542,13 +1575,18 @@ def launch_ldap() -> None:
     """Inicia o módulo LDAP Injection em modo interativo."""
     parser = ldapiinject.build_parser()
     run_interactive_shell(
-        parser, "ldap> ", ldapiinject.run_once,
+        parser,
+        "ldap> ",
+        ldapiinject.run_once,
         description="LDAP Injection — detecta injecao LDAP em web apps.",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "LDAP Injection — detecta injecao LDAP em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "LDAP Injection — detecta injecao LDAP em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1564,13 +1602,18 @@ def launch_xpath() -> None:
     """Inicia o módulo XPath Injection em modo interativo."""
     parser = xpathinject.build_parser()
     run_interactive_shell(
-        parser, "xpath> ", xpathinject.run_once,
+        parser,
+        "xpath> ",
+        xpathinject.run_once,
         description="XPath Injection — detecta injecao XPath em web apps.",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "XPath Injection — detecta injecao XPath em web apps",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "XPath Injection — detecta injecao XPath em web apps",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1586,13 +1629,18 @@ def launch_ssiinject() -> None:
     """Inicia o módulo SSI Injection em modo interativo."""
     parser = ssiinject.build_parser()
     run_interactive_shell(
-        parser, "ssi> ", ssiinject.run_once,
+        parser,
+        "ssi> ",
+        ssiinject.run_once,
         description="SSI Injection — detecta Server-Side Injection (RCE, leitura de arquivos).",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "SSI Injection — detecta Server-Side Injection (RCE, leitura)",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "SSI Injection — detecta Server-Side Injection (RCE, leitura)",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1609,13 +1657,18 @@ def launch_protopoll() -> None:
     """Inicia o módulo Prototype Pollution em modo interativo."""
     parser = prototypepollution.build_parser()
     run_interactive_shell(
-        parser, "protopoll> ", prototypepollution.run_once,
+        parser,
+        "protopoll> ",
+        prototypepollution.run_once,
         description="Prototype Pollution — detecta injecao em prototypes de objetos JS.",
         example="https://target.com -c detect",
-        banner_fn=lambda: print(color(
-            "Prototype Pollution — detecta injecao em prototypes de objetos JS",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Prototype Pollution — detecta injecao em prototypes de objetos JS",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1631,13 +1684,18 @@ def launch_deserial() -> None:
     """Inicia o módulo Deserialization Injection em modo interativo."""
     parser = deserialinject.build_parser()
     run_interactive_shell(
-        parser, "deserial> ", deserialinject.run_once,
+        parser,
+        "deserial> ",
+        deserialinject.run_once,
         description="Deserialization Injection — detecta desserializacao em PHP/Java/Python.",
         example="https://target.com -c php",
-        banner_fn=lambda: print(color(
-            "Deserialization Injection — detecta desserializacao em PHP/Java/Python",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Deserialization Injection — detecta desserializacao em PHP/Java/Python",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1654,13 +1712,18 @@ def launch_cachepoison() -> None:
     """Inicia o módulo Cache Poisoning em modo interativo."""
     parser = cachepoisoning.build_parser()
     run_interactive_shell(
-        parser, "cache> ", cachepoisoning.run_once,
+        parser,
+        "cache> ",
+        cachepoisoning.run_once,
         description="Cache Poisoning — detecta cache key poisoning via headers nao-normalizados.",
         example="https://target.com -c host",
-        banner_fn=lambda: print(color(
-            "Cache Poisoning — detecta cache key poisoning via headers nao-normalizados",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Cache Poisoning — detecta cache key poisoning via headers nao-normalizados",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1677,13 +1740,18 @@ def launch_cachedec() -> None:
     """Inicia o módulo Web Cache Deception em modo interativo."""
     parser = cachedeception.build_parser()
     run_interactive_shell(
-        parser, "cachedec> ", cachedeception.run_once,
+        parser,
+        "cachedec> ",
+        cachedeception.run_once,
         description="Web Cache Deception — detecta paths que o cache armazena mas a app nao deveria.",
         example="https://target.com -c extension",
-        banner_fn=lambda: print(color(
-            "Web Cache Deception — detecta paths que o cache armazena mas a app nao deveria",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Web Cache Deception — detecta paths que o cache armazena mas a app nao deveria",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1700,13 +1768,18 @@ def launch_methodoverride() -> None:
     """Inicia o módulo HTTP Method Override em modo interativo."""
     parser = methodoverride.build_parser()
     run_interactive_shell(
-        parser, "methodoverride> ", methodoverride.run_once,
+        parser,
+        "methodoverride> ",
+        methodoverride.run_once,
         description="HTTP Method Override — detecta bypass de ACL via headers/params/body.",
         example="https://target.com -c header",
-        banner_fn=lambda: print(color(
-            "HTTP Method Override — detecta bypass de ACL via headers/params/body",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "HTTP Method Override — detecta bypass de ACL via headers/params/body",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1723,13 +1796,18 @@ def launch_hpp() -> None:
     """Inicia o módulo HTTP Parameter Pollution em modo interativo."""
     parser = httpparampollution.build_parser()
     run_interactive_shell(
-        parser, "hpp> ", httpparampollution.run_once,
+        parser,
+        "hpp> ",
+        httpparampollution.run_once,
         description="HTTP Parameter Pollution — detecta HPP em diferentes positions.",
         example="https://target.com -c query",
-        banner_fn=lambda: print(color(
-            "HTTP Parameter Pollution — detecta HPP em diferentes positions",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "HTTP Parameter Pollution — detecta HPP em diferentes positions",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1746,13 +1824,18 @@ def launch_blindxss() -> None:
     """Inicia o módulo Blind XSS via callback em modo interativo."""
     parser = blindxss.build_parser()
     run_interactive_shell(
-        parser, "blindxss> ", blindxss.run_once,
+        parser,
+        "blindxss> ",
+        blindxss.run_once,
         description="Blind XSS via callback — injeta payloads que disparam webhook.",
         example="https://target.com --webhook https://hook.example.com",
-        banner_fn=lambda: print(color(
-            "Blind XSS via callback — injeta payloads que disparam webhook",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Blind XSS via callback — injeta payloads que disparam webhook",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> --webhook <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1768,13 +1851,18 @@ def launch_cors() -> None:
     """Inicia o módulo CORS Misconfiguration em modo interativo."""
     parser = corsmisconfig.build_parser()
     run_interactive_shell(
-        parser, "cors> ", corsmisconfig.run_once,
+        parser,
+        "cors> ",
+        corsmisconfig.run_once,
         description="CORS Misconfiguration — testa null origin, subdomain, credenciais, reflected.",
         example="https://target.com -c null_origin",
-        banner_fn=lambda: print(color(
-            "CORS Misconfiguration — testa null origin, subdomain, credenciais, reflected",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "CORS Misconfiguration — testa null origin, subdomain, credenciais, reflected",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1791,13 +1879,18 @@ def launch_clickjack() -> None:
     """Inicia o módulo Clickjacking em modo interativo."""
     parser = clickjacking.build_parser()
     run_interactive_shell(
-        parser, "clickjack> ", clickjacking.run_once,
+        parser,
+        "clickjack> ",
+        clickjacking.run_once,
         description="Clickjacking — testa X-Frame-Options/CSP e bypasses.",
         example="https://target.com -c xframe",
-        banner_fn=lambda: print(color(
-            "Clickjacking — testa X-Frame-Options/CSP e bypasses",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Clickjacking — testa X-Frame-Options/CSP e bypasses",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1814,13 +1907,18 @@ def launch_hostinject() -> None:
     """Inicia o módulo Host Header Injection em modo interativo."""
     parser = hostheaderinject.build_parser()
     run_interactive_shell(
-        parser, "hostinject> ", hostheaderinject.run_once,
+        parser,
+        "hostinject> ",
+        hostheaderinject.run_once,
         description="Host Header Injection — testa manipulação de Host header.",
         example="https://target.com -c reflected",
-        banner_fn=lambda: print(color(
-            "Host Header Injection — manipulação de Host header",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Host Header Injection — manipulação de Host header",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1838,13 +1936,18 @@ def launch_headerinject() -> None:
     """Inicia o módulo Header Injection via URL params em modo interativo."""
     parser = headerinject.build_parser()
     run_interactive_shell(
-        parser, "headerinject> ", headerinject.run_once,
+        parser,
+        "headerinject> ",
+        headerinject.run_once,
         description="Header Injection via URL params — testa injecao de headers HTTP.",
         example="https://target.com -c param_reflected",
-        banner_fn=lambda: print(color(
-            "Header Injection via URL params",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Header Injection via URL params",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1861,13 +1964,18 @@ def launch_loginjection() -> None:
     """Inicia o módulo Log Injection em modo interativo."""
     parser = loginjection.build_parser()
     run_interactive_shell(
-        parser, "loginjection> ", loginjection.run_once,
+        parser,
+        "loginjection> ",
+        loginjection.run_once,
         description="Log Injection — testa injecao de conteudo em logs via headers.",
         example="https://target.com -c user_agent",
-        banner_fn=lambda: print(color(
-            "Log Injection — injecao em logs via headers",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Log Injection — injecao em logs via headers",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
@@ -1884,13 +1992,18 @@ def launch_log4shell() -> None:
     """Inicia o módulo Log4Shell em modo interativo."""
     parser = log4shell.build_parser()
     run_interactive_shell(
-        parser, "log4shell> ", log4shell.run_once,
+        parser,
+        "log4shell> ",
+        log4shell.run_once,
         description="Log4Shell — testa JNDI injection em headers (CVE-2021-44228).",
         example="https://target.com -c jndi_basic",
-        banner_fn=lambda: print(color(
-            "Log4Shell (CVE-2021-44228) — JNDI injection via headers",
-            Cyber.RED, Cyber.BOLD,
-        )),
+        banner_fn=lambda: print(
+            color(
+                "Log4Shell (CVE-2021-44228) — JNDI injection via headers",
+                Cyber.RED,
+                Cyber.BOLD,
+            )
+        ),
         contextual_help=(
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"

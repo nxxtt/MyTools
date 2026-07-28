@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo Account Abuse Attack Detection."""
+
 from __future__ import annotations
 
 import pytest
@@ -25,7 +26,11 @@ def test_category_map_has_five_categories() -> None:
 
 def test_category_map_keys() -> None:
     assert _CATEGORY_MAP.keys() == {
-        "coupon", "loyalty_points", "gift_card", "refund", "subscription",
+        "coupon",
+        "loyalty_points",
+        "gift_card",
+        "refund",
+        "subscription",
     }
 
 
@@ -121,18 +126,24 @@ def test_find_account_url_with_subscription() -> None:
 
 
 def test_find_account_url_not_found() -> None:
-    body = '<html><body>Safe page</body></html>'
+    body = "<html><body>Safe page</body></html>"
     result = _find_account_url("https://example.com", body)
     assert result is None
 
 
 def test_attempt_dataclass_frozen() -> None:
     a = AccountAttempt(
-        technique="test", category="coupon",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=100,
-        status_changed=False, size_changed=False,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="coupon",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=False,
+        size_changed=False,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     with pytest.raises(AttributeError):
         a.vulnerable = False  # type: ignore[reportAttributeAccessIssue]
@@ -140,22 +151,33 @@ def test_attempt_dataclass_frozen() -> None:
 
 def test_attempt_dataclass_slots() -> None:
     a = AccountAttempt(
-        technique="test", category="coupon",
-        status_baseline=200, status_test=200,
-        size_baseline=100, size_test=100,
-        status_changed=False, size_changed=False,
-        vulnerable=True, details="test", error="",
+        technique="test",
+        category="coupon",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=False,
+        size_changed=False,
+        vulnerable=True,
+        details="test",
+        error="",
     )
     assert not hasattr(a, "__dict__")
 
 
 def test_result_dataclass_frozen() -> None:
     r = AccountResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        account_url=None, attempts=[],
-        vulnerable_techniques=[], blocked_techniques=[],
-        issues=[], overall_status="safe",
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        account_url=None,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     with pytest.raises(AttributeError):
         r.target = "changed"  # type: ignore[reportAttributeAccessIssue]
@@ -163,11 +185,16 @@ def test_result_dataclass_frozen() -> None:
 
 def test_result_dataclass_slots() -> None:
     r = AccountResult(
-        target=_TARGET, tls=True,
-        baseline_status=200, baseline_size=100,
-        account_url=None, attempts=[],
-        vulnerable_techniques=[], blocked_techniques=[],
-        issues=[], overall_status="safe",
+        target=_TARGET,
+        tls=True,
+        baseline_status=200,
+        baseline_size=100,
+        account_url=None,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
+        overall_status="safe",
     )
     assert not hasattr(r, "__dict__")
 

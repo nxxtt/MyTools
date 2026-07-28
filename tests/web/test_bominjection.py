@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de BOM Injection."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -160,11 +161,19 @@ class TestBomAttempt:
 
     def test_frozen(self) -> None:
         att = BomAttempt(
-            technique="t", category="c", url="u", payload="p",
-            status_baseline=200, status_test=200,
-            size_baseline=100, size_test=100,
-            status_changed=False, size_changed=False,
-            vulnerable=False, details="d", error="",
+            technique="t",
+            category="c",
+            url="u",
+            payload="p",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="d",
+            error="",
         )
         with pytest.raises(AttributeError):
             att.technique = "new"  # type: ignore[misc]
@@ -208,6 +217,7 @@ class TestTestBaseline:
     @pytest.mark.asyncio
     async def test_error(self) -> None:
         import httpx
+
         client = AsyncMock()
         client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
 
@@ -229,7 +239,9 @@ class TestTestBomUrl:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_bom_url(
-            client, "https://example.com/admin", (200, 1000, b""),
+            client,
+            "https://example.com/admin",
+            (200, 1000, b""),
         )
         assert len(attempts) > 0
         assert all(isinstance(a, BomAttempt) for a in attempts)
@@ -243,7 +255,9 @@ class TestTestBomUrl:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_bom_url(
-            client, "https://example.com/admin", (404, 100, b""),
+            client,
+            "https://example.com/admin",
+            (404, 100, b""),
         )
         vulnerable = [a for a in attempts if a.vulnerable]
         assert len(vulnerable) > 0
@@ -261,7 +275,9 @@ class TestTestBomHeaders:
         client.get = AsyncMock(return_value=resp)
 
         attempts = await _test_bom_headers(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -278,7 +294,9 @@ class TestTestBomBody:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_bom_body(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 3
 
@@ -295,7 +313,9 @@ class TestTestBomUpload:
         client.post = AsyncMock(return_value=resp)
 
         attempts = await _test_bom_upload(
-            client, "https://example.com", (200, 1000, b""),
+            client,
+            "https://example.com",
+            (200, 1000, b""),
         )
         assert len(attempts) == 2
 
@@ -365,8 +385,7 @@ class TestMain:
     """Testes para main."""
 
     def test_no_url(self) -> None:
-        with patch("sys.argv", ["mytools-bominject"]), \
-             patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop:
+        with patch("sys.argv", ["mytools-bominject"]), patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()

@@ -11,6 +11,7 @@ Fluxo:
   3. Opcionalmente envia introspection query para extrair schema
   4. Exibe resumo colorido e salva output detalhado
 """
+
 import argparse
 import asyncio
 import json
@@ -49,16 +50,30 @@ from mytools.core.utils import (
 logger = logging.getLogger("mytools.graphqlplayground")
 
 _DEFAULT_PATHS_GQL: list[str] = [
-    "graphql", "graphiql", "playground", "altair", "voyager",
-    "graphql/console", "_graphql", "api/graphql",
-    "v1/graphql", "v2/graphql", "v3/graphql",
-    "graph", "gql", "query", "graphql-api",
-    "graphql-playground", "graphql-altair", "graphql-voyager",
+    "graphql",
+    "graphiql",
+    "playground",
+    "altair",
+    "voyager",
+    "graphql/console",
+    "_graphql",
+    "api/graphql",
+    "v1/graphql",
+    "v2/graphql",
+    "v3/graphql",
+    "graph",
+    "gql",
+    "query",
+    "graphql-api",
+    "graphql-playground",
+    "graphql-altair",
+    "graphql-voyager",
 ]
 
 
 def _load_graphql_playground_paths() -> list[str]:
     from mytools.data import load_payloads
+
     data = load_payloads("web", "graphql_paths", default={"paths": _DEFAULT_PATHS_GQL})
     return data.get("paths", _DEFAULT_PATHS_GQL)
 
@@ -67,13 +82,18 @@ DEFAULT_PATHS = _load_graphql_playground_paths()
 
 STATUS_OK = frozenset({200})
 
-INTROSPECTION_QUERY = json.dumps({
-    "query": "{ __schema { queryType { name } mutationType { name } subscriptionType { name } types { name kind } } }",
-})
+INTROSPECTION_QUERY = json.dumps(
+    {
+        "query": "{ __schema { queryType { name } mutationType { name } subscriptionType { name } types { name kind } } }",
+    }
+)
 
 TOOL_SIGNATURES: list[tuple[str, re.Pattern[str]]] = [
     ("graphiql", re.compile(r"<div\s+id=['\"]?graphiql['\"]?|graphiql\.react\.min\.js|GraphiQL\.create|new\s+GraphiQL", re.IGNORECASE)),
-    ("playground", re.compile(r"graphql-playground|GraphQL Playground|playground\.render|createPlayground|[\"']playground[\"']|class=[\"'].*playground", re.IGNORECASE)),
+    (
+        "playground",
+        re.compile(r"graphql-playground|GraphQL Playground|playground\.render|createPlayground|[\"']playground[\"']|class=[\"'].*playground", re.IGNORECASE),
+    ),
     ("altair", re.compile(r"altair-graphql|AltairGraphQL|altair\.js|altair\.render|window\.altair", re.IGNORECASE)),
     ("voyager", re.compile(r"graphql-voyager|GraphQLVoyager|voyager\.render|voyager\.min\.js|[\"']voyager[\"']|class=[\"'].*voyager", re.IGNORECASE)),
     ("apollo-sandbox", re.compile(r"apollo-sandbox|Apollo Sandbox|ApolloSandbox|sandbox\.apollo\.dev", re.IGNORECASE)),
@@ -163,9 +183,13 @@ async def run_introspection(
     await rate_limiter.wait()
     try:
         status, _headers, content, _ = await fetch(
-            client, url, timeout=timeout, method="POST",
+            client,
+            url,
+            timeout=timeout,
+            method="POST",
             content=INTROSPECTION_QUERY.encode(),
-            max_retries=retries, rate_limiter=rate_limiter,
+            max_retries=retries,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return [], "", "", ""
@@ -199,8 +223,12 @@ async def probe_endpoint(
 
     try:
         status, headers, content, _ = await fetch(
-            client, full_url, timeout=timeout, method="GET",
-            max_retries=retries, rate_limiter=rate_limiter,
+            client,
+            full_url,
+            timeout=timeout,
+            method="GET",
+            max_retries=retries,
+            rate_limiter=rate_limiter,
         )
     except FetchError:
         return None
@@ -241,7 +269,11 @@ async def probe_endpoint(
 
     if introspect:
         types, query_type, mutation_type, subscription_type = await run_introspection(
-            client, full_url, timeout, rate_limiter, retries,
+            client,
+            full_url,
+            timeout,
+            rate_limiter,
+            retries,
         )
         supports_introspection = bool(types)
 
@@ -281,8 +313,7 @@ async def scan_graphql(
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | "
-        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}"
-        + (f" | Introspection: {color('sim', Cyber.GREEN)}" if introspect else ""),
+        f"Concurrency: {color(str(concurrency), Cyber.YELLOW)}" + (f" | Introspection: {color('sim', Cyber.GREEN)}" if introspect else ""),
     )
 
     sem = asyncio.Semaphore(concurrency)
@@ -327,8 +358,7 @@ async def scan_graphql(
     elapsed = time.monotonic() - started
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Finalizado em {color(f"{elapsed:.2f}s", Cyber.YELLOW)}. "
-        f"Endpoints encontrados: {color(str(len(endpoints)), Cyber.GREEN, Cyber.BOLD)}",
+        f"Finalizado em {color(f'{elapsed:.2f}s', Cyber.YELLOW)}. Endpoints encontrados: {color(str(len(endpoints)), Cyber.GREEN, Cyber.BOLD)}",
     )
     return endpoints
 
@@ -346,13 +376,15 @@ def print_results(endpoints: list[GraphqlEndpoint]) -> None:
     for ep in endpoints:
         intros = "sim" if ep.supports_introspection else "nao"
         types_count = str(len(ep.schema_types)) if ep.schema_types else "-"
-        rows.append((
-            ep.tool.upper(),
-            str(ep.status),
-            intros,
-            types_count,
-            ep.url,
-        ))
+        rows.append(
+            (
+                ep.tool.upper(),
+                str(ep.status),
+                intros,
+                types_count,
+                ep.url,
+            )
+        )
 
     tool_colors = {
         "GRAPHIQL": (Cyber.GREEN, Cyber.BOLD),
@@ -403,7 +435,7 @@ def print_schema_details(ep: GraphqlEndpoint) -> None:
     for t in ep.schema_types[:30]:
         print(f"    {color('-', Cyber.GRAY)} {t}")
     if len(ep.schema_types) > 30:
-        print(f"    {color(f"... +{len(ep.schema_types) - 30} mais", Cyber.GRAY)}")
+        print(f"    {color(f'... +{len(ep.schema_types) - 30} mais', Cyber.GRAY)}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -461,7 +493,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         for url in urls:
             base_url = normalize_url(url, default_scheme="https", ensure_trailing_slash=True)
             print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}")
-            print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}")
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}",
+            )
         return 0
 
     all_endpoints: list[GraphqlEndpoint] = []

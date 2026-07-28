@@ -99,6 +99,7 @@ class TestBuildParser:
 
     def test_skip_invalid_module_rejected(self):
         import pytest
+
         parser = build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["example.com", "--skip", "invalidmodule"])
@@ -208,9 +209,22 @@ class TestNamespaceConstruction:
 
     def test_dirscanner_has_required_attrs(self):
         ns = _make_args("https://example.com", {"url": "https://example.com", "extensions": ["php", "txt", "bak", "html"], "output": None}, _url_ns())
-        for attr in ("user_agent", "proxy", "delay", "auth", "header", "cookie",
-                     "concurrency", "status", "method", "wordlist", "extensions",
-                     "filter_size", "filter_words", "retries"):
+        for attr in (
+            "user_agent",
+            "proxy",
+            "delay",
+            "auth",
+            "header",
+            "cookie",
+            "concurrency",
+            "status",
+            "method",
+            "wordlist",
+            "extensions",
+            "filter_size",
+            "filter_words",
+            "retries",
+        ):
             assert hasattr(ns, attr), f"dirscanner missing attribute: {attr}"
 
     def test_dirscanner_extensions_is_list(self):
@@ -224,9 +238,10 @@ class TestNamespaceConstruction:
             assert hasattr(ns, attr), f"webrecon missing attribute: {attr}"
 
     def test_attackaudit_has_required_attrs(self):
-        ns = _make_args("https://example.com", {"url": "https://example.com", "deep": False, "test_vulns": False, "test_methods": False, "output": None}, _url_ns())
-        for attr in ("user_agent", "proxy", "delay", "concurrency", "deep",
-                     "test_vulns", "test_methods", "paths_file", "params"):
+        ns = _make_args(
+            "https://example.com", {"url": "https://example.com", "deep": False, "test_vulns": False, "test_methods": False, "output": None}, _url_ns()
+        )
+        for attr in ("user_agent", "proxy", "delay", "concurrency", "deep", "test_vulns", "test_methods", "paths_file", "params"):
             assert hasattr(ns, attr), f"attackaudit missing attribute: {attr}"
 
     def test_subenum_has_threads(self):

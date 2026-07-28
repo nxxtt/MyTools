@@ -70,22 +70,40 @@ class TestTenantAttempt:
 
     def test_frozen(self) -> None:
         a = TenantAttempt(
-            technique="test", category="test", tenant_id="t",
-            endpoint="http://x", payload="", status_baseline=200,
-            status_test=200, size_baseline=0, size_test=0,
-            status_changed=False, size_changed=False, vulnerable=False,
-            details="", error="",
+            technique="test",
+            category="test",
+            tenant_id="t",
+            endpoint="http://x",
+            payload="",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=0,
+            size_test=0,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         with pytest.raises(AttributeError):
             a.technique = "changed"  # type: ignore[misc]
 
     def test_is_frozen_and_slotted(self) -> None:
         a = TenantAttempt(
-            technique="t", category="c", tenant_id="tid",
-            endpoint="ep", payload="p", status_baseline=200,
-            status_test=200, size_baseline=10, size_test=10,
-            status_changed=False, size_changed=False, vulnerable=False,
-            details="", error="",
+            technique="t",
+            category="c",
+            tenant_id="tid",
+            endpoint="ep",
+            payload="p",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=10,
+            size_test=10,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="",
         )
         assert hasattr(a, "__slots__")
 
@@ -110,10 +128,16 @@ class TestTenantResult:
 
     def test_frozen(self) -> None:
         r = TenantResult(
-            target="https://x", tls=True, baseline_status=200,
-            baseline_size=0, current_tenant="t", attempts=[],
-            vulnerable_techniques=[], blocked_techniques=[],
-            issues=[], overall_status="secure",
+            target="https://x",
+            tls=True,
+            baseline_status=200,
+            baseline_size=0,
+            current_tenant="t",
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
         with pytest.raises(AttributeError):
             r.target = "changed"  # type: ignore[misc]
@@ -153,7 +177,7 @@ class TestCategoryMap:
 
 class TestCheckVulnerable:
     def test_found_indicator(self) -> None:
-        vuln, details = _check_vulnerable(b'user_id: 12345', ["user_id"])
+        vuln, details = _check_vulnerable(b"user_id: 12345", ["user_id"])
         assert vuln is True
         assert "user_id" in details
 
@@ -283,9 +307,16 @@ class TestMakeAttempt:
 
     def test_no_change(self) -> None:
         a = _make_attempt(
-            technique="t", category="c", tenant_id="tid",
-            endpoint="ep", payload="", b_status=200, b_size=100,
-            t_status=200, t_size=100, vulnerable=False,
+            technique="t",
+            category="c",
+            tenant_id="tid",
+            endpoint="ep",
+            payload="",
+            b_status=200,
+            b_size=100,
+            t_status=200,
+            t_size=100,
+            vulnerable=False,
         )
         assert a.status_changed is False
         assert a.size_changed is False
