@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 import logging
-from pathlib import Path
 from typing import Any
+
+from anyio import Path
 
 from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import Cyber, color, create_banner
@@ -53,6 +54,9 @@ class MobileAuditScanner(BaseScanner):
                 "apk_secrets",
                 "apk_nsc",
                 "apk_sdk",
+                "apk_dex",
+                "apk_disasm",
+                "apk_decompile",
                 "ipa_metadata",
                 "ipa_provisioning",
                 "ipa_macho",
@@ -100,8 +104,8 @@ class MobileAuditScanner(BaseScanner):
                 issues=["No file specified"],
                 overall_status="error",
             )
-
-        if not Path(file_path).is_file():  # noqa: ASYNC240
+        path = Path(file_path)
+        if not await path.is_file():
             return MobileResult(
                 target=file_path,
                 platform="unknown",
@@ -113,17 +117,19 @@ class MobileAuditScanner(BaseScanner):
         is_apk = _is_apk(file_path)
         is_ipa = _is_ipa(file_path)
 
+        stat = await path.stat()
+        file_size = stat.st_size
+
         if not is_apk and not is_ipa:
             return MobileResult(
                 target=file_path,
                 platform="unknown",
-                file_size=Path(file_path).stat().st_size,  # noqa: ASYNC240
+                file_size=file_size,
                 issues=["Unsupported file type (use .apk or .ipa)"],
                 overall_status="error",
             )
 
         platform = "android" if is_apk else "ios"
-        file_size = Path(file_path).stat().st_size  # noqa: ASYNC240
         all_attempts: list[MobileAttempt] = []
         issues: list[str] = []
 
@@ -136,6 +142,8 @@ class MobileAuditScanner(BaseScanner):
                 "apk_secrets",
                 "apk_nsc",
                 "apk_sdk",
+                "apk_dex",
+                "apk_disasm",
             ]
         else:
             default_checks = [
@@ -224,7 +232,7 @@ class MobileAuditScanner(BaseScanner):
             "  scan app.apk -c apk_pinning apk_secrets   Só checks específicos\n"
             "\n"
             "Checks Android: apk_metadata, apk_pinning, apk_endpoints,\n"
-            "  apk_secrets, apk_nsc, apk_sdk\n"
+            "  apk_secrets, apk_nsc, apk_sdk, apk_dex, apk_disasm, apk_decompile\n"
             "Checks iOS: ipa_metadata, ipa_provisioning, ipa_macho, ipa_secrets\n"
             "Checks OAuth2 (requer rede): oauth2_test, jwt_validate"
         )
@@ -336,6 +344,67 @@ def _run_check(
             technique="sdk", platform="android", check=check,
             file_path=file_path, vulnerable=False, findings=findings,
             details=f"{len(sdks)} SDK(s) detected",
+        )
+
+    if check == "apk_dex":
+        from mytools.mobile.apk_dex import analyze_dex_layer
+
+        data = analyze_dex_layer(file_path)
+        findings = [f"DEX files: {data['dex_count']}"]
+        findings.append(f"Package: {data['package']}")
+        findings.append(f"Classes: {data['total_classes']}")
+        findings.append(f"Methods: {data['total_methods']}")
+        findings.append(f"Strings: {data['total_strings']}")
+        for dex in data["dex_files"]:
+            findings.append(
+                f"  DEX#{dex['index']}: {dex['class_count']} classes, "
+                f"{dex['method_count']} methods"
+            )
+        return MobileAttempt(
+            technique="dex_layer", platform="android", check=check,
+            file_path=file_path, vulnerable=False, findings=findings,
+            details=f"{data['total_classes']} classes across {data['dex_count']} DEX file(s)",
+        )
+
+    if check == "apk_disasm":
+        from mytools.mobile.apk_dex import disassemble_dalvik
+
+        data = disassemble_dalvik(file_path, class_filter=None)
+        findings = [f"Methods disassembled: {data['total_methods']}"]
+        findings.append(f"Total instructions: {data['total_instructions']}")
+        if data["truncated"]:
+            findings.append("(output truncated - use class_filter to focus)")
+        for m in data["methods"][:5]:
+            findings.append(
+                f"  {m['class_name']}->{m['method_name']}: "
+                f"{m['instruction_count']} insns"
+            )
+        return MobileAttempt(
+            technique="dalvik_disasm", platform="android", check=check,
+            file_path=file_path, vulnerable=False, findings=findings,
+            details=(
+                f"{data['total_methods']} methods, "
+                f"{data['total_instructions']} instructions"
+            ),
+        )
+
+    if check == "apk_decompile":
+        from mytools.mobile.apk_dex import decompile_java
+
+        data = decompile_java(file_path, class_filter=None)
+        findings = [f"Classes decompiled: {data['total_decompiled']}"]
+        findings.append(f"Empty/obfuscated: {data['total_empty']}")
+        if data["truncated"]:
+            findings.append("(output truncated - use class_filter to focus)")
+        for cls in data["classes"][:5]:
+            findings.append(
+                f"  {cls['class_name']}: {cls['line_count']} lines, "
+                f"{cls['method_count']} methods"
+            )
+        return MobileAttempt(
+            technique="java_decompile", platform="android", check=check,
+            file_path=file_path, vulnerable=False, findings=findings,
+            details=f"{data['total_decompiled']} classes decompiled via DAD",
         )
 
     if check == "ipa_metadata":

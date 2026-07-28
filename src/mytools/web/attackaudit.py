@@ -756,10 +756,10 @@ def _tls_info_sync(url: str, timeout: float) -> tuple[str, str, str]:
     port = parsed.port or 443
     context = ssl.create_default_context()
     try:
-        with socket.create_connection((parsed.hostname or "", port), timeout=timeout) as sock:  # noqa: SIM117
-            with context.wrap_socket(sock, server_hostname=parsed.hostname) as tls:
-                cert = tls.getpeercert()
-    except OSError, ssl.SSLError, TimeoutError:
+        with (
+    socket.create_connection((parsed.hostname or "", port), timeout=timeout) as sock, context.wrap_socket(sock, server_hostname=parsed.hostname) as tls,):
+         cert = tls.getpeercert()
+    except (OSError, ssl.SSLError, TimeoutError):
         return "", "", ""
 
     if cert is None:
@@ -825,9 +825,11 @@ def _check_tls_versions_sync(url: str, timeout: float) -> list[TLSVersionResult]
                 warnings.filterwarnings("ignore", category=DeprecationWarning)
                 ctx.minimum_version = tls_version
                 ctx.maximum_version = tls_version
-                with socket.create_connection((hostname, port), timeout=timeout) as sock:  # noqa: SIM117
-                    with ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock:
-                        _ = tls_sock.version()
+                with (
+                socket.create_connection((hostname, port), timeout=timeout) as sock,
+                ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock,
+            ):
+                 _ = tls_sock.version()
             results.append(TLSVersionResult(protocol=protocol_name, supported=True))
         except (ssl.SSLError, OSError, TimeoutError) as e:
             results.append(TLSVersionResult(protocol=protocol_name, supported=False, reason=str(e)[:80]))

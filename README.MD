@@ -1372,6 +1372,9 @@ mytools-mobile scan MyApp.ipa
 mytools-mobile endpoints app.apk
 mytools-mobile secrets app.apk
 mytools-mobile pinning app.apk
+mytools-mobile scan app.apk -c apk_dex
+mytools-mobile scan app.apk -c apk_disasm
+mytools-mobile scan app.apk -c apk_decompile -f com.example.MyClass
 mytools-mobile oauth2 --idp https://auth.example.com --client-id abc123
 ```
 
@@ -1382,6 +1385,9 @@ mytools-mobile oauth2 --idp https://auth.example.com --client-id abc123
 - `apk_secrets` — API keys, tokens, passwords hardcoded
 - `apk_nsc` — network_security_config.xml analysis
 - `apk_sdk` — SDK fingerprinting (30+ SDKs)
+- `apk_dex` — DEX structure: classes, methods, fields, strings, header info
+- `apk_disasm` — Dalvik bytecode disassembly per class/method
+- `apk_decompile` — Java source decompilation (DAD decompiler)
 - `ipa_metadata` — Bundle ID, version, entitlements, ATS
 - `ipa_provisioning` — Provisioning profile analysis
 - `ipa_macho` — Mach-O imports, exports, rpaths, flags (via lief)
@@ -1882,6 +1888,8 @@ Use `help` para ver a ajuda, `exit` para voltar ao menu.
 | `mytools-restfuzz https://api.example.com -c auth_bypass` | Auth bypass testing |
 | `mytools-cmsfp https://example.com` | CMS Fingerprinting |
 | `mytools-depscan https://example.com` | Dependency Scanner |
+| `mytools-cred set my-api-key` | Credential Manager (keyring) |
+| `mytools-mobile scan app.apk` | Mobile API Testing (APK/IPA) |
 | `mytools-analysis findings.json` | Attack path visualization |
 | `mytools-reconall https://example.com --deep` | Recon completo com todos os módulos |
 

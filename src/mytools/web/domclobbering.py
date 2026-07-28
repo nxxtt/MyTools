@@ -543,7 +543,7 @@ async def _test_named_access(
 
 
 
-    for technique, tmpl, attr, indicators in _NAMED_ACCESS_PAYLOADS:  # noqa: B007
+    for technique, tmpl, attr, _indicators in _NAMED_ACCESS_PAYLOADS:
 
         for clob_name in ["config", "settings", "location", "document", "self"]:
 
