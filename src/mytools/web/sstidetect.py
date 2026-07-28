@@ -59,6 +59,7 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+from mytools.web.secondorder import get_verify_payload, verify_positive
 
 logger = logging.getLogger("mytools.sstidetect")
 
@@ -509,6 +510,25 @@ async def _test_param_ssti(
                 engine = _extract_engine(name) if detected else ""
 
                 vuln = detected
+
+                # Second-order verification for detection
+                details = f"Param {param}: {name}" + (f" -> ENGINE={engine}" if detected else "")
+                if detected:
+                    verify = get_verify_payload("sstidetect", "detect")
+                    if verify:
+                        v_payload, v_indicators = verify
+                        new_v_params = dict(new_params)
+                        new_v_params[param] = v_payload
+                        v_new_query = urlencode(new_v_params, doseq=True)
+                        v_url = urlunparse(parsed._replace(query=v_new_query))
+                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        if not confirmed:
+                            detected = False
+                            engine = ""
+                            vuln = False
+                            details += f" [2nd-order failed: {v_found or 'no match'}]"
+                        else:
+                            details += f" [2nd-order confirmed: {v_found}]"
 
                 attempts.append(SSTIAttempt(
 

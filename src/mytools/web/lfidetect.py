@@ -50,6 +50,7 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+from mytools.web.secondorder import get_verify_payload, verify_positive
 
 logger = logging.getLogger("mytools.lfidetect")
 
@@ -249,6 +250,26 @@ async def _test_lfi(
 
                 vulnerable = leak_detected or (status_changed and t_status == 200)
 
+                # Second-order verification for leak-based detection
+                details = (
+                    f"Leak: {leak_type}" if leak_detected
+                    else f"Status {b_status}->{t_status}" if status_changed
+                    else "Sem mudanca"
+                )
+                if leak_detected:
+                    verify = get_verify_payload("lfidetect", "lfi")
+                    if verify:
+                        v_payload, v_indicators = verify
+                        v_url = _make_lfi_url(url, param, v_payload)
+                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        if not confirmed:
+                            leak_detected = False
+                            leak_type = "none"
+                            vulnerable = False
+                            details += f" [2nd-order failed: {v_found or 'no match'}]"
+                        else:
+                            details += f" [2nd-order confirmed: {v_found}]"
+
                 exploit = ""
                 tool = ""
                 if vulnerable:
@@ -268,11 +289,7 @@ async def _test_lfi(
                     body_leak_detected=leak_detected,
                     body_leak_type=leak_type,
                     vulnerable=vulnerable,
-                    details=(
-                        f"Leak: {leak_type}" if leak_detected
-                        else f"Status {b_status}->{t_status}" if status_changed
-                        else "Sem mudanca"
-                    ),
+                    details=details,
                     error="",
                     exploit=exploit,
                     tool=tool,
@@ -328,6 +345,26 @@ async def _test_rfi(
 
                 vulnerable = leak_detected or (status_changed and t_status == 200)
 
+                # Second-order verification for leak-based detection
+                details = (
+                    f"Leak: {leak_type}" if leak_detected
+                    else f"Status {b_status}->{t_status}" if status_changed
+                    else "Sem mudanca"
+                )
+                if leak_detected:
+                    verify = get_verify_payload("lfidetect", "rfi")
+                    if verify:
+                        v_payload, v_indicators = verify
+                        v_url = _make_lfi_url(url, param, v_payload)
+                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        if not confirmed:
+                            leak_detected = False
+                            leak_type = "none"
+                            vulnerable = False
+                            details += f" [2nd-order failed: {v_found or 'no match'}]"
+                        else:
+                            details += f" [2nd-order confirmed: {v_found}]"
+
                 exploit = ""
                 tool = ""
                 if vulnerable:
@@ -347,11 +384,7 @@ async def _test_rfi(
                     body_leak_detected=leak_detected,
                     body_leak_type=leak_type,
                     vulnerable=vulnerable,
-                    details=(
-                        f"Leak: {leak_type}" if leak_detected
-                        else f"Status {b_status}->{t_status}" if status_changed
-                        else "Sem mudanca"
-                    ),
+                    details=details,
                     error="",
                     exploit=exploit,
                     tool=tool,

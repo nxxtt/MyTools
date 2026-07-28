@@ -48,6 +48,7 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+from mytools.web.secondorder import get_verify_payload, verify_positive
 
 logger = logging.getLogger("mytools.sqliscan")
 
@@ -420,6 +421,21 @@ async def _test_error(
             vulnerable = content_match
 
             details = f"DB detectado: {db}" if db else f"Status {status}, Size {size}"
+
+            # Second-order verification for error-based detection
+            if db:
+                verify = get_verify_payload("sqliscan", "error")
+                if verify:
+                    v_payload, v_indicators = verify
+                    v_url = _build_inject_url(url, param, v_payload)
+                    confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                    if not confirmed:
+                        db = ""
+                        content_match = False
+                        vulnerable = False
+                        details += f" [2nd-order failed: {v_found or 'no match'}]"
+                    else:
+                        details += f" [2nd-order confirmed: {v_found}]"
 
             attempts.append(_make_attempt(
                 technique="error", category="error",

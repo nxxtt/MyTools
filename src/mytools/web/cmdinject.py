@@ -53,6 +53,7 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
+from mytools.web.secondorder import get_verify_payload, verify_positive
 
 logger = logging.getLogger("mytools.cmdinject")
 
@@ -322,6 +323,21 @@ async def _test_os_command(
                     else "Sem mudanca"
                 )
 
+                # Second-order verification for content-based detection
+                if content_match:
+                    verify = get_verify_payload("cmdinject", "os_command")
+                    if verify:
+                        v_payload, v_indicators = verify
+                        v_url = _make_inject_url(url, param, v_payload)
+                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        if not confirmed:
+                            content_match = False
+                            content_type = "none"
+                            vulnerable = False
+                            details += f" [2nd-order failed: {v_found or 'no match'}]"
+                        else:
+                            details += f" [2nd-order confirmed: {v_found}]"
+
                 attempts.append(_make_attempt(
                     technique=technique,
                     category="os_command",
@@ -477,6 +493,21 @@ async def _test_bypass(
                     f"Content: {content_type}" if content_match
                     else "Sem mudanca"
                 )
+
+                # Second-order verification for content-based detection
+                if content_match:
+                    verify = get_verify_payload("cmdinject", "bypass")
+                    if verify:
+                        v_payload, v_indicators = verify
+                        v_url = _make_inject_url(url, param, v_payload)
+                        confirmed, v_found = await verify_positive(client, v_url, v_indicators)
+                        if not confirmed:
+                            content_match = False
+                            content_type = "none"
+                            vulnerable = False
+                            details += f" [2nd-order failed: {v_found or 'no match'}]"
+                        else:
+                            details += f" [2nd-order confirmed: {v_found}]"
 
                 attempts.append(_make_attempt(
                     technique=technique,
