@@ -8,6 +8,8 @@ from typing import Any
 
 logger = logging.getLogger("mytools.mobile.apk_dex")
 
+__all__ = ["analyze_dex_layer", "decompile_java", "disassemble_dalvik"]
+
 
 def _load_apk(file_path: str) -> tuple[Any, list[Any], Any]:
     """Parse APK once. Returns (apk_obj, dex_list, analysis).

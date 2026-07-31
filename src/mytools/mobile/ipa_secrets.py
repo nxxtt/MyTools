@@ -4,35 +4,16 @@ from __future__ import annotations
 
 import logging
 import plistlib
-import re
 import zipfile
 from typing import Any
 
+from mytools.mobile._common import MOBILE_SECRET_PATTERNS
+
 logger = logging.getLogger("mytools.mobile.ipa_secrets")
 
-# Same secret patterns as apk_secrets.py (bytes patterns for binary matching)
-_SECRET_PATTERNS: dict[str, re.Pattern[bytes]] = {
-    "Google API Key": re.compile(rb"AIza[0-9A-Za-z\-_]{35}"),
-    "Firebase URL": re.compile(rb"https://[a-z0-9\-]+\.firebaseio\.com"),
-    "AWS Access Key": re.compile(rb"AKIA[0-9A-Z]{16}"),
-    "GitHub Token": re.compile(rb"ghp_[0-9a-zA-Z]{36}"),
-    "Slack Token": re.compile(rb"xox[bporas]-[0-9]{10,}-[0-9a-z\-]+"),
-    "Private Key Block": re.compile(rb"-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----"),
-    "JWT Token": re.compile(rb"eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*"),
-    "Stripe Secret Key": re.compile(rb"sk_live_[0-9a-zA-Z]{24,}"),
-    "SendGrid API Key": re.compile(rb"SG\.[A-Za-z0-9\-_]{22}\.[A-Za-z0-9\-_]{43}"),
-    "Twilio Account SID": re.compile(rb"AC[a-f0-9]{32}"),
-    "Hardcoded Password": re.compile(
-        rb"(?i)(?:password|passwd|pwd)\s*[=:]\s*['\"]([^'\"]{8,})['\"]"
-    ),
-    "Alphanumeric Secret": re.compile(
-        rb"(?i)(?:secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|client[_-]?secret)"
-        rb"\s*[=:]\s*['\"]([A-Za-z0-9\-._]{20,})['\"]"
-    ),
-    "Bearer Token": re.compile(rb"(?i)bearer\s+[a-zA-Z0-9\-._~+/]+=*"),
-    "Basic Auth": re.compile(rb"(?i)basic\s+[A-Za-z0-9+/]+=*"),
-    "Hardcoded URL with creds": re.compile(rb"(?i)https?://[^:]+:[^@]+@[a-zA-Z0-9]"),
-}
+__all__ = ["detect_ipa_secrets"]
+
+_SECRET_PATTERNS = MOBILE_SECRET_PATTERNS
 
 
 def _check_plist_values(

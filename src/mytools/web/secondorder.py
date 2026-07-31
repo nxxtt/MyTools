@@ -24,8 +24,14 @@ import httpx
 
 logger = logging.getLogger("mytools.secondorder")
 
+__all__ = [
+    "VERIFY_PAYLOADS",
+    "get_verify_payload",
+    "verify_positive",
+]
 
-def check_indicators(body: bytes, indicators: list[bytes]) -> tuple[bool, str]:
+
+def _check_indicators(body: bytes, indicators: list[bytes]) -> tuple[bool, str]:
     """Verifica se body contem algum dos indicadores.
 
     Args:
@@ -76,7 +82,7 @@ def get_verify_payload(module: str, category: str) -> tuple[str, list[bytes]] | 
     Exemplos de construcao:
       - GET param: f"{url}?{param}={verify_payload}"
       - Path-based: f"{url}/{verify_payload}"
-      - POST: usar httpx diretamente e chamar check_indicators()
+      - POST: usar httpx diretamente e chamar _check_indicators()
     """
     mod = VERIFY_PAYLOADS.get(module, {})
     return mod.get(category)
@@ -101,6 +107,6 @@ async def verify_positive(
     """
     try:
         resp = await client.get(inject_url, follow_redirects=False, timeout=10.0)
-        return check_indicators(resp.content, indicators)
+        return _check_indicators(resp.content, indicators)
     except httpx.RequestError:
         return False, ""

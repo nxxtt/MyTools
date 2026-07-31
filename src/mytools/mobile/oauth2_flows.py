@@ -10,6 +10,14 @@ from typing import Any
 
 logger = logging.getLogger("mytools.mobile.oauth2_flows")
 
+__all__ = [
+    "_make_pkce_pair",
+    "_run_client_credentials",
+    "_run_token_introspection",
+    "generate_pkce_flow",
+    "validate_jwt",
+]
+
 
 def _make_pkce_pair() -> tuple[str, str]:
     """Gera par code_verifier/code_challenge para PKCE."""
@@ -27,7 +35,6 @@ def generate_pkce_flow(
     client_id: str,
     redirect_uri: str = "com.app:/callback",
     scope: str = "openid profile",
-    timeout: float = 10.0,
 ) -> dict[str, Any]:
     """Testa Authorization Code + PKCE flow.
 
@@ -66,7 +73,7 @@ def generate_pkce_flow(
     }
 
 
-def run_client_credentials(
+def _run_client_credentials(
     idp_url: str,
     client_id: str,
     client_secret: str,
@@ -124,7 +131,7 @@ def run_client_credentials(
         return {"error": str(e)[:200], "flow": "client_credentials"}
 
 
-def run_token_introspection(
+def _run_token_introspection(
     idp_url: str,
     token: str,
     client_id: str = "",

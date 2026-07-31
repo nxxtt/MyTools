@@ -8,40 +8,40 @@ import respx
 
 from mytools.web.secondorder import (
     VERIFY_PAYLOADS,
-    check_indicators,
+    _check_indicators,
     get_verify_payload,
     verify_positive,
 )
 
 # ---------------------------------------------------------------------------
-# check_indicators
+# _check_indicators
 # ---------------------------------------------------------------------------
 
 
 class TestCheckIndicators:
     def test_match_found(self) -> None:
         body = b"uid=33(www-data) gid=33(www-data)"
-        found, indicator = check_indicators(body, [b"uid=", b"gid="])
+        found, indicator = _check_indicators(body, [b"uid=", b"gid="])
         assert found is True
         assert indicator == "uid="
 
     def test_no_match(self) -> None:
         body = b"<html>not found</html>"
-        found, indicator = check_indicators(body, [b"uid=", b"gid="])
+        found, indicator = _check_indicators(body, [b"uid=", b"gid="])
         assert found is False
         assert indicator == ""
 
     def test_empty_body(self) -> None:
-        found, _indicator = check_indicators(b"", [b"uid="])
+        found, _indicator = _check_indicators(b"", [b"uid="])
         assert found is False
 
     def test_empty_indicators(self) -> None:
-        found, _indicator = check_indicators(b"uid=33", [])
+        found, _indicator = _check_indicators(b"uid=33", [])
         assert found is False
 
     def test_multiple_indicators(self) -> None:
         body = b"root:x:0:0:root:/root:/bin/bash"
-        found, indicator = check_indicators(body, [b"daemon:", b"root:"])
+        found, indicator = _check_indicators(body, [b"daemon:", b"root:"])
         assert found is True
         assert indicator == "root:"
 

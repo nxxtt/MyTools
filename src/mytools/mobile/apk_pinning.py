@@ -6,6 +6,8 @@ import logging
 import re
 from typing import Any
 
+__all__ = ["detect_pinning"]
+
 logger = logging.getLogger("mytools.mobile.apk_pinning")
 
 # Patterns that indicate certificate pinning implementations

@@ -6,8 +6,8 @@ import pytest
 
 from mytools.mobile.oauth2_flows import (
     _make_pkce_pair,
+    _run_client_credentials,
     generate_pkce_flow,
-    run_client_credentials,
     validate_jwt,
 )
 
@@ -57,7 +57,7 @@ class TestPkceFlow:
 class TestClientCredentials:
     @pytest.mark.network
     def test_invalid_credentials(self) -> None:
-        result = run_client_credentials(
+        result = _run_client_credentials(
             "https://auth.example.com",
             "invalid",
             "invalid",
@@ -68,7 +68,7 @@ class TestClientCredentials:
         assert result["flow"] == "client_credentials"
 
     def test_returns_error_on_failure(self) -> None:
-        result = run_client_credentials(
+        result = _run_client_credentials(
             "https://nonexistent.example.com",
             "client",
             "secret",

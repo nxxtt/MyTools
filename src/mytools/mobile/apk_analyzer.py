@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
+
+__all__ = ["analyze_apk"]
 
 logger = logging.getLogger("mytools.mobile.apk_analyzer")
 
@@ -44,6 +47,40 @@ _SDK_FINGERPRINTS: dict[str, str] = {
     "net.hockeyapp": "HockeyApp",
 }
 
+_NS = "{http://schemas.android.com/apk/res/android}"
+
+_EXPORTED_TAG_MAP = {
+    "activity": "activity",
+    "service": "service",
+    "receiver": "receiver",
+    "provider": "provider",
+}
+
+
+def _is_exported(element: Any) -> bool:
+    """Verifica se um componente Android esta exportado.
+
+    Regras (AndroidManifest.xml):
+      - android:exported="true" → exportado
+      - android:exported="false" → nao exportado
+      - ausente + intent-filter → exportado (targetSdk < 31)
+      - ausente + sem intent-filter → nao exportado
+    """
+    exported_attr = element.get(f"{_NS}exported")
+    if exported_attr is not None:
+        return exported_attr.lower() == "true"
+    return len(element.findall("intent-filter")) > 0
+
+
+def _extract_exported(manifest: Any, tag: str) -> list[str]:
+    """Extrai nomes de componentes exportados de um tag do manifest."""
+    components: list[str] = []
+    for elem in manifest.iter(tag):
+        name = elem.get(f"{_NS}name", "")
+        if name and _is_exported(elem):
+            components.append(name)
+    return sorted(components)
+
 
 def analyze_apk(file_path: str) -> dict[str, Any]:
     """Extrai metadata completa de um APK.
@@ -75,16 +112,24 @@ def analyze_apk(file_path: str) -> dict[str, Any]:
     # Permissions
     permissions = sorted(a.get_permissions() or [])
 
-    # Components
+    # Components (all)
     activities = sorted(a.get_activities() or [])
     services = sorted(a.get_services() or [])
     receivers = sorted(a.get_receivers() or [])
     providers = sorted(a.get_providers() or [])
 
-    exported_activities = sorted(a.get_activities() or [])
-    exported_services = sorted(a.get_services() or [])
-    exported_receivers = sorted(a.get_receivers() or [])
-    exported_providers = sorted(a.get_providers() or [])
+    # Exported components (parsed from AndroidManifest.xml)
+    manifest = a.get_android_manifest_xml()
+    if manifest is not None:
+        exported_activities = _extract_exported(manifest, "activity")
+        exported_services = _extract_exported(manifest, "service")
+        exported_receivers = _extract_exported(manifest, "receiver")
+        exported_providers = _extract_exported(manifest, "provider")
+    else:
+        exported_activities = list(activities)
+        exported_services = list(services)
+        exported_receivers = list(receivers)
+        exported_providers = list(providers)
 
     # SDK fingerprinting via DEX strings
     sdk_fingerprints: list[str] = []
@@ -95,8 +140,6 @@ def analyze_apk(file_path: str) -> dict[str, Any]:
                 sdk_fingerprints.append(sdk_name)
     except Exception:
         pass
-
-    from pathlib import Path
 
     return {
         "package": package,

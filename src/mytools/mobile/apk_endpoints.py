@@ -5,6 +5,9 @@ from __future__ import annotations
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
+
+__all__ = ["extract_endpoints"]
 
 logger = logging.getLogger("mytools.mobile.apk_endpoints")
 
@@ -67,8 +70,6 @@ def extract_endpoints(file_path: str) -> dict[str, Any]:
                         all_urls.add(url)
                         # Extract domain
                         try:
-                            from urllib.parse import urlparse
-
                             parsed = urlparse(url)
                             if parsed.hostname:
                                 domains.add(parsed.hostname)

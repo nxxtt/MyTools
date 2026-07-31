@@ -29,6 +29,20 @@ import httpx
 
 logger = logging.getLogger("mytools")
 
+__all__ = [
+    "ProxyPool",
+    "TorManager",
+    "UserAgentRotator",
+    "apply_jitter",
+    "fragment_http_headers",
+    "fragment_tcp_request",
+    "pad_headers",
+    "random_user_agent",
+    "randomize_source_port",
+    "waf_encode_headers",
+    "waf_encode_url",
+]
+
 
 class ProxyPool:
     """Pool round-robin de proxies com health check e remocao automatica.
@@ -330,7 +344,7 @@ def fragment_tcp_request(data: bytes, fragment_size: int = 8) -> list[bytes]:
 def waf_encode_url(url: str) -> str:
     """Aplica encoding anti-WAF em uma URL.
 
-    Tehnicas:
+    Tecnicas:
       - Double encoding (%25xx para %xx)
       - Case variation em path
       - Espacos codificados como %20 ou +
@@ -382,9 +396,9 @@ def waf_encode_url(url: str) -> str:
 def waf_encode_headers(headers: dict[str, str]) -> dict[str, str]:
     """Aplica encoding anti-WAF nos headers.
 
-    Tehnicas:
+    Tecnicas:
       - Nomes de headers em mixed case (Content-Type vs content-type)
-      - Espacos extras antes do ':' (technica HTTP smuggling)
+      - Espacos extras antes do ':' (tecnica HTTP smuggling)
       - Headers padding para confundir fingerprinting
 
     Args:
@@ -461,6 +475,11 @@ def pad_headers(headers: dict[str, str], target_count: int = 10) -> dict[str, st
         if name not in padded:
             padded[name] = secrets.choice(fake_values)
     return padded
+
+
+def random_user_agent() -> str:
+    """Retorna um User-Agent aleatorio da lista de agents conhecidos."""
+    return secrets.choice(_USER_AGENTS)
 
 
 def randomize_source_port() -> int:

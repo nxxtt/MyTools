@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+__all__ = ["analyze_nsc"]
+
 logger = logging.getLogger("mytools.mobile.apk_nsc")
 
 # NSC XML indicators (binary XML patterns)
@@ -23,7 +25,7 @@ _NSC_BINARY_PATTERNS: dict[str, bytes] = {
 }
 
 # Manifest indicators for NSC reference
-_MANIFEST_PATTERNS = {
+_MANIFEST_PATTERNS: dict[str, bytes] = {
     "network_security_config_ref": b"networkSecurityConfig",
     "uses_cleartext_traffic": b"usesCleartextTraffic",
     "debuggable": b"android:debuggable",

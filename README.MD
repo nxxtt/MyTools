@@ -169,10 +169,12 @@ Isso instala os comandos CLI:
 > **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
 
 ### Execução direta (sem instalar)
+Todos os 113 módulos podem ser executados via `python -m`:
 ```bash
 python -m mytools.core.main                  # Painel unificado
 python -m mytools.web.attackaudit --help     # Ajuda individual
 python -m mytools.dns.dnstransfer --help     # DNS Zone Transfer
+python -m mytools.mobile.mobile_audit --help # Mobile API Testing
 ```
 
 ### Docker (multi-stage build)
@@ -180,7 +182,7 @@ python -m mytools.dns.dnstransfer --help     # DNS Zone Transfer
 # Build
 docker build -t mytools .
 
-# Subcomando direto (111 comandos disponíveis)
+# Subcomando direto (113 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -1480,12 +1482,12 @@ Adicionadas por `add_stealth_args()` — compatibilidade varia por tipo de módu
 | `--jitter` | `float` | `0.0` | web, dns, email, osint, network, vcs, config | Variação aleatória no delay (0.0-1.0). Ex: 0.2 = +/-20% |
 | `--user-agent-rotate` | `flag` | `False` | web, osint | Rotaciona User-Agent a cada request |
 | `--impersonate` | `choice` | `None` | web | TLS fingerprint de browser real (requer curl-cffi). Opções: `chrome`, `firefox`, `safari`, `edge` |
-| `--fragment` | `int` | `0` | web, email | Fragmenta headers HTTP em chunks (evasão L7). Valor = tamanho do chunk |
-| `--fragment-tcp` | `int` | `0` | network | Fragmenta payload TCP em chunks (evasão L4). Valor = tamanho do chunk |
+| `--fragment` | `int` | `0` | web, email | Fragmenta headers HTTP em chunks (evasão L7, raw socket). Valor = tamanho do chunk |
+| `--fragment-tcp` | `int` | `0` | network | Fragmenta payload TCP em chunks (evasão L4, raw socket). Valor = tamanho do chunk |
 | `--tor` | `flag` | `False` | web, dns, email, osint, network, vcs, config | Roteia requests via Tor (SOCKS5) |
 | `--waf-evasion` | `flag` | `False` | web, email | Aplica encoding anti-WAF em URLs e headers |
 | `--pad-headers` | `int` | `0` | web, email | Adiciona padding headers (mínimo total). Valor = contagem mínima |
-| `--src-port-random` | `flag` | `False` | network | Porta TCP de origem aleatória |
+| `--src-port-random` | `flag` | `False` | network | Porta TCP de origem aleatória (raw socket) |
 | `--rate-limit` | `float` | `0.0` | web, dns, email, osint, network, vcs, config | Rate limit global (requests/segundo). 0 = sem limite |
 
 ### Flags Multi-target
@@ -2093,12 +2095,13 @@ src/mytools/                    # Pacote principal
     apk_endpoints.py            # API endpoint extraction from DEX bytecode
     apk_secrets.py              # Hardcoded secrets (AWS, Google, JWT, keys)
     apk_nsc.py                  # Network Security Config analysis
+    apk_dex.py                  # DEX structure, Dalvik disasm, Java decompilation
     ipa_analyzer.py             # IPA metadata (plistlib + lief): Info.plist, Mach-O
     ipa_secrets.py              # IPA secrets (Mach-O strings + Info.plist)
     oauth2_flows.py             # OAuth2 PKCE, Client Credentials, JWT validation
     mobile_audit.py             # BaseScanner CLI: run_scan + colored output
 
-tests/                          # Testes unitários (5405 testes)
+tests/                          # Testes unitários (5550 testes)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -2149,29 +2152,33 @@ poetry install --with dev
 
 ### Runtime
 - `httpx>=0.28.1` — HTTP client async com sessions, proxy, retry
-- `h2>=4.3.0` — Protocolo HTTP/2 puro Python (frames, HPACK, SETTINGS, RST_STREAM)
+- `h2>=4.4.0` — Protocolo HTTP/2 puro Python (frames, HPACK, SETTINGS, RST_STREAM)
 - `beautifulsoup4>=4.15.0` — Parser HTML avançado
 - `python-whois>=0.9.6` — Consulta WHOIS
 - `dnspython>=2.8.0` — Resolução DNS, zone transfer e enumeração de subdomínios
 - `pyjwt>=2.13.0` — Decodificação e análise de JWT
-- `cryptography>=49.0.0` — Operações criptográficas (certificados, chaves)
+- `cryptography>=50.0.0` — Operações criptográficas (certificados, chaves)
 - `pyyaml>=6.0.3` — Parse de YAML (OpenAPI specs + data/ payloads)
 - `pyreadline3>=3.5.6` — Readline para Windows (apenas Windows)
+- `keyring>=25.7.0` — Credential manager (mytools-cred, resolve_cred)
 - `networkx>=3.6.1` — Grafos e visualização de caminhos de ataque
 - `matplotlib>=3.11.1` — Renderização de grafos (PNG/SVG)
-- `grpcio>=1.82.1` — gRPC client/server (HTTP/2, protobuf)
-- `grpcio-reflection>=1.82.1` — gRPC server reflection (introspecção de services)
+- `grpcio>=1.83.0` — gRPC client/server (HTTP/2, protobuf)
+- `grpcio-reflection>=1.83.0` — gRPC server reflection (introspecção de services)
 - `protobuf>=7.35.1` — Protocol Buffers (serialização gRPC)
 - `thriftpy2>=0.6.0` — Thrift protocol (RPC, deserialization)
 - `curl-cffi>=0.15.0` — TLS fingerprint impersonation (Chrome, Firefox, Safari, Edge)
 - `httpx-socks[asyncio]>=0.11.0` — Tor SOCKS5 proxy (async)
+- `androguard[full]>=4.1.4` — Análise de APK (metadata, DEX, decompilação)
+- `lief>=1.0.0` — Parsing de Mach-O (IPA, rpaths, imports/exports)
+- `tqdm>=4.70.0` — Barras de progresso nos scanners
 
 ### Dev
 - `pytest>=9.1.1` — Framework de testes
 - `pytest-asyncio>=1.4.0` — Testes async
 - `pytest-cov>=7.1.0` — Cobertura de código (Codecov)
 - `respx>=0.23.1` — Mock de httpx para testes
-- `ruff>=0.15.22` — Linter/formatter
+- `ruff>=0.16.1` — Linter/formatter
 - `basedpyright>=1.39.9` — Type checker
 
 ---

@@ -2245,7 +2245,7 @@ def main() -> int:
             choice = (
                 input(color("\nuser-agent> ", Cyber.GREEN, Cyber.BOLD)).strip().lower()
             )
-        except EOFError, KeyboardInterrupt:
+        except (EOFError, KeyboardInterrupt):
             print()
             return 0
 

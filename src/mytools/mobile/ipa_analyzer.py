@@ -9,6 +9,8 @@ from typing import Any
 
 logger = logging.getLogger("mytools.mobile.ipa_analyzer")
 
+__all__ = ["analyze_ipa"]
+
 
 def analyze_ipa(file_path: str) -> dict[str, Any]:
     """Extrai metadata completa de um IPA.
@@ -185,8 +187,8 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                                 if hasattr(binary, "rpaths"):
                                     macho_info["rpaths"] = [
                                         r.path
-                                        for r in binary.rpaths
-                                        if r.path  # type: ignore[union-attr]
+                                        for r in binary.rpaths  # type: ignore[attr-defined]
+                                        if r.path
                                     ]
 
                                 result["macho"] = macho_info

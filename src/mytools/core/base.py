@@ -29,6 +29,8 @@ from mytools.core.utils import (
     write_output,
 )
 
+__all__ = ["BaseScanner", "ScanGroup"]
+
 
 class ScanGroup(Enum):
     """Grupo arquitetural do modulo."""

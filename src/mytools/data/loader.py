@@ -12,12 +12,14 @@ import yaml
 
 logger = logging.getLogger("mytools.data")
 
+__all__ = ["dump_registry", "load_payloads"]
+
 _DATA_DIR = Path(__file__).parent
 _cache: dict[str, Any] = {}
 _loaded_registry: dict[str, Any] = {}
 
 
-def _resolve_value(v: Any, module: str) -> Any:
+def _resolve_value(v: Any) -> Any:
     """Resolve binary_path para bytes lendo arquivo .bin."""
     if isinstance(v, dict) and "binary_path" in v:
         bin_path = _DATA_DIR / v["binary_path"]
@@ -27,18 +29,18 @@ def _resolve_value(v: Any, module: str) -> Any:
     return v
 
 
-def _resolve_recursive(data: Any, module: str) -> Any:
+def _resolve_recursive(data: Any) -> Any:
     """Resolve binary_path recursivamente em dicts e lists."""
     if isinstance(data, dict):
         return {
-            k: _resolve_recursive(_resolve_value(v, module), module)
+            k: _resolve_recursive(_resolve_value(v))
             for k, v in data.items()
         }
     if isinstance(data, list):
         return [
-            _resolve_recursive(_resolve_value(item, module), module) for item in data
+            _resolve_recursive(_resolve_value(item)) for item in data
         ]
-    return _resolve_value(data, module)
+    return _resolve_value(data)
 
 
 def load_payloads(
@@ -73,7 +75,7 @@ def load_payloads(
                 data = default
 
     if data is not default:
-        data = _resolve_recursive(data, module)
+        data = _resolve_recursive(data)
 
     if post_process and data is not default:
         try:

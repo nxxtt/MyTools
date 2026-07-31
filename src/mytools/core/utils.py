@@ -34,8 +34,9 @@ import sys
 import time
 import tomllib
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlparse
 
 import httpx
@@ -47,6 +48,57 @@ logger = logging.getLogger("mytools")
 
 _SECRET_PATTERNS = re.compile(r"(ghp_|sk-|gho_|glpat-|xox[bsrp]-|AKIA|^[^:]+:\S+$)")
 
+__all__ = [
+    "NVD_API_URL",
+    "SECURITY_HEADERS",
+    "THEMES",
+    "FetchError",
+    "FetchResult",
+    "RateLimiter",
+    "StealthContext",
+    "add_base_args",
+    "add_common_args",
+    "add_http_args",
+    "add_stealth_args",
+    "apply_session_auth",
+    "apply_session_auth_async",
+    "apply_theme",
+    "clear_console",
+    "color",
+    "create_async_client",
+    "create_banner",
+    "detect_spa_fallback",
+    "ensure_output_dir",
+    "extract_hostname",
+    "extract_title",
+    "fetch",
+    "get_stealth_ctx",
+    "header_get",
+    "init_scanner",
+    "normalize_url",
+    "override_severity",
+    "parse_auth",
+    "parse_extra_headers",
+    "parse_int_range",
+    "print_exploit_info",
+    "print_json",
+    "print_table",
+    "query_nvd",
+    "resolve_cred",
+    "resolve_cred_async",
+    "resolve_target_urls",
+    "run_interactive_shell",
+    "run_main_loop",
+    "safe_asyncio_run",
+    "set_color",
+    "setup_logging",
+    "severity_color",
+    "show_banner",
+    "status_color",
+    "validate_stealth_args",
+    "write_output",
+]
+
 
 def _read_version() -> str:
     """Le a versao de pyproject.toml (single source of truth)."""
@@ -55,7 +107,7 @@ def _read_version() -> str:
         with pyproject.open("rb") as fh:
             data = tomllib.load(fh)
         return data["project"]["version"]
-    except FileNotFoundError, KeyError, ValueError:
+    except (FileNotFoundError, KeyError, ValueError):
         pass
     return "0.0.0"
 
@@ -128,10 +180,11 @@ def set_color(enabled: bool) -> None:
 
 
 def init_scanner(args: argparse.Namespace) -> bool:
-    """Inicializa logging, quiet mode, color e tema para um scanner.
+    """Inicializa logging, quiet mode, color, tema e stealth para um scanner.
 
     Retorna True se o modo quiet esta ativo.
     """
+    global _stealth_ctx
     setup_logging(verbose=args.verbose, log_file=args.log_file)
     quiet = getattr(args, "quiet", False)
     if getattr(args, "color", None) is not None:
@@ -145,6 +198,7 @@ def init_scanner(args: argparse.Namespace) -> bool:
             if "=" in pair:
                 sev, cname = pair.split("=", 1)
                 override_severity(sev.strip(), cname.strip())
+    _stealth_ctx = StealthContext.from_args(args)
     return quiet
 
 
@@ -226,6 +280,15 @@ class FetchError(Exception):
         super().__init__(
             f"falha ao acessar {url} apos {attempts} tentativa(s): {last_error}"
         )
+
+
+class FetchResult(NamedTuple):
+    """Retorno tipado de fetch(). Subclasse de tuple — desempacotamento posicional preservado."""
+
+    status: int
+    headers: Mapping[str, str]
+    body: bytes
+    raw_headers: dict[str, list[str]]
 
 
 class Cyber:
@@ -415,6 +478,52 @@ class RateLimiter:
         return 1.0 / effective
 
 
+@dataclass(frozen=True, slots=True)
+class StealthContext:
+    """Contexto de stealth global, construido uma vez em init_scanner().
+
+    Somente-leitura apos criacao. Consumido por create_async_client() e fetch().
+    Default None = comportamento byte-compativel (sem flags stealth).
+    """
+
+    random_delay: bool = False
+    jitter: float = 0.0
+    user_agent_rotate: bool = False
+    impersonate: str | None = None
+    tor: bool = False
+    waf_evasion: bool = False
+    pad_headers: int = 0
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace) -> StealthContext | None:
+        """Constrói StealthContext a partir de args do CLI.
+
+        Retorna None se nenhuma flag stealth estiver ativa.
+        """
+        fields = {
+            "random_delay": getattr(args, "random_delay", False),
+            "jitter": getattr(args, "jitter", 0.0),
+            "user_agent_rotate": getattr(args, "user_agent_rotate", False),
+            "impersonate": getattr(args, "impersonate", None),
+            "tor": getattr(args, "tor", False),
+            "waf_evasion": getattr(args, "waf_evasion", False),
+            "pad_headers": getattr(args, "pad_headers", 0),
+        }
+        if not any(
+            v and v != 0.0 and v != 0 for v in fields.values()
+        ):
+            return None
+        return cls(**fields)
+
+
+_stealth_ctx: StealthContext | None = None
+
+
+def get_stealth_ctx() -> StealthContext | None:
+    """Retorna o StealthContext global (para testes)."""
+    return _stealth_ctx
+
+
 def create_async_client(
     user_agent: str = f"MyTools/{__version__}",
     proxy: str | None = None,
@@ -425,16 +534,37 @@ def create_async_client(
     """Cria um cliente HTTP async com headers padrao.
 
     Suporta TLS fingerprint impersonation via curl-cffi quando disponivel.
+    Injeta stealth automaticamente via StealthContext global (init_scanner).
     """
-    headers = {"User-Agent": user_agent}
+    ctx = get_stealth_ctx()
 
-    # TLS fingerprint impersonation via curl-cffi
-    if impersonate:
+    effective_impersonate = impersonate
+    effective_proxy = proxy
+    effective_ua = user_agent
+
+    if ctx is not None:
+        from mytools.core.stealth import TorManager, random_user_agent
+
+        if ctx.impersonate:
+            effective_impersonate = ctx.impersonate
+        if ctx.user_agent_rotate:
+            effective_ua = random_user_agent()
+        if ctx.tor:
+            tor = TorManager()
+            effective_proxy = tor._proxy_url
+            logger.debug("stealth: tor proxy=%s", effective_proxy)
+
+    headers = {"User-Agent": effective_ua}
+
+    if effective_impersonate:
         try:
             from curl_cffi.requests import AsyncSession
 
             session = AsyncSession(
-                impersonate=impersonate, verify=verify, timeout=timeout, proxy=proxy
+                impersonate=effective_impersonate,  # type: ignore[reportArgumentType]
+                verify=verify,
+                timeout=timeout,
+                proxy=effective_proxy,
             )
             session.headers.update(headers)
             return session
@@ -445,7 +575,7 @@ def create_async_client(
 
     return httpx.AsyncClient(
         headers=headers,
-        proxy=proxy,
+        proxy=effective_proxy,
         timeout=timeout,
         follow_redirects=False,
         verify=verify,
@@ -460,9 +590,7 @@ def _extract_raw_headers(response: httpx.Response) -> dict[str, list[str]]:
     return raw
 
 
-_fetch_cache: dict[
-    tuple, tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]]
-] = {}
+_fetch_cache: dict[tuple[Any, ...], tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]]] = {}
 _FETCH_CACHE_TTL = 60.0
 
 
@@ -495,7 +623,36 @@ async def fetch(
         logger.debug("cache hit %s %s", method, url)
         return cached[1]
     last_error: httpx.RequestError = httpx.RequestError("unknown error")
+    ctx = get_stealth_ctx()
     for attempt in range(max_retries):
+        effective_url = url
+        effective_headers = dict(headers) if headers else None
+        effective_content = content
+
+        if ctx is not None:
+            from mytools.core.stealth import (
+                apply_jitter,
+                waf_encode_headers,
+                waf_encode_url,
+            )
+
+            if ctx.random_delay or ctx.jitter > 0:
+                import random as _random
+
+                base_delay = _random.uniform(0, 2) if ctx.random_delay else 0.0
+                await asyncio.sleep(apply_jitter(base_delay, ctx.jitter))
+            if ctx.waf_evasion:
+                effective_url = waf_encode_url(url)
+                if effective_headers:
+                    effective_headers = waf_encode_headers(effective_headers)
+            if ctx.user_agent_rotate:
+                from mytools.core.stealth import random_user_agent
+
+                ua = random_user_agent()
+                if effective_headers is None:
+                    effective_headers = {}
+                effective_headers["User-Agent"] = ua
+
         logger.debug(
             "request %s %s (timeout=%.1f, attempt=%d)",
             method,
@@ -506,11 +663,11 @@ async def fetch(
         try:
             response = await client.request(
                 method=method,
-                url=url,
+                url=effective_url,
                 timeout=timeout,
                 follow_redirects=allow_redirects,
-                headers=headers,
-                content=content,
+                headers=effective_headers,
+                content=effective_content,
             )
             if response.status_code == 429 and rate_limiter is not None:
                 retry_after = _parse_retry_after(response.headers.get("Retry-After"))
@@ -1051,14 +1208,14 @@ def add_stealth_args(
             "--fragment",
             type=int,
             default=0,
-            help="Fragmenta headers HTTP em chunks (evasao L7). Valor: tamanho do chunk.",
+            help="Fragmenta headers HTTP em chunks (evasao L7, raw socket). Valor: tamanho do chunk.",
         )
     if "fragment-tcp" in compat:
         parser.add_argument(
             "--fragment-tcp",
             type=int,
             default=0,
-            help="Fragmenta payload TCP em chunks (evasao L4). Valor: tamanho do chunk.",
+            help="Fragmenta payload TCP em chunks (evasao L4, raw socket). Valor: tamanho do chunk.",
         )
     if "tor" in compat:
         parser.add_argument(
@@ -1081,7 +1238,7 @@ def add_stealth_args(
         parser.add_argument(
             "--src-port-random",
             action="store_true",
-            help="Randomiza porta de origem TCP.",
+            help="Randomiza porta de origem TCP (raw socket).",
         )
     if "rate-limit" in compat:
         parser.add_argument(
@@ -1465,7 +1622,7 @@ def run_interactive_shell(
     while True:
         try:
             raw = input(color(prompt, Cyber.GREEN, Cyber.BOLD)).strip()
-        except EOFError, KeyboardInterrupt:
+        except (EOFError, KeyboardInterrupt):
             print()
             return 0
 
