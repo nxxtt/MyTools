@@ -31,32 +31,33 @@ try {
     exit 1
 }
 
-# Verificar/Instalar Poetry
-Write-Host "[2/4] Verificando Poetry..." -ForegroundColor Yellow
+# Verificar/Instalar uv
+Write-Host "[2/4] Verificando uv..." -ForegroundColor Yellow
 try {
-    $poVersion = poetry --version 2>&1
-    if ($poVersion -match "(\d+)\.") {
+    $uvVersion = uv --version 2>&1
+    if ($uvVersion -match "uv (\d+)\.(\d+)\.") {
         $major = [int]$Matches[1]
-        if ($major -lt 2) {
-            Write-Host "  ERRO: Poetry $poVersion encontrado. MyTools requer Poetry 2.0+." -ForegroundColor Red
-            Write-Host "  Atualize com: pip install --upgrade poetry" -ForegroundColor Yellow
+        $minor = [int]$Matches[2]
+        if ($major -lt 0 -or ($major -eq 0 -and $minor -lt 12)) {
+            Write-Host "  ERRO: uv $uvVersion encontrado. MyTools requer uv 0.12.1+." -ForegroundColor Red
+            Write-Host "  Atualize com: pip install --upgrade uv" -ForegroundColor Yellow
             exit 1
         }
     }
-    Write-Host "  OK: $poVersion" -ForegroundColor Green
+    Write-Host "  OK: $uvVersion" -ForegroundColor Green
 } catch {
-    Write-Host "  Poetry nao encontrado. Instalando..." -ForegroundColor Yellow
-    pip install poetry
+    Write-Host "  uv nao encontrado. Instalando..." -ForegroundColor Yellow
+    pip install uv
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  ERRO: Falha ao instalar Poetry." -ForegroundColor Red
+        Write-Host "  ERRO: Falha ao instalar uv." -ForegroundColor Red
         exit 1
     }
-    Write-Host "  Poetry instalado com sucesso." -ForegroundColor Green
+    Write-Host "  uv instalado com sucesso." -ForegroundColor Green
 }
 
 # Instalar dependencias
 Write-Host "[3/4] Instalando dependencias..." -ForegroundColor Yellow
-poetry install --with dev
+uv sync
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  ERRO: Falha ao instalar dependencias." -ForegroundColor Red
     exit 1
@@ -65,18 +66,13 @@ Write-Host "  OK: Dependencias instaladas." -ForegroundColor Green
 
 # Adicionar ao PATH
 Write-Host "[4/4] Configurando PATH..." -ForegroundColor Yellow
-$venvPath = poetry env info --path 2>$null
-if (-not $venvPath) {
-    Write-Host "  AVISO: Nao foi possivel detectar o venv. Use 'poetry run mytools' para executar." -ForegroundColor Yellow
+$venvScripts = Join-Path $PSScriptRoot ".venv\Scripts"
+$currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($currentPath -notlike "*$venvScripts*") {
+    [Environment]::SetEnvironmentVariable("Path", "$currentPath;$venvScripts", "User")
+    Write-Host "  OK: PATH atualizado." -ForegroundColor Green
 } else {
-    $venvScripts = Join-Path $venvPath "Scripts"
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($currentPath -notlike "*$venvScripts*") {
-        [Environment]::SetEnvironmentVariable("Path", "$currentPath;$venvScripts", "User")
-        Write-Host "  OK: PATH atualizado." -ForegroundColor Green
-    } else {
-        Write-Host "  OK: PATH ja configurado." -ForegroundColor Green
-    }
+    Write-Host "  OK: PATH ja configurado." -ForegroundColor Green
 }
 
 # Resultado
@@ -89,5 +85,5 @@ Write-Host "  Abra um NOVO terminal e execute:" -ForegroundColor Cyan
 Write-Host "    mytools --version" -ForegroundColor White
 Write-Host "    mytools" -ForegroundColor White
 Write-Host ""
-Write-Host "  Ou use 'poetry run mytools' neste terminal." -ForegroundColor DarkGray
+Write-Host "  Ou use 'uv run mytools' neste terminal." -ForegroundColor DarkGray
 Write-Host ""

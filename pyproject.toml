@@ -27,7 +27,7 @@ dependencies = [
     "matplotlib>=3.11.1",
     "curl-cffi>=0.15.0",
     "httpx-socks[asyncio]>=0.11.0",
-    "androguard[full]>=4.1.4",
+    "androguard>=4.1.4",
     "lief>=1.0.0",
     "tqdm>=4.70.0",
 ]
@@ -156,12 +156,12 @@ mytools-mobile = "mytools.mobile.mobile_audit:main"
 mytools-depscan = "mytools.web.depscanner:main"
 mytools-cmsfp = "mytools.web.cmsfingerprint:main"
 
-[tool.poetry]
-packages = [
-    { include = "mytools", from = "src" }
-]
+[tool.uv]
+required-version = "0.12.1"
 
-include = [
+[tool.hatch.build.targets.wheel]
+packages = ["src/mytools"]
+artifacts = [
     "src/mytools/data/**/*.yaml",
     "src/mytools/data/**/*.yml",
     "src/mytools/data/**/*.json",
@@ -169,8 +169,8 @@ include = [
 ]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

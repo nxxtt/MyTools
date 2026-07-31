@@ -36,17 +36,17 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-O script instala Poetry, dependências e adiciona os comandos CLI ao PATH.
+O script instala uv, dependências e adiciona os comandos CLI ao PATH.
 
 ### Instalação manual
 ```bash
 git clone https://github.com/nxxtt/ferramentas_osint.git
 cd ferramentas_osint
-pip install poetry
-poetry install --with dev
+pip install uv
+uv sync
 ```
 
-> **Nota:** Após instalar manualmente, use `poetry run mytools` ou ative o venv com `poetry env activate`.
+> **Nota:** Após instalar manualmente, use `uv run mytools` ou ative o venv com `.venv\Scripts\activate` (Windows) / `source .venv/bin/activate` (Linux/Mac).
 
 Isso instala os comandos CLI:
 
@@ -2124,26 +2124,28 @@ pyproject.toml                  # Configuração do projeto
 
 ### Rodar testes
 ```bash
-poetry run pytest tests/ -v
-poetry run pytest tests/ --cov=mytools --cov-report=term-missing  # Com cobertura
+uv run pytest tests/ -v
+uv run pytest tests/ --cov=mytools --cov-report=term-missing  # Com cobertura
 ```
 
 ### Lint
 ```bash
-poetry run ruff check src/mytools/ tests/
-poetry run basedpyright src/mytools/
+uv run ruff check src/mytools/ tests/
+uv run basedpyright src/mytools/
 ```
 
 ### Pytest Markers
 ```bash
-poetry run pytest tests/ -m smoke          # Testes rápidos
-poetry run pytest tests/ -m integration    # Testes de integração (HTTP real)
-poetry run pytest tests/ -m "not real_sleep"  # Excluir testes com sleep real
+uv run pytest tests/ -m smoke          # Testes rápidos
+uv run pytest tests/ -m integration    # Testes de integração (HTTP real)
+uv run pytest tests/ -m "not real_sleep"  # Excluir testes com sleep real
 ```
 
-### Adicionar dependências de dev
+### Adicionar dependências
 ```bash
-poetry install --with dev
+uv add <pacote>          # Runtime
+uv add --dev <pacote>    # Dev
+uv lock                  # Atualizar o lockfile
 ```
 
 ---

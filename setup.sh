@@ -34,47 +34,42 @@ if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 14 ]; }
     exit 1
 fi
 
-# Verificar/Instalar Poetry
-echo "[2/4] Verificando Poetry..."
-if command -v poetry &>/dev/null; then
-    echo "  OK: $(poetry --version)"
+# Verificar/Instalar uv
+echo "[2/4] Verificando uv..."
+if command -v uv &>/dev/null; then
+    echo "  OK: $(uv --version)"
 else
-    echo "  Poetry nao encontrado. Instalando..."
-    $PY -m pip install poetry
-    echo "  Poetry instalado com sucesso."
+    echo "  uv nao encontrado. Instalando..."
+    $PY -m pip install uv
+    echo "  uv instalado com sucesso."
 fi
 
 # Instalar dependencias
 echo "[3/4] Instalando dependencias..."
-poetry install --with dev
+uv sync
 echo "  OK: Dependencias instaladas."
 
 # Adicionar ao PATH
 echo "[4/4] Configurando PATH..."
-VENV_PATH=$(poetry env info --path 2>/dev/null)
-if [ -z "$VENV_PATH" ]; then
-    echo "  AVISO: Nao foi possivel detectar o venv. Use 'poetry run mytools' para executar."
-else
-    VENV_BIN="$VENV_PATH/bin"
-    SHELL_RC=""
-    if [ -f "$HOME/.bashrc" ]; then
-        SHELL_RC="$HOME/.bashrc"
-    elif [ -f "$HOME/.zshrc" ]; then
-        SHELL_RC="$HOME/.zshrc"
-    fi
+VENV_BIN="$(pwd)/.venv/bin"
+SHELL_RC=""
+if [ -f "$HOME/.bashrc" ]; then
+    SHELL_RC="$HOME/.bashrc"
+elif [ -f "$HOME/.zshrc" ]; then
+    SHELL_RC="$HOME/.zshrc"
+fi
 
-    if [ -n "$SHELL_RC" ]; then
-        if ! grep -q "$VENV_BIN" "$SHELL_RC" 2>/dev/null; then
-            echo "" >> "$SHELL_RC"
-            echo "# MyTools" >> "$SHELL_RC"
-            echo "export PATH=\"$VENV_BIN:\$PATH\"" >> "$SHELL_RC"
-            echo "  OK: PATH atualizado em $SHELL_RC"
-        else
-            echo "  OK: PATH ja configurado."
-        fi
+if [ -n "$SHELL_RC" ]; then
+    if ! grep -q "$VENV_BIN" "$SHELL_RC" 2>/dev/null; then
+        echo "" >> "$SHELL_RC"
+        echo "# MyTools" >> "$SHELL_RC"
+        echo "export PATH=\"$VENV_BIN:\$PATH\"" >> "$SHELL_RC"
+        echo "  OK: PATH atualizado em $SHELL_RC"
     else
-        echo "  AVISO: Shell RC nao encontrado. Adicione manualmente: export PATH=\"$VENV_BIN:\$PATH\""
+        echo "  OK: PATH ja configurado."
     fi
+else
+    echo "  AVISO: Shell RC nao encontrado. Adicione manualmente: export PATH=\"$VENV_BIN:\$PATH\""
 fi
 
 # Resultado
@@ -87,5 +82,5 @@ echo "  Abra um NOVO terminal e execute:"
 echo "    mytools --version"
 echo "    mytools"
 echo ""
-echo "  Ou use 'poetry run mytools' neste terminal."
+echo "  Ou use 'uv run mytools' neste terminal."
 echo ""
