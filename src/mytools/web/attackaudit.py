@@ -2161,11 +2161,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Arquivo com URLs alvo (uma por linha).",
     )
     parser.add_argument(
-        "--output-dir",
-        dest="output_dir",
-        help="Diretorio para salvos individuais (hostname.json).",
-    )
-    parser.add_argument(
         "--concurrency",
         type=int,
         default=20,

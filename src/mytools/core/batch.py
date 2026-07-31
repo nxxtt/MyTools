@@ -487,7 +487,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Targets simultaneos",
     )
-    parser.add_argument("-o", "--output-dir", help="Dir para JSONs")
+    parser.add_argument(
+        "--output-dir",
+        help="Dir para JSONs",
+    )
     parser.add_argument(
         "--skip",
         action="append",

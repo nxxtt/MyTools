@@ -115,7 +115,7 @@ class TestBuildParser:
 
     def test_output_dir(self):
         parser = build_parser()
-        args = parser.parse_args(["example.com", "-o", "results/"])
+        args = parser.parse_args(["example.com", "--output-dir", "results/"])
         assert args.output_dir == "results/"
 
     def test_cve_flag(self):

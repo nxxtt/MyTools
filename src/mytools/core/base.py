@@ -16,6 +16,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import asdict
 from enum import Enum, auto
+from pathlib import Path
 from typing import Any
 
 from mytools.core.utils import (
@@ -23,9 +24,11 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     run_main_loop,
     safe_asyncio_run,
+    workspace_path,
     write_output,
 )
 
@@ -113,12 +116,19 @@ class BaseScanner(ABC):
 
     def _run_once_a(self, args: argparse.Namespace) -> int:
         """Grupo A: run_scan retorna int, output gerenciado internamente."""
+        target = self._get_target(args)
+        output_file = getattr(args, "output", None)
+        if not output_file:
+            output_dir = getattr(args, "output_dir", None)
+            if output_dir and target:
+                output_file = str(workspace_path(output_dir, target))
+                ensure_output_dir(str(Path(output_file).parent))
         return safe_asyncio_run(
             self.run_scan(
-                target=self._get_target(args),
+                target=target,
                 categories=self._get_categories(args),
                 timeout=getattr(args, "timeout", 10),
-                output_file=getattr(args, "output", None),
+                output_file=output_file,
                 json_output=getattr(args, "json_output", False),
             )
         )
@@ -135,6 +145,11 @@ class BaseScanner(ABC):
         output_path = getattr(args, "output", None)
         if output_path:
             write_output(output_path, asdict(result))
+        output_dir = getattr(args, "output_dir", None)
+        if output_dir:
+            ws = workspace_path(output_dir, self._get_target(args) or "")
+            ensure_output_dir(str(ws.parent))
+            write_output(str(ws), asdict(result), quiet=True)
         return self._get_return_code(result)
 
     # ------------------------------------------------------------------

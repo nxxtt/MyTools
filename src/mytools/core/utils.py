@@ -35,6 +35,7 @@ import time
 import tomllib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlparse
@@ -96,6 +97,8 @@ __all__ = [
     "show_banner",
     "status_color",
     "validate_stealth_args",
+    "workspace_path",
+    "workspace_timestamp",
     "write_output",
 ]
 
@@ -247,6 +250,12 @@ def run_main_loop(
         )
 
     quiet = getattr(args, "quiet", False)
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir and not args.output:
+        target = getattr(args, "url", None) or getattr(args, "target", None)
+        if target:
+            args.output = str(workspace_path(output_dir, target))
+            ensure_output_dir(str(Path(args.output).parent))
     if quiet and not args.output:
         print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
         return 1
@@ -986,6 +995,14 @@ def add_base_args(
         help="Timeout em segundos. Padrao: 5",
     )
     parser.add_argument("-o", "--output", help="Salva resultado em .json ou .csv.")
+    if "--output-dir" not in parser._option_string_actions:
+        parser.add_argument(
+            "--output-dir",
+            dest="output_dir",
+            default=None,
+            help="Workspace de scan: salva outputs/<host>/<timestamp>.json. "
+            "Coexiste com -o (Group B salva os dois; Group A: -o vence).",
+        )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -1422,6 +1439,21 @@ def resolve_target_urls(args: argparse.Namespace) -> list[str]:
     if not urls:
         raise ValueError("informe uma URL alvo ou use -l/--list")
     return urls
+
+
+def workspace_timestamp() -> str:
+    """Timestamp ISO local legivel e Windows-safe para nomes de arquivo."""
+    return datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+
+
+def workspace_path(output_dir: str, hostname: str) -> Path:
+    """Monta caminho output_dir/<host>[_port]/<timestamp>.json."""
+    parsed = urlparse(hostname)
+    host = parsed.hostname or hostname
+    if parsed.port:
+        host = f"{host}_{parsed.port}"
+    host = host.replace("/", "_").replace(":", "_")
+    return Path(output_dir) / host / f"{workspace_timestamp()}.json"
 
 
 def ensure_output_dir(output_dir: str | None) -> None:

@@ -243,7 +243,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Portas para portscanner. Padrao: top100",
     )
     parser.add_argument(
-        "-o",
         "--output-dir",
         help="Diretorio para salvar resultados JSON de cada modulo",
     )

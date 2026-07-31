@@ -1497,7 +1497,7 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 | Flag | Tipo | Descrição |
 |------|------|-----------|
 | `-l`, `--list` | `str` | Arquivo com targets (um por linha). Gera arquivos individuais por host |
-| `--output-dir` | `str` | Diretório para salvar JSONs individuais (um por host) |
+| `--output-dir` | `str` | Workspace: salva `outputs/<host>/<timestamp>.json`. Coexiste com `-o` (Group B: ambos; Group A: `-o` vence) |
 
 > **Nota:** Não use `-l` e target posicional ao mesmo tempo.
 
