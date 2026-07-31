@@ -830,3 +830,6 @@ banner_art = scanner._make_banner()
 # Backward-compatible re-exports for tests
 build_parser = scanner.build_parser
 print_results = print_results_fn
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 import httpx
+from tqdm import tqdm
 
 from mytools.core.utils import (
     Cyber,
@@ -398,10 +399,8 @@ async def scan_target(
 
     sem = asyncio.Semaphore(concurrency)
     total_paths = len(paths)
-    completed = 0
 
     async def _limited_scan(path: str) -> Finding | None:
-        nonlocal completed
         async with sem:
             result = await scan_path(
                 client,
@@ -413,21 +412,16 @@ async def scan_target(
                 method,
                 retries=retries,
             )
-            completed += 1
-            if completed % 20 == 0 or completed == total_paths:
-                sys.stdout.write(
-                    f"\r  Progresso: {completed}/{total_paths} paths testados..."
-                )
-                sys.stdout.flush()
+            pbar.update(1)
             return result
 
+    pbar = tqdm(
+        total=total_paths, desc="  Paths testados", leave=False, file=sys.stderr
+    )
     try:
         async with asyncio.TaskGroup() as tg:
             futures = [tg.create_task(_limited_scan(path)) for path in paths]
         results = [f.result() for f in futures]
-
-        sys.stdout.write("\r" + " " * 60 + "\r")
-        sys.stdout.flush()
 
         non_null = [r for r in results if isinstance(r, Finding)]
         spa_skip: set[str] = set()
@@ -457,6 +451,7 @@ async def scan_target(
                 "[+] %d %7dB %s%s", result.status, result.size, result.url, suffix
             )
     finally:
+        pbar.close()
         await client.aclose()
 
     elapsed = time.monotonic() - started

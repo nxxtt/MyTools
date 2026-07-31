@@ -1029,3 +1029,7 @@ def main() -> int:
             "  eyJ... -o resultado.json"
         ),
     )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

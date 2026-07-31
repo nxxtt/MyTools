@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from urllib.parse import urljoin
 
 import httpx
+from tqdm import tqdm
 
 from mytools.core.utils import (
     Cyber,
@@ -334,33 +335,21 @@ async def scan_sourcemaps(
         f"Candidatos: {color(str(total), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(concurrency), Cyber.YELLOW)}",
     )
 
-    completed = 0
-    completed_lock = asyncio.Lock()
-
     async def _limited_probe(map_url: str, js_url: str) -> SourceMapInfo | None:
-        nonlocal completed
         async with sem:
             result = await _probe_map(
                 client, rate_limiter, map_url, js_url, timeout, retries
             )
-            async with completed_lock:
-                completed += 1
-                if completed % 20 == 0 or completed == total:
-                    sys.stdout.write(
-                        f"\r  Progresso: {completed}/{total} candidatos testados..."
-                    )
-                    sys.stdout.flush()
+            pbar.update(1)
             return result
 
+    pbar = tqdm(total=total, desc="  Candidatos testados", leave=False, file=sys.stderr)
     try:
         async with asyncio.TaskGroup() as tg:
             futures = [
                 tg.create_task(_limited_probe(mu, ju)) for mu, ju in all_map_urls
             ]
         results = [f.result() for f in futures]
-
-        sys.stdout.write("\r" + " " * 60 + "\r")
-        sys.stdout.flush()
 
         maps: list[SourceMapInfo] = []
         for r in results:
@@ -376,6 +365,7 @@ async def scan_sourcemaps(
                     f"{color(r.url, Cyber.CYAN)}"
                 )
     finally:
+        pbar.close()
         await client.aclose()
 
     elapsed = time.monotonic() - started

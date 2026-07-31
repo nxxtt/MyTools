@@ -184,7 +184,9 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                                 # Rpaths
                                 if hasattr(binary, "rpaths"):
                                     macho_info["rpaths"] = [
-                                        r.path for r in binary.rpaths if r.path  # type: ignore[union-attr]
+                                        r.path
+                                        for r in binary.rpaths
+                                        if r.path  # type: ignore[union-attr]
                                     ]
 
                                 result["macho"] = macho_info

@@ -24,6 +24,7 @@ from urllib.parse import quote_plus
 
 import httpx
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 from mytools.core.utils import (
     Cyber,
@@ -351,11 +352,8 @@ async def scan_dorks(
     if do_search:
         client = create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
         sem = asyncio.Semaphore(3)
-        completed = 0
-        completed_lock = asyncio.Lock()
 
         async def _search_one(q: DorkQuery) -> DorkQuery:
-            nonlocal completed
             async with sem:
                 results = await search_ddg(
                     client, q.full_query, timeout, rate_limiter, max_results
@@ -370,22 +368,16 @@ async def scan_dorks(
                     exploit=f"https://www.google.com/search?q={quote_plus(q.full_query)}",
                     tool="google",
                 )
-                async with completed_lock:
-                    completed += 1
-                    if completed % 10 == 0 or completed == total:
-                        sys.stdout.write(
-                            f"\r  Progresso: {completed}/{total} dorks buscadas..."
-                        )
-                        sys.stdout.flush()
+                pbar.update(1)
                 return new_q
 
+        pbar = tqdm(total=total, desc="  Dorks buscadas", leave=False, file=sys.stderr)
         try:
             async with asyncio.TaskGroup() as tg:
                 futures = [tg.create_task(_search_one(q)) for q in queries]
             queries = [f.result() for f in futures]
-            sys.stdout.write("\r" + " " * 50 + "\r")
-            sys.stdout.flush()
         finally:
+            pbar.close()
             await client.aclose()
 
     elapsed = time.monotonic() - started

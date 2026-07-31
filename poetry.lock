@@ -2928,6 +2928,27 @@ dev = ["aiohttp (>=3.8.0,<4.0.0)", "flake8 (>=4.0)", "pytest (>=6.1.1,<8.2.0)", 
 tornado = ["tornado (>=4.0,<6.0) ; python_version < \"3.12\"", "tornado (>=4.0,<7.0) ; python_version >= \"3.12\""]
 
 [[package]]
+name = "tqdm"
+version = "4.70.0"
+description = "Fast, Extensible Progress Meter"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "tqdm-4.70.0-py3-none-any.whl", hash = "sha256:7f585706bfddbdebf89daac705b2dfcc16890130727d3197ca62c732b4310953"},
+    {file = "tqdm-4.70.0.tar.gz", hash = "sha256:55b0b0dbd97462d06ebee91e4dac24ed4d4702be82b24f07e6c1d27e08cea220"},
+]
+
+[package.dependencies]
+colorama = {version = "*", markers = "platform_system == \"Windows\""}
+
+[package.extras]
+discord = ["envwrap", "requests"]
+notebook = ["ipywidgets (>=6)"]
+slack = ["envwrap", "slack-sdk"]
+telegram = ["envwrap", "requests"]
+
+[[package]]
 name = "traitlets"
 version = "5.16.0"
 description = "Traitlets Python configuration system"
@@ -2986,4 +3007,4 @@ dev = ["black (>=19.3b0) ; python_version >= \"3.6\"", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14.2,<3.16"
-content-hash = "7367323470a8dea6d539942320ff8c0b89f6a662632579cf229e11e097abb7e5"
+content-hash = "1388f24bfaa5e95c086588a6feee87415f09592ce6f960e53ce65f57a0f9b1d6"

@@ -564,3 +564,7 @@ def main() -> int:
         return 0
 
     return run_batch(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -35,6 +35,7 @@ from dataclasses import asdict, dataclass, field
 import dns.exception
 import dns.resolver
 import httpx
+from tqdm import tqdm
 
 from mytools.core.utils import (
     FetchError,
@@ -700,16 +701,15 @@ def enumerate_subdomains(
         }
 
         total_brute = len(remaining)
-        for done_count, future in enumerate(as_completed(futures), 1):
+        for future in tqdm(
+            as_completed(futures),
+            total=total_brute,
+            desc="  Subdominios testados",
+            leave=False,
+            file=sys.stderr,
+        ):
             result = future.result()
-            if done_count % 20 == 0 or done_count == total_brute:
-                sys.stdout.write(
-                    f"\r  Progresso: {done_count}/{total_brute} subdominios testados..."
-                )
-                sys.stdout.flush()
             if result.status == "resolved":
-                sys.stdout.write("\r" + " " * 60 + "\r")
-                sys.stdout.flush()
                 resolved.append(result)
                 ips_str = ", ".join(result.ip_addresses)
                 logger.info("%s -> %s", result.subdomain, ips_str)

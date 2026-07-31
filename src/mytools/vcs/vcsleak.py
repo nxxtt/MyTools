@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass
 from urllib.parse import urljoin
 
 import httpx
+from tqdm import tqdm
 
 from mytools.core.utils import (
     Cyber,
@@ -335,32 +336,20 @@ async def scan_vcs(
     logger.info("Paths: %d | Concurrency: %d", total, concurrency)
 
     sem = asyncio.Semaphore(concurrency)
-    completed = 0
-    completed_lock = asyncio.Lock()
 
     async def _limited_probe(path: str) -> VCSLeak | None:
-        nonlocal completed
         async with sem:
             result = await _probe_path(
                 client, rate_limiter, base_url, path, timeout, retries
             )
-            async with completed_lock:
-                completed += 1
-                should_print = completed % 20 == 0 or completed == total
-                if should_print:
-                    sys.stdout.write(
-                        f"\r  Progresso: {completed}/{total} paths testados..."
-                    )
-                    sys.stdout.flush()
+            pbar.update(1)
             return result
 
+    pbar = tqdm(total=total, desc="  Paths testados", leave=False, file=sys.stderr)
     try:
         async with asyncio.TaskGroup() as tg:
             futures = [tg.create_task(_limited_probe(p)) for p in paths]
         results = [f.result() for f in futures]
-
-        sys.stdout.write("\r" + " " * 60 + "\r")
-        sys.stdout.flush()
 
         leaks: list[VCSLeak] = []
         for r in results:
@@ -370,6 +359,7 @@ async def scan_vcs(
                     "VCS leak encontrado: [%s] %s — %s", r.vcs_type, r.path, r.detail
                 )
     finally:
+        pbar.close()
         await client.aclose()
 
     elapsed = time.monotonic() - started

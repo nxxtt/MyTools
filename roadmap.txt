@@ -1,49 +1,6 @@
-# Roadmap de Features (do mais facil ao mais complexo)
-
-1. **Batch Scanner** — mytools-batch targets.txt roda modulo(s) contra N alvos de um arquivo. Reutiliza modulos existentes, so orquestracao. Uteis para CI/CD.
-
-2. **LFI/RFI Scanner** — Path traversal ja existe. LFI/RFI foca em inclusao de arquivos via ?file=, ?page=, ?include=. Payloads novos, logica similar.
-
-3. **Command Injection Scanner** — OWASP Top 10. Testa parametros GET/POST/headers com payloads de comando. Detecta por timing, erro, ou reflexao. Similar a SSRF/SSTI existentes.
-
-4. **CSRF Scanner** — Testa ativamente tokens CSRF: remover, reutilizar, trocar metodo. Hoje so detecta passivamente se o campo csrf_token existe (dentro do attackaudit).
-
-5. **SQL Injection Scanner** — Mais complexo que injecoes basicas. Standalone com error-based, blind, time-based, union, boolean. Hoje so existe como sub-check no attackaudit. Precisa de time-based detection.
-
-6. **Subdomain Takeover** — Deteccao de dangling CNAME apontando para servicos nao reclamados (S3, CloudFront, Azure, Heroku, GitHub Pages). Alto valor para recon externo.
-
-7. **Login Brute Force / Credential Testing** — Teste de rate limit em endpoints de auth. Credential stuffing, password spray, account lockout detection. Nao existe hoje.
-
-8. **Cloud Bucket Enumeration (S3/GCP/Azure)** — Enumeracao de buckets abertos. Listagem, ACL, politicas, objetos. Requer conhecimento das APIs de cada cloud.
-
-9. **REST API Fuzzer** — Fuzzing generico de APIs REST: parameter pollution, metodos HTTP inesperados, version enum (/v1, /v2), auth bypass, HATEOAS. So GraphQL tem cobertura hoje.
-
-10. **Client-side Prototype Pollution** — Modulo atual testa server-side (reflexao). DOM-based PP requer deteccao bifasica (pollute + verify) em sinks reais (lodash, jQuery).
-
-11. **Ruby + .NET + Node.js Deserialization** — Tres plataformas sem cobertura. Ruby Marshal.load, .NET BinaryFormatter/ViewState, Node.js node-serialize.
-
-12. **CDN-Specific Cache Poisoning** — Cloudflare, Akamai, Fastly tem cache key behavior especifico. X-Forwarded-Port/Proto/Scheme, True-Client-IP, CF-Connecting-IP. Nao testado.
-
-13. **Handlebars + Go + Blade + Razor SSTI** — Quatro engines populares nao cobertas pelo modulo SSTI atual: Handlebars (Node), Go text/template, Blade (PHP), Razor (.NET).
-
-14. **HTTP/2 Downgrade Smuggling + CL.0** — Modulo atual cobre CL.TE/TE.CL classico. CL.0 (Content-Length ignorado pelo front-end) e h2c smuggling sao tecnicas modernas.
-
-15. **Mobile API Testing** — Zero cobertura para Android/iOS/React Native/Flutter. API pinning, armazenamento local, OAuth2 implicit flow, certificados.
-
-16. **WebSocket Fuzzer** — Modulo atual testa protocolo (frames, opcodes, compression). Fuzzing de payload real em mensagens WebSocket expandiria cobertura.
-
-17. **Email Spoofing Ativo** — Hoje e so analise DNS (SPF/DKIM/DMARC). Enviar email de teste + verificar entrega validaria politicas de verdade.
-
-18. **CMS Fingerprinting** — WordPress, Joomla, Drupal, Magento. Versao, plugins, temas, users. Requer banco de assinaturas.
-
-19. **Dependency Scanner** — Detecta bibliotecas front-end (npm, CDN) e back-end por fingerprint. Compara com CVEs (tipo retire.js / WPScan lite).
-
-20. **HTML Report Generator** — Template HTML com findings, severidade, evidencias, timeline. Diff entre scans. Requer sistema de template + engine de comparacao.
-
-21. **Plugin System** — Arquitetura para modulos de terceiros sem editar o core. Hook discovery, schema de metadados, namespace isolado. Mudanca arquitetural profunda.
-
-22. **Headless Browser (Playwright)** — Testes em JS/SPA. DOM clobbering real, XSS renderizado, crawler JS, screenshots. Dependencia pesada, integracao complexa.
-
-23. **Verificacao de Segunda Ordem** — Reduz falsos positivos em modulos de injecao. Ao detectar match (conteudo, timing, erro), faz segundo request com payload diferente para confirmar. Ex: `; id` → uid= detectado → `; whoami` confirma se www-data. Implementavel em cmd/injection/LFI/SSRF/SSTI sem alterar arquitetura dos modulos. So adiciona ~40ms por alerta.
-
-24. ** colocar novas dependencias** - tqdm, orjson, jinja2, aiodns
+1. **Fase 2 Guards __main__** — Revisao de API/documentacao dos 15 modulos-biblioteca (core/base, core/utils, core/stealth, data/loader, web/secondorder, mobile/apk_*, ipa_*, oauth2_flows, _common) apos os 33 guards da fase 1.
+2. **Workspace de Scan** — Diretorio de outputs por alvo: outputs/<host>/<timestamp>.json via add_base_args. Alicerce para o diff entre scans do HTML Report.
+3. **Padronizar Modulos Legacy** — Unificar os 9 modulos nao-BaseScanner com barra manual (configfiledetect, backupfiledetect, vcsleak, googledorking, emailbreachcheck, graphqlplayground, openapidiscovery, sourcemapdiscovery, dirscanner) para add_common_args/BaseScanner: --quiet, --json, --theme consistentes.
+4. **Menu Dinamico** — Gerar menu do mytools via importlib.metadata (entry points), eliminando as 74 launch_* hardcoded em core/main.py (2419 linhas) e expondo os ~39 comandos fora do menu. Base para o plugin system.
+5. **HTML Report Generator** — Template HTML com findings, severidade, evidencias, timeline. Diff entre scans. Requer sistema de template + engine de comparacao. (usando jinja2)
+6. **Headless Browser** — Checagens de DOM real para domclobbering, mxss, cookieboundary (hoje heuristica HTTP).

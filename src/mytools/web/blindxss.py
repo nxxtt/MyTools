@@ -1185,3 +1185,7 @@ def main() -> int:
             "  https://target.com --webhook https://hook.example.com --proxy http://127.0.0.1:8080"
         ),
     )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

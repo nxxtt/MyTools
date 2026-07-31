@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from urllib.parse import urljoin
 
 import httpx
+from tqdm import tqdm
 
 from mytools.core.utils import (
     Cyber,
@@ -363,29 +364,20 @@ async def scan_graphql(
 
     sem = asyncio.Semaphore(concurrency)
     total = len(paths)
-    completed = 0
 
     async def _limited_probe(path: str) -> GraphqlEndpoint | None:
-        nonlocal completed
         async with sem:
             result = await probe_endpoint(
                 client, rate_limiter, base_url, path, timeout, introspect, retries
             )
-            completed += 1
-            if completed % 10 == 0 or completed == total:
-                sys.stdout.write(
-                    f"\r  Progresso: {completed}/{total} paths testados..."
-                )
-                sys.stdout.flush()
+            pbar.update(1)
             return result
 
+    pbar = tqdm(total=total, desc="  Paths testados", leave=False, file=sys.stderr)
     try:
         async with asyncio.TaskGroup() as tg:
             futures = [tg.create_task(_limited_probe(p)) for p in paths]
         results = [f.result() for f in futures]
-
-        sys.stdout.write("\r" + " " * 60 + "\r")
-        sys.stdout.flush()
 
         endpoints: list[GraphqlEndpoint] = []
         for r in results:
@@ -402,6 +394,7 @@ async def scan_graphql(
                     f"{color(intros_info, Cyber.GRAY)}"
                 )
     finally:
+        pbar.close()
         await client.aclose()
 
     elapsed = time.monotonic() - started

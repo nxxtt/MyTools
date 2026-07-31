@@ -646,3 +646,7 @@ def main() -> int:
             "  --file response.xml -o resultado.json"
         ),
     )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

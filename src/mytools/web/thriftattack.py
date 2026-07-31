@@ -700,3 +700,7 @@ def main() -> int:
         example="mytools-thrift thrift://target.com:9090",
         contextual_help="thrift: method_enumeration, binary_protocol",
     )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

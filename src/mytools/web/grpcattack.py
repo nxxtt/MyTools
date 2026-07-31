@@ -774,3 +774,7 @@ def main() -> int:
         example="mytools-grpc grpc://target.com:50051",
         contextual_help="gRPC: reflection, server_streaming, client_streaming, bidirectional, grpc_web, protobuf",
     )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

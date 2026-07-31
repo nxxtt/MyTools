@@ -629,3 +629,6 @@ main = _scanner.main
 run_once = _scanner.run_once
 banner_art = create_banner(_BANNER_TEXT, _scanner.description)
 build_parser = _scanner.build_parser
+
+if __name__ == "__main__":
+    raise SystemExit(main())

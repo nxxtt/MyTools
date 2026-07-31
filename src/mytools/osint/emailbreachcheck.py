@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import httpx
+from tqdm import tqdm
 
 from mytools.core.utils import (
     Cyber,
@@ -346,31 +347,25 @@ async def check_breaches(
 
     sem = asyncio.Semaphore(concurrency)
     all_breaches: list[EmailBreach] = []
-    completed = 0
-    completed_lock = asyncio.Lock()
 
     async def _check_one(email: str) -> list[EmailBreach]:
-        nonlocal completed
         async with sem:
             breaches = await _query_email(
                 client, email, sources, api_keys, timeout, rate_limiter
             )
-            async with completed_lock:
-                completed += 1
-                sys.stdout.write(
-                    f"\r  Progresso: {completed}/{len(emails)} emails verificados..."
-                )
-                sys.stdout.flush()
+            pbar.update(1)
             return breaches
 
+    pbar = tqdm(
+        total=len(emails), desc="  Emails verificados", leave=False, file=sys.stderr
+    )
     try:
         async with asyncio.TaskGroup() as tg:
             futures = [tg.create_task(_check_one(e)) for e in emails]
         for f in futures:
             all_breaches.extend(f.result())
-        sys.stdout.write("\r" + " " * 50 + "\r")
-        sys.stdout.flush()
     finally:
+        pbar.close()
         await client.aclose()
 
     all_breaches = _dedup_breaches(all_breaches)

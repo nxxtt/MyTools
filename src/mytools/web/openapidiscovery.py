@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from urllib.parse import urljoin
 
 import httpx
+from tqdm import tqdm
 
 from mytools.core.utils import (
     Cyber,
@@ -398,11 +399,9 @@ async def scan_specs(
 
     sem = asyncio.Semaphore(concurrency)
     total = len(paths)
-    completed = 0
     found_event = asyncio.Event()
 
     async def _limited_probe(path: str) -> ApiSpecInfo | None:
-        nonlocal completed
         if found_event.is_set():
             return None
         async with sem:
@@ -411,23 +410,16 @@ async def scan_specs(
             result = await probe_spec(
                 client, rate_limiter, base_url, path, timeout, retries
             )
-            completed += 1
             if result is not None:
                 found_event.set()
-            if completed % 10 == 0 or completed == total:
-                sys.stdout.write(
-                    f"\r  Progresso: {completed}/{total} paths testados..."
-                )
-                sys.stdout.flush()
+            pbar.update(1)
             return result
 
+    pbar = tqdm(total=total, desc="  Paths testados", leave=False, file=sys.stderr)
     try:
         async with asyncio.TaskGroup() as tg:
             futures = [tg.create_task(_limited_probe(p)) for p in paths]
         results = [f.result() for f in futures]
-
-        sys.stdout.write("\r" + " " * 60 + "\r")
-        sys.stdout.flush()
 
         specs: list[ApiSpecInfo] = []
         for r in results:
@@ -447,6 +439,7 @@ async def scan_specs(
                     f"{color(f' | {r.title} v{r.version}' if r.title else '', Cyber.GRAY)}"
                 )
     finally:
+        pbar.close()
         await client.aclose()
 
     elapsed = time.monotonic() - started
