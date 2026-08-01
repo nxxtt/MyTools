@@ -186,7 +186,7 @@ line-length = 88
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-line-ending = "lf"
+line-ending = "auto"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PTH", "PERF","ASYNC","LOG","G"]
@@ -198,7 +198,6 @@ exclude = ["**/__pycache__", "**/node_modules", ".git", ".venv"]
 typeCheckingMode = "standard"
 reportMissingImports = false
 reportMissingTypeStubs = false
-reportUnnecessaryTypeIgnoreComment = false
 useLibraryCodeForTypes = true
 reportMissingModuleSource = false
 

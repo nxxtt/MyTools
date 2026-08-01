@@ -110,7 +110,7 @@ def _read_version() -> str:
         with pyproject.open("rb") as fh:
             data = tomllib.load(fh)
         return data["project"]["version"]
-    except (FileNotFoundError, KeyError, ValueError):
+    except FileNotFoundError, KeyError, ValueError:
         pass
     return "0.0.0"
 
@@ -518,9 +518,7 @@ class StealthContext:
             "waf_evasion": getattr(args, "waf_evasion", False),
             "pad_headers": getattr(args, "pad_headers", 0),
         }
-        if not any(
-            v and v != 0.0 and v != 0 for v in fields.values()
-        ):
+        if not any(v and v != 0.0 and v != 0 for v in fields.values()):
             return None
         return cls(**fields)
 
@@ -599,7 +597,10 @@ def _extract_raw_headers(response: httpx.Response) -> dict[str, list[str]]:
     return raw
 
 
-_fetch_cache: dict[tuple[Any, ...], tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]]] = {}
+_fetch_cache: dict[
+    tuple[Any, ...],
+    tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]],
+] = {}
 _FETCH_CACHE_TTL = 60.0
 
 
@@ -1654,7 +1655,7 @@ def run_interactive_shell(
     while True:
         try:
             raw = input(color(prompt, Cyber.GREEN, Cyber.BOLD)).strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             print()
             return 0
 

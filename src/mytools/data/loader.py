@@ -32,14 +32,9 @@ def _resolve_value(v: Any) -> Any:
 def _resolve_recursive(data: Any) -> Any:
     """Resolve binary_path recursivamente em dicts e lists."""
     if isinstance(data, dict):
-        return {
-            k: _resolve_recursive(_resolve_value(v))
-            for k, v in data.items()
-        }
+        return {k: _resolve_recursive(_resolve_value(v)) for k, v in data.items()}
     if isinstance(data, list):
-        return [
-            _resolve_recursive(_resolve_value(item)) for item in data
-        ]
+        return [_resolve_recursive(_resolve_value(item)) for item in data]
     return _resolve_value(data)
 
 

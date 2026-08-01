@@ -162,10 +162,14 @@ def _make_args(scanner: BaseScanner, extra: list[str]) -> argparse.Namespace:
 class TestGroupBWorkspace:
     def test_output_dir_only(self, tmp_path: Path):
         scanner = _FakeScannerB()
-        args = _make_args(scanner, [
-            "https://example.com",
-            "--output-dir", str(tmp_path),
-        ])
+        args = _make_args(
+            scanner,
+            [
+                "https://example.com",
+                "--output-dir",
+                str(tmp_path),
+            ],
+        )
 
         code = scanner.run_once(args)
         assert code == 0
@@ -178,11 +182,16 @@ class TestGroupBWorkspace:
     def test_both_flags_two_files(self, tmp_path: Path):
         scanner = _FakeScannerB()
         out_file = str(tmp_path / "explicit.json")
-        args = _make_args(scanner, [
-            "https://example.com",
-            "-o", out_file,
-            "--output-dir", str(tmp_path / "ws"),
-        ])
+        args = _make_args(
+            scanner,
+            [
+                "https://example.com",
+                "-o",
+                out_file,
+                "--output-dir",
+                str(tmp_path / "ws"),
+            ],
+        )
 
         code = scanner.run_once(args)
         assert code == 0
@@ -200,10 +209,14 @@ class TestGroupBWorkspace:
 class TestGroupAWorkspace:
     def test_output_dir_fallback(self, tmp_path: Path):
         scanner = _FakeScannerA()
-        args = _make_args(scanner, [
-            "https://target.com",
-            "--output-dir", str(tmp_path),
-        ])
+        args = _make_args(
+            scanner,
+            [
+                "https://target.com",
+                "--output-dir",
+                str(tmp_path),
+            ],
+        )
 
         scanner.run_once(args)
         assert scanner._last_output_file is not None
@@ -213,11 +226,16 @@ class TestGroupAWorkspace:
     def test_output_flag_takes_priority(self, tmp_path: Path):
         scanner = _FakeScannerA()
         explicit = str(tmp_path / "explicit.json")
-        args = _make_args(scanner, [
-            "https://target.com",
-            "-o", explicit,
-            "--output-dir", str(tmp_path / "ws"),
-        ])
+        args = _make_args(
+            scanner,
+            [
+                "https://target.com",
+                "-o",
+                explicit,
+                "--output-dir",
+                str(tmp_path / "ws"),
+            ],
+        )
 
         scanner.run_once(args)
         assert scanner._last_output_file == explicit
@@ -285,8 +303,14 @@ class TestRunMainLoopWorkspace:
         run_fn = self._make_writer(recorded)
 
         code = _run_main_loop_with_args(
-            ["fake", "https://example.com", "-o", explicit,
-             "--output-dir", str(tmp_path / "ws")],
+            [
+                "fake",
+                "https://example.com",
+                "-o",
+                explicit,
+                "--output-dir",
+                str(tmp_path / "ws"),
+            ],
             run_fn,
             parser,
         )

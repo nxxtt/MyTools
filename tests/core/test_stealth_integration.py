@@ -124,7 +124,9 @@ class TestFetchStealth:
     @pytest.mark.anyio
     async def test_waf_evasion_modifies_url(self):
         init_scanner(_make_args(waf_evasion=True))
-        route = respx.route(method="GET").mock(return_value=httpx.Response(200, content=b"ok"))
+        route = respx.route(method="GET").mock(
+            return_value=httpx.Response(200, content=b"ok")
+        )
         client = httpx.AsyncClient()
         status, _, body, _ = await fetch(client, "http://example.com/path?q=1")
         assert status == 200
