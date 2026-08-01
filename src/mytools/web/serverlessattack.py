@@ -76,7 +76,7 @@ def _load_cold_start_indicators() -> list[str]:
 _COLD_START_INDICATORS = _load_cold_start_indicators()
 
 
-_COLD_START_BODY_SIGNATURES: list[str] = [
+_COLD_START_BODY_SIGNATURES_DEFAULT: list[str] = [
     "cold start",
     "coldstart",
     "initialization",
@@ -87,6 +87,24 @@ _COLD_START_BODY_SIGNATURES: list[str] = [
     "warmup",
     "first request",
 ]
+
+
+def _load_cold_start_body_signatures() -> list[str]:
+    from mytools.data import load_payloads
+
+    data = load_payloads(
+        "web",
+        "serverless_attack",
+        default={
+            "cold_start_indicators": _COLD_START_INDICATORS_DEFAULT,
+            "cold_start_body_signatures": _COLD_START_BODY_SIGNATURES_DEFAULT,
+        },
+    )
+    raw = data.get("cold_start_body_signatures", _COLD_START_BODY_SIGNATURES_DEFAULT)
+    return raw if isinstance(raw, list) else _COLD_START_BODY_SIGNATURES_DEFAULT
+
+
+_COLD_START_BODY_SIGNATURES = _load_cold_start_body_signatures()
 
 
 _TIMEOUT_PATTERNS: list[str] = [

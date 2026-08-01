@@ -97,7 +97,7 @@ _VAULT_PATHS: list[dict[str, str]] = [
     {"path": "/v1/identity/entity", "desc": "Identity entity"},
 ]
 
-_CICD_PATHS: list[dict[str, str]] = [
+_CICD_PATHS_DEFAULT: list[dict[str, str]] = [
     {"path": "/.gitlab-ci.yml", "desc": "GitLab CI"},
     {"path": "/Jenkinsfile", "desc": "Jenkins"},
     {"path": "/.github/workflows/", "desc": "GitHub Actions"},
@@ -147,7 +147,7 @@ _KIBANA_PATHS: list[dict[str, str]] = [
     {"path": "/api/status", "desc": "Kibana API status"},
 ]
 
-_DEBUG_PATHS: list[dict[str, str]] = [
+_DEBUG_PATHS_DEFAULT: list[dict[str, str]] = [
     {"path": "/debug/", "desc": "Debug root"},
     {"path": "/debug/vars", "desc": "Debug vars (Go)"},
     {"path": "/debug/pprof/", "desc": "Go pprof"},
@@ -166,6 +166,30 @@ _DEBUG_PATHS: list[dict[str, str]] = [
     {"path": "/_debug/", "desc": "Django debug"},
     {"path": "/__debug__/", "desc": "Django debug toolbar"},
 ]
+
+
+def _load_infra_payloads() -> dict[str, object]:
+    from mytools.data import load_payloads
+
+    return load_payloads(
+        "web",
+        "infra_attack",
+        default={
+            "cicd_paths": _CICD_PATHS_DEFAULT,
+            "debug_paths": _DEBUG_PATHS_DEFAULT,
+        },
+    )
+
+
+def _load_infra_paths(key: str, default: list[dict[str, str]]) -> list[dict[str, str]]:
+    raw = _load_infra_payloads().get(key, default)
+    if not isinstance(raw, list):
+        return default
+    return [{"path": p[0], "desc": p[1]} if isinstance(p, list) else p for p in raw]
+
+
+_CICD_PATHS = _load_infra_paths("cicd_paths", _CICD_PATHS_DEFAULT)
+_DEBUG_PATHS = _load_infra_paths("debug_paths", _DEBUG_PATHS_DEFAULT)
 
 _DEBUG_MODE_SIGNATURES: list[dict[str, str]] = [
     {"pattern": r"X-Debug-Toolbar", "desc": "Django Debug Toolbar"},

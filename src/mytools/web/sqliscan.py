@@ -189,7 +189,7 @@ def _get_injection_params() -> list[str]:
 # DB error patterns
 # ---------------------------------------------------------------------------
 
-_DB_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+_DB_ERROR_PATTERNS_DEFAULT: dict[str, list[re.Pattern[str]]] = {
     "mysql": [
         re.compile(r"You have an error in your SQL syntax", re.I),
         re.compile(r"MySqlException", re.I),
@@ -231,6 +231,28 @@ _DB_ERROR_PATTERNS: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"sqlite3\.OperationalError", re.I),
     ],
 }
+
+
+def _load_db_error_patterns() -> dict[str, list[re.Pattern[str]]]:
+    from mytools.data import load_payloads
+
+    data = load_payloads(
+        "web", "sqli", default={"db_error_patterns": _DB_ERROR_PATTERNS_DEFAULT}
+    )
+    raw = data.get("db_error_patterns", _DB_ERROR_PATTERNS_DEFAULT)
+    if not isinstance(raw, dict):
+        return _DB_ERROR_PATTERNS_DEFAULT
+    compiled: dict[str, list[re.Pattern[str]]] = {}
+    for db_name, pats in raw.items():
+        if not isinstance(pats, list):
+            continue
+        compiled[db_name] = [
+            p if isinstance(p, re.Pattern) else re.compile(p, re.I) for p in pats
+        ]
+    return compiled or _DB_ERROR_PATTERNS_DEFAULT
+
+
+_DB_ERROR_PATTERNS = _load_db_error_patterns()
 
 
 def _detect_db_error(body: bytes) -> str:

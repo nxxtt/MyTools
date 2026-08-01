@@ -105,7 +105,7 @@ def _load_ssrf_params() -> list[str]:
 _URL_PARAMS = _load_ssrf_params()
 
 
-_DETECT_PAYLOADS: list[tuple[str, str, str]] = [
+_DETECT_PAYLOADS_DEFAULT: list[tuple[str, str, str]] = [
     ("localhost_80", "http://127.0.0.1:80", "response"),
     ("localhost_443", "http://127.0.0.1:443", "response"),
     ("localhost_8080", "http://127.0.0.1:8080", "response"),
@@ -128,7 +128,7 @@ _DETECT_PAYLOADS: list[tuple[str, str, str]] = [
 ]
 
 
-_INTERNAL_PAYLOADS: list[tuple[str, str, list[str]]] = [
+_INTERNAL_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
     (
         "internal_mysql",
         "mysql://root:password@127.0.0.1:3306/",
@@ -150,7 +150,7 @@ _INTERNAL_PAYLOADS: list[tuple[str, str, list[str]]] = [
 ]
 
 
-_BYPASS_PAYLOADS: list[tuple[str, str, str]] = [
+_BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, str]] = [
     ("decimal_localhost", "http://2130706433", "response"),
     ("decimal_127", "http://2130706433:80", "response"),
     ("octal_localhost", "http://0177.0.0.1", "response"),
@@ -169,7 +169,7 @@ _BYPASS_PAYLOADS: list[tuple[str, str, str]] = [
 ]
 
 
-_CLOUD_PAYLOADS: list[tuple[str, str, list[str]]] = [
+_CLOUD_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
     (
         "aws_metadata_token",
         "http://169.254.169.254/latest/api/token",
@@ -213,6 +213,22 @@ _CLOUD_PAYLOADS: list[tuple[str, str, list[str]]] = [
     ("digital_ocean", "http://169.254.169.254/metadata/v1/", ["digitalocean"]),
     ("kubernetes", "https://kubernetes.default.svc/api/v1/namespaces", ["metadata"]),
 ]
+
+
+def _load_ssrf_payloads(key: str, default: list[tuple]) -> list[tuple]:
+    from mytools.data import load_payloads
+
+    data = load_payloads("web", "ssrf_detect", default={key: default})
+    raw = data.get(key, default)
+    if not isinstance(raw, list):
+        return default
+    return [tuple(p) if isinstance(p, list) else p for p in raw]
+
+
+_DETECT_PAYLOADS = _load_ssrf_payloads("detect_payloads", _DETECT_PAYLOADS_DEFAULT)
+_INTERNAL_PAYLOADS = _load_ssrf_payloads("internal_payloads", _INTERNAL_PAYLOADS_DEFAULT)
+_BYPASS_PAYLOADS = _load_ssrf_payloads("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)
+_CLOUD_PAYLOADS = _load_ssrf_payloads("cloud_payloads", _CLOUD_PAYLOADS_DEFAULT)
 
 
 _HEADER_PAYLOADS: list[tuple[str, str, str, list[str]]] = [

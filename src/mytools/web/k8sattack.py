@@ -84,7 +84,7 @@ def _load_k8s_paths() -> list[dict[str, Any]]:
 
 _K8S_API_PATHS = _load_k8s_paths()
 
-_DASHBOARD_PATHS: list[dict[str, str]] = [
+_DASHBOARD_PATHS_DEFAULT: list[dict[str, str]] = [
     {
         "path": "/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/",
         "desc": "Dashboard via API proxy",
@@ -109,7 +109,7 @@ _DASHBOARD_PATHS: list[dict[str, str]] = [
     },
 ]
 
-_K8S_AUTH_HEADERS: list[dict[str, str]] = [
+_K8S_AUTH_HEADERS_DEFAULT: list[dict[str, str]] = [
     {},
     {"Authorization": "Bearer "},
     {"Authorization": "Bearer null"},
@@ -117,7 +117,7 @@ _K8S_AUTH_HEADERS: list[dict[str, str]] = [
     {"Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"},
 ]
 
-_K8S_SIGNATURES: list[str] = [
+_K8S_SIGNATURES_DEFAULT: list[str] = [
     "kubectl",
     "kubernetes",
     "kube-",
@@ -129,6 +129,33 @@ _K8S_SIGNATURES: list[str] = [
     "X-Content-Type-Options",
     "X-Kubernetes-Api-Version",
 ]
+
+
+def _load_k8s_extras() -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
+    from mytools.data import load_payloads
+
+    data = load_payloads(
+        "web",
+        "k8s_attack",
+        default={
+            "dashboard_paths": _DASHBOARD_PATHS_DEFAULT,
+            "auth_headers": _K8S_AUTH_HEADERS_DEFAULT,
+            "signatures": _K8S_SIGNATURES_DEFAULT,
+        },
+    )
+    dash = data.get("dashboard_paths", _DASHBOARD_PATHS_DEFAULT)
+    auth = data.get("auth_headers", _K8S_AUTH_HEADERS_DEFAULT)
+    sigs = data.get("signatures", _K8S_SIGNATURES_DEFAULT)
+    return (
+        [{"path": p[0], "desc": p[1]} if isinstance(p, list) else p for p in dash]
+        if isinstance(dash, list)
+        else _DASHBOARD_PATHS_DEFAULT,
+        auth if isinstance(auth, list) else _K8S_AUTH_HEADERS_DEFAULT,
+        sigs if isinstance(sigs, list) else _K8S_SIGNATURES_DEFAULT,
+    )
+
+
+_DASHBOARD_PATHS, _K8S_AUTH_HEADERS, _K8S_SIGNATURES = _load_k8s_extras()
 
 
 @dataclass(frozen=True, slots=True)

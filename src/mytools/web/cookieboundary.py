@@ -158,7 +158,7 @@ def _load_category_map() -> dict[str, list[str]]:
 _CATEGORY_MAP = _load_category_map()
 
 
-_CSRF_COOKIE_NAMES: frozenset[str] = frozenset(
+_CSRF_COOKIE_NAMES_DEFAULT: frozenset[str] = frozenset(
     {
         "csrf_token",
         "_csrf",
@@ -177,7 +177,7 @@ _CSRF_COOKIE_NAMES: frozenset[str] = frozenset(
 )
 
 
-_CSRF_FIELD_NAMES: frozenset[str] = frozenset(
+_CSRF_FIELD_NAMES_DEFAULT: frozenset[str] = frozenset(
     {
         "csrf_token",
         "_csrf",
@@ -194,7 +194,7 @@ _CSRF_FIELD_NAMES: frozenset[str] = frozenset(
 )
 
 
-_COOKIE_PATH_TRAVERSAL_PAYLOADS: list[tuple[str, str, str]] = [
+_COOKIE_PATH_TRAVERSAL_PAYLOADS_DEFAULT: list[tuple[str, str, str]] = [
     ("traversal_url_encoded", "/..%2f", "URL-encoded slash traversal"),
     ("traversal_double_encoded", "/..%252f", "Double-encoded slash traversal"),
     ("traversal_semicolon", "/..;/", "Semicolon bypass"),
@@ -202,6 +202,90 @@ _COOKIE_PATH_TRAVERSAL_PAYLOADS: list[tuple[str, str, str]] = [
     ("traversal_overlong_utf8", "/..%c0%af", "Overlong UTF-8 traversal"),
     ("traversal_tab_injection", "/..%09", "Tab character injection"),
 ]
+
+
+_PUBLIC_SUFFIXES_DEFAULT: frozenset[str] = frozenset(
+    {
+        "com",
+        "org",
+        "net",
+        "edu",
+        "gov",
+        "mil",
+        "int",
+        "co.uk",
+        "co.jp",
+        "co.kr",
+        "co.za",
+        "com.au",
+        "com.br",
+        "com.cn",
+        "com.mx",
+        "com.tw",
+        "org.uk",
+        "net.au",
+    }
+)
+
+
+def _load_cookieboundary_data() -> dict[str, object]:
+    from mytools.data import load_payloads
+
+    return load_payloads(
+        "web",
+        "cookieboundary",
+        default={
+            "csrf_cookie_names": _CSRF_COOKIE_NAMES_DEFAULT,
+            "csrf_field_names": _CSRF_FIELD_NAMES_DEFAULT,
+            "cookie_path_traversal_payloads": _COOKIE_PATH_TRAVERSAL_PAYLOADS_DEFAULT,
+            "public_suffixes": _PUBLIC_SUFFIXES_DEFAULT,
+        },
+    )
+
+
+def _get_str_list(
+    key: str, data: dict[str, object], default: list[str]
+) -> list[str]:
+    raw = data.get(key, default)
+    return raw if isinstance(raw, list) else default
+
+
+def _get_tuple_list(
+    key: str, data: dict[str, object], default: list[tuple[str, str, str]]
+) -> list[tuple[str, str, str]]:
+    raw = data.get(key, default)
+    return raw if isinstance(raw, list) else default
+
+
+_CSRF_COOKIE_NAMES = frozenset(
+    _get_str_list(
+        "csrf_cookie_names",
+        _load_cookieboundary_data(),
+        list(_CSRF_COOKIE_NAMES_DEFAULT),
+    )
+)
+_CSRF_FIELD_NAMES = frozenset(
+    _get_str_list(
+        "csrf_field_names",
+        _load_cookieboundary_data(),
+        list(_CSRF_FIELD_NAMES_DEFAULT),
+    )
+)
+_COOKIE_PATH_TRAVERSAL_PAYLOADS = [
+    tuple(p) if isinstance(p, list) else p
+    for p in _get_tuple_list(
+        "cookie_path_traversal_payloads",
+        _load_cookieboundary_data(),
+        _COOKIE_PATH_TRAVERSAL_PAYLOADS_DEFAULT,
+    )
+]
+_PUBLIC_SUFFIXES = frozenset(
+    _get_str_list(
+        "public_suffixes",
+        _load_cookieboundary_data(),
+        list(_PUBLIC_SUFFIXES_DEFAULT),
+    )
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,28 +544,7 @@ def _extract_target_domain(url: str) -> str:
 def _is_public_suffix(domain: str) -> bool:
     """Verifica se o dominio e um public suffix simplificado."""
 
-    public_suffixes = {
-        "com",
-        "org",
-        "net",
-        "edu",
-        "gov",
-        "mil",
-        "int",
-        "co.uk",
-        "co.jp",
-        "co.kr",
-        "co.za",
-        "com.au",
-        "com.br",
-        "com.cn",
-        "com.mx",
-        "com.tw",
-        "org.uk",
-        "net.au",
-    }
-
-    return domain.lower() in public_suffixes
+    return domain.lower() in _PUBLIC_SUFFIXES
 
 
 def _test_domain_attributes(

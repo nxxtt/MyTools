@@ -29,13 +29,13 @@ api_paths:
   - ["/apis/storage.k8s.io/v1/storageclasses", "StorageClasses"]
 
 dashboard_paths:
-  - ["/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/", "Dashboard proxy"]
-  - ["/api/v1/namespaces/kube-system/services/kubernetes-dashboard:/proxy/", "Dashboard (HTTP)"]
-  - ["/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/", "Dashboard (HTTP alt)"]
-  - ["/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/", "Dashboard (HTTPS)"]
-  - ["/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/login", "Dashboard login"]
-  - ["/api/v1/namespaces/kube-system/services/kubernetes-dashboard:/proxy/#/login", "Dashboard login (HTTP)"]
-  - ["/ui", "Dashboard UI"]
+  - ["/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/", "Dashboard via API proxy"]
+  - ["/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/", "Dashboard via API proxy (HTTP)"]
+  - ["/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/", "Dashboard in kube-system"]
+  - ["/dashboard/", "Dashboard root"]
+  - ["/dashboard/#/login", "Dashboard login"]
+  - ["/api/v1/ namespaces/kubernetes-dashboard/endpoints", "Dashboard endpoints"]
+  - ["/apis/dashboard.k8s.io/v1alpha1/namespaces/kubernetes-dashboard/dashboards", "Dashboard CRD"]
 
 auth_headers:
   - {}
@@ -45,13 +45,13 @@ auth_headers:
   - {"Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"}
 
 signatures:
-  - "Welcome to Kubernetes"
-  - "Kubernetes Dashboard"
-  - "kubernetes-dashboard"
   - "kubectl"
-  - "kube-apiserver"
+  - "kubernetes"
+  - "kube-"
+  - "apiserver"
   - "etcd"
+  - "coredns"
+  - "kube-proxy"
   - "kubelet"
-  - "container-runtime"
-  - "cri-o"
-  - "docker"
+  - "X-Content-Type-Options"
+  - "X-Kubernetes-Api-Version"

@@ -80,7 +80,7 @@ db_error_patterns:
     - "supplied argument is not a valid MySQL"
     - "Warning: mysql"
     - "MySQLSyntaxErrorException"
-    - "com.mysql.jdbc"
+    - "com\\.mysql\\.jdbc"
   postgresql:
     - "PostgreSQL.*ERROR"
     - "PG::SyntaxError"
@@ -95,7 +95,7 @@ db_error_patterns:
     - "Microsoft OLE DB"
     - "Incorrect syntax near"
     - "SqlException"
-    - "System.Data.SqlClient"
+    - "System\\.Data\\.SqlClient"
   oracle:
     - "ORA-[0-9]{4,5}"
     - "Oracle error"
@@ -107,4 +107,4 @@ db_error_patterns:
     - "SQLITE_ERROR"
     - "unrecognized token"
     - "SQLite3::"
-    - "sqlite3.OperationalError"
+    - "sqlite3\\.OperationalError"

@@ -1,98 +1,108 @@
 # CMS Fingerprinting signatures
 # Used by cmsfingerprint.py for active CMS detection
 
-wordpress:
-  detect_paths:
-    - /wp-login.php
-    - /wp-admin/
-    - /wp-includes/
-  version_paths:
-    - /readme.html
-    - /feed/
-    - /wp-includes/version.php
-  plugins:
-    - akismet
-    - contact-form-7
-    - wordfence
-    - yoast-seo
-    - woocommerce
-    - elementor
-    - jetpack
-    - updraftplus
-    - really-simple-ssl
-    - classic-editor
-    - wpforms-lite
-    - limit-login-attempts-reloaded
-    - google-site-kit
-    - query-monitor
-  themes:
-    - twentytwentythree
-    - twentytwentytwo
-    - twentytwentyone
-    - astra
-    - generatepress
-    - oceanwp
-    - flatsome
-    - avada
-    - divi
-    - neve
-  user_paths:
-    - /?author=1
-    - /wp-json/wp/v2/users
-    - /xmlrpc.php
+category_map:
+  cms_detect:
+    - cms_identify
+  wp_version:
+    - wp_version_probe
+  wp_plugins:
+    - wp_plugin_probe
+  wp_themes:
+    - wp_theme_probe
+  wp_users:
+    - wp_user_enum
+  joomla_info:
+    - joomla_version_probe
 
-joomla:
-  detect_paths:
-    - /administrator/
-    - /configuration.php
-    - /components/
-  version_paths:
-    - /language/en-GB/en-GB.xml
-    - /administrator/manifests/files/joomla.xml
-  third_party_extensions:
-    - com_hikashop
-    - com_jce
-    - com_seoboss
-    - com_sh404sef
-    - com_acymailing
-    - com_k2
-    - com_virtuemart
-    - mod_jumi
-    - mod_flippingbook
-
-drupal:
-  detect_paths:
-    - /core/
-    - /sites/default/
-    - /CHANGELOG.txt
-  version_paths:
-    - /core/CHANGELOG.txt
-    - /core/install.php
-  modules:
-    - views
-    - pathauto
-    - token
-    - entityreference
-    - webform
-
-magento:
-  detect_paths:
-    - /magento_version
-    - /skin/frontend/
-    - /pub/static/
-  version_paths:
-    - /magento_version
-
-prestashop:
-  detect_paths:
-    - /admin-dev/
-    - /themes/
-    - /modules/
-  version_paths:
-    - /install-dev/install_version.php
-
-opencart:
-  detect_paths:
-    - /admin/
-    - /catalog/
-    - /system/
+cms_signatures:
+  wordpress:
+    detect_paths:
+      - /wp-login.php
+      - /wp-admin/
+      - /wp-includes/
+    version_paths:
+      - /readme.html
+      - /feed/
+      - /wp-includes/version.php
+    plugins:
+      - akismet
+      - contact-form-7
+      - wordfence
+      - yoast-seo
+      - woocommerce
+      - elementor
+      - jetpack
+      - updraftplus
+      - really-simple-ssl
+      - classic-editor
+      - wpforms-lite
+      - limit-login-attempts-reloaded
+      - google-site-kit
+      - query-monitor
+    themes:
+      - twentytwentythree
+      - twentytwentytwo
+      - twentytwentyone
+      - astra
+      - generatepress
+      - oceanwp
+      - flatsome
+      - avada
+      - divi
+      - neve
+    user_paths:
+      - /?author=1
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+  joomla:
+    detect_paths:
+      - /administrator/
+      - /configuration.php
+      - /components/
+    version_paths:
+      - /language/en-GB/en-GB.xml
+      - /administrator/manifests/files/joomla.xml
+    third_party_extensions:
+      - com_hikashop
+      - com_jce
+      - com_seoboss
+      - com_sh404sef
+      - com_acymailing
+      - com_k2
+      - com_virtuemart
+      - mod_jumi
+      - mod_flippingbook
+  drupal:
+    detect_paths:
+      - /core/
+      - /sites/default/
+      - /CHANGELOG.txt
+    version_paths:
+      - /core/CHANGELOG.txt
+      - /core/install.php
+    modules:
+      - views
+      - pathauto
+      - token
+      - entityreference
+      - webform
+  magento:
+    detect_paths:
+      - /magento_version
+      - /skin/frontend/
+      - /pub/static/
+    version_paths:
+      - /magento_version
+  prestashop:
+    detect_paths:
+      - /admin-dev/
+      - /themes/
+      - /modules/
+    version_paths:
+      - /install-dev/install_version.php
+  opencart:
+    detect_paths:
+      - /admin/
+      - /catalog/
+      - /system/

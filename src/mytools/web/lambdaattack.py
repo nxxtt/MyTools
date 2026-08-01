@@ -72,7 +72,7 @@ _LAYER_ARN_PATTERN: re.Pattern[str] = re.compile(
     r"arn:aws:lambda:[a-z0-9-]+:\d{12}:layer:[a-zA-Z0-9_-]+:\d+"
 )
 
-_LAMBDA_ERROR_SIGNATURES: list[str] = [
+_LAMBDA_ERROR_SIGNATURES_DEFAULT: list[str] = [
     "Traceback (most recent call last)",
     "RuntimeError",
     "Type error",
@@ -97,6 +97,24 @@ _LAMBDA_ERROR_SIGNATURES: list[str] = [
     "/var/task",
     "Unable to import module",
 ]
+
+
+def _load_lambda_error_signatures() -> list[str]:
+    from mytools.data import load_payloads
+
+    data = load_payloads(
+        "web",
+        "lambda_attack",
+        default={
+            "env_var_patterns": _ENV_VAR_PATTERNS_DEFAULT,
+            "error_signatures": _LAMBDA_ERROR_SIGNATURES_DEFAULT,
+        },
+    )
+    raw = data.get("error_signatures", _LAMBDA_ERROR_SIGNATURES_DEFAULT)
+    return raw if isinstance(raw, list) else _LAMBDA_ERROR_SIGNATURES_DEFAULT
+
+
+_LAMBDA_ERROR_SIGNATURES = _load_lambda_error_signatures()
 
 
 @dataclass(frozen=True, slots=True)
