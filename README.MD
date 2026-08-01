@@ -1764,7 +1764,15 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 ```bash
 mytools
 ```
-O menu oferece opções numéricas ou palavras-chave: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `lfi`, `rtlo`, `overlong`, `cmd`, `bominject`, `charsetbypass`, `csrf`, `sqli`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `bruteforce`, `bucket`, `subtakeover`, `batch`, `restfuzz`, `analysis`, `cred`, `reconall`.
+O menu é gerado dinamicamente a partir dos entry points instalados e cobre **todas as 112 ferramentas** em 10 categorias (CONFIG, CORE, DNS, EMAIL, MOBILE, NETWORK, OSINT, VCS, WEB, WHOIS):
+
+1. Nível 1 — escolha uma categoria pelo número ou nome.
+2. Nível 2 — os módulos da categoria, paginados (10 por página). Navegue com `n` (próxima) e `p` (anterior); `0` volta às categorias; `q` sai.
+3. Em qualquer nível, digite o nome do módulo, o script (`mytools-cmd`) ou um alias para abrir a ferramenta direto.
+
+Aliases disponíveis: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `lfi`, `rtlo`, `overlong`, `cmd`, `bominject`, `charsetbypass`, `csrf`, `sqli`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `bruteforce`, `bucket`, `subtakeover`, `batch`, `restfuzz`, `analysis`, `cred`, `reconall`.
+
+Ao sair de uma ferramenta (`exit`) você sempre volta à seleção de categorias.
 
 ### Modo interativo
 Cada módulo possui um shell interativo. Dentro dele, digite os argumentos normalmente:
