@@ -165,11 +165,12 @@ Isso instala os comandos CLI:
 | `mytools-analysis` | Attack Path Visualization & Exploit Suggestions |
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
+| `mytools-report` | HTML Report Generator (findings, timeline, diff) |
 
 > **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
 
 ### Execução direta (sem instalar)
-Todos os 113 módulos podem ser executados via `python -m`:
+Todos os 114 módulos podem ser executados via `python -m`:
 ```bash
 python -m mytools.core.main                  # Painel unificado
 python -m mytools.web.attackaudit --help     # Ajuda individual
@@ -182,7 +183,7 @@ python -m mytools.mobile.mobile_audit --help # Mobile API Testing
 # Build
 docker build -t mytools .
 
-# Subcomando direto (113 comandos disponíveis)
+# Subcomando direto (114 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -1429,6 +1430,27 @@ mytools-depscan https://example.com -o deps.json
 - `cve_check` — Verificar CVEs conhecidas (database offline)
 - `outdated_check` — Verificar versoes desatualizadas
 
+### 114. HTML Report Generator (`mytools-report`)
+Gera um relatorio HTML a partir dos scans JSON do MyTools — findings, severidade, evidencias, timeline e **diff entre scans** do mesmo host.
+
+```bash
+mytools-report -d outputs/                          # Workspace de scan
+mytools-report -d outputs/ --diff --title "Auditoria Q3"
+mytools-report -f scan.json --tool charsetbypass -o relatorio.html
+mytools-report -f a.json -f b.json --diff           # Diff entre 2 scans
+mytools-report -d outputs/ --json                   # Dados normalizados (debug)
+```
+
+**Flags:**
+- `-f`, `--file` — Arquivo(s) JSON de scan (pode repetir)
+- `-d`, `--dir` — Diretorio de workspace (`outputs/<host>/<ts>.json`), recursivo
+- `-o`, `--output` — Arquivo HTML de saida (default: `report.html`)
+- `--title` — Titulo do relatorio
+- `--tool` — Nome da ferramenta que gerou os scans (opcional)
+- `--diff` — Diff entre os 2 scans mais recentes de cada host (added/removed/unchanged)
+
+O diff compara findings por fingerprint (multiset), mostrando vulnerabilidades novas (Added), corrigidas (Removed) e inalteradas (Unchanged) entre scans consecutivos.
+
 ---
 
 ## Flags
@@ -1764,7 +1786,7 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 ```bash
 mytools
 ```
-O menu é gerado dinamicamente a partir dos entry points instalados e cobre **todas as 112 ferramentas** em 10 categorias (CONFIG, CORE, DNS, EMAIL, MOBILE, NETWORK, OSINT, VCS, WEB, WHOIS):
+O menu é gerado dinamicamente a partir dos entry points instalados e cobre **todas as 113 ferramentas** em 10 categorias (CONFIG, CORE, DNS, EMAIL, MOBILE, NETWORK, OSINT, VCS, WEB, WHOIS):
 
 1. Nível 1 — escolha uma categoria pelo número ou nome.
 2. Nível 2 — os módulos da categoria, paginados (10 por página). Navegue com `n` (próxima) e `p` (anterior); `0` volta às categorias; `q` sai.
@@ -2179,9 +2201,10 @@ uv lock                  # Atualizar o lockfile
 - `thriftpy2>=0.6.0` — Thrift protocol (RPC, deserialization)
 - `curl-cffi>=0.15.0` — TLS fingerprint impersonation (Chrome, Firefox, Safari, Edge)
 - `httpx-socks[asyncio]>=0.11.0` — Tor SOCKS5 proxy (async)
-- `androguard[full]>=4.1.4` — Análise de APK (metadata, DEX, decompilação)
+- `androguard>=4.1.4` — Análise de APK (metadata, DEX, decompilação)
 - `lief>=1.0.0` — Parsing de Mach-O (IPA, rpaths, imports/exports)
 - `tqdm>=4.70.0` — Barras de progresso nos scanners
+- `jinja2>=3.1.6` — Template engine (mytools-report)
 
 ### Dev
 - `pytest>=9.1.1` — Framework de testes

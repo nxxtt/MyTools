@@ -60,6 +60,7 @@ _DISPLAY_NAMES = {
     "batch": "Batch Runner",
     "cred": "Credential Checker",
     "reconall": "Full Recon",
+    "report": "HTML Report",
     # DNS
     "caacheck": "CAA Check",
     "dnsamplification": "DNS Amplification",

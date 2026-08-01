@@ -30,6 +30,7 @@ dependencies = [
     "androguard>=4.1.4",
     "lief>=1.0.0",
     "tqdm>=4.70.0",
+    "jinja2>=3.1.6",
 ]
 [dependency-groups]
 dev = [
@@ -155,6 +156,7 @@ mytools-restfuzz = "mytools.web.restapifuzz:main"
 mytools-mobile = "mytools.mobile.mobile_audit:main"
 mytools-depscan = "mytools.web.depscanner:main"
 mytools-cmsfp = "mytools.web.cmsfingerprint:main"
+mytools-report = "mytools.core.report:main"
 
 [tool.uv]
 required-version = "0.12.1"

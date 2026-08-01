@@ -1,6 +1,6 @@
 """Testes do menu dinamico (mytools.core.main).
 
-Cobre: descoberta via entry points (112 tools), categorias, paginacao,
+Cobre: descoberta via entry points (113 tools), categorias, paginacao,
 navegacao de 2 niveis, dispatch por numero/nome/alias, --version,
 importabilidade e unicidade de aliases.
 """
@@ -54,7 +54,7 @@ def fake_run(monkeypatch):
 class TestLoadTools:
     def test_112_tools_from_entry_points(self):
         tools = _load_tools()
-        assert len(tools) == 112
+        assert len(tools) == 113
 
     def test_matches_pyproject_scripts(self):
         eps = im.entry_points(group="console_scripts")
@@ -68,7 +68,7 @@ class TestLoadTools:
         by_cat = _tools_by_category()
         assert set(by_cat) == set(_CATEGORY_ORDER)
         assert len(by_cat["config"]) == 2
-        assert len(by_cat["core"]) == 3
+        assert len(by_cat["core"]) == 4
         assert len(by_cat["dns"]) == 12
         assert len(by_cat["email"]) == 8
         assert len(by_cat["mobile"]) == 1
