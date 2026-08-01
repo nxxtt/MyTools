@@ -1,5 +1,7 @@
 import argparse
+import asyncio
 import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -7,6 +9,7 @@ from mytools.web.openapidiscovery import (
     DEFAULT_PATHS,
     ApiSpecInfo,
     EndpointInfo,
+    _async_run_once,
     _load_paths_from_args,
     _parse_openapi_v2,
     _parse_openapi_v3,
@@ -347,6 +350,56 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args(["--header", "X-Custom: yes", "http://x.com"])
         assert args.header == ["X-Custom: yes"]
+
+
+# ── Flags comuns (add_common_args) ───────────────────────────────────────────
+
+
+@pytest.mark.smoke
+class TestCommonFlags:
+    def test_has_json(self):
+        parser = build_parser()
+        args = parser.parse_args(["--json", "http://x.com"])
+        assert args.json_output is True
+
+    def test_has_quiet(self):
+        parser = build_parser()
+        args = parser.parse_args(["--quiet", "http://x.com"])
+        assert args.quiet is True
+
+    def test_has_theme(self):
+        parser = build_parser()
+        args = parser.parse_args(["--theme", "solarized", "http://x.com"])
+        assert args.theme == "solarized"
+
+    def test_has_random_delay(self):
+        parser = build_parser()
+        args = parser.parse_args(["--random-delay", "http://x.com"])
+        assert args.random_delay is True
+
+
+# ── Saida --json ─────────────────────────────────────────────────────────────
+
+
+class TestJsonOutput:
+    def test_json_output_is_valid(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="openapi",
+            title="Test API",
+            version="1.0",
+        )
+        args = build_parser().parse_args(["--json", "-q", "http://x.com"])
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(capsys.readouterr().out)
+        assert isinstance(data, list)
+        assert data[0]["title"] == "Test API"
 
 
 class TestParseSpecEdgeCases:

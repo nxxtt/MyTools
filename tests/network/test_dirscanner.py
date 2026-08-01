@@ -1,6 +1,7 @@
 import argparse
 import asyncio
-from unittest.mock import patch
+import json
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -765,3 +766,51 @@ class TestMain:
         ):
             result = main()
             assert result == 1
+
+
+# ── Flags comuns (add_common_args) ───────────────────────────────────────────
+
+
+@pytest.mark.smoke
+class TestCommonFlags:
+    def test_has_json(self):
+        args = build_parser().parse_args(["--json", "http://x.com"])
+        assert args.json_output is True
+
+    def test_has_quiet(self):
+        args = build_parser().parse_args(["--quiet", "http://x.com"])
+        assert args.quiet is True
+
+    def test_has_theme(self):
+        args = build_parser().parse_args(["--theme", "solarized", "http://x.com"])
+        assert args.theme == "solarized"
+
+    def test_has_random_delay(self):
+        args = build_parser().parse_args(["--random-delay", "http://x.com"])
+        assert args.random_delay is True
+
+
+# ── Saida --json ─────────────────────────────────────────────────────────────
+
+
+class TestJsonOutput:
+    def test_json_output_is_valid(self, capsys):
+        finding = Finding(
+            url="http://x.com/admin",
+            path="/admin",
+            status=200,
+            size=1234,
+            words=100,
+            title="Admin",
+        )
+        args = build_parser().parse_args(["--json", "-q", "http://x.com"])
+        with patch(
+            "mytools.network.dirscanner.scan_target",
+            new=AsyncMock(return_value=[finding]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(capsys.readouterr().out)
+        assert isinstance(data, list)
+        assert data[0]["path"] == "/admin"

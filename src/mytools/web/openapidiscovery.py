@@ -30,8 +30,7 @@ from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_base_args,
-    add_http_args,
+    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -40,6 +39,7 @@ from mytools.core.utils import (
     header_get,
     init_scanner,
     normalize_url,
+    print_json,
     print_table,
     resolve_target_urls,
     run_main_loop,
@@ -554,8 +554,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Descoberta de specs OpenAPI/Swagger expostas em alvos HTTP.",
     )
-    add_base_args(parser)
-    add_http_args(parser)
+    add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
     parser.add_argument(
         "-l",
@@ -637,7 +636,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             retries=args.retries,
         )
 
-        if not quiet:
+        if getattr(args, "json_output", False):
+            print_json([asdict(s) for s in specs])
+        elif not quiet:
             print_api_summary(specs)
             if args.show_endpoints:
                 for spec in specs:
@@ -666,7 +667,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
                 quiet=quiet,
             )
 
-    if args.output:
+    if getattr(args, "json_output", False):
+        print_json([asdict(s) for s in all_specs])
+    elif args.output:
         write_output(
             args.output,
             [asdict(s) for s in all_specs],

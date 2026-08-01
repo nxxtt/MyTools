@@ -30,14 +30,15 @@ from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_base_args,
-    add_http_args,
+    add_common_args,
     color,
     create_async_client,
     create_banner,
+    ensure_output_dir,
     fetch,
     init_scanner,
     print_exploit_info,
+    print_json,
     print_table,
     run_main_loop,
     safe_asyncio_run,
@@ -436,8 +437,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Verificacao de vazamentos de emails (Email Breach Check).",
     )
-    add_base_args(parser)
-    add_http_args(parser)
+    add_common_args(parser)
     parser.add_argument("emails", nargs="*", help="Email(s) para consultar.")
     parser.add_argument(
         "-f", "--file", dest="email_file", help="Arquivo com emails (um por linha)."
@@ -519,8 +519,27 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         requests_per_second=args.delay,
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json([asdict(b) for b in breaches])
+    elif not quiet:
         print_results(breaches)
+
+    if getattr(args, "output_dir", None):
+        out_path = f"{args.output_dir}/emails.json"
+        ensure_output_dir(args.output_dir)
+        write_output(
+            out_path,
+            [asdict(b) for b in breaches],
+            [
+                "email",
+                "breach_name",
+                "breach_date",
+                "pwn_count",
+                "data_classes",
+                "source",
+            ],
+            quiet=quiet,
+        )
 
     if args.output:
         write_output(

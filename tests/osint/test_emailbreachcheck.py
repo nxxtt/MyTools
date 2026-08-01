@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Breach Check."""
 
+import asyncio
+import json
+from unittest.mock import AsyncMock, patch
+
 import httpx
 import pytest
 import respx
@@ -8,6 +12,7 @@ import respx
 from mytools.core.utils import RateLimiter
 from mytools.osint.emailbreachcheck import (
     EmailBreach,
+    _async_run_once,
     _classify_severity,
     _dedup_breaches,
     _load_emails,
@@ -482,3 +487,78 @@ async def test_check_breaches_dedup_across_sources():
         )
         linkedin = [b for b in breaches if b.breach_name == "LinkedIn"]
         assert len(linkedin) == 1
+
+
+# ── Flags comuns (add_common_args) ───────────────────────────────────────────
+
+
+@pytest.mark.smoke
+class TestCommonFlags:
+    def test_has_json(self):
+        args = build_parser().parse_args(["--json", "a@b.com"])
+        assert args.json_output is True
+
+    def test_has_quiet(self):
+        args = build_parser().parse_args(["--quiet", "a@b.com"])
+        assert args.quiet is True
+
+    def test_has_theme(self):
+        args = build_parser().parse_args(["--theme", "solarized", "a@b.com"])
+        assert args.theme == "solarized"
+
+    def test_has_random_delay(self):
+        args = build_parser().parse_args(["--random-delay", "a@b.com"])
+        assert args.random_delay is True
+
+
+# ── Saida --json ─────────────────────────────────────────────────────────────
+
+
+class TestJsonOutput:
+    def test_json_output_is_valid(self, capsys):
+        breach = EmailBreach(
+            email="a@b.com",
+            breach_name="LinkedIn",
+            breach_date="2012-05-05",
+            pwn_count=164000000,
+            data_classes="passwords,emails",
+            source="hibp",
+        )
+        args = build_parser().parse_args(["--json", "-q", "a@b.com"])
+        with patch(
+            "mytools.osint.emailbreachcheck.check_breaches",
+            new=AsyncMock(return_value=[breach]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        data = json.loads(capsys.readouterr().out)
+        assert isinstance(data, list)
+        assert data[0]["email"] == "a@b.com"
+
+
+# ── Saida --output-dir ───────────────────────────────────────────────────────
+
+
+class TestOutputDir:
+    def test_creates_file(self, tmp_path):
+        breach = EmailBreach(
+            email="a@b.com",
+            breach_name="LinkedIn",
+            breach_date="2012-05-05",
+            pwn_count=164000000,
+            data_classes="passwords,emails",
+            source="hibp",
+        )
+        args = build_parser().parse_args(
+            ["--output-dir", str(tmp_path), "-q", "a@b.com"]
+        )
+        with patch(
+            "mytools.osint.emailbreachcheck.check_breaches",
+            new=AsyncMock(return_value=[breach]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out_file = tmp_path / "emails.json"
+        assert out_file.exists()
+        data = json.loads(out_file.read_text(encoding="utf-8"))
+        assert data[0]["breach_name"] == "LinkedIn"

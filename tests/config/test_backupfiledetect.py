@@ -2,6 +2,9 @@
 """Testes unitarios do modulo de deteccao de backup files."""
 
 import argparse
+import asyncio
+import json
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -17,6 +20,7 @@ from mytools.config.backupfiledetect import (
     SWP_PATHS,
     TILDE_PATHS,
     BackupFile,
+    _async_run_once,
     _classify_backup,
     _load_paths_from_args,
     _validate_content,
@@ -530,3 +534,41 @@ async def test_scan_backups_head_405_followed_by_get():
             user_agent="test/1.0",
         )
         assert any(b.path == "config.php.bak" for b in backups)
+
+
+@pytest.mark.smoke
+class TestCommonFlags:
+    def test_has_json(self):
+        args = build_parser().parse_args(["--json", "http://x.com"])
+        assert args.json_output is True
+
+    def test_has_quiet(self):
+        args = build_parser().parse_args(["--quiet", "http://x.com"])
+        assert args.quiet is True
+
+    def test_has_theme(self):
+        args = build_parser().parse_args(["--theme", "solarized", "http://x.com"])
+        assert args.theme == "solarized"
+
+    def test_has_random_delay(self):
+        args = build_parser().parse_args(["--random-delay", "http://x.com"])
+        assert args.random_delay is True
+
+
+class TestJsonOutput:
+    def test_json_output_is_valid(self, capsys):
+        backup = BackupFile(
+            backup_type="bak", url="http://x.com/c.php.bak", path="c.php.bak"
+        )
+        args = build_parser().parse_args(["--json", "-q", "http://x.com"])
+        with patch(
+            "mytools.config.backupfiledetect.scan_backups",
+            new=AsyncMock(return_value=[backup]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        captured = capsys.readouterr().out
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(captured)
+        assert isinstance(data, list)
+        assert data[0]["path"] == "c.php.bak"

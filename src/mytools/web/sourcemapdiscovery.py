@@ -30,8 +30,7 @@ from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_base_args,
-    add_http_args,
+    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -41,6 +40,7 @@ from mytools.core.utils import (
     init_scanner,
     normalize_url,
     print_exploit_info,
+    print_json,
     print_table,
     resolve_target_urls,
     run_main_loop,
@@ -434,8 +434,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Descoberta de source maps de JavaScript expostos.",
     )
-    add_base_args(parser)
-    add_http_args(parser)
+    add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
     parser.add_argument(
         "-l",
@@ -518,7 +517,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             retries=args.retries,
         )
 
-        if not quiet:
+        if getattr(args, "json_output", False):
+            print_json([asdict(m) for m in maps])
+        elif not quiet:
             print_results(maps)
             if args.show_sources:
                 print_sources_detail(maps)
@@ -543,7 +544,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
                 quiet=quiet,
             )
 
-    if args.output:
+    if getattr(args, "json_output", False):
+        print_json([asdict(m) for m in all_maps])
+    elif args.output:
         write_output(
             args.output,
             [asdict(m) for m in all_maps],

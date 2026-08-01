@@ -26,8 +26,7 @@ from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_base_args,
-    add_http_args,
+    add_common_args,
     apply_session_auth,
     color,
     create_async_client,
@@ -421,8 +420,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Deteccao de controle de versao (.git, .svn, .hg) exposto em servidores web.",
     )
-    add_base_args(parser)
-    add_http_args(parser)
+    add_common_args(parser)
     parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
     parser.add_argument(
         "-l",

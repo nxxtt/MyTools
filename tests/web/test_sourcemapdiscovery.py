@@ -1,11 +1,14 @@
 import argparse
+import asyncio
 import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from mytools.web.sourcemapdiscovery import (
     DEFAULT_SCRIPT_PATHS,
     SourceMapInfo,
+    _async_run_once,
     _load_paths_from_args,
     build_map_urls,
     build_parser,
@@ -323,3 +326,48 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args(["http://x.com"])
         assert args.paths == 0
+
+
+# ── Flags comuns (add_common_args) ───────────────────────────────────────────
+
+
+@pytest.mark.smoke
+class TestCommonFlags:
+    def test_has_json(self):
+        parser = build_parser()
+        args = parser.parse_args(["--json", "http://x.com"])
+        assert args.json_output is True
+
+    def test_has_quiet(self):
+        parser = build_parser()
+        args = parser.parse_args(["--quiet", "http://x.com"])
+        assert args.quiet is True
+
+    def test_has_theme(self):
+        parser = build_parser()
+        args = parser.parse_args(["--theme", "solarized", "http://x.com"])
+        assert args.theme == "solarized"
+
+    def test_has_random_delay(self):
+        parser = build_parser()
+        args = parser.parse_args(["--random-delay", "http://x.com"])
+        assert args.random_delay is True
+
+
+# ── Saida --json ─────────────────────────────────────────────────────────────
+
+
+class TestJsonOutput:
+    def test_json_output_is_valid(self, capsys):
+        info = SourceMapInfo(url="http://x.com/app.js.map", status=200)
+        args = build_parser().parse_args(["--json", "-q", "http://x.com"])
+        with patch(
+            "mytools.web.sourcemapdiscovery.scan_sourcemaps",
+            new=AsyncMock(return_value=[info]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(capsys.readouterr().out)
+        assert isinstance(data, list)
+        assert data[0]["url"] == "http://x.com/app.js.map"

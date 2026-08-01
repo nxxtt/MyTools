@@ -17,8 +17,12 @@ import yaml
 SRC_DIR = pathlib.Path(__file__).resolve().parents[2] / "src" / "mytools"
 DATA_DIR = SRC_DIR / "data"
 
-_LOAD_PAYLOAD_RE = re.compile(r'load_payloads\(\s*["\'](?P<module>[^"\']+)["\']\s*,\s*["\'](?P<stem>[^"\']+)["\']')
-_GET_KEY_RE = re.compile(r'(?:get|_get_str_list|_get_tuple_list)\(\s*["\'](?P<key>[^"\']+)["\']')
+_LOAD_PAYLOAD_RE = re.compile(
+    r'load_payloads\(\s*["\'](?P<module>[^"\']+)["\']\s*,\s*["\'](?P<stem>[^"\']+)["\']'
+)
+_GET_KEY_RE = re.compile(
+    r'(?:get|_get_str_list|_get_tuple_list)\(\s*["\'](?P<key>[^"\']+)["\']'
+)
 _SUBSCRIPT_KEY_RE = re.compile(r'\[["\'](?P<key>[^"\']+)["\']\]')
 _LOADER_CALL_RE = re.compile(r'_(?:load|get)\w*\(\s*["\'](?P<key>[^"\']+)["\']')
 
@@ -40,17 +44,25 @@ def _consumers(stem: str) -> list[pathlib.Path]:
     return consumers
 
 
-@pytest.mark.parametrize("yaml_path", _yaml_files(), ids=lambda p: p.relative_to(DATA_DIR).as_posix())
+@pytest.mark.parametrize(
+    "yaml_path", _yaml_files(), ids=lambda p: p.relative_to(DATA_DIR).as_posix()
+)
 def test_yaml_has_consumer(yaml_path: pathlib.Path) -> None:
     consumers = _consumers(yaml_path.stem)
-    assert consumers, f"YAML sem consumidor via load_payloads: {yaml_path.relative_to(DATA_DIR)}"
+    assert consumers, (
+        f"YAML sem consumidor via load_payloads: {yaml_path.relative_to(DATA_DIR)}"
+    )
 
 
-@pytest.mark.parametrize("yaml_path", _yaml_files(), ids=lambda p: p.relative_to(DATA_DIR).as_posix())
+@pytest.mark.parametrize(
+    "yaml_path", _yaml_files(), ids=lambda p: p.relative_to(DATA_DIR).as_posix()
+)
 def test_every_key_is_read(yaml_path: pathlib.Path) -> None:
     data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
     consumers = _consumers(yaml_path.stem)
-    assert consumers, f"YAML sem consumidor via load_payloads: {yaml_path.relative_to(DATA_DIR)}"
+    assert consumers, (
+        f"YAML sem consumidor via load_payloads: {yaml_path.relative_to(DATA_DIR)}"
+    )
     consumer_text = "\n".join(p.read_text(encoding="utf-8") for p in consumers)
     read_keys = {m.group("key") for m in _GET_KEY_RE.finditer(consumer_text)}
     read_keys |= {m.group("key") for m in _SUBSCRIPT_KEY_RE.finditer(consumer_text)}

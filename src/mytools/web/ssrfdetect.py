@@ -226,7 +226,9 @@ def _load_ssrf_payloads(key: str, default: list[tuple]) -> list[tuple]:
 
 
 _DETECT_PAYLOADS = _load_ssrf_payloads("detect_payloads", _DETECT_PAYLOADS_DEFAULT)
-_INTERNAL_PAYLOADS = _load_ssrf_payloads("internal_payloads", _INTERNAL_PAYLOADS_DEFAULT)
+_INTERNAL_PAYLOADS = _load_ssrf_payloads(
+    "internal_payloads", _INTERNAL_PAYLOADS_DEFAULT
+)
 _BYPASS_PAYLOADS = _load_ssrf_payloads("bypass_payloads", _BYPASS_PAYLOADS_DEFAULT)
 _CLOUD_PAYLOADS = _load_ssrf_payloads("cloud_payloads", _CLOUD_PAYLOADS_DEFAULT)
 

@@ -31,14 +31,16 @@ from mytools.core.utils import (
     FetchError,
     RateLimiter,
     __version__,
-    add_base_args,
-    add_http_args,
+    add_common_args,
     color,
     create_async_client,
     create_banner,
+    ensure_output_dir,
+    extract_hostname,
     fetch,
     init_scanner,
     print_exploit_info,
+    print_json,
     print_table,
     read_target_lines,
     run_main_loop,
@@ -455,8 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Google Dorking e OSINT search — gera dorks e busca via DuckDuckGo.",
     )
-    add_base_args(parser)
-    add_http_args(parser)
+    add_common_args(parser)
     parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
     parser.add_argument(
         "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
@@ -536,8 +537,21 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         if not queries:
             logger.warning("DuckDuckGo: 0 resultados — classes CSS podem ter mudado")
 
-        if not quiet:
+        if getattr(args, "json_output", False):
+            print_json([asdict(q) for q in queries])
+        elif not quiet:
             print_results(queries, quiet=quiet)
+
+        if getattr(args, "output_dir", None):
+            hostname = extract_hostname(domain)
+            out_path = f"{args.output_dir}/{hostname}.json"
+            ensure_output_dir(args.output_dir)
+            write_output(
+                out_path,
+                [asdict(q) for q in queries],
+                ["category", "dork", "full_query", "google_url", "ddg_url", "results"],
+                quiet=quiet,
+            )
 
         if args.output:
             write_output(

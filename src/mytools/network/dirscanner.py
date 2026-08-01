@@ -31,6 +31,7 @@ from mytools.core.utils import (
     normalize_url,
     parse_extra_headers,
     parse_int_range,
+    print_json,
     print_table,
     read_target_lines,
     resolve_target_urls,
@@ -607,7 +608,9 @@ async def _run_single(
         words_range=args.filter_words,
         retries=args.retries,
     )
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json([asdict(f) for f in findings])
+    elif not quiet:
         print_dir_table(findings)
     return findings
 
@@ -667,7 +670,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
                 quiet=quiet,
             )
 
-    if args.output:
+    if getattr(args, "json_output", False):
+        print_json([asdict(f) for f in all_findings])
+    elif args.output:
         write_output(
             args.output,
             [asdict(f) for f in all_findings],

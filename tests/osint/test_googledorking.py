@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Google Dorking."""
 
+import asyncio
+import json
+from unittest.mock import AsyncMock, patch
+
 import httpx
 import pytest
 import respx
@@ -9,6 +13,7 @@ from mytools.osint.googledorking import (
     ALL_CATEGORIES,
     FILETYPE_DORKS,
     DorkQuery,
+    _async_run_once,
     _build_ddg_url,
     _build_full_query,
     _build_google_url,
@@ -391,3 +396,78 @@ async def test_scan_dorks_custom_dorks():
     custom = [q for q in queries if q.category == "custom"]
     assert len(custom) == 1
     assert "inurl:secret" in custom[0].dork
+
+
+# ── Flags comuns (add_common_args) ───────────────────────────────────────────
+
+
+@pytest.mark.smoke
+class TestCommonFlags:
+    def test_has_json(self):
+        args = build_parser().parse_args(["--json", "ex.com"])
+        assert args.json_output is True
+
+    def test_has_quiet(self):
+        args = build_parser().parse_args(["--quiet", "ex.com"])
+        assert args.quiet is True
+
+    def test_has_theme(self):
+        args = build_parser().parse_args(["--theme", "solarized", "ex.com"])
+        assert args.theme == "solarized"
+
+    def test_has_random_delay(self):
+        args = build_parser().parse_args(["--random-delay", "ex.com"])
+        assert args.random_delay is True
+
+
+# ── Saida --json ─────────────────────────────────────────────────────────────
+
+
+class TestJsonOutput:
+    def test_json_output_is_valid(self, capsys):
+        query = DorkQuery(
+            category="filetype",
+            dork="filetype:pdf",
+            full_query="site:ex.com filetype:pdf",
+            google_url="https://google.com/",
+            ddg_url="https://ddg.co/",
+            results=[],
+        )
+        args = build_parser().parse_args(["--json", "-q", "ex.com"])
+        with patch(
+            "mytools.osint.googledorking.scan_dorks",
+            new=AsyncMock(return_value=[query]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        data = json.loads(capsys.readouterr().out)
+        assert isinstance(data, list)
+        assert data[0]["dork"] == "filetype:pdf"
+
+
+# ── Saida --output-dir ───────────────────────────────────────────────────────
+
+
+class TestOutputDir:
+    def test_creates_file(self, tmp_path):
+        query = DorkQuery(
+            category="filetype",
+            dork="filetype:pdf",
+            full_query="site:ex.com filetype:pdf",
+            google_url="https://google.com/",
+            ddg_url="https://ddg.co/",
+            results=[],
+        )
+        args = build_parser().parse_args(
+            ["--output-dir", str(tmp_path), "-q", "ex.com"]
+        )
+        with patch(
+            "mytools.osint.googledorking.scan_dorks",
+            new=AsyncMock(return_value=[query]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out_file = tmp_path / "ex.com.json"
+        assert out_file.exists()
+        data = json.loads(out_file.read_text(encoding="utf-8"))
+        assert data[0]["dork"] == "filetype:pdf"

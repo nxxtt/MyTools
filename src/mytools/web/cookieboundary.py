@@ -243,9 +243,7 @@ def _load_cookieboundary_data() -> dict[str, object]:
     )
 
 
-def _get_str_list(
-    key: str, data: dict[str, object], default: list[str]
-) -> list[str]:
+def _get_str_list(key: str, data: dict[str, object], default: list[str]) -> list[str]:
     raw = data.get(key, default)
     return raw if isinstance(raw, list) else default
 
