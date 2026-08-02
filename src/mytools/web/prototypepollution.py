@@ -25,18 +25,18 @@ import argparse
 import logging
 import time
 from dataclasses import asdict, dataclass
+from typing import Any, cast
+from urllib.parse import urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -503,6 +503,10 @@ class PollAttempt:
     exploit: str = ""
 
     tool: str = ""
+
+    test_url: str = ""
+
+    dom_confirmed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -1085,6 +1089,9 @@ def print_results(result: PollResult) -> None:
             if v.details:
                 print(f"      Detalhes: {v.details}")
 
+            if v.dom_confirmed:
+                print(color("      DOM:       confirmado via headless", Cyber.GREEN))
+
             print_exploit_info(v.exploit, v.tool)
 
     else:
@@ -1112,17 +1119,110 @@ def print_results(result: PollResult) -> None:
     )
 
 
-async def run_scan(
+# Script avaliado no browser: retorna True se Object.prototype.polluted
+# foi setado (DOM-based prototype pollution real, independente de reflexo HTTP).
+_PP_DOM_CONFIRM_SCRIPT = """
+(marker) => {
+  try {
+    const v = Object.prototype.polluted;
+    return v !== undefined && v !== null && String(v).indexOf(marker) !== -1;
+  } catch (e) { return false; }
+}
+"""
+
+
+async def _test_dom_client_side(
+    target: str,
+    timeout: float,
+    proxy: str | None,
+    b_status: int,
+    b_size: int,
+) -> list[PollAttempt]:
+    """Detecta DOM-based prototype pollution real via browser headless.
+
+    Injeta `?__proto__[polluted]=<marker>` na URL e renderiza no chromium;
+    se Object.prototype.polluted ficar setado, e poluicao client-side de
+    verdade (que o scan HTTP por reflexo nao captura).
+
+    """
+    from mytools.core.headless import evaluate
+
+    attempts: list[PollAttempt] = []
+
+    for idx, param in enumerate(_SSI_PARAMS[:3]):
+        marker = f"PP_DOM_HL{idx}_{param}"
+        parsed = urlparse(target)
+        existing = parsed.query
+        sep = "&" if existing else ""
+        new_query = urlencode({"__proto__[polluted]": marker})
+        test_url = urlunparse(parsed._replace(query=existing + sep + new_query))
+        try:
+            poisoned = await evaluate(
+                test_url,
+                _PP_DOM_CONFIRM_SCRIPT,
+                marker,
+                timeout=timeout,
+                proxy=proxy,
+            )
+        except Exception as e:
+            logger.debug("headless dom falhou para %s: %s", test_url, e)
+            poisoned = False
+        vulnerable = bool(poisoned)
+        attempts.append(
+            PollAttempt(
+                technique="dom_client_side",
+                category="dom",
+                payload=f'{{"__proto__":{{"polluted":"{marker}"}}}}',
+                param=param,
+                method="get_url",
+                status_baseline=b_status,
+                status_test=b_status,
+                size_baseline=b_size,
+                size_test=b_size,
+                status_changed=False,
+                size_changed=False,
+                vulnerable=vulnerable,
+                details=(
+                    "Object.prototype.polluted setado via ?__proto__[polluted]"
+                    if vulnerable
+                    else ""
+                ),
+                error="browser nao poluiu" if not vulnerable else "",
+                exploit="?__proto__[polluted]=value" if vulnerable else "",
+                tool="playwright",
+                test_url=test_url,
+                dom_confirmed=vulnerable,
+            )
+        )
+        if vulnerable:
+            break
+
+    return attempts
+
+
+async def _run_scan_core(
     target: str,
     categories: list[str],
     timeout: float,
-    concurrency: int,
     output_file: str | None,
-    verbose: bool,
+    headless: bool = False,
+    proxy: str | None = None,
 ) -> int:
     """Executa o scan de Prototype Pollution."""
 
     logger.info("Prototype Pollution scan para %s", target)
+
+    if headless:
+        from mytools.core.headless import browser_available
+
+        if not browser_available():
+            print(
+                color(
+                    "Erro: --headless requer chromium. Rode: uv run playwright install chromium",
+                    Cyber.RED,
+                )
+            )
+            return 1
 
     async with create_async_client(timeout=timeout) as client:
         b_status, b_size, _ = await _test_baseline(client, target)
@@ -1166,6 +1266,12 @@ async def run_scan(
                 continue
 
             all_attempts.extend(attempts)
+
+        if headless:
+            dom_attempts = await _test_dom_client_side(
+                target, timeout, proxy, b_status, b_size
+            )
+            all_attempts.extend(dom_attempts)
 
         vulnerable = [a for a in all_attempts if a.vulnerable]
 
@@ -1217,86 +1323,74 @@ def banner_art() -> None:
     create_banner(art, "   prototype pollution: detect __proto__ injection")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos CLI."""
+class PrototypePollutionScanner(BaseScanner):
+    """Scanner de Prototype Pollution (Group A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-protopoll",
-        description="Prototype Pollution — detecta injecao em prototypes de objetos JS",
-    )
+    prog = "mytools-protopoll"
+    description = "Prototype Pollution — detecta injecao em prototypes de objetos JS"
+    prompt = "protopoll> "
+    module_name = "mytools.prototypepollution"
+    banner_fn = banner_art
+    group = ScanGroup.A
 
-    parser.add_argument("url", help="URL alvo (ex: https://example.com)")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo (ex: https://example.com)")
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categoria de testes (default: todas)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
+        parser.add_argument(
+            "--callback-url",
+            dest="callback_url",
+            help="URL de callback para deteccao out-of-band (opcional)",
+        )
+        parser.add_argument(
+            "--headless",
+            action="store_true",
+            help="Detecta DOM-based pollution executando JS real (requer 'uv run playwright install chromium').",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categoria de testes (default: todas)",
-    )
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await _run_scan_core(
+            target=kwargs.get("target", ""),
+            categories=kwargs.get("categories", []),
+            timeout=kwargs.get("timeout", 10.0),
+            output_file=kwargs.get("output_file"),
+            headless=kwargs.get("headless", False),
+            proxy=kwargs.get("proxy"),
+        )
 
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
+    def print_results(self, result: object) -> None:
+        print_results(cast(PollResult, result))
 
-    parser.add_argument(
-        "--callback-url",
-        dest="callback_url",
-        help="URL de callback para deteccao out-of-band (opcional)",
-    )
+    def _example(self) -> str:
+        return "https://target.com -c detect"
 
-    add_common_args(parser)
-
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Prototype Pollution a partir de argumentos parseados."""
-
-    logger.info("Prototype Pollution scan iniciado para %s", args.url)
-
-    categories: list[str] = []
-
-    if getattr(args, "category", None):
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            verbose=getattr(args, "verbose", False),
-        ),
-    )
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="protopoll> ",
-        description="Prototype Pollution interativo.",
-        example="https://target.com -c detect",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c detect\n"
             "  https://target.com -c constructor\n"
-            "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
-        ),
-    )
+            "  https://target.com -c bypass --proxy http://127.0.0.1:8080\n"
+            "  https://target.com --headless"
+        )
 
+
+scanner = PrototypePollutionScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

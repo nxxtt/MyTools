@@ -31,21 +31,20 @@ Fluxo:
 import argparse
 import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from typing import Any, cast
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -449,6 +448,8 @@ class ClobberAttempt:
     exploit: str = ""
 
     tool: str = ""
+
+    dom_confirmed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -966,6 +967,9 @@ def print_results(result: ClobberResult) -> None:
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
 
+            if a.dom_confirmed:
+                print(color("      DOM:       confirmado via headless", Cyber.GREEN))
+
             print_exploit_info(a.exploit, a.tool)
 
         print(
@@ -990,17 +994,105 @@ def print_results(result: ClobberResult) -> None:
             print(color(f"    - {issue}", Cyber.YELLOW))
 
 
-async def run_scan(
+_CLOBBER_CONFIRM_SCRIPT = (
+    "(name) => {"
+    "  try {"
+    "    const w = window[name];"
+    "    if (w === undefined || w === null) return false;"
+    "    const isWindow = w === window || (w.constructor && w.constructor.name === 'Window');"
+    "    return !isWindow && w instanceof HTMLElement;"
+    "  } catch (e) { return false; }"
+    "}"
+)
+
+
+def _extract_clob_name(attempt: ClobberAttempt) -> str:
+    """Extrai o nome clobberado de um attempt via payload refletido."""
+    m = _RE_ID_NAME.search(attempt.payload)
+
+    if m:
+        return m.group(1)
+
+    return attempt.target_element.split(".")[-1]
+
+
+async def _confirm_dom_clobber(
+    target: str,
+    attempts: list[ClobberAttempt],
+    *,
+    timeout: float,
+    proxy: str | None,
+) -> dict[str, bool]:
+    """Confirma clobbering real renderizando cada URL em chromium headless.
+
+    Returns um mapeamento ``test_url -> dom_confirmed`` (1 page.goto por URL).
+    Falhas de renderizacao nao derrubam o scan: viram False com log debug.
+    """
+    from mytools.core.headless import evaluate
+
+    confirmed: dict[str, bool] = {}
+
+    for attempt in attempts:
+        if not attempt.payload and not attempt.target_element:
+            continue
+
+        name = _extract_clob_name(attempt)
+
+        test_url = (
+            target
+            if attempt.category == "named_access"
+            and attempt.technique == "passive_clobber_detected"
+            else _inject_payload(target, f"_clob_{name}", attempt.payload)
+        )
+
+        if test_url in confirmed:
+            continue
+
+        try:
+            confirmed[test_url] = bool(
+                await evaluate(
+                    test_url,
+                    _CLOBBER_CONFIRM_SCRIPT,
+                    name,
+                    timeout=timeout,
+                    proxy=proxy,
+                )
+            )
+
+        except Exception as e:
+            logger.debug("headless confirm falhou para %s: %s", test_url, e)
+
+            confirmed[test_url] = False
+
+    return confirmed
+
+
+async def _run_scan_core(
     target: str,
     categories: list[str],
     timeout: float,
     output_file: str | None,
+    headless: bool = False,
+    proxy: str | None = None,
 ) -> int:
     """Executa o scan de DOM Clobbering."""
 
     logger.info("DOM Clobbering scan para %s", target)
 
     tls = target.startswith("https://")
+
+    if headless:
+        from mytools.core.headless import browser_available
+
+        if not browser_available():
+            print(
+                color(
+                    "Erro: --headless requer chromium. Rode: uv run playwright install chromium",
+                    Cyber.RED,
+                )
+            )
+
+            return 1
 
     async with create_async_client(timeout=timeout) as client:
         try:
@@ -1056,6 +1148,44 @@ async def run_scan(
                 )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
+
+        if headless:
+            confirmed_map = await _confirm_dom_clobber(
+                target, all_attempts, timeout=timeout, proxy=proxy
+            )
+
+            if any(confirmed_map.values()):
+                confirmed_attempts: list[ClobberAttempt] = []
+
+                for attempt in all_attempts:
+                    if not attempt.payload and not attempt.target_element:
+                        confirmed_attempts.append(attempt)
+
+                        continue
+
+                    name = _extract_clob_name(attempt)
+
+                    test_url = (
+                        target
+                        if attempt.category == "named_access"
+                        and attempt.technique == "passive_clobber_detected"
+                        else _inject_payload(target, f"_clob_{name}", attempt.payload)
+                    )
+
+                    if confirmed_map.get(test_url):
+                        attempt = replace(
+                            attempt,
+                            dom_confirmed=True,
+                            details=(
+                                attempt.details + " [confirmado via headless]"
+                            ).strip(),
+                        )
+
+                    confirmed_attempts.append(attempt)
+
+                all_attempts = confirmed_attempts
+
+                vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
         blocked_techs = list(
             {a.technique for a in all_attempts if not a.vulnerable and not a.error}
@@ -1121,82 +1251,65 @@ def banner_art() -> None:
     create_banner(art, "   domclobbering: named_access, form_child, impact")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class DomclobberingScanner(BaseScanner):
+    """Scanner de DOM Clobbering (Group A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-domclob",
-        description="DOM Clobbering â€” detecta named access clobbering em paginas web.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-domclob https://target.com\n"
-            "  mytools-domclob https://target.com -c named_access\n"
-            "  mytools-domclob https://target.com -c form_child\n"
-            "  mytools-domclob https://target.com -c impact\n"
-            "  mytools-domclob https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+    prog = "mytools-domclob"
+    description = "DOM Clobbering"
+    prompt = "domclob> "
+    module_name = "mytools.domclobbering"
+    banner_fn = banner_art
+    group = ScanGroup.A
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=["all", "named_access", "form_child", "impact"],
+            help="Categoria de testes (default: todas)",
+        )
+        parser.add_argument(
+            "--headless",
+            action="store_true",
+            help="Confirma clobbering executando JS real (requer 'uv run playwright install chromium').",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=["all", "named_access", "form_child", "impact"],
-        help="Categoria de testes (default: todas)",
-    )
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await _run_scan_core(
+            target=kwargs.get("target", ""),
+            categories=kwargs.get("categories", []),
+            timeout=kwargs.get("timeout", 10.0),
+            output_file=kwargs.get("output_file"),
+            headless=kwargs.get("headless", False),
+            proxy=kwargs.get("proxy"),
+        )
 
-    add_common_args(parser)
+    def print_results(self, result: object) -> None:
+        print_results(cast(ClobberResult, result))
 
-    return parser
+    def _example(self) -> str:
+        return "https://target.com -c named_access"
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan DOM Clobbering a partir de argumentos parseados."""
-
-    logger.info("DOM Clobbering scan iniciado para %s", args.url)
-
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo DOM Clobbering."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="domclob> ",
-        description="DOM Clobbering interativo.",
-        example="https://target.com -c named_access",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c named_access\n"
             "  https://target.com -c form_child\n"
             "  https://target.com -c impact\n"
-            "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+            "  https://target.com --proxy http://127.0.0.1:8080\n"
+            "  https://target.com --headless"
+        )
 
+
+scanner = DomclobberingScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

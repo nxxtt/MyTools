@@ -32,7 +32,11 @@ from pathlib import Path
 
 from jinja2 import Template
 
-from mytools.core.utils import __version__, setup_logging
+from mytools.core.utils import (
+    __version__,
+    run_interactive_shell,
+    setup_logging,
+)
 
 logger = logging.getLogger("mytools.report")
 
@@ -681,14 +685,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    """Entry point para mytools-report."""
-    parser = build_parser()
-    args = parser.parse_args()
-    setup_logging(verbose=args.verbose)
+def run_once(args: argparse.Namespace) -> int:
+    """Executa a geracao de relatorio a partir de argumentos parseados."""
+    setup_logging(verbose=getattr(args, "verbose", False))
 
     if not args.file and not args.dir:
-        parser.print_usage(sys.stderr)
+        build_parser().print_usage(sys.stderr)
         print("Erro: informe ao menos um --file ou --dir.", file=sys.stderr)
         return 1
 
@@ -708,6 +710,32 @@ def main() -> int:
     if not args.quiet:
         print(f"Relatorio salvo em {out_path} ({len(html)} bytes)")
     return 0
+
+
+def main() -> int:
+    """Entry point para mytools-report."""
+    parser = build_parser()
+
+    if len(sys.argv) <= 1:
+        return run_interactive_shell(
+            parser,
+            prompt="report> ",
+            run_fn=run_once,
+            description="Gera relatorio HTML a partir de scans JSON (findings, severidade, timeline e diff).",
+            example="-d outputs/ --title Auditoria",
+            contextual_help=(
+                "Uso: <arquivos|diretorios> [opcoes]\n"
+                "Exemplos:\n"
+                "  -d outputs/\n"
+                "  -d outputs/ --diff --title Auditoria\n"
+                "  -f a.json b.json --diff\n"
+                "  -f scan.json --tool charsetbypass -o relatorio.html"
+            ),
+        )
+
+    args = parser.parse_args()
+    setup_logging(verbose=getattr(args, "verbose", False))
+    return run_once(args)
 
 
 if __name__ == "__main__":

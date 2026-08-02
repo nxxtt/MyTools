@@ -18,7 +18,10 @@ Em scanners, use o prefixo @ para referenciar credenciais salvas:
 import argparse
 import getpass
 import logging
+import sys
 from typing import Any
+
+from mytools.core.utils import run_interactive_shell
 
 logger = logging.getLogger("mytools.cred")
 
@@ -143,14 +146,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    """Ponto de entrada CLI para mytools-cred."""
-    parser = build_parser()
-    args = parser.parse_args()
-
-    if args.command == "set":
+def run_once(args: argparse.Namespace) -> int:
+    """Executa um comando de credenciais a partir de argumentos parseados."""
+    command = getattr(args, "command", None)
+    if command == "set":
         return 0 if set_credential(args.name) else 1
-    if args.command == "get":
+    if command == "get":
         value = get_credential(args.name)
         if value is None:
             logger.error("Credencial '%s' nao encontrada.", args.name)
@@ -160,13 +161,42 @@ def main() -> int:
         else:
             print("****")
         return 0
-    if args.command == "delete":
+    if command == "delete":
         return 0 if delete_credential(args.name) else 1
-    if args.command == "list":
+    if command == "list":
         list_credentials()
         return 0
-    parser.print_help()
+    build_parser().print_help()
     return 1
+
+
+def main() -> int:
+    """Ponto de entrada CLI para mytools-cred."""
+    parser = build_parser()
+
+    if len(sys.argv) <= 1:
+        return run_interactive_shell(
+            parser,
+            prompt="cred> ",
+            run_fn=run_once,
+            description="Gerencia credenciais no keyring do SO (set/get/delete/list).",
+            example="set meu_token",
+            contextual_help=(
+                "Comandos:\n"
+                "  set <nome>          armazena/atualiza uma credencial\n"
+                "  get <nome>          recupera e exibe mascarada\n"
+                "  delete <nome>       remove uma credencial\n"
+                "  list                lista credenciais salvas\n\n"
+                "Exemplos:\n"
+                "  cred> set google_api\n"
+                "  cred> get google_api\n"
+                "  cred> delete google_api\n"
+                "  cred> list"
+            ),
+        )
+
+    args = parser.parse_args()
+    return run_once(args)
 
 
 if __name__ == "__main__":

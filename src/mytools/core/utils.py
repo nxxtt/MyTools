@@ -532,7 +532,7 @@ def get_stealth_ctx() -> StealthContext | None:
 
 
 def create_async_client(
-    user_agent: str = f"MyTools/{__version__}",
+    user_agent: str | None = f"MyTools/{__version__}",
     proxy: str | None = None,
     timeout: float = 5.0,
     verify: bool = False,
@@ -547,7 +547,7 @@ def create_async_client(
 
     effective_impersonate = impersonate
     effective_proxy = proxy
-    effective_ua = user_agent
+    effective_ua = user_agent or f"MyTools/{__version__}"
 
     if ctx is not None:
         from mytools.core.stealth import TorManager, random_user_agent

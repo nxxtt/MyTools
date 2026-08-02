@@ -13,6 +13,7 @@ from mytools.web.cookieboundary import (
     _CSRF_FIELD_NAMES,
     CookieBoundaryAttempt,
     CookieBoundaryResult,
+    CookieBoundaryScanner,
     CookieInfo,
     _extract_target_domain,
     _is_csrf_cookie,
@@ -1740,7 +1741,7 @@ class TestBuildParser:
 
 # ─── Run Once ────────────────────────────────────────────────────────────────
 class TestRunOnce:
-    @patch("mytools.web.cookieboundary.run_scan")
+    @patch.object(CookieBoundaryScanner, "run_scan")
     def test_run_once(self, mock_run: MagicMock) -> None:
         mock_run.return_value = 0
         parser = build_parser()

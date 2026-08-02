@@ -63,20 +63,19 @@ import asyncio
 import contextlib
 import logging
 from dataclasses import asdict, dataclass
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1690,7 +1689,7 @@ def print_results(result: CookieBoundaryResult) -> None:
             print(color(f"    - {issue}", Cyber.YELLOW))
 
 
-async def run_scan(
+async def _run_scan_core(
     target: str,
     categories: list[str],
     timeout: float,
@@ -1828,86 +1827,52 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class CookieBoundaryScanner(BaseScanner):
+    """Scanner de Cookie Security (Group A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-cookieboundary",
-        description="Cookie Domain Boundary â€” audita cookies para leakage via subdominios.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-cookieboundary https://target.com\n"
-            "  mytools-cookieboundary https://target.com -c domain\n"
-            "  mytools-cookieboundary https://target.com -c flags\n"
-            "  mytools-cookieboundary https://target.com -c path_traversal\n"
-            "  mytools-cookieboundary https://target.com -c double_submit\n"
-            "  mytools-cookieboundary https://target.com -c samesite_dns\n"
-            "  mytools-cookieboundary https://target.com -c csrf_subdomain\n"
-            "  mytools-cookieboundary https://target.com -c cookie_quoting\n"
-            "  mytools-cookieboundary https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+    prog = "mytools-cookieboundary"
+    description = "Cookie Security - audita cookies para leakage via subdominios."
+    prompt = "cookieboundary> "
+    module_name = "mytools.cookieboundary"
+    banner_fn = banner_art
+    group = ScanGroup.A
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "domain",
+                "flags",
+                "path",
+                "path_traversal",
+                "double_submit",
+                "samesite_dns",
+                "csrf_subdomain",
+                "cookie_quoting",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "domain",
-            "flags",
-            "path",
-            "path_traversal",
-            "double_submit",
-            "samesite_dns",
-            "csrf_subdomain",
-            "cookie_quoting",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await _run_scan_core(
+            target=kwargs.get("target", ""),
+            categories=kwargs.get("categories", []),
+            timeout=kwargs.get("timeout", 10.0),
+            output_file=kwargs.get("output_file"),
+        )
 
-    add_common_args(parser)
+    def print_results(self, result: object) -> None:
+        print_results(cast(CookieBoundaryResult, result))
 
-    return parser
+    def _example(self) -> str:
+        return "https://target.com -c domain"
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Cookie Domain Boundary a partir de argumentos parseados."""
-
-    logger.info("Cookie Domain Boundary scan iniciado para %s", args.url)
-
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo Cookie Domain Boundary."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="cookieboundary> ",
-        description="Cookie Domain Boundary interativo.",
-        example="https://target.com -c domain",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
@@ -1916,10 +1881,18 @@ def main() -> int:
             "  https://target.com -c path\n"
             "  https://target.com -c path_traversal\n"
             "  https://target.com -c double_submit\n"
+            "  https://target.com -c samesite_dns\n"
+            "  https://target.com -c csrf_subdomain\n"
+            "  https://target.com -c cookie_quoting\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
 
+
+scanner = CookieBoundaryScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

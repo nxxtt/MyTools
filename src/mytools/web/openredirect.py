@@ -42,7 +42,8 @@ import argparse
 import asyncio
 import logging
 from collections.abc import Awaitable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Any
 from urllib.parse import quote, urlparse, urlunparse
 
 import httpx
@@ -211,6 +212,8 @@ class OpenRedirectAttempt:
     exploit: str = ""
 
     tool: str = ""
+
+    dom_confirmed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -670,6 +673,50 @@ async def _test_bypass_redirect(
     return attempts
 
 
+_REDIRECT_LOCATION_SCRIPT = (
+    "() => { try { return window.location.href; } catch (e) { return ''; } }"
+)
+
+
+async def _confirm_headless_redirects(
+    attempts: list[OpenRedirectAttempt],
+    *,
+    timeout: float,
+    proxy: str | None,
+) -> list[OpenRedirectAttempt]:
+    """Confirma redirects via navegacao real (meta refresh / JS redirect)."""
+    from mytools.core.headless import evaluate
+
+    vuln = [a for a in attempts if a.vulnerable and a.url]
+    if not vuln:
+        return attempts
+
+    confirmed: set[str] = set()
+    for att in vuln:
+        try:
+            href = await evaluate(
+                att.url, _REDIRECT_LOCATION_SCRIPT, timeout=timeout, proxy=proxy
+            )
+        except Exception as exc:
+            logger.debug("headless redirect falhou para %s: %s", att.url, exc)
+            continue
+        if isinstance(href, str) and _is_external_redirect(
+            href, urlparse(att.url).hostname or ""
+        ):
+            confirmed.add(att.url)
+
+    return [
+        replace(
+            att,
+            dom_confirmed=True,
+            details=(att.details + " [confirmado via headless]").strip(),
+        )
+        if att.vulnerable and att.url in confirmed
+        else att
+        for att in attempts
+    ]
+
+
 async def scan_open_redirect(
     url: str,
     timeout: float = 10.0,
@@ -678,6 +725,7 @@ async def scan_open_redirect(
     verify: bool = False,
     category: str | None = None,
     concurrency: int = 5,
+    headless: bool = False,
 ) -> OpenRedirectResult:
     """Executa scan de open redirect contra a URL alvo."""
 
@@ -746,6 +794,11 @@ async def scan_open_redirect(
         for r in results:
             if isinstance(r, list):
                 all_attempts.extend(r)
+
+    if headless:
+        all_attempts = await _confirm_headless_redirects(
+            all_attempts, timeout=timeout, proxy=proxy
+        )
 
     vulnerable: list[str] = []
 
@@ -821,6 +874,10 @@ def print_results_fn(result: OpenRedirectResult) -> None:
             a = next((a for a in result.attempts if a.technique == tech), None)
 
             if a:
+                if a.dom_confirmed:
+                    print(
+                        color("      DOM:       confirmado via headless", Cyber.GREEN)
+                    )
                 print_exploit_info(a.exploit, a.tool)
 
     if result.blocked_techniques:
@@ -880,6 +937,16 @@ class OpenredirectScanner(BaseScanner):
             default=5,
             help="Numero de requisicoes simultaneas (default: 5)",
         )
+        parser.add_argument(
+            "--headless",
+            action="store_true",
+            help="Confirma redirects navegando de verdade (requer 'uv run playwright install chromium').",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        kwargs = super()._build_run_once_kwargs(args)
+        kwargs["headless"] = getattr(args, "headless", False)
+        return kwargs
 
     async def run_scan(self, **kwargs):  # type: ignore[override]
         return await scan_open_redirect(**kwargs)
@@ -897,7 +964,8 @@ class OpenredirectScanner(BaseScanner):
             " https://target.com\n"
             " https://target.com -c param\n"
             " https://target.com -c bypass\n"
-            " https://target.com -c path --proxy http://127.0.0.1:8080"
+            " https://target.com -c path --proxy http://127.0.0.1:8080\n"
+            " https://target.com --headless"
         )
 
 

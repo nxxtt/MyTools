@@ -116,6 +116,7 @@ class BaseScanner(ABC):
 
     def _run_once_a(self, args: argparse.Namespace) -> int:
         """Grupo A: run_scan retorna int, output gerenciado internamente."""
+        init_scanner(args)
         target = self._get_target(args)
         output_file = getattr(args, "output", None)
         if not output_file:
@@ -130,6 +131,8 @@ class BaseScanner(ABC):
                 timeout=getattr(args, "timeout", 10),
                 output_file=output_file,
                 json_output=getattr(args, "json_output", False),
+                proxy=getattr(args, "proxy", None),
+                headless=getattr(args, "headless", False),
             )
         )
 

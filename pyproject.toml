@@ -31,6 +31,7 @@ dependencies = [
     "lief>=1.0.0",
     "tqdm>=4.70.0",
     "jinja2>=3.1.6",
+    "playwright>=1.62.0",
 ]
 [dependency-groups]
 dev = [

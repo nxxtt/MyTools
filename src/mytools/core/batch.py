@@ -27,7 +27,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from mytools.core.utils import __version__, setup_logging
+from mytools.core.utils import (
+    __version__,
+    run_interactive_shell,
+    setup_logging,
+)
 
 logger = logging.getLogger("mytools.batch")
 
@@ -544,11 +548,53 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def run_once(args: argparse.Namespace) -> int:
+    """Executa um scan batch a partir de argumentos parseados."""
+    setup_logging(verbose=getattr(args, "verbose", False))
+
+    if args.dry_run:
+        targets = read_targets(args.targets)
+        mod_names = _get_all_module_names() if args.modules == ["all"] else args.modules
+        mod_names = [n for n in mod_names if n not in args.skip]
+        logger.info(
+            "Dry-run: %d targets x %d modulos = %d execucoes",
+            len(targets),
+            len(mod_names),
+            len(targets) * len(mod_names),
+        )
+        logger.info("Targets: %s", targets)
+        logger.info("Modulos: %s", mod_names)
+        if args.parallel > 1:
+            logger.info("Paralelismo: %d", args.parallel)
+        return 0
+
+    return run_batch(args)
+
+
 def main() -> int:
     """Entry point para mytools-batch."""
     parser = build_parser()
+
+    if len(sys.argv) <= 1:
+        return run_interactive_shell(
+            parser,
+            prompt="batch> ",
+            run_fn=run_once,
+            description="Executa modulos MyTools contra multiplos alvos.",
+            example="targets.txt all --skip portscanner",
+            contextual_help=(
+                "Uso: <arquivo_de_alvos> <modulos> [opcoes]\n"
+                "Exemplos:\n"
+                "  targets.txt webrecon attackaudit\n"
+                "  targets.txt all --skip portscanner\n"
+                "  targets.txt webrecon -p 3 -o results/\n"
+                "  targets.txt webrecon --strict --fail-fast\n"
+                "  targets.txt webrecon --format json --dry-run"
+            ),
+        )
+
     args = parser.parse_args()
-    setup_logging(verbose=args.verbose)
+    setup_logging(verbose=getattr(args, "verbose", False))
 
     if args.dry_run:
         targets = read_targets(args.targets)

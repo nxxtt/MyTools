@@ -23,21 +23,20 @@ import argparse
 import html
 import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from typing import Any, cast
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -620,6 +619,8 @@ class MXSSAttempt:
     error: str
     exploit: str = ""
     tool: str = ""
+    test_url: str = ""
+    dom_confirmed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -682,6 +683,54 @@ def _detect_namespace_contexts(body_str: str) -> list[str]:
     if "<listing" in lower:
         contexts.append("listing_rawtext")
     return contexts
+
+
+_ACTIVE_ELEMENT_SCRIPT = """
+() => {
+  return document.querySelectorAll(
+    "script, [onerror], [onload], [onclick], [onmouseover], [onsubmit]"
+  ).length;
+}
+"""
+
+
+async def _confirm_headless_active_urls(
+    target: str,
+    urls: list[str],
+    *,
+    timeout: float,
+    proxy: str | None,
+) -> set[str]:
+    """Confirma em browser real que a URL injetada cria mais elementos ativos que o baseline.
+
+    Retorna o subconjunto de ``urls`` cujo DOM renderizado contem mais
+    elementos executaveis (script/onerror/onload/onclick/...) do que a pagina
+    alvo sem payload. 1 page.goto por URL (dedup preservando ordem).
+    """
+    from mytools.core.headless import evaluate
+
+    confirmed: set[str] = set()
+    try:
+        baseline = int(
+            await evaluate(target, _ACTIVE_ELEMENT_SCRIPT, timeout=timeout, proxy=proxy)
+        )
+    except Exception as e:
+        logger.debug("headless baseline falhou para %s: %s", target, e)
+        return confirmed
+
+    for url in dict.fromkeys(urls):
+        try:
+            count = int(
+                await evaluate(
+                    url, _ACTIVE_ELEMENT_SCRIPT, timeout=timeout, proxy=proxy
+                )
+            )
+        except Exception as e:
+            logger.debug("headless falhou para %s: %s", url, e)
+            continue
+        if count > baseline:
+            confirmed.add(url)
+    return confirmed
 
 
 async def _test_mxss_category(
@@ -749,6 +798,7 @@ async def _test_mxss_category(
                     vulnerable=vulnerable,
                     details=details,
                     error="",
+                    test_url=test_url,
                 )
             )
 
@@ -772,6 +822,7 @@ async def _test_mxss_category(
                     vulnerable=False,
                     details="",
                     error=str(e)[:100],
+                    test_url=test_url,
                 )
             )
 
@@ -819,6 +870,8 @@ def print_results(result: MXSSResult) -> None:
                 )
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
+            if a.dom_confirmed:
+                print(color("      DOM:       confirmado via headless", Cyber.GREEN))
             print_exploit_info(a.exploit, a.tool)
         print(
             color(
@@ -839,11 +892,13 @@ def print_results(result: MXSSResult) -> None:
             print(color(f"    - {issue}", Cyber.YELLOW))
 
 
-async def run_scan(
+async def _run_scan_core(
     target: str,
     categories: list[str],
     timeout: float,
     output_file: str | None,
+    headless: bool = False,
+    proxy: str | None = None,
 ) -> int:
     """Executa o scan de Mutation XSS."""
     logger.info("Mutation XSS scan para %s", target)
@@ -870,6 +925,43 @@ async def run_scan(
                         client, target, timeout, b_status, b_size, payloads, cat
                     ),
                 )
+
+        vuln_attempts = [a for a in all_attempts if a.vulnerable]
+
+        if headless and vuln_attempts:
+            from mytools.core.headless import browser_available
+
+            if not browser_available():
+                print(
+                    color(
+                        "Erro: --headless requer chromium. Rode: uv run playwright install chromium",
+                        Cyber.RED,
+                    )
+                )
+                return 1
+
+            test_urls = [a.test_url for a in vuln_attempts if a.test_url]
+            confirmed_urls = await _confirm_headless_active_urls(
+                target,
+                test_urls,
+                timeout=timeout,
+                proxy=proxy,
+            )
+            if confirmed_urls:
+                all_attempts = [
+                    replace(
+                        a,
+                        dom_confirmed=True,
+                        details=(
+                            a.details + " [confirmado via headless]"
+                            if a.details
+                            else "Confirmado via headless"
+                        ),
+                    )
+                    if a.vulnerable and a.test_url in confirmed_urls
+                    else a
+                    for a in all_attempts
+                ]
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
         blocked_techs = list(
@@ -930,82 +1022,76 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-mxss",
-        description="Mutation XSS — detecta mXSS via entidades, namespaces e encoding tricks.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-mxss https://target.com\n"
-            "  mytools-mxss https://target.com -c entity_decode\n"
-            "  mytools-mxss https://target.com -c namespace_switch\n"
-            "  mytools-mxss https://target.com -c mathml_inject\n"
-            "  mytools-mxss https://target.com -c rawtext_abuse\n"
-            "  mytools-mxss https://target.com --proxy http://127.0.0.1:8080"
-        ),
+class MXScanner(BaseScanner):
+    """Scanner de Mutation XSS (Group A)."""
+
+    prog = "mytools-mxss"
+    description = (
+        "Mutation XSS — detecta mXSS via entidades, namespaces e encoding tricks."
     )
-    parser.add_argument("url", help="URL alvo para o scan")
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "entity_decode",
-            "namespace_switch",
-            "mathml_inject",
-            "rawtext_abuse",
-            "comment_parse",
-            "template_deprecated",
-            "encoding_tricks",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
-    add_common_args(parser)
-    return parser
+    prompt = "mxss> "
+    module_name = "mytools.mxss"
+    banner_fn = banner_art
+    group = ScanGroup.A
 
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "entity_decode",
+                "namespace_switch",
+                "mathml_inject",
+                "rawtext_abuse",
+                "comment_parse",
+                "template_deprecated",
+                "encoding_tricks",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
+        parser.add_argument(
+            "--headless",
+            action="store_true",
+            help="Confirma mXSS executando JS real (requer 'uv run playwright install chromium').",
+        )
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Mutation XSS a partir de argumentos parseados."""
-    logger.info("Mutation XSS scan iniciado para %s", args.url)
-    categories: list[str] = []
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await _run_scan_core(
+            target=kwargs.get("target", ""),
+            categories=kwargs.get("categories", []),
+            timeout=kwargs.get("timeout", 10.0),
+            output_file=kwargs.get("output_file"),
+            headless=kwargs.get("headless", False),
+            proxy=kwargs.get("proxy"),
+        )
 
+    def print_results(self, result: object) -> None:
+        print_results(cast(MXSSResult, result))
 
-def main() -> int:
-    """Entry point do modulo Mutation XSS."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="mxss> ",
-        description="Mutation XSS interativo.",
-        example="https://target.com -c entity_decode",
-        contextual_help=(
+    def _example(self) -> str:
+        return "https://target.com -c entity_decode"
+
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c entity_decode\n"
             "  https://target.com -c namespace_switch\n"
             "  https://target.com -c mathml_inject\n"
-            "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+            "  https://target.com --proxy http://127.0.0.1:8080\n"
+            "  https://target.com --headless"
+        )
 
+
+scanner = MXScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

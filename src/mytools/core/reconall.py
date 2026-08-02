@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -39,6 +40,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     parse_auth,
+    run_interactive_shell,
     safe_asyncio_run,
     setup_logging,
 )
@@ -1304,9 +1306,8 @@ def run_all(args: argparse.Namespace) -> int:
     return safe_asyncio_run(_run_all_async())
 
 
-def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
+def run_once(args: argparse.Namespace) -> int:
+    """Executa um scan recon-all a partir de argumentos parseados."""
     setup_logging(verbose=args.verbose)
 
     if args.dry_run:
@@ -1345,6 +1346,30 @@ def main() -> int:
     logger.info("Tempo total: %.1fs", elapsed)
     logger.info("=" * 60)
     return 1 if errors else 0
+
+
+def main() -> int:
+    """Entry point para mytools-reconall."""
+    parser = build_parser()
+
+    if len(sys.argv) <= 1:
+        return run_interactive_shell(
+            parser,
+            prompt="reconall> ",
+            run_fn=run_once,
+            description="Executa todos os modulos MyTools contra um alvo de uma vez.",
+            example="example.com --deep",
+            contextual_help=(
+                "Uso: <alvo> [opcoes]\n"
+                "Exemplos:\n"
+                "  example.com\n"
+                "  example.com --deep\n"
+                "  example.com --skip portscanner\n"
+                "  example.com -p 80,443 --deep --dry-run"
+            ),
+        )
+
+    return run_once(parser.parse_args())
 
 
 if __name__ == "__main__":

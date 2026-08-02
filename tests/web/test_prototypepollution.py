@@ -19,6 +19,7 @@ from mytools.web.prototypepollution import (
     _SSI_PARAMS,
     PollAttempt,
     PollResult,
+    PrototypePollutionScanner,
     _check_poll_response,
     _test_baseline,
     _test_blind,
@@ -552,9 +553,7 @@ class TestMain:
     def test_main_returns_int(self) -> None:
         with (
             patch("sys.argv", ["mytools-protopoll"]),
-            patch(
-                "mytools.web.prototypepollution.run_main_loop", return_value=0
-            ) as mock_loop,
+            patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop,
         ):
             result = main()
             assert isinstance(result, int)
@@ -563,7 +562,7 @@ class TestMain:
     def test_main_passes_args(self) -> None:
         with (
             patch("sys.argv", ["mytools-protopoll", "https://example.com"]),
-            patch("mytools.web.prototypepollution.run_main_loop", return_value=0),
+            patch("mytools.core.base.run_main_loop", return_value=0),
         ):
             result = main()
             assert result == 0
@@ -693,7 +692,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     @respx.mock
     async def test_run_scan_all_categories(self) -> None:
-        from mytools.web.prototypepollution import run_scan
+        from mytools.web.prototypepollution import _run_scan_core
 
         respx.route(method="GET", url__startswith="https://example.com/").mock(
             return_value=httpx.Response(200, text="not vulnerable"),
@@ -701,20 +700,18 @@ class TestIntegration:
         respx.route(method="POST", url__startswith="https://example.com/").mock(
             return_value=httpx.Response(200, text="not vulnerable"),
         )
-        result = await run_scan(
+        result = await _run_scan_core(
             target="https://example.com",
             categories=[],
             timeout=10,
-            concurrency=5,
             output_file=None,
-            verbose=False,
         )
         assert result == 0
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_run_scan_vulnerable(self) -> None:
-        from mytools.web.prototypepollution import run_scan
+        from mytools.web.prototypepollution import _run_scan_core
 
         respx.route(method="GET", url__startswith="https://example.com/").mock(
             return_value=httpx.Response(200, text="ok"),
@@ -722,38 +719,34 @@ class TestIntegration:
         respx.route(method="POST", url__startswith="https://example.com/").mock(
             return_value=httpx.Response(200, text="polluted"),
         )
-        result = await run_scan(
+        result = await _run_scan_core(
             target="https://example.com",
             categories=["detect"],
             timeout=10,
-            concurrency=5,
             output_file=None,
-            verbose=False,
         )
         assert result == 1
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_run_scan_connection_error(self) -> None:
-        from mytools.web.prototypepollution import run_scan
+        from mytools.web.prototypepollution import _run_scan_core
 
         respx.route(url__startswith="https://example.com/").mock(
             side_effect=httpx.ConnectError("Connection refused"),
         )
-        result = await run_scan(
+        result = await _run_scan_core(
             target="https://example.com",
             categories=["detect"],
             timeout=10,
-            concurrency=5,
             output_file=None,
-            verbose=False,
         )
         assert result == 1
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_run_scan_with_output(self, tmp_path: object) -> None:
-        from mytools.web.prototypepollution import run_scan
+        from mytools.web.prototypepollution import _run_scan_core
 
         respx.route(method="GET", url__startswith="https://example.com/").mock(
             return_value=httpx.Response(200, text="ok"),
@@ -762,51 +755,31 @@ class TestIntegration:
             return_value=httpx.Response(200, text="not vulnerable"),
         )
         output_file = str(tmp_path) + "/output.json"  # type: ignore[operator]
-        result = await run_scan(
+        result = await _run_scan_core(
             target="https://example.com",
             categories=["detect"],
             timeout=10,
-            concurrency=5,
             output_file=output_file,
-            verbose=False,
         )
         assert result == 0
 
-    def test_run_once(self) -> None:
-        args = MagicMock()
-        args.url = "https://example.com"
-        args.category = "detect"
-        args.timeout = 10
-        args.concurrency = 5
-        args.output = None
-        args.verbose = False
+    @patch.object(PrototypePollutionScanner, "run_scan")
+    def test_run_once(self, mock_scan: MagicMock) -> None:
+        mock_scan.return_value = 0
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com"])
+        from mytools.web.prototypepollution import run_once
 
-        with patch(
-            "mytools.web.prototypepollution.run_scan",
-            new_callable=AsyncMock,
-            return_value=0,
-        ) as mock_scan:
-            from mytools.web.prototypepollution import run_once
+        result = run_once(args)
+        assert result == 0
+        mock_scan.assert_called_once()
 
-            result = run_once(args)
-            assert result == 0
-            mock_scan.assert_called_once()
+    @patch.object(PrototypePollutionScanner, "run_scan")
+    def test_run_once_no_category(self, mock_scan: MagicMock) -> None:
+        mock_scan.return_value = 0
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com", "-c", "detect"])
+        from mytools.web.prototypepollution import run_once
 
-    def test_run_once_no_category(self) -> None:
-        args = MagicMock()
-        args.url = "https://example.com"
-        args.category = None
-        args.timeout = 10
-        args.concurrency = 5
-        args.output = None
-        args.verbose = False
-
-        with patch(
-            "mytools.web.prototypepollution.run_scan",
-            new_callable=AsyncMock,
-            return_value=0,
-        ):
-            from mytools.web.prototypepollution import run_once
-
-            result = run_once(args)
-            assert result == 0
+        result = run_once(args)
+        assert result == 0

@@ -40,21 +40,20 @@ import argparse
 import logging
 import re
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from typing import Any, cast
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -583,6 +582,10 @@ class CSSInjectAttempt:
 
     tool: str = ""
 
+    test_url: str = ""
+
+    dom_confirmed: bool = False
+
 
 @dataclass(frozen=True, slots=True)
 class CSSInjectResult:
@@ -741,6 +744,7 @@ async def _test_css_category(
                     error="",
                     exploit="css_exfiltration_payload" if vulnerable else "",
                     tool="XSStrike",
+                    test_url=test_url,
                 )
             )
 
@@ -762,6 +766,7 @@ async def _test_css_category(
                     vulnerable=False,
                     details="",
                     error=str(e)[:100],
+                    test_url=test_url,
                 )
             )
 
@@ -818,6 +823,9 @@ def print_results(result: CSSInjectResult) -> None:
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
 
+            if a.dom_confirmed:
+                print(color("      DOM:       confirmado via headless", Cyber.GREEN))
+
             print_exploit_info(a.exploit, a.tool)
 
         print(
@@ -842,15 +850,99 @@ def print_results(result: CSSInjectResult) -> None:
             print(color(f"    - {issue}", Cyber.YELLOW))
 
 
-async def run_scan(
+_CSS_APPLIED_SCRIPT = """
+() => {
+  const texts = [];
+  try {
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) texts.push(rule.cssText);
+      } catch (e) {}
+    }
+  } catch (e) {}
+  for (const el of document.querySelectorAll('[style]')) {
+    texts.push(el.getAttribute('style') || '');
+  }
+  return texts.join('\\n');
+}
+"""
+
+
+async def _confirm_headless_css(
+    target: str,
+    attempts: list[CSSInjectAttempt],
+    *,
+    timeout: float,
+    proxy: str | None,
+) -> list[CSSInjectAttempt]:
+    """Confirma aplicacao real do CSS num browser headless (nao so reflexao)."""
+
+    from mytools.core.headless import evaluate
+
+    candidates = [
+        a for a in attempts if a.vulnerable and a.test_url and "evil.com" in a.payload
+    ]
+    if not candidates:
+        return attempts
+
+    baseline = ""
+    try:
+        value = await evaluate(
+            target, _CSS_APPLIED_SCRIPT, timeout=timeout, proxy=proxy
+        )
+        baseline = value if isinstance(value, str) else ""
+    except Exception as e:
+        logger.debug("headless CSS baseline falhou para %s: %s", target, e)
+        return attempts
+
+    confirmed_urls: set[str] = set()
+    for att in candidates:
+        try:
+            value = await evaluate(
+                att.test_url, _CSS_APPLIED_SCRIPT, timeout=timeout, proxy=proxy
+            )
+            text = value if isinstance(value, str) else ""
+        except Exception as e:
+            logger.debug("headless CSS falhou para %s: %s", att.test_url, e)
+            continue
+        if "evil.com" in text and "evil.com" not in baseline:
+            confirmed_urls.add(att.test_url)
+
+    return [
+        replace(
+            att,
+            dom_confirmed=True,
+            details=(att.details + " [confirmado via headless]").strip(),
+        )
+        if att.test_url in confirmed_urls
+        else att
+        for att in attempts
+    ]
+
+
+async def _run_scan_core(
     target: str,
     categories: list[str],
     timeout: float,
     output_file: str | None,
+    headless: bool = False,
+    proxy: str | None = None,
 ) -> int:
     """Executa o scan de CSS Injection."""
 
     logger.info("CSS Injection scan para %s", target)
+
+    if headless:
+        from mytools.core.headless import browser_available
+
+        if not browser_available():
+            print(
+                color(
+                    "Erro: --headless requer chromium. Rode: uv run playwright install chromium",
+                    Cyber.RED,
+                )
+            )
+            return 1
 
     tls = target.startswith("https://")
 
@@ -882,6 +974,12 @@ async def run_scan(
                 )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
+
+        if headless:
+            all_attempts = await _confirm_headless_css(
+                target, all_attempts, timeout=timeout, proxy=proxy
+            )
+            vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
         blocked_techs = list(
             {a.technique for a in all_attempts if not a.vulnerable and not a.error}
@@ -950,90 +1048,67 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class CSSInjectScanner(BaseScanner):
+    """Scanner de CSS Injection (Group A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-cssinject",
-        description="CSS Injection â€” detecta injeÃ§Ã£o CSS e tÃ©cnicas de exfiltraÃ§Ã£o de dados.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-cssinject https://target.com\n"
-            "  mytools-cssinject https://target.com -c injection_points\n"
-            "  mytools-cssinject https://target.com -c data_extraction\n"
-            "  mytools-cssinject https://target.com -c token_exfil\n"
-            "  mytools-cssinject https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-cssinject"
+    description = (
+        "CSS Injection — detecta injecao CSS e tecnicas de exfiltracao de dados."
     )
+    prompt = "cssinject> "
+    module_name = "mytools.cssinject"
+    banner_fn = banner_art
+    group = ScanGroup.A
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=["all", *list(_CATEGORY_MAP.keys())],
+            help="Categoria de testes (default: todas)",
+        )
+        parser.add_argument(
+            "--headless",
+            action="store_true",
+            help="Confirma aplicacao real do CSS executando o browser (requer 'uv run playwright install chromium').",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "injection_points",
-            "data_extraction",
-            "attribute_leak",
-            "selector_abuse",
-            "token_exfil",
-            "csp_bypass",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await _run_scan_core(
+            target=kwargs.get("target", ""),
+            categories=kwargs.get("categories", []),
+            timeout=kwargs.get("timeout", 10.0),
+            output_file=kwargs.get("output_file"),
+            headless=kwargs.get("headless", False),
+            proxy=kwargs.get("proxy"),
+        )
 
-    add_common_args(parser)
+    def print_results(self, result: object) -> None:
+        print_results(cast(CSSInjectResult, result))
 
-    return parser
+    def _example(self) -> str:
+        return "https://target.com -c data_extraction"
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan CSS Injection a partir de argumentos parseados."""
-
-    logger.info("CSS Injection scan iniciado para %s", args.url)
-
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo CSS Injection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="cssinject> ",
-        description="CSS Injection interativo.",
-        example="https://target.com -c data_extraction",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c injection_points\n"
             "  https://target.com -c data_extraction\n"
             "  https://target.com -c token_exfil\n"
-            "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+            "  https://target.com --proxy http://127.0.0.1:8080\n"
+            "  https://target.com --headless"
+        )
 
+
+scanner = CSSInjectScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

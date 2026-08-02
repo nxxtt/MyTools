@@ -41,21 +41,20 @@ Fluxo:
 import argparse
 import html
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from typing import Any, cast
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -594,6 +593,10 @@ class XSSVectorAttempt:
 
     tool: str = ""
 
+    test_url: str = ""
+
+    dom_confirmed: bool = False
+
 
 @dataclass(frozen=True, slots=True)
 class XSSVectorResult:
@@ -704,6 +707,7 @@ async def _test_xss_category(
                     error="",
                     exploit="<img src=x onerror=alert(1)>" if vulnerable else "",
                     tool="XSStrike",
+                    test_url=test_url,
                 )
             )
 
@@ -724,6 +728,7 @@ async def _test_xss_category(
                     vulnerable=False,
                     details="",
                     error=str(e)[:100],
+                    test_url=test_url,
                 )
             )
 
@@ -780,6 +785,9 @@ def print_results(result: XSSVectorResult) -> None:
             if a.details:
                 print(color(f"      Detalhes: {a.details}", Cyber.GRAY))
 
+            if a.dom_confirmed:
+                print(color("      DOM:       confirmado via headless", Cyber.GREEN))
+
             print_exploit_info(a.exploit, a.tool)
 
         print(
@@ -803,17 +811,59 @@ def print_results(result: XSSVectorResult) -> None:
             print(color(f"    - {issue}", Cyber.YELLOW))
 
 
-async def run_scan(
+async def _confirm_headless_execution(
+    target: str,
+    attempts: list[XSSVectorAttempt],
+    *,
+    timeout: float,
+    proxy: str | None,
+) -> set[str]:
+    """Confirma em browser real (dialog + clique) quais URLs executam JS.
+
+    Retorna o subconjunto de ``test_url`` das tentativas vulneraveis cujo
+    chromium headless confirmou a execucao de JavaScript. 1 page.goto por URL
+    (dedup preservando ordem).
+    """
+    from mytools.core.headless import confirm_js_execution
+
+    gathered: set[str] = {a.test_url for a in attempts if a.vulnerable and a.test_url}
+    confirmed: set[str] = set()
+    for url in dict.fromkeys(sorted(gathered)):
+        try:
+            if await confirm_js_execution(url, timeout=timeout, proxy=proxy):
+                confirmed.add(url)
+        except Exception as e:
+            logger.debug("headless falhou para %s: %s", url, e)
+            continue
+    return confirmed
+
+
+async def _run_scan_core(
     target: str,
     categories: list[str],
     timeout: float,
     output_file: str | None,
+    headless: bool = False,
+    proxy: str | None = None,
 ) -> int:
     """Executa o scan de XSS Vectors."""
 
     logger.info("XSS Vectors scan para %s", target)
 
     tls = target.startswith("https://")
+
+    if headless:
+        from mytools.core.headless import browser_available
+
+        if not browser_available():
+            print(
+                color(
+                    "Erro: --headless requer chromium. Rode: uv run playwright install chromium",
+                    Cyber.RED,
+                )
+            )
+
+            return 1
 
     async with create_async_client(timeout=timeout) as client:
         try:
@@ -843,6 +893,29 @@ async def run_scan(
                 )
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
+
+        if headless:
+            confirmed_urls = await _confirm_headless_execution(
+                target, all_attempts, timeout=timeout, proxy=proxy
+            )
+
+            if confirmed_urls:
+                all_attempts = [
+                    replace(
+                        a,
+                        dom_confirmed=True,
+                        details=(
+                            a.details + " [confirmado via headless]"
+                            if a.details
+                            else "Confirmado via headless"
+                        ),
+                    )
+                    if a.vulnerable and a.test_url in confirmed_urls
+                    else a
+                    for a in all_attempts
+                ]
+
+                vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
         blocked_techs = list(
             {a.technique for a in all_attempts if not a.vulnerable and not a.error}
@@ -908,92 +981,75 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class XSSVectorScanner(BaseScanner):
+    """Scanner de XSS Vectors (Group A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-xssvectors",
-        description="XSS Vectors — detecta vetores de XSS via midia, URIs, iframe, base, custom elements, shadow DOM.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-xssvectors https://target.com\n"
-            "  mytools-xssvectors https://target.com -c media_events\n"
-            "  mytools-xssvectors https://target.com -c uri_javascript\n"
-            "  mytools-xssvectors https://target.com -c iframe_vectors\n"
-            "  mytools-xssvectors https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+    prog = "mytools-xssvectors"
+    description = "XSS Vectors — detecta vetores de XSS via midia, URIs, iframe, base, custom elements, shadow DOM."
+    prompt = "xssvectors> "
+    module_name = "mytools.xssvectors"
+    banner_fn = banner_art
+    group = ScanGroup.A
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "media_events",
+                "uri_javascript",
+                "uri_data",
+                "iframe_vectors",
+                "base_redirect",
+                "custom_elements",
+                "shadow_dom",
+                "slot_use",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
+        parser.add_argument(
+            "--headless",
+            action="store_true",
+            help="Confirma a execucao real de cada vetor em chromium headless (requer 'uv run playwright install chromium').",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "media_events",
-            "uri_javascript",
-            "uri_data",
-            "iframe_vectors",
-            "base_redirect",
-            "custom_elements",
-            "shadow_dom",
-            "slot_use",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await _run_scan_core(
+            target=kwargs.get("target", ""),
+            categories=kwargs.get("categories", []),
+            timeout=kwargs.get("timeout", 10.0),
+            output_file=kwargs.get("output_file"),
+            headless=kwargs.get("headless", False),
+            proxy=kwargs.get("proxy"),
+        )
 
-    add_common_args(parser)
+    def print_results(self, result: object) -> None:
+        print_results(cast(XSSVectorResult, result))
 
-    return parser
+    def _example(self) -> str:
+        return "https://target.com -c uri_javascript"
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan XSS Vectors a partir de argumentos parseados."""
-
-    logger.info("XSS Vectors scan iniciado para %s", args.url)
-
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo XSS Vectors."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="xssvectors> ",
-        description="XSS Vectors interativo.",
-        example="https://target.com -c uri_javascript",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c media_events\n"
             "  https://target.com -c uri_javascript\n"
             "  https://target.com -c iframe_vectors\n"
-            "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+            "  https://target.com --proxy http://127.0.0.1:8080\n"
+            "  https://target.com --headless"
+        )
 
+
+scanner = XSSVectorScanner()
+main = scanner.main
+run_once = scanner.run_once
+banner_art = scanner._make_banner()
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())
