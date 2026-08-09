@@ -42,6 +42,22 @@ class TestLoadApk:
         ):
             _load_apk("test.apk")
 
+    def test_success_returns_triple(self) -> None:
+        from mytools.mobile.apk_dex import _load_apk
+
+        mock_a = MagicMock()
+        mock_dex = MagicMock()
+        mock_dx = MagicMock()
+        with (
+            patch("mytools.mobile.apk_dex.Path.is_file", return_value=True),
+            patch(
+                "androguard.misc.AnalyzeAPK",
+                return_value=(mock_a, [mock_dex], mock_dx),
+            ),
+        ):
+            result = _load_apk("test.apk")
+        assert result == (mock_a, [mock_dex], mock_dx)
+
 
 # ---------------------------------------------------------------------------
 # analyze_dex_layer
