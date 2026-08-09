@@ -4,6 +4,8 @@
 
 Suite de ferramentas de auditoria e reconhecimento web/network para ambientes de laboratório e alvos autorizados.
 
+> **Qualidade:** 8548 testes passando · 100% de cobertura de código (statements + branches) · `ruff check`/`ruff format` limpos · `basedpyright` com 0 erros.
+
 > **AVISO:** Este projeto é destinado exclusivamente para fins educacionais e de teste em ambientes autorizados. O uso irresponsável pode ser ilegal. Use com responsabilidade.
 
 ---
@@ -2131,7 +2133,7 @@ src/mytools/                    # Pacote principal
     oauth2_flows.py             # OAuth2 PKCE, Client Credentials, JWT validation
     mobile_audit.py             # BaseScanner CLI: run_scan + colored output
 
-tests/                          # Testes unitários (5550 testes)
+tests/                          # Testes unitários (8548 testes, 100% de cobertura)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -2154,21 +2156,21 @@ pyproject.toml                  # Configuração do projeto
 
 ### Rodar testes
 ```bash
-uv run pytest tests/ -v
-uv run pytest tests/ --cov=mytools --cov-report=term-missing  # Com cobertura
+uv run pytest tests/                                  # Suite completa (8548 testes, xdist)
+uv run pytest tests/ -m smoke                        # Testes rápidos
+uv run pytest tests/ -m integration                  # Testes de integração (HTTP real)
+uv run pytest tests/ -m "not real_sleep"             # Excluir testes com sleep real
+
+# Com cobertura (branch coverage, exige 100% — fail_under=100)
+uv run pytest tests/ --cov=mytools --cov-report=term-missing
 ```
 
-### Lint
+### Lint e type-check
 ```bash
-uv run ruff check src/mytools/ tests/
-uv run basedpyright src/mytools/
-```
-
-### Pytest Markers
-```bash
-uv run pytest tests/ -m smoke          # Testes rápidos
-uv run pytest tests/ -m integration    # Testes de integração (HTTP real)
-uv run pytest tests/ -m "not real_sleep"  # Excluir testes com sleep real
+uv run ruff check .                 # Lint (E, F, W, I, UP, B, SIM, RUF, PTH, PERF, ASYNC, LOG, G)
+uv run ruff format --check .        # Formatação
+uv run ruff format .                # Aplicar formatação
+uv run basedpyright                 # Type check (0 errors exigidos)
 ```
 
 ### Adicionar dependências
@@ -2205,6 +2207,7 @@ uv lock                  # Atualizar o lockfile
 - `lief>=1.0.0` — Parsing de Mach-O (IPA, rpaths, imports/exports)
 - `tqdm>=4.70.0` — Barras de progresso nos scanners
 - `jinja2>=3.1.6` — Template engine (mytools-report)
+- `playwright>=1.62.0` — Headless Browser (navegação, screenshots)
 
 ### Dev
 - `pytest>=9.1.1` — Framework de testes

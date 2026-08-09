@@ -349,10 +349,9 @@ class TestMainGuard:
     def test_main_guard_runs(self, monkeypatch):
         import runpy
 
-        import mytools.core.cred as cred_mod
+        def _raise(*_args: object, **_kwargs: object) -> int:
+            raise SystemExit(0)
 
-        monkeypatch.setattr(
-            cred_mod, "main", lambda: (_ for _ in ()).throw(SystemExit(0))
-        )
-        with patch("sys.argv", ["mytools-cred", "list"]), pytest.raises(SystemExit):
+        monkeypatch.setattr("mytools.core.utils.run_interactive_shell", _raise)
+        with patch("sys.argv", ["mytools-cred"]), pytest.raises(SystemExit):
             runpy.run_module("mytools.core.cred", run_name="__main__")
