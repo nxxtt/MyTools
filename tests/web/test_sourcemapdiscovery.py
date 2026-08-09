@@ -1,19 +1,30 @@
 import argparse
 import asyncio
 import json
+import runpy
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+import respx
 
+from mytools.core.utils import RateLimiter
 from mytools.web.sourcemapdiscovery import (
     DEFAULT_SCRIPT_PATHS,
     SourceMapInfo,
     _async_run_once,
+    _fetch_page,
     _load_paths_from_args,
+    _probe_map,
     build_map_urls,
     build_parser,
     extract_script_urls,
+    main,
     parse_source_map,
+    print_results,
+    print_sources_detail,
+    run_once,
+    scan_sourcemaps,
 )
 
 
@@ -125,6 +136,10 @@ class TestBuildMapUrls:
     def test_multiple_candidates(self):
         urls = build_map_urls("http://x.com/static/js/bundle.js")
         assert len(urls) == 3
+
+    def test_query_base_not_js_returns_empty(self):
+        urls = build_map_urls("http://x.com/a?b.js?c")
+        assert urls == []
 
 
 class TestParseSourceMap:
@@ -371,3 +386,350 @@ class TestJsonOutput:
         data, _ = decoder.raw_decode(capsys.readouterr().out)
         assert isinstance(data, list)
         assert data[0]["url"] == "http://x.com/app.js.map"
+
+
+# ── _probe_map ───────────────────────────────────────────────────────────────
+
+
+class TestProbeMap:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_found(self, async_client):
+        respx.get("http://x.com/app.js.map").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "version": 3,
+                    "sources": ["src/a.ts"],
+                    "names": ["A"],
+                    "mappings": "AAAA",
+                },
+                headers={"content-type": "application/json"},
+            )
+        )
+        info = await _probe_map(
+            async_client,
+            RateLimiter(0),
+            "http://x.com/app.js.map",
+            "http://x.com/app.js",
+            5.0,
+            retries=1,
+        )
+        assert info is not None
+        assert info.url == "http://x.com/app.js.map"
+        assert info.js_url == "http://x.com/app.js"
+        assert info.sources_count == 1
+        assert info.names_count == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error_returns_none(self, async_client):
+        respx.get("http://x.com/app.js.map").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        info = await _probe_map(
+            async_client,
+            RateLimiter(0),
+            "http://x.com/app.js.map",
+            "http://x.com/app.js",
+            5.0,
+            retries=1,
+        )
+        assert info is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_bad_status_returns_none(self, async_client):
+        respx.get("http://x.com/app.js.map").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        info = await _probe_map(
+            async_client,
+            RateLimiter(0),
+            "http://x.com/app.js.map",
+            "http://x.com/app.js",
+            5.0,
+            retries=1,
+        )
+        assert info is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_content_returns_none(self, async_client):
+        respx.get("http://x.com/app.js.map").mock(
+            return_value=httpx.Response(200, text="not a map")
+        )
+        info = await _probe_map(
+            async_client,
+            RateLimiter(0),
+            "http://x.com/app.js.map",
+            "http://x.com/app.js",
+            5.0,
+            retries=1,
+        )
+        assert info is None
+
+
+# ── _fetch_page ──────────────────────────────────────────────────────────────
+
+
+class TestFetchPage:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_html(self, async_client):
+        respx.get("http://x.com/").mock(
+            return_value=httpx.Response(
+                200,
+                text="<html><body>hi</body></html>",
+                headers={"content-type": "text/html"},
+            )
+        )
+        body = await _fetch_page(
+            async_client, RateLimiter(0), "http://x.com/", 5.0, retries=1
+        )
+        assert "<html>" in body
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_error_returns_empty(self, async_client):
+        respx.get("http://x.com/").mock(side_effect=httpx.ConnectError("refused"))
+        body = await _fetch_page(
+            async_client, RateLimiter(0), "http://x.com/", 5.0, retries=1
+        )
+        assert body == ""
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_html_returns_empty(self, async_client):
+        respx.get("http://x.com/app.js").mock(
+            return_value=httpx.Response(
+                200, text="var a=1;", headers={"content-type": "application/javascript"}
+            )
+        )
+        body = await _fetch_page(
+            async_client, RateLimiter(0), "http://x.com/app.js", 5.0, retries=1
+        )
+        assert body == ""
+
+
+# ── scan_sourcemaps ──────────────────────────────────────────────────────────
+
+
+class TestScanSourcemaps:
+    @pytest.mark.asyncio
+    async def test_found(self, capsys):
+        info = SourceMapInfo(
+            url="http://x.com/app.js.map",
+            js_url="http://x.com/app.js",
+            status=200,
+            sources=["src/a.ts"],
+            sources_count=1,
+        )
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.sourcemapdiscovery.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.sourcemapdiscovery._fetch_page",
+                new_callable=AsyncMock,
+                return_value='<script src="/app.js"></script>',
+            ),
+            patch(
+                "mytools.web.sourcemapdiscovery._probe_map",
+                new_callable=AsyncMock,
+                return_value=info,
+            ),
+        ):
+            result = await scan_sourcemaps(
+                "http://x.com", 5.0, 2, "UA", scan_scripts=True, custom_paths=["app.js"]
+            )
+        assert result
+        assert all(isinstance(r, SourceMapInfo) for r in result)
+        out = capsys.readouterr().out
+        assert "Source maps encontrados" in out
+
+    @pytest.mark.asyncio
+    async def test_no_html_uses_else_branch(self, capsys):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.sourcemapdiscovery.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.sourcemapdiscovery._fetch_page",
+                new_callable=AsyncMock,
+                return_value="",
+            ),
+            patch(
+                "mytools.web.sourcemapdiscovery._probe_map",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
+            result = await scan_sourcemaps(
+                "http://x.com", 5.0, 2, "UA", scan_scripts=True, custom_paths=["app.js"]
+            )
+        assert result == []
+        out = capsys.readouterr().out
+        assert "Nao foi possivel buscar" in out
+
+    @pytest.mark.asyncio
+    async def test_no_candidates(self, capsys):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.sourcemapdiscovery.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.sourcemapdiscovery._fetch_page",
+                new_callable=AsyncMock,
+                return_value="",
+            ),
+            patch(
+                "mytools.web.sourcemapdiscovery._probe_map",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
+            result = await scan_sourcemaps(
+                "http://x.com",
+                5.0,
+                2,
+                "UA",
+                scan_scripts=False,
+                custom_paths=["style.css"],
+            )
+        assert result == []
+        out = capsys.readouterr().out
+        assert "Nenhum candidato" in out
+
+
+# ── print_results / print_sources_detail ─────────────────────────────────────
+
+
+class TestPrintResults:
+    def test_empty(self, capsys):
+        print_results([])
+        assert "Nenhum source map" in capsys.readouterr().out
+
+    def test_with_maps(self, capsys):
+        info = SourceMapInfo(
+            url="http://x.com/app.js.map",
+            js_url="http://x.com/app.js",
+            status=200,
+            raw_size=1024,
+            sources_count=2,
+            names_count=3,
+        )
+        print_results([info])
+        out = capsys.readouterr().out
+        assert "Source Maps Encontrados" in out
+        assert "app.js.map" in out
+
+
+class TestPrintSourcesDetail:
+    def test_with_sources(self, capsys):
+        info = SourceMapInfo(
+            url="http://x.com/app.js.map",
+            sources=[f"src/file{i}.ts" for i in range(35)],
+        )
+        print_sources_detail([info])
+        out = capsys.readouterr().out
+        assert "Sources:" in out
+        assert "+5 mais" in out
+
+    def test_empty_sources_skipped(self, capsys):
+        info = SourceMapInfo(url="http://x.com/app.js.map")
+        print_sources_detail([info])
+        capsys.readouterr()
+
+
+# ── _async_run_once / run_once / main ────────────────────────────────────────
+
+
+class TestAsyncRunOnceExtra:
+    def test_dry_run(self, capsys):
+        args = build_parser().parse_args(["--dry-run", "http://x.com"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert "DRY-RUN" in capsys.readouterr().out
+
+    def test_show_sources(self, capsys):
+        info = SourceMapInfo(
+            url="http://x.com/app.js.map", sources=["src/a.ts"], sources_count=1
+        )
+        args = build_parser().parse_args(["--sources", "http://x.com"])
+        with patch(
+            "mytools.web.sourcemapdiscovery.scan_sourcemaps",
+            new=AsyncMock(return_value=[info]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Sources:" in out
+
+    def test_output_without_sources(self, capsys):
+        info = SourceMapInfo(
+            url="http://x.com/app.js.map", sources=["src/a.ts"], sources_count=1
+        )
+        args = build_parser().parse_args(["http://x.com"])
+        with patch(
+            "mytools.web.sourcemapdiscovery.scan_sourcemaps",
+            new=AsyncMock(return_value=[info]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Source Maps Encontrados" in out
+        assert "Sources:" not in out
+
+    def test_output_dir_and_output_file(self, tmp_path):
+        info = SourceMapInfo(url="http://x.com/app.js.map", status=200)
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(
+            ["--output-dir", str(out_dir), "-o", str(out_file), "-q", "http://x.com"]
+        )
+        with patch(
+            "mytools.web.sourcemapdiscovery.scan_sourcemaps",
+            new=AsyncMock(return_value=[info]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert (out_dir / "x.com.json").exists()
+        assert out_file.exists()
+
+
+class TestRunOnce:
+    def test_run_once(self):
+        args = build_parser().parse_args(["-q", "-o", "out.json", "http://x.com"])
+        with patch(
+            "mytools.web.sourcemapdiscovery._async_run_once",
+            new=AsyncMock(return_value=0),
+        ):
+            assert run_once(args) == 0
+
+
+class TestMainEntry:
+    def test_main(self):
+        with patch("mytools.web.sourcemapdiscovery.run_main_loop", return_value=0):
+            assert main() == 0
+
+    def test_main_guard(self):
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.sourcemapdiscovery", run_name="__main__")
+        assert exc_info.value.code == 0

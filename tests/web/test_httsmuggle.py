@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+import argparse
+import runpy
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import h2.connection
+import h2.events
 import pytest
 
 from mytools.web.httsmuggle import (
@@ -23,10 +27,24 @@ from mytools.web.httsmuggle import (
     _check_response_differs,
     _check_smuggled_response,
     _create_connection,
+    _create_h2_smuggle_connection,
+    _drain_h2_settings,
     _parse_url,
+    _recv_h2_events,
+    _register_category,
     _send_raw,
+    _test_chunked_cl,
+    _test_cl0,
+    _test_cl_te,
+    _test_h2c,
+    _test_pipeline,
+    _test_te_cl,
+    _test_te_te,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 # ─── Dataclass Tests ─────────────────────────────────────────────────────────
@@ -341,6 +359,35 @@ class TestSendRaw:
         status, _response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
         assert status == 0
 
+    def test_headers_split_across_chunks(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nContent-Len",
+            b"gth: 5\r\n\r\nhello",
+            b"",
+        ]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert b"hello" in response
+
+    def test_partial_body_then_complete(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n12345",
+            b"67890",
+            b"",
+        ]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert response == b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n1234567890"
+
+    def test_no_status_line(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [b"GARBAGE\r\n\r\nbody", b""]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 0
+        assert response == b"GARBAGE\r\n\r\nbody"
+
 
 # ─── Parser Tests ────────────────────────────────────────────────────────────
 
@@ -415,3 +462,490 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         assert "VULNERABLE" in captured.out
+
+
+# ─── Coverage Extension ──────────────────────────────────────────────────────
+
+
+class _FakeTime:
+    """Stub do modulo time com monotonic controlavel (ramo slow > 2s)."""
+
+    def __init__(self, jump: float) -> None:
+        self._t = 0.0
+        self._jump = jump
+
+    def monotonic(self) -> float:
+        self._t += self._jump
+        return self._t
+
+
+def _attempt(
+    technique: str,
+    category: str,
+    *,
+    vulnerable: bool = False,
+    error: str = "",
+    details: str = "",
+) -> SmuggleAttempt:
+    return SmuggleAttempt(
+        technique=technique,
+        category=category,
+        method="POST",
+        path="/",
+        te_header="chunked",
+        cl_header="3",
+        smuggled_request="",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        response_differs=False,
+        smuggled_executed=vulnerable,
+        vulnerable=vulnerable,
+        details=details,
+        error=error,
+    )
+
+
+class TestRegisterCategory:
+    def test_known_category(self) -> None:
+        assert _register_category("cl_te") == _CATEGORY_MAP["cl_te"]
+
+    def test_unknown_category(self) -> None:
+        assert _register_category("bogus") == []
+
+
+class TestSendRawBranchless:
+    def test_chunked_without_cl(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nwiki\r\n0\r\n\r\n",
+            b"",
+        ]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert b"0\r\n\r\n" in response
+
+    def test_no_content_length_no_te(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.return_value = (
+            b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nbody"
+        )
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert b"body" in response
+
+
+class TestCheckSmuggledResponse200:
+    def test_200_with_smuggled_marker_text(self) -> None:
+        response = b"HTTP/1.1 200 OK\r\n\r\nx-smuggled: none"
+        vuln, details = _check_smuggled_response(response, "X-Smuggled: CLTE")
+        assert vuln is True
+        assert "200" in details
+
+
+_SIMPLE_TESTERS: list[tuple[object, str, int]] = [
+    (_test_cl_te, "X-Smuggled: CLTE", 3),
+    (_test_te_cl, "X-Smuggled: TECL", 3),
+    (_test_chunked_cl, "X-Smuggled: CHUNKED_CL", 2),
+    (_test_cl0, "X-Smuggled: CL0", 3),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tester,marker,count", _SIMPLE_TESTERS)
+async def test_tester_marker_found(tester: object, marker: str, count: int) -> None:
+    resp = b"HTTP/1.1 200 OK\r\n\r\n" + marker.encode() + b"\r\n"
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch("mytools.web.httsmuggle._send_raw", return_value=(200, resp)),
+    ):
+        results = await tester("example.com", 80, "/", 5.0, False, 200, 100)  # type: ignore[operator]
+    assert len(results) == count
+    assert all(r.vulnerable for r in results)
+    assert all(r.error == "" for r in results)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tester,marker,count", _SIMPLE_TESTERS)
+async def test_tester_slow_response(tester: object, marker: str, count: int) -> None:
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch(
+            "mytools.web.httsmuggle._send_raw",
+            return_value=(200, b"HTTP/1.1 200 OK\r\n\r\nplain"),
+        ),
+        patch("mytools.web.httsmuggle.time", _FakeTime(3.0)),
+    ):
+        results = await tester("example.com", 80, "/", 5.0, False, 200, 100)  # type: ignore[operator]
+    assert len(results) == count
+    assert all(r.vulnerable for r in results)
+    assert all("Slow response" in r.details for r in results)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tester,marker,count", _SIMPLE_TESTERS)
+async def test_tester_connection_error(tester: object, marker: str, count: int) -> None:
+    with patch(
+        "mytools.web.httsmuggle._create_connection",
+        side_effect=ConnectionResetError("reset"),
+    ):
+        results = await tester("example.com", 80, "/", 5.0, False, 200, 100)  # type: ignore[operator]
+    assert len(results) == count
+    assert all(not r.vulnerable for r in results)
+    assert all(r.error for r in results)
+
+
+@pytest.mark.asyncio
+async def test_tete_marker_found() -> None:
+    resp = (
+        b"HTTP/1.1 200 OK\r\n\r\nX-Smuggled: TETE_DUPLICATE "
+        b"X-Smuggled: TETE_OBFUSCATION X-Smuggled: TETE_WHITESPACE\r\n"
+    )
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch("mytools.web.httsmuggle._send_raw", return_value=(200, resp)),
+    ):
+        results = await _test_te_te("example.com", 80, "/", 5.0, False, 200, 100)
+    assert len(results) == 3
+    assert all(r.vulnerable for r in results)
+
+
+@pytest.mark.asyncio
+async def test_tete_slow_response() -> None:
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch(
+            "mytools.web.httsmuggle._send_raw",
+            return_value=(200, b"HTTP/1.1 200 OK\r\n\r\nplain"),
+        ),
+        patch("mytools.web.httsmuggle.time", _FakeTime(3.0)),
+    ):
+        results = await _test_te_te("example.com", 80, "/", 5.0, False, 200, 100)
+    assert len(results) == 3
+    assert all(r.vulnerable for r in results)
+    assert all("Slow response" in r.details for r in results)
+
+
+@pytest.mark.asyncio
+async def test_tete_connection_error() -> None:
+    with patch(
+        "mytools.web.httsmuggle._create_connection",
+        side_effect=ConnectionResetError("reset"),
+    ):
+        results = await _test_te_te("example.com", 80, "/", 5.0, False, 200, 100)
+    assert len(results) == 3
+    assert all(r.error for r in results)
+    assert all(not r.vulnerable for r in results)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_desync() -> None:
+    resp = (
+        b"HTTP/1.1 200 OK\r\n\r\nHTTP/1.1 404 Not Found\r\n\r\nX-Smuggled: PIPELINE\r\n"
+    )
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch("mytools.web.httsmuggle._send_raw", return_value=(200, resp)),
+    ):
+        results = await _test_pipeline("example.com", 80, "/", 5.0, False, 200, 100)
+    assert len(results) == 2
+    assert all(r.vulnerable for r in results)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_slow() -> None:
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch(
+            "mytools.web.httsmuggle._send_raw",
+            return_value=(200, b"HTTP/1.1 200 OK\r\n\r\nplain"),
+        ),
+        patch("mytools.web.httsmuggle.time", _FakeTime(3.0)),
+    ):
+        results = await _test_pipeline("example.com", 80, "/", 5.0, False, 200, 100)
+    assert len(results) == 2
+    assert all("Slow response" in r.details for r in results)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_connection_error() -> None:
+    with patch(
+        "mytools.web.httsmuggle._create_connection",
+        side_effect=OSError("boom"),
+    ):
+        results = await _test_pipeline("example.com", 80, "/", 5.0, False, 200, 100)
+    assert len(results) == 2
+    assert all(r.error for r in results)
+
+
+# ─── H2 helpers ──────────────────────────────────────────────────────────────
+
+
+def test_create_h2_smuggle_connection() -> None:
+    fake_sock = MagicMock()
+    with patch("mytools.web.httsmuggle._create_connection", return_value=fake_sock):
+        sock, conn = _create_h2_smuggle_connection("example.com", 443, 5.0)
+    assert sock == fake_sock
+    assert isinstance(conn, h2.connection.H2Connection)
+    fake_sock.sendall.assert_called_once()
+
+
+def test_recv_h2_events_normal() -> None:
+    fake_sock = MagicMock()
+    fake_sock.recv.return_value = b"\x00\x04\x00\x00\x00\x00"
+    fake_conn = MagicMock()
+    fake_conn.receive_data.return_value = ["ev"]
+    events = _recv_h2_events(fake_sock, fake_conn, 5.0)
+    assert events == ["ev"]
+    fake_conn.receive_data.assert_called_once_with(b"\x00\x04\x00\x00\x00\x00")
+
+
+def test_recv_h2_events_timeout() -> None:
+    fake_sock = MagicMock()
+    fake_sock.recv.side_effect = TimeoutError("t")
+    assert _recv_h2_events(fake_sock, MagicMock(), 5.0) == []
+
+
+def test_recv_h2_events_empty() -> None:
+    fake_sock = MagicMock()
+    fake_sock.recv.return_value = b""
+    assert _recv_h2_events(fake_sock, MagicMock(), 5.0) == []
+
+
+def test_drain_h2_settings_settings_then_break() -> None:
+    from h2.settings import ChangedSetting, SettingCodes
+
+    ev = h2.events.RemoteSettingsChanged()
+    ev.changed_settings = {
+        SettingCodes.MAX_CONCURRENT_STREAMS: ChangedSetting(
+            SettingCodes.MAX_CONCURRENT_STREAMS, None, 100
+        )
+    }
+    with patch("mytools.web.httsmuggle._recv_h2_events", side_effect=[[ev], []]):
+        result = _drain_h2_settings(MagicMock(), MagicMock(), 5.0)
+    assert result["MAX_CONCURRENT_STREAMS"] == 100
+
+
+def test_drain_h2_settings_terminated() -> None:
+    ev = h2.events.ConnectionTerminated()
+    with patch("mytools.web.httsmuggle._recv_h2_events", return_value=[ev]):
+        result = _drain_h2_settings(MagicMock(), MagicMock(), 5.0)
+    assert result == {}
+
+
+def test_drain_h2_settings_timeout_exit() -> None:
+    with patch("mytools.web.httsmuggle._recv_h2_events") as mock_recv:
+        result = _drain_h2_settings(MagicMock(), MagicMock(), 0.0)
+    assert result == {}
+    mock_recv.assert_not_called()
+
+
+# ─── h2c tester ──────────────────────────────────────────────────────────────
+
+
+def _h2c_mocks(events: list[object]) -> tuple[MagicMock, MagicMock]:
+    fake_sock = MagicMock()
+    fake_conn = MagicMock()
+    fake_conn.get_next_available_stream_id.return_value = 1
+    return fake_sock, fake_conn
+
+
+@pytest.mark.asyncio
+async def test_h2c_full_success() -> None:
+    fake_sock = MagicMock()
+    fake_conn = MagicMock()
+    fake_conn.get_next_available_stream_id.return_value = 1
+    events = [
+        h2.events.ResponseReceived(
+            headers=[(b":status", b"200"), (b"x-smuggled", b"X-Smuggled: H2C_DIRECT")],
+            stream_id=1,
+        ),
+        h2.events.DataReceived(data=b"body", flow_controlled_length=4, stream_id=1),
+        h2.events.ConnectionTerminated(),
+    ]
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch(
+            "mytools.web.httsmuggle._send_raw",
+            return_value=(200, b"HTTP/1.1 200 OK\r\n\r\nX-Smuggled: H2C"),
+        ),
+        patch(
+            "mytools.web.httsmuggle._create_h2_smuggle_connection",
+            return_value=(fake_sock, fake_conn),
+        ),
+        patch("mytools.web.httsmuggle._drain_h2_settings", return_value={}),
+        patch("mytools.web.httsmuggle._recv_h2_events", return_value=events),
+    ):
+        results = await _test_h2c("example.com", 443, "/", 5.0, True, 200, 100)
+    assert len(results) == 3
+    by_tech = {r.technique: r for r in results}
+    assert by_tech["h2c_upgrade"].vulnerable
+    assert by_tech["h2c_direct"].vulnerable
+    assert by_tech["h2c_downgrade"].vulnerable
+    fake_conn.acknowledge_received_data.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_h2c_slow_paths() -> None:
+    fake_sock = MagicMock()
+    fake_conn = MagicMock()
+    fake_conn.get_next_available_stream_id.return_value = 1
+    events = [h2.events.ResponseReceived(headers=[(b":status", b"404")], stream_id=1)]
+    with (
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch(
+            "mytools.web.httsmuggle._send_raw",
+            return_value=(200, b"HTTP/1.1 200 OK\r\n\r\nplain"),
+        ),
+        patch(
+            "mytools.web.httsmuggle._create_h2_smuggle_connection",
+            return_value=(fake_sock, fake_conn),
+        ),
+        patch("mytools.web.httsmuggle._drain_h2_settings", return_value={}),
+        patch("mytools.web.httsmuggle._recv_h2_events", return_value=events),
+        patch("mytools.web.httsmuggle.time", _FakeTime(3.0)),
+    ):
+        results = await _test_h2c("example.com", 443, "/", 5.0, True, 200, 100)
+    assert len(results) == 3
+    by_tech = {r.technique: r for r in results}
+    assert by_tech["h2c_upgrade"].vulnerable
+    assert by_tech["h2c_direct"].vulnerable
+    assert "Slow" in by_tech["h2c_downgrade"].details
+
+
+@pytest.mark.asyncio
+async def test_h2c_all_errors() -> None:
+    with patch(
+        "mytools.web.httsmuggle._create_connection", side_effect=OSError("boom")
+    ):
+        results = await _test_h2c("example.com", 443, "/", 5.0, True, 200, 100)
+    assert len(results) == 3
+    assert all(r.error for r in results)
+    assert all(not r.vulnerable for r in results)
+
+
+# ─── print_results extra branch ──────────────────────────────────────────────
+
+
+class TestPrintResultsSecureCategory:
+    def test_category_without_vulns(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = SmuggleResult(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=100,
+            attempts=[_attempt("clte_basic", "cl_te")],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "cl_te: secure" in out
+        assert "SECURE" in out
+
+
+# ─── run_scan ────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_scan_vulnerable_with_output() -> None:
+    attempts = [
+        _attempt("clte_basic", "cl_te", vulnerable=True),
+        _attempt("tecl_basic", "te_cl", error="connection reset"),
+        _attempt("cl0_basic", "cl0"),
+    ]
+    mock_tester = AsyncMock(return_value=attempts)
+    with (
+        patch("mytools.web.httsmuggle._CATEGORY_DISPATCH", {"cl_te": mock_tester}),
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch("mytools.web.httsmuggle._send_raw", return_value=(200, b"hello")),
+        patch("mytools.web.httsmuggle.write_output") as mock_wo,
+    ):
+        result = await run_scan(
+            "https://example.com", ["cl_te", "bogus"], 5.0, "out.json"
+        )
+    assert result.overall_status == "vulnerable"
+    assert result.baseline_status == 200
+    assert result.vulnerable_techniques == ["clte_basic"]
+    assert result.blocked_techniques == ["tecl_basic"]
+    assert "1 techniques vulnerable" in result.issues
+    assert "connection issues" in result.issues[-1]
+    mock_wo.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_scan_secure_no_issues() -> None:
+    attempts = [_attempt("pipeline_basic", "pipeline")]
+    mock_tester = AsyncMock(return_value=attempts)
+    with (
+        patch("mytools.web.httsmuggle._CATEGORY_DISPATCH", {"pipeline": mock_tester}),
+        patch("mytools.web.httsmuggle._create_connection", return_value=MagicMock()),
+        patch("mytools.web.httsmuggle._send_raw", return_value=(200, b"hello")),
+    ):
+        result = await run_scan("https://example.com", ["pipeline"], 5.0, None)
+    assert result.overall_status == "secure"
+    assert result.issues == []
+    assert result.attempts == attempts
+
+
+@pytest.mark.asyncio
+async def test_run_scan_baseline_error_and_unknown_cats() -> None:
+    with (
+        patch("mytools.web.httsmuggle._CATEGORY_DISPATCH", {}),
+        patch(
+            "mytools.web.httsmuggle._create_connection", side_effect=OSError("net down")
+        ),
+    ):
+        result = await run_scan("https://example.com", None, 5.0, None)
+    assert result.baseline_status == 0
+    assert result.baseline_size == 0
+    assert result.overall_status == "secure"
+
+
+# ─── CLI ─────────────────────────────────────────────────────────────────────
+
+
+class TestRunOnce:
+    def test_vulnerable_returns_1(self) -> None:
+        mock_result = MagicMock()
+        mock_result.overall_status = "vulnerable"
+        args = argparse.Namespace(
+            url="https://example.com", categories=None, timeout=5.0, output=None
+        )
+        with (
+            patch("mytools.web.httsmuggle.safe_asyncio_run", return_value=mock_result),
+            patch("mytools.web.httsmuggle.run_scan", new_callable=MagicMock),
+        ):
+            assert run_once(args) == 1
+
+    def test_secure_returns_0(self) -> None:
+        mock_result = MagicMock()
+        mock_result.overall_status = "secure"
+        args = argparse.Namespace(
+            url="https://example.com", categories=None, timeout=5.0, output=None
+        )
+        with (
+            patch("mytools.web.httsmuggle.safe_asyncio_run", return_value=mock_result),
+            patch("mytools.web.httsmuggle.run_scan", new_callable=MagicMock),
+        ):
+            assert run_once(args) == 0
+
+
+class TestMain:
+    def test_main_calls_loop(self) -> None:
+        with patch("mytools.web.httsmuggle.run_main_loop", return_value=0) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.httsmuggle", run_name="__main__")
+        assert exc_info.value.code == 0

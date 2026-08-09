@@ -23,8 +23,12 @@ from mytools.web.httpparampollution import (
     _test_header,
     _test_json,
     _test_query,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 
@@ -271,6 +275,24 @@ class TestQuery:
         assert len(results) == 20
         assert all(r.error for r in results)
 
+    @pytest.mark.asyncio
+    async def test_content_indicator(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"duplicate parameter detected"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_query(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.vulnerable for r in results)
+
 
 # ─── Test Body ───────────────────────────────────────────────────────────────
 class TestBody:
@@ -309,6 +331,24 @@ class TestBody:
         assert len(results) == 20
         assert all(r.error for r in results)
 
+    @pytest.mark.asyncio
+    async def test_content_indicator(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"duplicate parameter detected"
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_body(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.vulnerable for r in results)
+
 
 # ─── Test Header ─────────────────────────────────────────────────────────────
 class TestHeader:
@@ -329,6 +369,41 @@ class TestHeader:
         )
         assert len(results) == 20
         assert all(r.category == "header" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_content_indicator(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"duplicate parameter detected"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_header(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_header(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.error for r in results)
 
 
 # ─── Test JSON ───────────────────────────────────────────────────────────────
@@ -351,6 +426,41 @@ class TestJSON:
         assert len(results) == 20
         assert all(r.category == "json" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_content_indicator(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"duplicate parameter detected"
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_json(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_json(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.error for r in results)
+
 
 # ─── Test Bypass ─────────────────────────────────────────────────────────────
 class TestBypass:
@@ -371,6 +481,41 @@ class TestBypass:
         )
         assert len(results) == 20
         assert all(r.category == "bypass" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_content_indicator(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"duplicate parameter detected"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.error for r in results)
 
 
 # ─── Print Results ───────────────────────────────────────────────────────────
@@ -425,6 +570,41 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "Nenhuma HTTP Parameter Pollution detectada" in output
 
+    def test_vulnerable_without_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = HPPResult(
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                HPPAttempt(
+                    technique="dup_id",
+                    category="query",
+                    param_name="id",
+                    payload="id=1&id=2",
+                    method="GET",
+                    status_baseline=200,
+                    status_test=403,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=True,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="",
+                    error="",
+                )
+            ],
+            vulnerable_techniques=["dup_id"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "dup_id" in output
+
     def test_with_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = HPPResult(
             target="https://test.com",
@@ -474,8 +654,234 @@ class TestRunOnce:
         mock_run.return_value = 0
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
-        from mytools.web.httpparampollution import run_once
 
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()
+
+    @patch("mytools.web.httpparampollution.run_scan")
+    def test_run_once_specific_category(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = 1
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com", "-c", "query"])
+
+        result = run_once(args)
+        assert result == 1
+        mock_run.assert_called_once()
+        assert mock_run.call_args[1]["categories"] == ["query"]
+
+
+# ─── Run Scan ────────────────────────────────────────────────────────────────
+
+
+class TestRunScan:
+    def _attempt(self, vulnerable: bool, error: str = "") -> HPPAttempt:
+        return HPPAttempt(
+            technique="dup_id",
+            category="query",
+            param_name="id",
+            payload="id=1&id=2",
+            method="GET",
+            status_baseline=200,
+            status_test=403 if vulnerable else 200,
+            size_baseline=100,
+            size_test=200 if vulnerable else 100,
+            status_changed=vulnerable,
+            size_changed=vulnerable,
+            vulnerable=vulnerable,
+            details="path=/admin" if vulnerable else "",
+            error=error,
+        )
+
+    def _make_tester(self, attempts: list[HPPAttempt]) -> AsyncMock:
+        return AsyncMock(return_value=attempts)
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_with_output(self) -> None:
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        tester = self._make_tester([self._attempt(True)])
+        with (
+            patch(
+                "mytools.web.httpparampollution.create_async_client",
+                MagicMock(return_value=client),
+            ),
+            patch(
+                "mytools.web.httpparampollution._test_baseline",
+                AsyncMock(return_value=(200, 100, b"ok")),
+            ),
+            patch("mytools.web.httpparampollution._test_query", tester),
+            patch("mytools.web.httpparampollution._test_body", tester),
+            patch("mytools.web.httpparampollution._test_header", tester),
+            patch("mytools.web.httpparampollution._test_json", tester),
+            patch("mytools.web.httpparampollution._test_bypass", tester),
+            patch("mytools.web.httpparampollution.print_results"),
+            patch("mytools.web.httpparampollution.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                "https://test.com",
+                ["query", "body", "header", "json", "bypass"],
+                5,
+                "out.json",
+            )
+        assert result == 1
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_blocked_safe(self) -> None:
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        tester = self._make_tester([self._attempt(False)])
+        with (
+            patch(
+                "mytools.web.httpparampollution.create_async_client",
+                MagicMock(return_value=client),
+            ),
+            patch(
+                "mytools.web.httpparampollution._test_baseline",
+                AsyncMock(return_value=(200, 100, b"ok")),
+            ),
+            patch("mytools.web.httpparampollution._test_query", tester),
+            patch("mytools.web.httpparampollution._test_body", tester),
+            patch("mytools.web.httpparampollution._test_header", tester),
+            patch("mytools.web.httpparampollution._test_json", tester),
+            patch("mytools.web.httpparampollution._test_bypass", tester),
+            patch("mytools.web.httpparampollution.print_results"),
+        ):
+            result = await run_scan("http://test.com", ["query"], 5, None)
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_skipped(self) -> None:
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.httpparampollution.create_async_client",
+                MagicMock(return_value=client),
+            ),
+            patch(
+                "mytools.web.httpparampollution._test_baseline",
+                AsyncMock(return_value=(200, 100, b"ok")),
+            ),
+            patch("mytools.web.httpparampollution.print_results"),
+        ):
+            result = await run_scan("http://test.com", ["bogus_cat"], 5, None)
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_no_clear_result(self) -> None:
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        tester = self._make_tester([])
+        with (
+            patch(
+                "mytools.web.httpparampollution.create_async_client",
+                MagicMock(return_value=client),
+            ),
+            patch(
+                "mytools.web.httpparampollution._test_baseline",
+                AsyncMock(return_value=(200, 100, b"ok")),
+            ),
+            patch("mytools.web.httpparampollution._test_query", tester),
+            patch("mytools.web.httpparampollution._test_body", tester),
+            patch("mytools.web.httpparampollution._test_header", tester),
+            patch("mytools.web.httpparampollution._test_json", tester),
+            patch("mytools.web.httpparampollution._test_bypass", tester),
+            patch("mytools.web.httpparampollution.print_results"),
+        ):
+            result = await run_scan("http://test.com", [], 5, None)
+        assert result == 0
+
+
+# ─── Banner ──────────────────────────────────────────────────────────────────
+
+
+class TestBanner:
+    def test_banner_art(self) -> None:
+        with patch("mytools.web.httpparampollution.create_banner") as mock_banner:
+            banner_art()
+        mock_banner.return_value.assert_called_once()
+
+
+# ─── Print Results (extra) ───────────────────────────────────────────────────
+
+
+class TestPrintResultsExtra:
+    def test_dedup_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = HPPResult(
+            target="https://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                HPPAttempt(
+                    technique="dup_id",
+                    category="query",
+                    param_name="id",
+                    payload="id=1&id=2",
+                    method="GET",
+                    status_baseline=200,
+                    status_test=403,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=True,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="path=/admin",
+                    error="",
+                ),
+                HPPAttempt(
+                    technique="dup_id",
+                    category="query",
+                    param_name="id",
+                    payload="id=1&id=2",
+                    method="GET",
+                    status_baseline=200,
+                    status_test=404,
+                    size_baseline=100,
+                    size_test=300,
+                    status_changed=True,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="path=/admin2",
+                    error="",
+                ),
+            ],
+            vulnerable_techniques=["dup_id"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Vulnerabilidades detectadas" in output
+
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.httpparampollution.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_guard(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-hpp"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.httpparampollution", run_name="__main__")
+        assert exc_info.value.code == 0

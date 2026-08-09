@@ -523,6 +523,55 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "Nenhuma NoSQL Injection detectada" in output
 
+    def test_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = NoSQLiResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                NoSQLiAttempt(
+                    technique="gt_bypass",
+                    category="detect",
+                    payload="{}",
+                    method="json_post",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="Connection refused",
+                ),
+                NoSQLiAttempt(
+                    technique="ne_bypass",
+                    category="detect",
+                    payload="{}",
+                    method="json_post",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="Timeout",
+                ),
+            ],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Erros (2)" in output
+        assert "Connection refused" in output
+        assert "Timeout" in output
+
 
 @pytest.mark.smoke
 class TestBuildParser:
@@ -568,6 +617,19 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+
+class TestMainGuard:
+    """Testes para o guard if __name__ == '__main__'."""
+
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.nosqliinject", run_name="__main__")
 
 
 class TestIntegration:
@@ -634,6 +696,83 @@ class TestIntegration:
         assert result == 1
 
     @pytest.mark.asyncio
+    async def test_run_scan_connection_error_json(self) -> None:
+        from mytools.web.nosqliinject import run_scan
+
+        with (
+            patch(
+                "mytools.web.nosqliinject.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.nosqliinject._test_baseline",
+                AsyncMock(return_value=(0, 0, b"")),
+            ),
+        ):
+            result = await run_scan(
+                target="https://example.com",
+                categories=["detect"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+                json_output=True,
+            )
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_run_scan_unknown_category(self) -> None:
+        from mytools.web.nosqliinject import run_scan
+
+        with (
+            patch(
+                "mytools.web.nosqliinject.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.nosqliinject._test_baseline",
+                AsyncMock(return_value=(200, 100, b"ok")),
+            ),
+        ):
+            result = await run_scan(
+                target="https://example.com",
+                categories=["bogus"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+            )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_run_scan_task_exception(self) -> None:
+        from mytools.web.nosqliinject import run_scan
+
+        with (
+            patch(
+                "mytools.web.nosqliinject.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.nosqliinject._test_baseline",
+                AsyncMock(return_value=(200, 100, b"ok")),
+            ),
+            patch(
+                "mytools.web.nosqliinject._test_detect",
+                AsyncMock(side_effect=RuntimeError("boom")),
+            ),
+        ):
+            result = await run_scan(
+                target="https://example.com",
+                categories=["detect"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+            )
+        assert result == 0
+
+    @pytest.mark.asyncio
     @respx.mock
     async def test_run_scan_with_output(self, tmp_path: object) -> None:
         from mytools.web.nosqliinject import run_scan
@@ -654,6 +793,32 @@ class TestIntegration:
             verbose=False,
         )
         assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_json_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from mytools.web.nosqliinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["detect"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+            json_output=True,
+        )
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "overall_status" in output
 
     def test_run_once(self) -> None:
         args = MagicMock()

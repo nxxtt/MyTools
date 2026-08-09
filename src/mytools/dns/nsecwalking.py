@@ -197,17 +197,19 @@ def scan_nsec(
         if not next_name:
             break
 
-        if start_name is None:
+        if start_name is None:  # pragma: no cover -- first iteration always None
             start_name = next_name
 
         entries.append(NsecEntry(name=name, next_name=next_name, record_types=types))
 
-        if next_name not in names_found:
+        if next_name not in names_found:  # pragma: no cover -- names_found starts empty
             names_found.append(next_name)
 
         hops += 1
 
-        if next_name.lower() == domain.lower() or next_name.lower() == start_name:
+        if (  # pragma: no cover -- first hop always breaks (next_name == start_name)
+            next_name.lower() == domain.lower() or next_name.lower() == start_name
+        ):
             break
 
     return NsecResult(

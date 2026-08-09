@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Open Redirect."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.web.openredirect import (
     _BYPASS_TECHNIQUES,
@@ -13,6 +16,8 @@ from mytools.web.openredirect import (
     _REDIRECT_PATHS,
     OpenRedirectAttempt,
     OpenRedirectResult,
+    OpenredirectScanner,
+    _confirm_headless_redirects,
     _is_external_redirect,
     _test_baseline,
     _test_bypass_redirect,
@@ -20,9 +25,11 @@ from mytools.web.openredirect import (
     _test_header_redirect,
     _test_param_redirect,
     _test_path_redirect,
+    banner_art,
     build_parser,
     main,
     print_results,
+    scan_open_redirect,
 )
 
 
@@ -417,3 +424,421 @@ class TestMain:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()
+
+
+class TestRedirectHelpersRequestError:
+    """Testes para o ramo de erro (RequestError) de cada helper de teste."""
+
+    @pytest.mark.asyncio
+    async def test_param_redirect_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_param_redirect(
+            client, "https://example.com", (200, 1000, b"")
+        )
+        assert len(attempts) == len(_REDIRECT_PARAMS)
+        assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_path_redirect_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_path_redirect(
+            client, "https://example.com", (200, 1000, b"")
+        )
+        assert len(attempts) == len(_REDIRECT_PATHS)
+        assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_header_redirect_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_header_redirect(
+            client, "https://example.com", (200, 1000, b"")
+        )
+        assert len(attempts) == 2
+        assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_fragment_redirect_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_fragment_redirect(
+            client, "https://example.com", (200, 1000, b"")
+        )
+        assert len(attempts) == 1
+        assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_bypass_redirect_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_bypass_redirect(
+            client, "https://example.com", (200, 1000, b"")
+        )
+        assert len(attempts) == len(_BYPASS_TECHNIQUES)
+        assert all(a.error for a in attempts)
+
+
+class TestConfirmHeadlessRedirects:
+    """Testes para _confirm_headless_redirects."""
+
+    @staticmethod
+    def _vulnerable_attempt() -> OpenRedirectAttempt:
+        return OpenRedirectAttempt(
+            technique="param_url",
+            category="param",
+            url="https://example.com/?url=evil.com",
+            payload="url=evil.com",
+            status_baseline=200,
+            status_test=302,
+            size_baseline=1000,
+            size_test=0,
+            status_changed=True,
+            size_changed=True,
+            redirect_location="http://evil.com",
+            vulnerable=True,
+            details="Redirect -> http://evil.com",
+            error="",
+            exploit="<TARGET>/redirect?url=https://evil.com",
+            tool="curl",
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_vulnerable_returns_unchanged(self) -> None:
+        att = OpenRedirectAttempt(
+            technique="param_url",
+            category="param",
+            url="https://example.com/?url=evil.com",
+            payload="url=evil.com",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=1000,
+            size_test=1000,
+            status_changed=False,
+            size_changed=False,
+            redirect_location="",
+            vulnerable=False,
+            details="Sem redirect",
+            error="",
+        )
+        result = await _confirm_headless_redirects([att], timeout=10, proxy=None)
+        assert result == [att]
+
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_confirmed(self, mock_eval: AsyncMock) -> None:
+        mock_eval.return_value = "http://evil.com/final"
+        att = self._vulnerable_attempt()
+        (result,) = await _confirm_headless_redirects([att], timeout=10, proxy=None)
+        assert result.dom_confirmed is True
+        assert "confirmado via headless" in result.details
+
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_not_confirmed(self, mock_eval: AsyncMock) -> None:
+        mock_eval.return_value = "http://example.com/final"
+        att = self._vulnerable_attempt()
+        (result,) = await _confirm_headless_redirects([att], timeout=10, proxy=None)
+        assert result.dom_confirmed is False
+
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_error_continues(self, mock_eval: AsyncMock) -> None:
+        mock_eval.side_effect = RuntimeError("browser crash")
+        att = self._vulnerable_attempt()
+        (result,) = await _confirm_headless_redirects([att], timeout=10, proxy=None)
+        assert result.dom_confirmed is False
+
+
+class TestScanOpenRedirect:
+    """Testes para o fluxo completo de scan_open_redirect."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_secure(self) -> None:
+        respx.get(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(200, text="ok")
+        )
+        result = await scan_open_redirect("http://example.com/")
+        assert result.overall_status == "secure"
+        assert result.attempts
+        assert result.vulnerable_techniques == []
+        assert result.blocked_techniques == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_vulnerable(self) -> None:
+        respx.get(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(
+                302, headers={"location": "http://evil.com"}, text=""
+            )
+        )
+        result = await scan_open_redirect("http://example.com/")
+        assert result.overall_status == "vulnerable"
+        assert "param_url" in result.vulnerable_techniques
+        assert len(result.vulnerable_techniques) == len(
+            {a.technique for a in result.attempts if a.vulnerable}
+        )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_blocked(self) -> None:
+        def _handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/" and not request.url.query:
+                return httpx.Response(200, text="ok")
+            return httpx.Response(403, text="forbidden")
+
+        respx.get(url__startswith="http://example.com/").mock(side_effect=_handler)
+        result = await scan_open_redirect("http://example.com/")
+        assert result.overall_status == "blocked"
+        assert result.blocked_techniques
+        assert "param_url" in result.blocked_techniques
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_category_param_only(self) -> None:
+        respx.get(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(200, text="ok")
+        )
+        result = await scan_open_redirect("http://example.com/", category="param")
+        assert result.attempts
+        assert all(a.category == "param" for a in result.attempts)
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_unknown_category(self) -> None:
+        respx.get(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(200, text="ok")
+        )
+        result = await scan_open_redirect("http://example.com/", category="bogus")
+        assert result.overall_status == "error"
+        assert any("bogus" in i for i in result.issues)
+        assert result.attempts == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_scheme_added(self) -> None:
+        respx.get(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(200, text="ok")
+        )
+        result = await scan_open_redirect("example.com/")
+        assert result.target == "http://example.com/"
+        assert result.tls is False
+
+    @respx.mock
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_headless_confirms(self, mock_eval: AsyncMock) -> None:
+        respx.get(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(
+                302, headers={"location": "http://evil.com"}, text=""
+            )
+        )
+        mock_eval.return_value = "http://evil.com/final"
+        result = await scan_open_redirect("http://example.com/", headless=True)
+        assert result.overall_status == "vulnerable"
+        confirmed = [a for a in result.attempts if a.dom_confirmed]
+        assert confirmed
+        assert all("confirmado via headless" in a.details for a in confirmed)
+
+    @pytest.mark.asyncio
+    async def test_exception_in_task(self) -> None:
+        with (
+            patch(
+                "mytools.web.openredirect._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.openredirect._test_param_redirect",
+                AsyncMock(side_effect=RuntimeError("boom")),
+            ),
+        ):
+            result = await scan_open_redirect("http://example.com/", category="param")
+        assert result.overall_status == "secure"
+
+    @pytest.mark.asyncio
+    async def test_duplicate_technique(self) -> None:
+        att = OpenRedirectAttempt(
+            technique="param_url",
+            category="param",
+            url="https://example.com/?url=evil.com",
+            payload="url=evil.com",
+            status_baseline=200,
+            status_test=302,
+            size_baseline=1000,
+            size_test=0,
+            status_changed=True,
+            size_changed=True,
+            redirect_location="http://evil.com",
+            vulnerable=True,
+            details="Redirect -> http://evil.com",
+            error="",
+        )
+        with (
+            patch(
+                "mytools.web.openredirect._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.openredirect._test_param_redirect",
+                AsyncMock(return_value=[att, att]),
+            ),
+        ):
+            result = await scan_open_redirect("http://example.com/", category="param")
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["param_url"]
+
+
+class TestPrintResultsExtras:
+    """Testes extras para print_results."""
+
+    def test_vulnerable_dom_and_blocked(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        att = OpenRedirectAttempt(
+            technique="param_url",
+            category="param",
+            url="https://example.com/?url=evil.com",
+            payload="url=evil.com",
+            status_baseline=200,
+            status_test=302,
+            size_baseline=1000,
+            size_test=0,
+            status_changed=True,
+            size_changed=True,
+            redirect_location="http://evil.com",
+            vulnerable=True,
+            details="Redirect -> http://evil.com",
+            error="",
+            exploit="<TARGET>/redirect?url=https://evil.com",
+            tool="curl",
+            dom_confirmed=True,
+        )
+        result = OpenRedirectResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=1000,
+            tls=True,
+            attempts=[att],
+            vulnerable_techniques=["param_url"],
+            blocked_techniques=["path_redirect"],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "DOM:       confirmado via headless" in out
+        assert "Exploit:" in out
+        assert "BLOQUEADO" in out
+
+    def test_vulnerable_without_dom(self, capsys) -> None:
+        att = OpenRedirectAttempt(
+            technique="param_url",
+            category="param",
+            url="https://example.com/?url=evil.com",
+            payload="url=evil.com",
+            status_baseline=200,
+            status_test=302,
+            size_baseline=1000,
+            size_test=0,
+            status_changed=True,
+            size_changed=True,
+            redirect_location="http://evil.com",
+            vulnerable=True,
+            details="Redirect -> http://evil.com",
+            error="",
+            exploit="<TARGET>/redirect?url=https://evil.com",
+            tool="curl",
+            dom_confirmed=False,
+        )
+        result = OpenRedirectResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=1000,
+            tls=True,
+            attempts=[att],
+            vulnerable_techniques=["param_url"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "VULNERAVEL" in out
+        assert "Exploit:" in out
+        assert "DOM:" not in out
+
+
+class TestScannerMethods:
+    """Testes para os metodos da classe OpenredirectScanner."""
+
+    def test_build_run_once_kwargs(self) -> None:
+        scanner = OpenredirectScanner()
+        parser = build_parser()
+        args = parser.parse_args(
+            ["https://example.com", "-c", "param", "--headless", "--concurrency", "3"]
+        )
+        kwargs = scanner._build_run_once_kwargs(args)
+        assert kwargs["headless"] is True
+        assert kwargs["category"] == "param"
+        assert kwargs["concurrency"] == 3
+
+    def test_run_scan(self) -> None:
+        scanner = OpenredirectScanner()
+        result = OpenRedirectResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        with patch(
+            "mytools.web.openredirect.scan_open_redirect", new_callable=AsyncMock
+        ) as mock_scan:
+            mock_scan.return_value = result
+            scanned = asyncio.run(scanner.run_scan(url="https://example.com"))
+            assert scanned is result
+            mock_scan.assert_called_once()
+
+    def test_print_results(self) -> None:
+        scanner = OpenredirectScanner()
+        result = OpenRedirectResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        with patch("mytools.web.openredirect.print_results_fn") as mock_print:
+            scanner.print_results(result)
+            mock_print.assert_called_once_with(result)
+
+
+class TestBannerArt:
+    """Testes para banner_art."""
+
+    def test_runs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner_art()
+        assert capsys.readouterr().out
+
+
+class TestMainGuard:
+    """Testes para o guard if __name__ == '__main__'."""
+
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.openredirect", run_name="__main__")

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Cookie Domain Boundary."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+import respx
 
 from mytools.web.cookieboundary import (
     _CATEGORY_MAP,
@@ -19,6 +21,7 @@ from mytools.web.cookieboundary import (
     _is_csrf_cookie,
     _is_public_suffix,
     _parse_cookie,
+    _run_scan_core,
     _test_cookie_quoting,
     _test_csrf_subdomain,
     _test_domain_attributes,
@@ -155,6 +158,18 @@ class TestParseCookie:
     def test_domain_backslash_escape(self) -> None:
         c = _parse_cookie(r'name=val; Domain="exam\.ple.com"')
         assert c.domain == "exam.ple.com"
+
+    def test_unterminated_quoted_attribute_value(self) -> None:
+        c = _parse_cookie('id=1; Domain=".example.com')
+        assert c.name == "id"
+        assert c.value == "1"
+        assert c.domain == ".example.com"
+
+    def test_unknown_attribute(self) -> None:
+        c = _parse_cookie("session=abc; Max-Age=3600")
+        assert c.name == "session"
+        assert c.value == "abc"
+        assert c.samesite == ""
 
 
 # ─── Extract Target Domain ───────────────────────────────────────────────────
@@ -586,6 +601,35 @@ class TestPrintResults:
         assert "Vulnerabilidades detectadas" in output
         assert "flag_no_httponly" in output
 
+    def test_vulnerable_output_without_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = CookieBoundaryResult(
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[],
+            attempts=[
+                CookieBoundaryAttempt(
+                    technique="flag_no_httponly",
+                    category="flags",
+                    cookie_name="session",
+                    attribute_tested="HttpOnly",
+                    attribute_value="False",
+                    vulnerable=True,
+                    details="",
+                    error="",
+                )
+            ],
+            vulnerable_techniques=["flag_no_httponly"],
+            protected_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "flag_no_httponly" in output
+
     def test_safe_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = CookieBoundaryResult(
             target="https://test.com",
@@ -840,6 +884,32 @@ class TestPathTraversalActive:
         )
         prefix_techs = [r for r in results if r.technique == "traversal_prefix_match"]
         assert len(prefix_techs) == 1
+
+    @pytest.mark.asyncio
+    async def test_uppercase_path_skips_case_variation(self) -> None:
+        cookies = [
+            CookieInfo(
+                name="session",
+                value="abc",
+                domain="",
+                path="/API",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
+        mock_resp = MagicMock()
+        mock_resp.headers = MagicMock()
+        mock_resp.headers.get_list = MagicMock(return_value=[])
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        results = await _test_path_traversal_active(
+            mock_client, "https://test.com", cookies
+        )
+        case_techs = [r for r in results if r.technique == "traversal_case_variation"]
+        assert len(case_techs) == 0
 
 
 # ─── CSRF Cookie Names ───────────────────────────────────────────────────────
@@ -1401,6 +1471,28 @@ class TestCsrfSubdomain:
 
     @pytest.mark.asyncio
     @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_csrf_cookie_exact_host_domain(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc123",
+                domain="target.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="Strict",
+                raw="",
+            )
+        ]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        techniques = [a.technique for a in result]
+        assert "csrf_subdomain_wildcard_domain" not in techniques
+        assert "csrf_subdomain_cookie_scope" not in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
     async def test_csrf_cookie_no_httponly(self, mock_enum: MagicMock) -> None:
         mock_enum.return_value = []
         cookies = [
@@ -1491,6 +1583,74 @@ class TestCsrfSubdomain:
         result = await _test_csrf_subdomain(client, "https://target.com", cookies)
         techniques = [a.technique for a in result]
         assert "csrf_subdomain_combined_risk" in techniques
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_combined_risk_no_cookie_scope(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain="",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="None",
+                raw="",
+            )
+        ]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        combined = [a for a in result if a.technique == "csrf_subdomain_combined_risk"]
+        assert len(combined) == 1
+        assert "Domain broad/wildcard" not in combined[0].details
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_combined_risk_no_httponly_skipped(
+        self, mock_enum: MagicMock
+    ) -> None:
+        mock_enum.return_value = []
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain=".target.com",
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="None",
+                raw="",
+            )
+        ]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        combined = [a for a in result if a.technique == "csrf_subdomain_combined_risk"]
+        assert len(combined) == 1
+        assert "sem HttpOnly" not in combined[0].details
+
+    @pytest.mark.asyncio
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    async def test_combined_risk_no_samesite_none(self, mock_enum: MagicMock) -> None:
+        mock_enum.return_value = []
+        cookies = [
+            CookieInfo(
+                name="csrf_token",
+                value="abc",
+                domain=".target.com",
+                path="/",
+                secure=True,
+                httponly=False,
+                samesite="Strict",
+                raw="",
+            )
+        ]
+        client = AsyncMock()
+        result = await _test_csrf_subdomain(client, "https://target.com", cookies)
+        combined = [a for a in result if a.technique == "csrf_subdomain_combined_risk"]
+        assert len(combined) == 1
+        assert "SameSite=None" not in combined[0].details
 
     @pytest.mark.asyncio
     async def test_no_domain_returns_early(self) -> None:
@@ -1642,6 +1802,23 @@ class TestCookieQuoting:
         techniques = [a.technique for a in result]
         assert "quoting_comma_separator" in techniques
 
+    def test_comma_in_name_not_separator(self) -> None:
+        cookies = [
+            CookieInfo(
+                name="sess,ion",
+                value="v",
+                domain="",
+                path="",
+                secure=False,
+                httponly=False,
+                samesite="",
+                raw="sess,ion=v",
+            )
+        ]
+        result = _test_cookie_quoting(cookies)
+        techniques = [a.technique for a in result]
+        assert "quoting_comma_separator" not in techniques
+
     def test_unbalanced_quotes(self) -> None:
         cookies = [
             CookieInfo(
@@ -1751,3 +1928,217 @@ class TestRunOnce:
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()
+
+
+# ─── Parse Cookie: leading whitespace ────────────────────────────────────────
+class TestParseCookieLeadingWhitespace:
+    def test_leading_whitespace_before_name(self) -> None:
+        c = _parse_cookie("   session=abc")
+        assert c.name == "session"
+        assert c.value == "abc"
+
+
+# ─── Extract Target Domain: all-suffix host ─────────────────────────────────
+class TestExtractTargetDomainAllSuffix:
+    def test_host_that_is_public_suffix(self) -> None:
+        assert _extract_target_domain("http://co.uk") == "co.uk"
+
+
+# ─── Print Results: dedup ────────────────────────────────────────────────────
+class TestPrintResultsDedup:
+    def test_duplicate_attempt_skipped(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        attempt = CookieBoundaryAttempt(
+            technique="flag_no_httponly",
+            category="flags",
+            cookie_name="session",
+            attribute_tested="HttpOnly",
+            attribute_value="False",
+            vulnerable=True,
+            details="Cookie 'session' sem HttpOnly",
+            error="",
+        )
+        result = CookieBoundaryResult(
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[],
+            attempts=[attempt, attempt],
+            vulnerable_techniques=["flag_no_httponly"],
+            protected_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert out.count("flag_no_httponly") == 1
+
+
+# ─── Run Scan Core ───────────────────────────────────────────────────────────
+class TestRunScanCore:
+    @pytest.mark.asyncio
+    @patch("mytools.web.cookieboundary.fetch", new_callable=AsyncMock)
+    async def test_vulnerable(self, mock_fetch: AsyncMock) -> None:
+        mock_fetch.return_value = (
+            200,
+            {},
+            b"<html></html>",
+            {"set-cookie": ["session=abc"]},
+        )
+        result = await _run_scan_core("http://example.com/", ["domain"], 10, None)
+        assert result == 1
+
+    @pytest.mark.asyncio
+    @patch("mytools.web.cookieboundary.fetch", new_callable=AsyncMock)
+    async def test_safe(self, mock_fetch: AsyncMock) -> None:
+        mock_fetch.return_value = (
+            200,
+            {},
+            b"<html></html>",
+            {
+                "set-cookie": [
+                    "session=abc; Domain=example.com; Path=/api; Secure; HttpOnly; SameSite=Strict"
+                ]
+            },
+        )
+        result = await _run_scan_core(
+            "http://example.com/",
+            ["domain", "flags", "path", "cookie_quoting"],
+            10,
+            None,
+        )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @patch("mytools.web.cookieboundary.fetch", new_callable=AsyncMock)
+    async def test_fetch_error_returns_one(self, mock_fetch: AsyncMock) -> None:
+        mock_fetch.side_effect = Exception("boom")
+        result = await _run_scan_core("http://example.com/", ["domain"], 10, None)
+        assert result == 1
+
+    @pytest.mark.asyncio
+    @patch("mytools.web.cookieboundary.fetch", new_callable=AsyncMock)
+    async def test_no_cookies_unknown(self, mock_fetch: AsyncMock) -> None:
+        mock_fetch.return_value = (200, {}, b"", {})
+        result = await _run_scan_core("http://example.com/", ["domain"], 10, None)
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @patch("mytools.web.cookieboundary.fetch", new_callable=AsyncMock)
+    async def test_unknown_category_ignored(self, mock_fetch: AsyncMock) -> None:
+        mock_fetch.return_value = (
+            200,
+            {},
+            b"",
+            {"set-cookie": ["session=abc"]},
+        )
+        result = await _run_scan_core("http://example.com/", ["bogus"], 10, None)
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @patch("mytools.web.cookieboundary.write_output")
+    @patch("mytools.web.cookieboundary.fetch", new_callable=AsyncMock)
+    async def test_output_file(
+        self, mock_fetch: AsyncMock, mock_write: MagicMock
+    ) -> None:
+        mock_fetch.return_value = (
+            200,
+            {},
+            b"",
+            {"set-cookie": ["session=abc"]},
+        )
+        result = await _run_scan_core("http://example.com/", ["domain"], 10, "out.json")
+        assert result == 1
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    @respx.mock
+    @patch("mytools.web.cookieboundary.fetch", new_callable=AsyncMock)
+    @patch("mytools.dns.dnsrebinding.scan_rebinding", return_value=[])
+    @patch("mytools.dns.subdomainenum.passive_enumeration", return_value=[])
+    async def test_all_categories(
+        self,
+        mock_enum: MagicMock,
+        mock_scan: MagicMock,
+        mock_fetch: AsyncMock,
+    ) -> None:
+        mock_fetch.return_value = (
+            200,
+            {},
+            b"<html><body></body></html>",
+            {
+                "set-cookie": [
+                    "session=abc; Path=/api; Secure; HttpOnly; SameSite=Lax",
+                    "csrf_token=xyz; Path=/; HttpOnly",
+                ]
+            },
+        )
+        respx.route(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(200, text="ok")
+        )
+        result = await _run_scan_core("http://example.com/", [], 10, None)
+        assert result == 1
+
+
+# ─── Scanner Methods ─────────────────────────────────────────────────────────
+class TestCookieBoundaryScannerMethods:
+    def test_run_scan(self) -> None:
+        scanner = CookieBoundaryScanner()
+        with patch(
+            "mytools.web.cookieboundary._run_scan_core", new_callable=AsyncMock
+        ) as mock_core:
+            mock_core.return_value = 1
+            result = asyncio.run(
+                scanner.run_scan(
+                    target="https://test.com",
+                    categories=["domain"],
+                    timeout=10,
+                    output_file=None,
+                )
+            )
+            assert result == 1
+            mock_core.assert_called_once()
+
+    def test_print_results(self) -> None:
+        scanner = CookieBoundaryScanner()
+        result = CookieBoundaryResult(
+            target="https://test.com",
+            target_domain="test.com",
+            tls=True,
+            cookies_found=[],
+            attempts=[],
+            vulnerable_techniques=[],
+            protected_techniques=[],
+            issues=[],
+            overall_status="safe",
+        )
+        with patch("mytools.web.cookieboundary.print_results") as mock_print:
+            scanner.print_results(result)
+            mock_print.assert_called_once_with(result)
+
+    def test_example(self) -> None:
+        assert "target.com" in CookieBoundaryScanner()._example()
+
+    def test_help(self) -> None:
+        help_text = CookieBoundaryScanner()._help()
+        assert "Uso" in help_text
+
+
+# ─── Banner Art ──────────────────────────────────────────────────────────────
+class TestBannerArt:
+    def test_runs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        vars(CookieBoundaryScanner)["banner_fn"]()
+        assert capsys.readouterr().out
+
+
+# ─── Main Guard ──────────────────────────────────────────────────────────────
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.cookieboundary", run_name="__main__")

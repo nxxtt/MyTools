@@ -3,6 +3,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.overlongencoding import (
@@ -10,6 +11,7 @@ from mytools.web.overlongencoding import (
     _OVERLONG_ENCODINGS,
     _SENSITIVE_CHARS,
     OverlongAttempt,
+    OverlongencodingScanner,
     OverlongResult,
     _build_overlong_url,
     _overlong_2byte,
@@ -23,6 +25,7 @@ from mytools.web.overlongencoding import (
     build_parser,
     main,
     print_results,
+    scan_overlong_encoding,
 )
 
 
@@ -471,3 +474,336 @@ class TestMain:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()
+
+
+# ─── Error Handling Detail Tests ─────────────────────────────────────────────
+
+
+class TestDetailErrors:
+    @pytest.mark.asyncio
+    async def test_url_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_overlong_url(
+            client, "https://example.com", (200, 100, b"ok")
+        )
+        assert any(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_params_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_overlong_params(
+            client, "https://example.com", (200, 100, b"ok")
+        )
+        assert any(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_headers_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_overlong_headers(
+            client, "https://example.com", (200, 100, b"ok")
+        )
+        assert any(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_waf_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_overlong_waf(
+            client, "https://example.com", (200, 100, b"ok")
+        )
+        assert any(a.error for a in attempts)
+
+
+# ─── Print Results Detail Tests ──────────────────────────────────────────────
+
+
+class TestPrintResultsDetail:
+    def test_vulnerable_with_attempt_and_blocked(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        vuln = OverlongAttempt(
+            technique="overlong_2byte_path",
+            category="url",
+            url="https://example.com",
+            payload="/=%c0%af",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=True,
+            details="detected",
+            error="",
+            exploit="exploit-cmd",
+            tool="wfuzz",
+        )
+        result = OverlongResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[vuln],
+            vulnerable_techniques=["overlong_2byte_path"],
+            blocked_techniques=["overlong_3byte_path"],
+            issues=["1 tecnicas vulneraveis"],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "overlong_2byte_path" in out
+        assert "BLOQUEADO" in out
+        assert "overlong_3byte_path" in out
+
+
+# ─── scan_overlong_encoding Tests ────────────────────────────────────────────
+
+
+class TestScanOverlongEncoding:
+    def _attempt(
+        self,
+        technique: str = "overlong_2byte_path",
+        *,
+        vulnerable: bool = False,
+        status_changed: bool = False,
+    ) -> OverlongAttempt:
+        return OverlongAttempt(
+            technique=technique,
+            category="url",
+            url="https://example.com",
+            payload="/=%c0%af",
+            status_baseline=200,
+            status_test=302 if status_changed else 200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=status_changed,
+            size_changed=False,
+            vulnerable=vulnerable,
+            details="test",
+            error="",
+        )
+
+    def _client(self) -> AsyncMock:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        return mock_client
+
+    @pytest.mark.asyncio
+    async def test_secure_all_categories(self) -> None:
+        mock_client = self._client()
+        with (
+            patch(
+                "mytools.web.overlongencoding.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_url",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_params",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_headers",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_waf",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await scan_overlong_encoding("https://example.com")
+        assert result.overall_status == "secure"
+        assert result.tls is True
+
+    @pytest.mark.asyncio
+    async def test_no_scheme(self) -> None:
+        mock_client = self._client()
+        with (
+            patch(
+                "mytools.web.overlongencoding.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_url",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await scan_overlong_encoding("example.com", category="url")
+        assert result.target == "http://example.com"
+        assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_with_dedup(self) -> None:
+        mock_client = self._client()
+        vuln = self._attempt(vulnerable=True, status_changed=True)
+        blocked_att = self._attempt(
+            technique="overlong_2byte_query", status_changed=True
+        )
+        clean = self._attempt(technique="overlong_3byte_path")
+        with (
+            patch(
+                "mytools.web.overlongencoding.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_url",
+                new_callable=AsyncMock,
+                return_value=[vuln, vuln, blocked_att, clean],
+            ),
+        ):
+            result = await scan_overlong_encoding("https://example.com", category="url")
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["overlong_2byte_path"]
+        assert result.blocked_techniques == ["overlong_2byte_query"]
+        assert len(result.issues) == 2
+
+    @pytest.mark.asyncio
+    async def test_blocked(self) -> None:
+        mock_client = self._client()
+        with (
+            patch(
+                "mytools.web.overlongencoding.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_url",
+                new_callable=AsyncMock,
+                return_value=[self._attempt(status_changed=True)],
+            ),
+        ):
+            result = await scan_overlong_encoding("https://example.com", category="url")
+        assert result.overall_status == "blocked"
+        assert result.blocked_techniques == ["overlong_2byte_path"]
+
+    @pytest.mark.asyncio
+    async def test_unknown_category(self) -> None:
+        mock_client = self._client()
+        with (
+            patch(
+                "mytools.web.overlongencoding.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+        ):
+            result = await scan_overlong_encoding(
+                "https://example.com", category="invalid"
+            )
+        assert result.overall_status == "error"
+        assert any("desconhecida" in i for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_gather_exception_is_skipped(self) -> None:
+        mock_client = self._client()
+        with (
+            patch(
+                "mytools.web.overlongencoding.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.overlongencoding._test_overlong_url",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            result = await scan_overlong_encoding("https://example.com", category="url")
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+
+# ─── Scanner Tests ───────────────────────────────────────────────────────────
+
+
+class TestScanner:
+    @pytest.mark.asyncio
+    async def test_run_scan(self) -> None:
+        result = OverlongResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        with patch(
+            "mytools.web.overlongencoding.scan_overlong_encoding",
+            new_callable=AsyncMock,
+            return_value=result,
+        ) as mock_scan:
+            out = await OverlongencodingScanner().run_scan(url="https://example.com")
+        assert out.overall_status == "secure"
+        mock_scan.assert_called_once()
+
+    def test_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = OverlongResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        OverlongencodingScanner().print_results(result)
+        out = capsys.readouterr().out
+        assert "OVERLONG" in out
+
+
+# ─── Main Guard ──────────────────────────────────────────────────────────────
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.overlongencoding", run_name="__main__")

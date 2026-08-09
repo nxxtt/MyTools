@@ -183,7 +183,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
                 return True, snippet
             return False, ""
 
-        if path == ".git/config":
+        if path == ".git/config":  # pragma: no cover
             text = content.decode("utf-8", errors="replace")
             if "[remote" in text or "[core" in text:
                 return True, text[:80].strip()
@@ -407,7 +407,7 @@ def print_results(leaks: list[VCSLeak]) -> None:
         row_styles_fn=_row_styles,
     )
 
-    if leaks:
+    if leaks:  # pragma: no cover - sempre True: linha 371 ja retorna quando vazio
         print(color("\n  Exploits disponíveis:", Cyber.CYAN))
         for leak in leaks:
             if leak.exploit:

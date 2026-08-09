@@ -1,18 +1,35 @@
 """Testes do modulo sqliscan."""
 
 import asyncio
+import json
+import runpy
 from dataclasses import asdict
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.sqliscan import (
+    _BLIND_BOOLEAN_PAIRS_DEFAULT,
+    _BYPASS_PAYLOADS_DEFAULT,
+    _ERROR_PAYLOADS_DEFAULT,
+    _TIME_PAYLOADS_DEFAULT,
+    _UNION_PAYLOADS_DEFAULT,
     SQLiAttempt,
     SQLiResult,
     _build_inject_url,
     _detect_db_error,
     _extract_params,
+    _get_blind_boolean_pairs,
+    _get_bypass_payloads,
+    _get_error_payloads,
+    _get_time_payloads,
+    _get_union_payloads,
+    _inject,
+    _load_db_error_patterns,
+    _test_baseline,
     _test_boolean_blind,
+    _test_bypass,
     _test_error,
     _test_time_blind,
     _test_union,
@@ -20,6 +37,7 @@ from mytools.web.sqliscan import (
     build_parser,
     main,
     print_results,
+    run_once,
     run_scan,
 )
 
@@ -535,3 +553,646 @@ class TestRunScan:
         result = asyncio.run(run())
         assert result.overall_status == "error"
         assert result.baseline_status == 0
+
+
+# ---------------------------------------------------------------------------
+# Payload loaders
+# ---------------------------------------------------------------------------
+
+
+class TestPayloadLoaders:
+    def test_get_error_payloads(self) -> None:
+        assert len(_get_error_payloads()) > 0
+
+    def test_get_error_payloads_invalid(self) -> None:
+        with patch(
+            "mytools.web.sqliscan._load_payloads",
+            return_value={"error_payloads": "junk"},
+        ):
+            assert _get_error_payloads() == _ERROR_PAYLOADS_DEFAULT
+
+    def test_get_blind_boolean_pairs(self) -> None:
+        pairs = _get_blind_boolean_pairs()
+        assert len(pairs) > 0
+        assert isinstance(pairs[0], list)
+
+    def test_get_blind_boolean_pairs_invalid(self) -> None:
+        with patch(
+            "mytools.web.sqliscan._load_payloads",
+            return_value={"blind_boolean_pairs": "junk"},
+        ):
+            assert _get_blind_boolean_pairs() == _BLIND_BOOLEAN_PAIRS_DEFAULT
+
+    def test_get_time_payloads(self) -> None:
+        assert len(_get_time_payloads()) > 0
+
+    def test_get_time_payloads_invalid(self) -> None:
+        with patch(
+            "mytools.web.sqliscan._load_payloads",
+            return_value={"time_payloads": "junk"},
+        ):
+            assert _get_time_payloads() == _TIME_PAYLOADS_DEFAULT
+
+    def test_get_union_payloads(self) -> None:
+        assert len(_get_union_payloads()) > 0
+
+    def test_get_union_payloads_invalid(self) -> None:
+        with patch(
+            "mytools.web.sqliscan._load_payloads",
+            return_value={"union_payloads": "junk"},
+        ):
+            assert _get_union_payloads() == _UNION_PAYLOADS_DEFAULT
+
+    def test_get_bypass_payloads(self) -> None:
+        assert len(_get_bypass_payloads()) > 0
+
+    def test_get_bypass_payloads_invalid(self) -> None:
+        with patch(
+            "mytools.web.sqliscan._load_payloads",
+            return_value={"bypass_payloads": "junk"},
+        ):
+            assert _get_bypass_payloads() == _BYPASS_PAYLOADS_DEFAULT
+
+    def test_load_db_error_patterns_compiles(self) -> None:
+        with patch(
+            "mytools.data.load_payloads",
+            return_value={
+                "db_error_patterns": {
+                    "mysql": ["plain string pattern"],
+                    "postgresql": "not a list",
+                    "empty": [],
+                }
+            },
+        ):
+            compiled = _load_db_error_patterns()
+        assert isinstance(compiled, dict)
+        assert "mysql" in compiled
+        assert "postgresql" not in compiled
+        assert compiled["mysql"][0].pattern == "plain string pattern"
+
+    def test_load_db_error_patterns_not_dict(self) -> None:
+        with patch(
+            "mytools.data.load_payloads",
+            return_value={"db_error_patterns": "junk"},
+        ):
+            compiled = _load_db_error_patterns()
+        assert compiled["mysql"][0].pattern == "You have an error in your SQL syntax"
+
+    def test_load_db_error_patterns_empty_compiled(self) -> None:
+        with patch(
+            "mytools.data.load_payloads",
+            return_value={"db_error_patterns": {"mysql": "not a list"}},
+        ):
+            compiled = _load_db_error_patterns()
+        assert compiled["mysql"][0].pattern == "You have an error in your SQL syntax"
+
+
+# ---------------------------------------------------------------------------
+# _test_baseline
+# ---------------------------------------------------------------------------
+
+
+class TestBaseline:
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("x"))
+        baseline = await _test_baseline(client, "http://test.com/?id=1")
+        assert baseline == (0, 0, b"", 0.0)
+
+
+# ---------------------------------------------------------------------------
+# _inject
+# ---------------------------------------------------------------------------
+
+
+class TestInject:
+    @pytest.mark.asyncio
+    async def test_request_error_returns_none(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("x"))
+        result = await _inject(client, "http://test.com/?id=1", "id", "'")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _test_error — branches restantes
+# ---------------------------------------------------------------------------
+
+
+class TestErrorBranches:
+    @pytest.mark.asyncio
+    async def test_all_requests_fail(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("x"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_error(
+                client, "http://test.com/?id=1", ["id"], baseline, ["'"]
+            )
+        assert len(attempts) == 1
+        assert attempts[0].error == "Request failed"
+
+    @pytest.mark.asyncio
+    async def test_second_get_raises(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"<html>no error</html>"
+        client.get = AsyncMock(side_effect=[resp, httpx.RequestError("x")])
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_error(
+                client, "http://test.com/?id=1", ["id"], baseline, ["'"]
+            )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_second_order_failed(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 500
+        resp.content = b"You have an error in your SQL syntax near ''"
+        client.get = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.sqliscan.get_verify_payload",
+                return_value=("v", [b"err"]),
+            ),
+            patch(
+                "mytools.web.sqliscan.verify_positive",
+                new=AsyncMock(return_value=(False, "no match")),
+            ),
+        ):
+            async with client:
+                baseline = (200, 1000, b"<html>ok</html>", 0.1)
+                attempts = await _test_error(
+                    client, "http://test.com/?id=1", ["id"], baseline, ["'"]
+                )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is False
+        assert "2nd-order failed" in attempts[0].details
+
+    @pytest.mark.asyncio
+    async def test_second_order_confirmed(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 500
+        resp.content = b"You have an error in your SQL syntax near ''"
+        client.get = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.sqliscan.get_verify_payload",
+                return_value=("v", [b"err"]),
+            ),
+            patch(
+                "mytools.web.sqliscan.verify_positive",
+                new=AsyncMock(return_value=(True, "match")),
+            ),
+        ):
+            async with client:
+                baseline = (200, 1000, b"<html>ok</html>", 0.1)
+                attempts = await _test_error(
+                    client, "http://test.com/?id=1", ["id"], baseline, ["'"]
+                )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is True
+        assert "2nd-order confirmed" in attempts[0].details
+
+    @pytest.mark.asyncio
+    async def test_second_order_skipped_when_no_verify(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 500
+        resp.content = b"You have an error in your SQL syntax near ''"
+        client.get = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        with patch(
+            "mytools.web.sqliscan.get_verify_payload",
+            return_value=None,
+        ):
+            async with client:
+                baseline = (200, 1000, b"<html>ok</html>", 0.1)
+                attempts = await _test_error(
+                    client, "http://test.com/?id=1", ["id"], baseline, ["'"]
+                )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is True
+        assert attempts[0].db_detected == "mysql"
+        assert "2nd-order" not in attempts[0].details
+
+
+# ---------------------------------------------------------------------------
+# _test_boolean_blind — brancos restantes
+# ---------------------------------------------------------------------------
+
+
+class TestBooleanBlindBranches:
+    @pytest.mark.asyncio
+    async def test_all_requests_fail(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("x"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_boolean_blind(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                pairs=[["' AND 1=1--", "' AND 1=2--"]],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is False
+
+
+# ---------------------------------------------------------------------------
+# _test_time_blind — request fail
+# ---------------------------------------------------------------------------
+
+
+class TestTimeBlindBranches:
+    @pytest.mark.asyncio
+    async def test_request_failed(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("x"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_time_blind(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                payloads=["' AND SLEEP(3)--"],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].error == "Request failed"
+
+
+# ---------------------------------------------------------------------------
+# _test_union — branches restantes
+# ---------------------------------------------------------------------------
+
+
+class TestUnionBranches:
+    @pytest.mark.asyncio
+    async def test_request_failed(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("x"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_union(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                payloads=["' UNION SELECT NULL--"],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].error == "Request failed"
+
+    @pytest.mark.asyncio
+    async def test_second_get_raises(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"<html>normal body</html>"
+        client.get = AsyncMock(side_effect=[resp, httpx.RequestError("x")])
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_union(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                payloads=["' UNION SELECT NULL--"],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_db_detected(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"You have an error in your SQL syntax" + b"x" * 600
+        client.get = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_union(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                payloads=["' UNION SELECT NULL--"],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is True
+        assert attempts[0].db_detected == "mysql"
+
+
+# ---------------------------------------------------------------------------
+# _test_bypass
+# ---------------------------------------------------------------------------
+
+
+class TestBypass:
+    @pytest.mark.asyncio
+    async def test_db_detected(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"PG::SyntaxError near line 1"
+        client.get = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_bypass(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                payloads=["' /*!50000OR*/ 1=1--"],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is True
+        assert attempts[0].db_detected == "postgresql"
+
+    @pytest.mark.asyncio
+    async def test_no_db(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"<html>safe</html>"
+        client.get = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_bypass(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                payloads=["' /*!50000OR*/ 1=1--"],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_request_failed(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("x"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        async with client:
+            baseline = (200, 1000, b"<html>ok</html>", 0.1)
+            attempts = await _test_bypass(
+                client,
+                "http://test.com/?id=1",
+                ["id"],
+                baseline,
+                payloads=["' /*!50000OR*/ 1=1--"],
+            )
+        assert len(attempts) == 1
+        assert attempts[0].error == "Request failed"
+
+
+# ---------------------------------------------------------------------------
+# run_scan — fluxo completo
+# ---------------------------------------------------------------------------
+
+
+def _make_client(get_impl: object) -> MagicMock:
+    client = MagicMock()
+    client.get = get_impl
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    return client
+
+
+class TestRunScanFull:
+    @pytest.mark.asyncio
+    async def test_no_scheme(self) -> None:
+        client = _make_client(
+            AsyncMock(
+                return_value=MagicMock(
+                    status_code=200, content=b"<html>ok</html>", cookies={}
+                )
+            )
+        )
+        with patch("mytools.web.sqliscan.create_async_client") as mock:
+            mock.return_value.__aenter__ = AsyncMock(return_value=client)
+            mock.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await run_scan(url="test.com/?id=1", category="invalid")
+        assert result.overall_status == "error"
+        assert result.target == "http://test.com/?id=1"
+
+    @pytest.mark.asyncio
+    async def test_scan_all_secure(self) -> None:
+        async def mock_get(url: str, **kwargs: object) -> MagicMock:
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.content = b"<html>safe</html>"
+            resp.cookies = {}
+            return resp
+
+        client = _make_client(mock_get)
+        with patch("mytools.web.sqliscan.create_async_client") as mock:
+            mock.return_value.__aenter__ = AsyncMock(return_value=client)
+            mock.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await run_scan(url="http://test.com/?id=1", category="all")
+        assert result.overall_status == "secure"
+        assert "Nenhuma SQL injection detectada" in result.issues
+
+    @pytest.mark.asyncio
+    async def test_scan_blind_vulnerable(self) -> None:
+        async def mock_get(url: str, **kwargs: object) -> MagicMock:
+            resp = MagicMock()
+            resp.status_code = 200
+            if "1=1" in url:
+                resp.content = b"<html>" + b"x" * 2000 + b"</html>"
+            else:
+                resp.content = b"<html>" + b"x" * 100 + b"</html>"
+            resp.cookies = {}
+            return resp
+
+        client = _make_client(mock_get)
+        with patch("mytools.web.sqliscan.create_async_client") as mock:
+            mock.return_value.__aenter__ = AsyncMock(return_value=client)
+            mock.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await run_scan(url="http://test.com/?id=1", category="blind")
+        assert result.overall_status == "vulnerable"
+        assert "boolean_blind" in result.vulnerable_techniques
+
+    @pytest.mark.asyncio
+    async def test_scan_error_category_ignores_exception(self) -> None:
+        client = _make_client(
+            AsyncMock(
+                return_value=MagicMock(
+                    status_code=200, content=b"<html>ok</html>", cookies={}
+                )
+            )
+        )
+        with (
+            patch("mytools.web.sqliscan.create_async_client") as mock,
+            patch(
+                "mytools.web.sqliscan._test_error",
+                new=AsyncMock(side_effect=RuntimeError("boom")),
+            ),
+        ):
+            mock.return_value.__aenter__ = AsyncMock(return_value=client)
+            mock.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await run_scan(url="http://test.com/?id=1", category="error")
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+
+# ---------------------------------------------------------------------------
+# print_results — attempts vulneraveis
+# ---------------------------------------------------------------------------
+
+
+def _vuln_attempt(
+    *,
+    technique: str,
+    db: str = "",
+    exploit: str = "",
+    tool: str = "",
+) -> SQLiAttempt:
+    return SQLiAttempt(
+        technique=technique,
+        category="error",
+        injection_point="id",
+        url="http://x.com",
+        payload="'",
+        status_baseline=200,
+        status_test=500,
+        size_baseline=100,
+        size_test=500,
+        time_baseline=0.1,
+        time_test=0.1,
+        db_detected=db,
+        content_match=bool(db),
+        timing_match=False,
+        vulnerable=True,
+        details="DB detectado: x",
+        error="",
+        exploit=exploit,
+        tool=tool,
+    )
+
+
+class TestPrintResultsVuln:
+    def test_vulnerable_attempts(self, capsys: pytest.CaptureFixture[str]) -> None:
+        att1 = _vuln_attempt(
+            technique="error", db="mysql", exploit="curl 'x'", tool="curl"
+        )
+        att2 = _vuln_attempt(technique="error", db="mysql")
+        att3 = _vuln_attempt(technique="boolean_blind")
+        r = SQLiResult(
+            target="http://test.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[att1, att2, att3],
+            vulnerable_techniques=["error", "boolean_blind"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(r)
+        out = capsys.readouterr().out
+        assert "VULNERAVEL" in out
+        assert "mysql" in out
+        assert "boolean_blind" in out
+
+
+# ---------------------------------------------------------------------------
+# run_once
+# ---------------------------------------------------------------------------
+
+
+def _result(overall: str = "secure") -> SQLiResult:
+    return SQLiResult(
+        target="http://test.com",
+        baseline_status=200 if overall != "error" else 0,
+        baseline_size=100,
+        tls=False,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
+        overall_status=overall,
+    )
+
+
+class TestRunOnce:
+    def test_returns_zero_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
+        args = build_parser().parse_args(["http://test.com"])
+        with patch(
+            "mytools.web.sqliscan.run_scan", new=AsyncMock(return_value=_result())
+        ):
+            assert run_once(args) == 0
+        assert "SECURE" in capsys.readouterr().out
+
+    def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        args = build_parser().parse_args(["--json", "http://test.com"])
+        with patch(
+            "mytools.web.sqliscan.run_scan", new=AsyncMock(return_value=_result())
+        ):
+            assert run_once(args) == 0
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(capsys.readouterr().out)
+        assert data["target"] == "http://test.com"
+
+    def test_output_file(self, tmp_path) -> None:
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["-o", str(out_file), "http://test.com"])
+        with patch(
+            "mytools.web.sqliscan.run_scan", new=AsyncMock(return_value=_result())
+        ):
+            assert run_once(args) == 0
+        assert out_file.exists()
+
+    def test_returns_one_on_error(self) -> None:
+        args = build_parser().parse_args(["http://test.com"])
+        with patch(
+            "mytools.web.sqliscan.run_scan",
+            new=AsyncMock(return_value=_result("error")),
+        ):
+            assert run_once(args) == 1
+
+
+# ---------------------------------------------------------------------------
+# main guard
+# ---------------------------------------------------------------------------
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.sqliscan", run_name="__main__")

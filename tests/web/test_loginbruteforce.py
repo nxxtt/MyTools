@@ -1,11 +1,14 @@
 """Testes do modulo loginbruteforce."""
 
+import argparse
 from dataclasses import asdict
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
+import mytools.web.loginbruteforce as loginbruteforce_module
 from mytools.web.loginbruteforce import (
     BruteForceAttempt,
     BruteForceResult,
@@ -19,10 +22,15 @@ from mytools.web.loginbruteforce import (
     _get_success_indicators,
     _get_usernames,
     _LoginFormParser,
+    _test_credentials,
+    _test_lockout,
+    _test_password_spray,
+    _test_rate_limit,
     banner_art,
     build_parser,
     main,
     print_results,
+    run_once,
     run_scan,
 )
 
@@ -136,6 +144,84 @@ class TestDetectForm:
         action_url, _, _ = result
         assert action_url == "https://example.com/login"
 
+    def test_feed_exception_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _RaisingParser:
+            def __init__(self) -> None:
+                self.forms: list[dict[str, object]] = []
+
+            def feed(self, html: str) -> None:
+                raise ValueError("boom")
+
+        monkeypatch.setattr(
+            "mytools.web.loginbruteforce._LoginFormParser", _RaisingParser
+        )
+        assert _detect_form("<html></html>", "https://example.com") is None
+
+    def test_non_list_fields_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Parser:
+            def __init__(self) -> None:
+                self.forms: list[dict[str, object]] = [
+                    {"action": "", "method": "POST", "fields": "nope"}
+                ]
+
+            def feed(self, html: str) -> None:
+                pass
+
+        monkeypatch.setattr("mytools.web.loginbruteforce._LoginFormParser", _Parser)
+        assert _detect_form("<html></html>", "https://example.com") is None
+
+    def test_non_dict_field_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Parser:
+            def __init__(self) -> None:
+                self.forms: list[dict[str, object]] = [
+                    {
+                        "action": "/login",
+                        "method": "POST",
+                        "fields": [{"type": "password", "name": "pw"}, "junk"],
+                    }
+                ]
+
+            def feed(self, html: str) -> None:
+                pass
+
+        monkeypatch.setattr("mytools.web.loginbruteforce._LoginFormParser", _Parser)
+        result = _detect_form("<html></html>", "https://example.com")
+        assert result is not None
+        _action_url, method, field_map = result
+        assert method == "POST"
+        assert field_map["password"] == "pw"
+
+    def test_other_field_type_ignored(self) -> None:
+        html = (
+            '<form action="/login" method="POST">'
+            '<input type="password" name="pw">'
+            '<input type="checkbox" name="remember">'
+            "</form>"
+        )
+        result = _detect_form(html, "https://example.com")
+        assert result is not None
+        _action_url, method, field_map = result
+        assert method == "POST"
+        assert field_map["password"] == "pw"
+        assert "username" not in field_map
+
+    def test_non_string_action_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Parser:
+            def __init__(self) -> None:
+                self.forms: list[dict[str, object]] = [
+                    {
+                        "action": ["/login"],
+                        "method": "POST",
+                        "fields": [{"type": "password", "name": "pw"}],
+                    }
+                ]
+
+            def feed(self, html: str) -> None:
+                pass
+
+        monkeypatch.setattr("mytools.web.loginbruteforce._LoginFormParser", _Parser)
+        assert _detect_form("<html></html>", "https://example.com") is None
+
 
 # ---------------------------------------------------------------------------
 # _check_lockout
@@ -186,6 +272,11 @@ class TestCheckRateLimit:
         detected, _detail = _check_rate_limit(403, "Request throttled", ["throttle"])
         assert detected is True
 
+    def test_403_with_body_indicator_no_indicators(self) -> None:
+        detected, detail = _check_rate_limit(403, "Request throttled", [])
+        assert detected is True
+        assert "403" in detail
+
 
 # ---------------------------------------------------------------------------
 # _check_login_success
@@ -212,6 +303,10 @@ class TestCheckLoginSuccess:
 
     def test_non_success_status(self) -> None:
         detected, _ = _check_login_success(401, "Unauthorized", ["dashboard"], "")
+        assert detected is False
+
+    def test_redirect_without_keyword(self) -> None:
+        detected, _ = _check_login_success(302, "", [], "/foo")
         assert detected is False
 
 
@@ -395,6 +490,70 @@ class TestPrintResults:
         assert "VULNERABLE" in captured.out
         assert "admin:password" in captured.out
 
+    def test_vulnerable_attempts_dedup(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        rl = BruteForceAttempt(
+            technique="rate_limit",
+            category="rate_limit",
+            url="http://x/login",
+            username="admin",
+            payload="password_0",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            lockout_detected=False,
+            rate_limit_detected=False,
+            login_success=False,
+            vulnerable=True,
+            details="no rate limit",
+        )
+        lo1 = BruteForceAttempt(
+            technique="lockout",
+            category="lockout",
+            url="http://x/login",
+            username="admin",
+            payload="wrongpassword_0",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            lockout_detected=False,
+            rate_limit_detected=False,
+            login_success=False,
+            vulnerable=True,
+            details="no lockout",
+        )
+        lo2 = BruteForceAttempt(
+            technique="lockout",
+            category="lockout",
+            url="http://x/login",
+            username="admin",
+            payload="wrongpassword_1",
+            status_code=200,
+            response_size=100,
+            response_time=0.1,
+            lockout_detected=False,
+            rate_limit_detected=False,
+            login_success=False,
+            vulnerable=True,
+            details="dup",
+        )
+        result = BruteForceResult(
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[rl, lo1, lo2],
+            rate_limit_found=False,
+            lockout_found=False,
+            weak_credentials=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "[VULNERAVEL]" in captured.out
+        assert "rate_limit: no rate limit" in captured.out
+        assert "lockout: no lockout" in captured.out
+
 
 # ---------------------------------------------------------------------------
 # banner_art
@@ -422,6 +581,23 @@ class TestMain:
         monkeypatch.setattr("builtins.input", lambda _: (_ for _ in ()).throw(EOFError))
         result = main()
         assert result == 0
+
+    def test_runs_main_loop(self) -> None:
+        with patch(
+            "mytools.web.loginbruteforce.run_main_loop", return_value=0
+        ) as mock_run_main_loop:
+            assert main() == 0
+            mock_run_main_loop.assert_called_once()
+
+    def test_main_guard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import runpy
+
+        def _raise(*_args: object, **_kwargs: object) -> int:
+            raise SystemExit(0)
+
+        monkeypatch.setattr("mytools.core.utils.run_main_loop", _raise)
+        with pytest.raises(SystemExit):
+            runpy.run_module("mytools.web.loginbruteforce", run_name="__main__")
 
 
 # ---------------------------------------------------------------------------
@@ -540,3 +716,432 @@ class TestRunScan:
             )
             assert result.overall_status == "error"
             assert any("Categoria desconhecida" in i for i in result.issues)
+
+    @pytest.mark.asyncio()
+    async def test_no_scheme(self) -> None:
+        get_resp = MagicMock()
+        get_resp.text = "<html>No form</html>"
+        get_resp.status_code = 200
+        get_resp.content = b"<html>"
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=get_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.loginbruteforce.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan("target.com/login", category="all")
+            assert result.overall_status == "error"
+            assert result.target == "http://target.com/login"
+
+    @pytest.mark.asyncio()
+    async def test_get_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.loginbruteforce.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan("http://target.com/login", category="all")
+            assert result.overall_status == "error"
+            assert any("Falha ao conectar" in i for i in result.issues)
+
+    @pytest.mark.asyncio()
+    async def test_rate_limit_not_detected(self) -> None:
+        login_form = '<form method="POST"><input type="text" name="user"><input type="password" name="pw"></form>'
+
+        get_resp = MagicMock()
+        get_resp.text = login_form
+        get_resp.status_code = 200
+        get_resp.content = b"<form>"
+
+        post_resp = MagicMock()
+        post_resp.status_code = 200
+        post_resp.text = "Invalid credentials"
+        post_resp.content = b"invalid"
+        post_resp.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=get_resp)
+        mock_client.post = AsyncMock(return_value=post_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.loginbruteforce.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "http://target.com/login",
+                category="rate_limit",
+                delay=0.1,
+            )
+            assert result.rate_limit_found is False
+            assert any("NAO detectado" in i for i in result.issues)
+            assert result.overall_status == "vulnerable"
+
+    @pytest.mark.asyncio()
+    async def test_lockout_found(self) -> None:
+        login_form = '<form method="POST"><input type="text" name="user"><input type="password" name="pw"></form>'
+
+        get_resp = MagicMock()
+        get_resp.text = login_form
+        get_resp.status_code = 200
+        get_resp.content = b"<form>"
+
+        post_invalid = MagicMock()
+        post_invalid.status_code = 200
+        post_invalid.text = "Invalid credentials"
+        post_invalid.content = b"invalid"
+        post_invalid.headers = {}
+
+        post_locked = MagicMock()
+        post_locked.status_code = 200
+        post_locked.text = "Account locked due to too many attempts"
+        post_locked.content = b"locked"
+        post_locked.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=get_resp)
+        mock_client.post = AsyncMock(side_effect=[post_invalid, post_locked])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.loginbruteforce.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "http://target.com/login",
+                category="lockout",
+                delay=0.1,
+            )
+            assert result.lockout_found is True
+            assert any("detectado (bom)" in i for i in result.issues)
+
+    @pytest.mark.asyncio()
+    async def test_credential_category(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "mytools.web.loginbruteforce._get_usernames", lambda: ["admin"]
+        )
+        monkeypatch.setattr(
+            "mytools.web.loginbruteforce._get_passwords", lambda: ["password"]
+        )
+        login_form = '<form method="POST"><input type="text" name="user"><input type="password" name="pw"></form>'
+
+        get_resp = MagicMock()
+        get_resp.text = login_form
+        get_resp.status_code = 200
+        get_resp.content = b"<form>"
+
+        post_resp = MagicMock()
+        post_resp.status_code = 200
+        post_resp.text = "Welcome to the dashboard"
+        post_resp.content = b"dashboard"
+        post_resp.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=get_resp)
+        mock_client.post = AsyncMock(return_value=post_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.loginbruteforce.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "http://target.com/login",
+                category="credential",
+                delay=0.1,
+            )
+            assert result.weak_credentials == ["admin:password"]
+            assert result.overall_status == "vulnerable"
+
+    @pytest.mark.asyncio()
+    async def test_spray_category(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "mytools.web.loginbruteforce._get_usernames", lambda: ["admin"]
+        )
+        login_form = '<form method="POST"><input type="text" name="user"><input type="password" name="pw"></form>'
+
+        get_resp = MagicMock()
+        get_resp.text = login_form
+        get_resp.status_code = 200
+        get_resp.content = b"<form>"
+
+        post_resp = MagicMock()
+        post_resp.status_code = 200
+        post_resp.text = "dashboard area"
+        post_resp.content = b"dashboard"
+        post_resp.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=get_resp)
+        mock_client.post = AsyncMock(return_value=post_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.loginbruteforce.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "http://target.com/login",
+                category="spray",
+                delay=0.1,
+                password="123456",
+            )
+            assert result.weak_credentials == ["admin:123456"]
+            assert result.overall_status == "vulnerable"
+
+
+# ---------------------------------------------------------------------------
+# _test_rate_limit / _test_lockout
+# ---------------------------------------------------------------------------
+
+
+class TestRateLimitFunction:
+    @pytest.mark.asyncio()
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        attempts = await _test_rate_limit(
+            mock_client,
+            "http://target.com/login",
+            "admin",
+            "password",
+            {"username": "user", "password": "pw"},
+            count=2,
+            delay=0.0,
+        )
+        assert len(attempts) == 2
+        assert all(a.error for a in attempts)
+        assert all(not a.vulnerable for a in attempts)
+
+
+class TestLockoutFunction:
+    @pytest.mark.asyncio()
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        attempts = await _test_lockout(
+            mock_client,
+            "http://target.com/login",
+            "admin",
+            "wrongpassword",
+            {"username": "user", "password": "pw"},
+            count=2,
+            delay=0.0,
+        )
+        assert len(attempts) == 2
+        assert all(a.error for a in attempts)
+
+
+# ---------------------------------------------------------------------------
+# _test_credentials
+# ---------------------------------------------------------------------------
+
+
+class TestCredentialsFunction:
+    @pytest.mark.asyncio()
+    async def test_fail(self) -> None:
+        post_resp = MagicMock()
+        post_resp.status_code = 200
+        post_resp.text = "Invalid credentials"
+        post_resp.content = b"invalid"
+        post_resp.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=post_resp)
+        attempts = await _test_credentials(
+            mock_client,
+            "http://target.com/login",
+            ["admin"],
+            ["password"],
+            {"username": "user", "password": "pw"},
+            delay=0.0,
+        )
+        assert len(attempts) == 1
+        assert attempts[0].login_success is False
+        assert "sem indicacao" in attempts[0].details
+
+    @pytest.mark.asyncio()
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        attempts = await _test_credentials(
+            mock_client,
+            "http://target.com/login",
+            ["admin"],
+            ["password"],
+            {"username": "user", "password": "pw"},
+            delay=0.0,
+        )
+        assert len(attempts) == 1
+        assert attempts[0].error
+
+
+# ---------------------------------------------------------------------------
+# _test_password_spray
+# ---------------------------------------------------------------------------
+
+
+class TestPasswordSprayFunction:
+    @pytest.mark.asyncio()
+    async def test_fail(self) -> None:
+        post_resp = MagicMock()
+        post_resp.status_code = 200
+        post_resp.text = "Invalid credentials"
+        post_resp.content = b"invalid"
+        post_resp.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=post_resp)
+        attempts = await _test_password_spray(
+            mock_client,
+            "http://target.com/login",
+            ["admin"],
+            "password",
+            {"username": "user", "password": "pw"},
+            delay=0.0,
+        )
+        assert len(attempts) == 1
+        assert attempts[0].login_success is False
+        assert "sem indicacao" in attempts[0].details
+
+    @pytest.mark.asyncio()
+    async def test_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        attempts = await _test_password_spray(
+            mock_client,
+            "http://target.com/login",
+            ["admin"],
+            "password",
+            {"username": "user", "password": "pw"},
+            delay=0.0,
+        )
+        assert len(attempts) == 1
+        assert attempts[0].error
+
+
+# ---------------------------------------------------------------------------
+# run_once
+# ---------------------------------------------------------------------------
+
+
+class TestRunOnce:
+    def test_secure_prints(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        result = BruteForceResult(
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=True,
+            lockout_found=True,
+            weak_credentials=[],
+            issues=[],
+            overall_status="secure",
+        )
+        monkeypatch.setattr(
+            loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
+        )
+        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        mock_print = MagicMock()
+        monkeypatch.setattr(loginbruteforce_module, "print_results", mock_print)
+        args = argparse.Namespace(
+            url="http://x/login",
+            category="all",
+            timeout=5.0,
+            concurrency=5,
+            output=None,
+            json_output=False,
+            username="admin",
+            password="password",
+            delay=0.0,
+        )
+        assert run_once(args) == 0
+        mock_print.assert_called_once_with(result)
+
+    def test_json_output(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = BruteForceResult(
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=False,
+            lockout_found=False,
+            weak_credentials=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        monkeypatch.setattr(
+            loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
+        )
+        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        args = argparse.Namespace(
+            url="http://x/login",
+            category="all",
+            timeout=5.0,
+            concurrency=5,
+            output=None,
+            json_output=True,
+            username="admin",
+            password="password",
+            delay=0.0,
+        )
+        assert run_once(args) == 0
+        captured = capsys.readouterr()
+        assert "vulnerable" in captured.out
+
+    def test_writes_output(self, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+        result = BruteForceResult(
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=False,
+            lockout_found=False,
+            weak_credentials=[],
+            issues=[],
+            overall_status="secure",
+        )
+        monkeypatch.setattr(
+            loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
+        )
+        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        args = argparse.Namespace(
+            url="http://x/login",
+            category="all",
+            timeout=5.0,
+            concurrency=5,
+            output=str(tmp_path / "out.json"),
+            json_output=False,
+            username="admin",
+            password="password",
+            delay=0.0,
+        )
+        assert run_once(args) == 0
+        assert (tmp_path / "out.json").exists()
+
+    def test_error_returns_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        result = BruteForceResult(
+            target="http://x",
+            login_url="http://x/login",
+            attempts=[],
+            rate_limit_found=False,
+            lockout_found=False,
+            weak_credentials=[],
+            issues=["Falha"],
+            overall_status="error",
+        )
+        monkeypatch.setattr(
+            loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
+        )
+        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        args = argparse.Namespace(
+            url="http://x/login",
+            category="all",
+            timeout=5.0,
+            concurrency=5,
+            output=None,
+            json_output=False,
+            username="admin",
+            password="password",
+            delay=0.0,
+        )
+        assert run_once(args) == 1

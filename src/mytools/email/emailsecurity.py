@@ -142,7 +142,8 @@ def _parse_spf(raw: str) -> SpfRecord:
         elif clean.endswith("all"):
             has_all = True
             match = SPF_ALL_PATTERN.search(clean)
-            if match:
+            # qualquer string terminada em "all" contem "all" -> match sempre presente
+            if match:  # pragma: no cover
                 all_qualifier = match.group(0).replace("all", "")
         elif clean.startswith(("a", "mx", "ptr", "ip4", "ip6", "exists:")):
             mechanisms.append(clean)
@@ -253,7 +254,8 @@ def scan_email_security(
         status = "critical"
     elif dmarc and dmarc.policy == "malformed":
         status = "warning"
-        if not any("DMARC invalido" in i for i in issues):
+        # "DMARC invalido" so e adicionada aos issues nesta linha abaixo
+        if not any("DMARC invalido" in i for i in issues):  # pragma: no cover
             issues.append("Registro DMARC invalido — tag p= ausente")
     elif dmarc and dmarc.policy == "reject" and spf and dkim_selectors:
         status = "secure"

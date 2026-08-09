@@ -1,4 +1,7 @@
 import argparse
+import runpy
+import sys
+from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
@@ -9,8 +12,11 @@ from mytools.core.reconall import (
     _extract_domain,
     _is_url,
     _make_args,
+    banner,
     build_parser,
+    main,
     run_all,
+    run_once,
 )
 from mytools.network.portscanner import TOP_100_PORTS
 
@@ -609,3 +615,257 @@ class TestAuthPropagated:
             ns = mock_web.call_args[0][0]
             assert ns.auth is None
             assert ns.bearer_token is None
+
+
+_MODULE_ATTRS = [
+    "attackaudit",
+    "backupfiledetect",
+    "blindxss",
+    "bominjection",
+    "caacheck",
+    "cachedeception",
+    "cachepoisoning",
+    "charsetbypass",
+    "clickjacking",
+    "cloudbucketenum",
+    "cmdinject",
+    "configfiledetect",
+    "corsmisconfig",
+    "crlfinjection",
+    "csrfscan",
+    "darkwebmonitor",
+    "deserialinject",
+    "dirscanner",
+    "dnsamplification",
+    "dnshistory",
+    "dnsrebinding",
+    "dnssecvalidation",
+    "dnstransfer",
+    "dnstunnel",
+    "dnswatorture",
+    "doubleurlencode",
+    "emailaddressbypass",
+    "emailattachmentbypass",
+    "emailbreachcheck",
+    "emaillinktracking",
+    "emailsecurity",
+    "emailspoof",
+    "emailtemplateinject",
+    "googledorking",
+    "graphqlplayground",
+    "headerinject",
+    "hostheaderinject",
+    "httpparampollution",
+    "ipasninfo",
+    "ldapiinject",
+    "lfidetect",
+    "log4shell",
+    "loginbruteforce",
+    "loginjection",
+    "methodoverride",
+    "nosqliinject",
+    "nsecwalking",
+    "nullbyteinject",
+    "openapidiscovery",
+    "openredirect",
+    "overlongencoding",
+    "pasteleak",
+    "pathtraversal",
+    "portscanner",
+    "prototypepollution",
+    "rtloverride",
+    "smtpdowngrade",
+    "smtpinjection",
+    "socialengrecon",
+    "sourcemapdiscovery",
+    "sqliscan",
+    "ssiinject",
+    "ssrfdetect",
+    "sstidetect",
+    "subdomainenum",
+    "subdomaintakeover",
+    "techfingerprint",
+    "vcsleak",
+    "webrecon",
+    "whoishistory",
+    "xpathinject",
+    "xxedetect",
+]
+
+
+def _patch_all_modules() -> ExitStack:
+    """Patcha run_once de todos os modulos filhos para retornar 0.
+
+    Retorna um ExitStack ativo; o caller deve fechar o stack (ou usar ``with``)
+    para reverter os patches.
+    """
+    stack = ExitStack()
+    for mod_name in _MODULE_ATTRS:
+        stack.enter_context(
+            patch(f"mytools.core.reconall.{mod_name}.run_once", return_value=0)
+        )
+    return stack
+
+
+class TestRunAllFull:
+    """Exercita o caminho completo de run_all() com TODOS os modulos ativos."""
+
+    def test_all_domain_modules_run(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        with _patch_all_modules():
+            result = run_all(args)
+        assert result == 0
+
+    def test_all_url_modules_run(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        with _patch_all_modules():
+            result = run_all(args)
+        assert result == 0
+
+    def test_output_dir_creates_directory(self, tmp_path):
+        parser = build_parser()
+        args = parser.parse_args(
+            ["https://example.com", "--output-dir", str(tmp_path / "res")]
+        )
+        with _patch_all_modules():
+            result = run_all(args)
+        assert result == 0
+        assert (tmp_path / "res").is_dir()
+
+    def test_output_paths_passed_to_modules(self, tmp_path):
+        parser = build_parser()
+        args = parser.parse_args(
+            ["https://example.com", "--output-dir", str(tmp_path / "res")]
+        )
+        stack = _patch_all_modules()
+        mock_web = stack.enter_context(
+            patch("mytools.core.reconall.webrecon.run_once", return_value=0)
+        )
+        with stack:
+            run_all(args)
+            ns = mock_web.call_args[0][0]
+            assert ns.output == str(tmp_path / "res" / "webrecon.json")
+
+    def test_empty_skipped_returns_zero(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", *_skip_all_except()])
+        result = run_all(args)
+        assert result == 0
+
+
+class TestRunAllErrorHandling:
+    def test_exception_in_module_returns_one(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        stack = _patch_all_modules()
+        stack.enter_context(
+            patch(
+                "mytools.core.reconall.portscanner.run_once",
+                side_effect=RuntimeError("boom"),
+            )
+        )
+        with stack:
+            result = run_all(args)
+        assert result == 1
+
+    def test_partial_errors_summed(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        stack = _patch_all_modules()
+        stack.enter_context(
+            patch("mytools.core.reconall.portscanner.run_once", return_value=1)
+        )
+        stack.enter_context(
+            patch("mytools.core.reconall.dnstransfer.run_once", return_value=2)
+        )
+        with stack:
+            result = run_all(args)
+        assert result == 3
+
+
+class TestRunOnce:
+    def test_dry_run_returns_zero(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--dry-run"])
+        assert run_once(args) == 0
+
+    def test_dry_run_logs_auth_bearer(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            ["example.com", "--dry-run", "--bearer-token", "tok123"]
+        )
+        assert run_once(args) == 0
+
+    def test_dry_run_logs_auth_basic(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--dry-run", "--auth", "u:p"])
+        assert run_once(args) == 0
+
+    def test_dry_run_logs_auth_cookie(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com", "--dry-run", "--cookie", "s=1"])
+        assert run_once(args) == 0
+
+    def test_dry_run_extra_flags(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "example.com",
+                "--dry-run",
+                "--deep",
+                "--test-vulns",
+                "--test-methods",
+                "--cve",
+            ]
+        )
+        assert run_once(args) == 0
+
+    def test_runs_all_and_returns_zero(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        with patch("mytools.core.reconall.run_all", return_value=0):
+            result = run_once(args)
+        assert result == 0
+
+    def test_runs_all_and_returns_error(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        with patch("mytools.core.reconall.run_all", return_value=2):
+            result = run_once(args)
+        assert result == 1
+
+
+class TestMain:
+    def test_no_args_enters_shell(self):
+        with (
+            patch.object(sys, "argv", ["mytools-reconall"]),
+            patch(
+                "mytools.core.reconall.run_interactive_shell", return_value=0
+            ) as mock_shell,
+        ):
+            result = main()
+        assert result == 0
+        assert mock_shell.call_args.kwargs["prompt"] == "reconall> "
+
+    def test_with_target_runs_once(self):
+        with (
+            patch.object(sys, "argv", ["mytools-reconall", "example.com"]),
+            patch("mytools.core.reconall.run_once", return_value=0) as mock_run,
+        ):
+            result = main()
+        assert result == 0
+        mock_run.assert_called_once()
+
+    def test_guard_runs(self):
+        with (
+            patch.object(sys, "argv", ["mytools-reconall", "--version"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.core.reconall", run_name="__main__")
+
+    def test_banner_prints(self, capsys):
+        banner()
+        out = capsys.readouterr().out
+        assert "recon all-in-one" in out

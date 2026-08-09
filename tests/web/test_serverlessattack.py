@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
 import respx
@@ -14,8 +16,14 @@ from mytools.web.serverlessattack import (
     ServerlessAttackResult,
     _make_attempt,
     _parse_url,
+    _test_cold_start_leak,
+    _test_generic,
+    _test_timeout_abuse,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 
@@ -230,3 +238,295 @@ async def test_category_dispatch_all_return_lists() -> None:
         for attempt in result:
             assert isinstance(attempt, ServerlessAttackAttempt)
             assert attempt.category == cat
+
+
+class TestColdStartLeak:
+    def _client(self, resp) -> MagicMock:
+        client = MagicMock()
+        client.get = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return client
+
+    @pytest.mark.asyncio
+    async def test_timing_signals(self) -> None:
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = ""
+        resp.headers = {}
+        client = self._client(resp)
+        values: list[float] = [1000.0, 5000.0]
+        for i in range(7):
+            base = 6000.0 + i * 10
+            values.extend([base, base + 0.5])
+        with patch("mytools.web.serverlessattack.time.monotonic", side_effect=values):
+            attempt = await _test_cold_start_leak("https://target.com", 5.0, client)
+        assert attempt.vulnerable is True
+        assert "slow_first_request" in attempt.details
+        assert "timing_diff" in attempt.details
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        attempt = await _test_cold_start_leak("https://target.com", 5.0, client)
+        assert attempt.vulnerable is False
+
+
+class TestTimeoutAbuse:
+    def _resp(self) -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = 503
+        resp.text = "request timeout"
+        resp.headers = {}
+        return resp
+
+    @pytest.mark.asyncio
+    async def test_slow_and_chunked(self) -> None:
+        client = MagicMock()
+        resp = self._resp()
+        client.post = AsyncMock(return_value=resp)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        values: list[float] = []
+        for i in range(6):
+            base = float(100 * i)
+            values.extend([base, base + 11.0])
+        values.extend([700.0, 707.0])
+        with patch("mytools.web.serverlessattack.time.monotonic", side_effect=values):
+            attempt = await _test_timeout_abuse("https://target.com", 5.0, client)
+        assert attempt.vulnerable is True
+        assert "status:503" in attempt.details
+        assert "slow_response" in attempt.details
+        assert "chunked_slow" in attempt.details
+
+    @pytest.mark.asyncio
+    async def test_client_timeout(self) -> None:
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        attempt = await _test_timeout_abuse("https://target.com", 5.0, client)
+        assert attempt.vulnerable is True
+        assert "client_timeout" in attempt.details
+
+    @pytest.mark.asyncio
+    async def test_generic_error(self) -> None:
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=RuntimeError("boom"))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        attempt = await _test_timeout_abuse("https://target.com", 5.0, client)
+        assert attempt.vulnerable is True
+        assert "connection_error" in attempt.details
+
+    @pytest.mark.asyncio
+    async def test_chunked_exception(self) -> None:
+        client = MagicMock()
+        resp = self._resp()
+        client.post = AsyncMock(
+            side_effect=[resp] * 6 + [httpx.TimeoutException("timed out")]
+        )
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        values: list[float] = []
+        for i in range(6):
+            base = float(100 * i)
+            values.extend([base, base + 0.5])
+        values.extend([700.0])
+        with patch("mytools.web.serverlessattack.time.monotonic", side_effect=values):
+            attempt = await _test_timeout_abuse("https://target.com", 5.0, client)
+        assert attempt.vulnerable is True
+
+
+class TestGeneric:
+    @pytest.mark.asyncio
+    async def test_exception_in_tester(self) -> None:
+        ok = _make_attempt(
+            "timeout_abuse",
+            "generic",
+            "",
+            False,
+            "",
+            "",
+            "https://target.com",
+            200,
+        )
+        with (
+            patch(
+                "mytools.web.serverlessattack._test_cold_start_leak",
+                AsyncMock(side_effect=OSError("boom")),
+            ),
+            patch(
+                "mytools.web.serverlessattack._test_timeout_abuse",
+                AsyncMock(return_value=[ok]),
+            ),
+        ):
+            results = await _test_generic(
+                "target.com", 443, "", 5.0, True, "https://target.com"
+            )
+        assert len(results) == 2
+        assert results[0].error != ""
+        assert results[0].technique == "cold_start_leak"
+
+
+class TestPrintResultsExtra:
+    def test_secure_category(self, capsys: pytest.CaptureFixture[str]) -> None:
+        a = ServerlessAttackAttempt(
+            technique="cold_start_leak",
+            category="generic",
+            description="desc",
+            vulnerable=False,
+            details="no signals",
+            error="",
+            endpoint="https://target.com",
+            response_code=200,
+            timing_ms=100.0,
+        )
+        r = ServerlessAttackResult(
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            techniques_count=1,
+            attempts=[a],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(r)
+        output = capsys.readouterr().out
+        assert "generic: secure" in output
+
+
+class TestRunScan:
+    def _make_attempt(self, vulnerable: bool) -> ServerlessAttackAttempt:
+        return ServerlessAttackAttempt(
+            technique="cold_start_leak",
+            category="generic",
+            description="desc",
+            vulnerable=vulnerable,
+            details="signals" if vulnerable else "no signals",
+            error="",
+            endpoint="https://target.com",
+            response_code=200,
+            timing_ms=100.0,
+        )
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_with_output(self) -> None:
+        attempt = self._make_attempt(True)
+        with (
+            patch(
+                "mytools.web.serverlessattack._CATEGORY_DISPATCH",
+                {"generic": AsyncMock(return_value=[attempt])},
+            ),
+            patch("mytools.web.serverlessattack.print_results"),
+            patch("mytools.web.serverlessattack.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                "https://target.com:8080/api", ["generic"], 5.0, "out.json"
+            )
+        assert result.overall_status == "vulnerable"
+        assert result.endpoint == "https://target.com:8080/api"
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_secure_unknown_category(self) -> None:
+        with (
+            patch("mytools.web.serverlessattack._CATEGORY_DISPATCH", {}),
+            patch("mytools.web.serverlessattack.print_results"),
+        ):
+            result = await run_scan("https://target.com/api", None, 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_tester_error(self) -> None:
+        with (
+            patch(
+                "mytools.web.serverlessattack._CATEGORY_DISPATCH",
+                {"generic": AsyncMock(side_effect=OSError("boom"))},
+            ),
+            patch("mytools.web.serverlessattack.print_results"),
+        ):
+            result = await run_scan("https://target.com/api", ["generic"], 5.0, None)
+        assert result.overall_status == "secure"
+        assert len(result.attempts) == 1
+        assert result.attempts[0].error != ""
+        assert result.issues
+
+    @pytest.mark.asyncio
+    async def test_no_path_target(self) -> None:
+        with (
+            patch(
+                "mytools.web.serverlessattack._CATEGORY_DISPATCH",
+                {"generic": AsyncMock(return_value=[])},
+            ),
+            patch("mytools.web.serverlessattack.print_results"),
+        ):
+            result = await run_scan("https://target.com", None, 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.endpoint == "https://target.com"
+
+
+class TestRunOnce:
+    def _make_result(self, status: str) -> ServerlessAttackResult:
+        return ServerlessAttackResult(
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            techniques_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status=status,
+        )
+
+    def test_vulnerable(self, base_ns) -> None:
+        base_ns.url = "https://target.com/api"
+        base_ns.timeout = 5.0
+        base_ns.output = None
+        with patch(
+            "mytools.web.serverlessattack.run_scan",
+            AsyncMock(return_value=self._make_result("vulnerable")),
+        ) as mock_run:
+            assert run_once(base_ns) == 1
+        mock_run.assert_called_once()
+
+    def test_secure(self, base_ns) -> None:
+        base_ns.url = "https://target.com/api"
+        base_ns.timeout = 5.0
+        base_ns.output = None
+        with patch(
+            "mytools.web.serverlessattack.run_scan",
+            AsyncMock(return_value=self._make_result("secure")),
+        ):
+            assert run_once(base_ns) == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.serverlessattack.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_guard(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-serverless"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.serverlessattack", run_name="__main__")
+        assert exc_info.value.code == 0

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Header Injection via URL params."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.web.headerinject import (
     _CATEGORY_MAP,
@@ -16,8 +18,12 @@ from mytools.web.headerinject import (
     _test_header_overwrite,
     _test_param_reflected,
     _test_redirect_header,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 
@@ -223,6 +229,21 @@ class TestCookieInject:
         assert len(vuln) > 0
         assert all(r.category == "cookie_inject" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_not_vulnerable_cookie(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_resp.headers = {"set-cookie": "session=abc; Path=/"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_cookie_inject(mock_client, "https://test.com")
+        assert len(results) == 5
+        assert all(not r.vulnerable for r in results)
+
 
 # ─── Test Bypass ─────────────────────────────────────────────────────────────
 class TestBypass:
@@ -240,6 +261,21 @@ class TestBypass:
         results = await _test_bypass(mock_client, "https://test.com")
         assert len(results) == 5
         assert all(r.category == "bypass" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_not_vulnerable_bypass(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_resp.headers = {"x-safety": "clean", "server": "nginx"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(mock_client, "https://test.com")
+        assert len(results) == 5
+        assert all(not r.vulnerable for r in results)
 
 
 # ─── Print Results ───────────────────────────────────────────────────────────
@@ -300,6 +336,63 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "Observacoes" in output
 
+    def test_vulnerable_without_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = HeaderInjectResult(
+            target="https://test.com",
+            tls=True,
+            attempts=[
+                HeaderInjectAttempt(
+                    technique="x_injected",
+                    category="param_reflected",
+                    param_name="X-Injected",
+                    param_value="test",
+                    injected_header="",
+                    status=200,
+                    size=100,
+                    vulnerable=True,
+                    details="",
+                    error="",
+                )
+            ],
+            vulnerable_techniques=["x_injected"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "x_injected" in output
+
+    def test_duplicate_technique_deduped(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        attempt = HeaderInjectAttempt(
+            technique="x_injected",
+            category="param_reflected",
+            param_name="X-Injected",
+            param_value="test",
+            injected_header="",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="refletido",
+            error="",
+        )
+        result = HeaderInjectResult(
+            target="https://test.com",
+            tls=True,
+            attempts=[attempt, attempt],
+            vulnerable_techniques=["x_injected"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "x_injected" in output
+
 
 # ─── Build Parser ────────────────────────────────────────────────────────────
 @pytest.mark.smoke
@@ -338,7 +431,88 @@ class TestRunOnce:
     def test_run_once(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["https://test.com"])
-        from mytools.web.headerinject import run_once
-
         result = run_once(args)
         assert result == 0
+
+    def test_run_once_with_category(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com", "-c", "param_reflected"])
+        with patch(
+            "mytools.web.headerinject.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            result = run_once(args)
+            assert result == 0
+            assert (
+                mock_scan.await_args.kwargs["categories"]  # type: ignore[union-attr]
+                == ["param_reflected"]
+            )
+
+
+# ─── Banner Art ──────────────────────────────────────────────────────────────
+class TestBannerArt:
+    def test_banner_art(self) -> None:
+        with patch("mytools.web.headerinject.create_banner") as mock_banner:
+            mock_banner.return_value = MagicMock()
+            banner_art()
+            mock_banner.assert_called_once()
+
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.headerinject.run_main_loop", return_value=0
+        ) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+# ─── Run Scan (output) ───────────────────────────────────────────────────────
+class TestRunScan:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_with_output(self, tmp_path: object) -> None:
+        respx.route(method="GET", url__startswith="https://test.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        output_file = str(tmp_path) + "/output.json"  # type: ignore[operator]
+        result = await run_scan(
+            target="https://test.com",
+            categories=["param_reflected"],
+            timeout=10,
+            output_file=output_file,
+        )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_unknown_category_skipped(self) -> None:
+        respx.route(method="GET", url__startswith="https://test.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        result = await run_scan(
+            target="https://test.com",
+            categories=["bogus_cat"],
+            timeout=10,
+            output_file=None,
+        )
+        assert result == 0
+
+
+# ─── Main Guard ──────────────────────────────────────────────────────────────
+class TestMainGuard:
+    def test_main_guard_runs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import runpy
+
+        import mytools.web.headerinject as headerinject_mod
+
+        monkeypatch.setattr(
+            headerinject_mod,
+            "main",
+            lambda: (_ for _ in ()).throw(SystemExit(0)),
+        )
+        with patch("sys.argv", ["mytools-headerinject"]), pytest.raises(SystemExit):
+            runpy.run_module("mytools.web.headerinject", run_name="__main__")

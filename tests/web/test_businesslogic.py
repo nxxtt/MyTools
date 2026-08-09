@@ -20,7 +20,9 @@ from mytools.web.businesslogic import (
     _test_integer_overflow_category,
     _test_negative_quantity_category,
     _test_race_condition_category,
+    banner_art,
     build_parser,
+    main,
     print_results,
     run_once,
     run_scan,
@@ -378,6 +380,20 @@ class TestRaceConditionCategory:
         assert len(results) == 5
         assert all(not r.vulnerable for r in results)
 
+    @pytest.mark.asyncio
+    async def test_non_request_exception(self) -> None:
+        mock_client = MagicMock()
+        mock_client.post.side_effect = RuntimeError("boom")
+        results = await _test_race_condition_category(
+            mock_client,
+            _CHECKOUT_URL,
+            10,
+            200,
+            100,
+        )
+        assert len(results) == 5
+        assert all(r.error for r in results)
+
 
 # --- print_results tests ---
 
@@ -437,6 +453,48 @@ def test_print_results_with_issues(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert "Observacoes" in out
     assert "checkout nao detectado" in out
+
+
+def test_print_results_vuln_without_details(capsys: pytest.CaptureFixture[str]) -> None:
+    attempt = BizLogicAttempt(
+        technique="quantity_tampering",
+        category="negative_quantity",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=120,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="",
+        error="",
+    )
+    result = _make_result(attempts=[attempt], overall_status="vulnerable")
+    print_results(result)
+    out = capsys.readouterr().out
+    assert "quantity_tampering" in out
+
+
+def test_print_results_deduplicates(capsys: pytest.CaptureFixture[str]) -> None:
+    attempt = BizLogicAttempt(
+        technique="price_overflow",
+        category="integer_overflow",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=120,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="overflow detected",
+        error="",
+        exploit="price_quantity_manipulation",
+        tool="wfuzz",
+    )
+    result = _make_result(attempts=[attempt, attempt], overall_status="vulnerable")
+    print_results(result)
+    out = capsys.readouterr().out
+    assert "price_overflow" in out
 
 
 # --- build_parser tests ---
@@ -559,6 +617,27 @@ class TestRunScan:
                     assert mock_testers.get.call_count == 3
 
     @pytest.mark.asyncio
+    async def test_checkout_url_found_no_issue(self) -> None:
+        with patch("mytools.web.businesslogic.create_async_client") as mock_mac:
+            mock_client = AsyncMock()
+            mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
+                    mock_testers.get.return_value = AsyncMock(return_value=[])
+                    with patch(
+                        "mytools.web.businesslogic._find_checkout_url",
+                        return_value=_CHECKOUT_URL,
+                    ):
+                        result = await run_scan(_TARGET, [], 10, None)
+                        assert result == 0
+
+    @pytest.mark.asyncio
     async def test_no_checkout_url_adds_issue(self) -> None:
         with patch("mytools.web.businesslogic.create_async_client") as mock_mac:
             mock_client = AsyncMock()
@@ -599,6 +678,79 @@ class TestRunScan:
                     with patch("mytools.web.businesslogic.write_output") as mock_write:
                         await run_scan(_TARGET, [], 10, "output.json")
                         mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_skipped(self) -> None:
+        with patch("mytools.web.businesslogic.create_async_client") as mock_mac:
+            mock_client = AsyncMock()
+            mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
+                    mock_testers.get.return_value = None
+                    result = await run_scan(_TARGET, ["unknown_cat"], 10, None)
+                    assert result == 0
+                    mock_testers.get.assert_called_once_with("unknown_cat")
+
+    @pytest.mark.asyncio
+    async def test_tester_exception_appends_error(self) -> None:
+        with patch("mytools.web.businesslogic.create_async_client") as mock_mac:
+            mock_client = AsyncMock()
+            mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "mytools.web.businesslogic.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = (200, {}, b"<html>checkout</html>", b"")
+                with patch(
+                    "mytools.web.businesslogic._CATEGORY_TESTERS"
+                ) as mock_testers:
+                    mock_testers.get.return_value = AsyncMock(
+                        side_effect=RuntimeError("boom")
+                    )
+                    result = await run_scan(_TARGET, ["integer_overflow"], 10, None)
+                    assert result == 0
+
+
+# --- banner / main / guard tests ---
+
+
+class TestBannerArt:
+    def test_banner_art(self) -> None:
+        with patch("mytools.web.businesslogic.create_banner") as mock_banner:
+            mock_banner.return_value = MagicMock()
+            banner_art()
+            mock_banner.assert_called_once()
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.businesslogic.run_main_loop", return_value=0
+        ) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_main_guard_runs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import runpy
+
+        import mytools.web.businesslogic as bizlogic_mod
+
+        monkeypatch.setattr(
+            bizlogic_mod,
+            "main",
+            lambda: (_ for _ in ()).throw(SystemExit(0)),
+        )
+        with patch("sys.argv", ["mytools-bizlogic"]), pytest.raises(SystemExit):
+            runpy.run_module("mytools.web.businesslogic", run_name="__main__")
 
 
 # --- run_once tests ---

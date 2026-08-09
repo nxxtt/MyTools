@@ -3,6 +3,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.charsetbypass import (
@@ -14,6 +15,8 @@ from mytools.web.charsetbypass import (
     _XSS_PAYLOADS,
     CharsetBypassAttempt,
     CharsetBypassResult,
+    CharsetbypassScanner,
+    _build_bom_body,
     _build_meta_body,
     _build_meta_http_equiv,
     _build_xml_body,
@@ -26,6 +29,7 @@ from mytools.web.charsetbypass import (
     build_parser,
     main,
     print_results,
+    scan_charset_bypass,
 )
 
 
@@ -147,6 +151,13 @@ class TestBuildXmlBody:
         body = _build_xml_body("utf-7", "<root>test</root>")
         assert "<?xml" in body
         assert "<root>" in body
+
+
+class TestBuildBomBody:
+    """Testes para _build_bom_body."""
+
+    def test_returns_payload(self) -> None:
+        assert _build_bom_body(b"\xff\xfe", "hello") == "hello"
 
 
 class TestCategoryMap:
@@ -281,6 +292,19 @@ class TestTestMetaCharset:
         assert len(attempts) > 0
         assert all(isinstance(a, CharsetBypassAttempt) for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_meta_charset(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 4
+        assert all(a.error for a in attempts)
+
 
 class TestTestContentTypeCharset:
     """Testes para _test_content_type_charset."""
@@ -299,6 +323,19 @@ class TestTestContentTypeCharset:
             (200, 1000, b""),
         )
         assert len(attempts) == 10
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_content_type_charset(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 10
+        assert all(a.error for a in attempts)
 
 
 class TestTestBomCharset:
@@ -319,6 +356,19 @@ class TestTestBomCharset:
         )
         assert len(attempts) == 3
 
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_bom_charset(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+
 
 class TestTestXmlCharset:
     """Testes para _test_xml_charset."""
@@ -338,6 +388,19 @@ class TestTestXmlCharset:
         )
         assert len(attempts) == 3
 
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_xml_charset(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+
 
 class TestTestMixedCharset:
     """Testes para _test_mixed_charset."""
@@ -356,6 +419,19 @@ class TestTestMixedCharset:
             (200, 1000, b""),
         )
         assert len(attempts) == 3
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_mixed_charset(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
 
 
 @pytest.mark.smoke
@@ -418,6 +494,57 @@ class TestPrintResults:
         captured = capsys.readouterr()
         assert "VULNERAVEL" in captured.out
 
+    def test_vulnerable_with_attempt(self, capsys: pytest.CaptureFixture[str]) -> None:
+        attempt = CharsetBypassAttempt(
+            technique="meta_charset_utf7",
+            category="meta",
+            url="https://example.com",
+            payload="charset=utf-7, xss=<script>",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=500,
+            status_changed=False,
+            size_changed=True,
+            vulnerable=True,
+            details="Leak",
+            error="",
+            exploit="encoding_bypass_payload",
+            tool="wfuzz",
+        )
+        result = CharsetBypassResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[attempt],
+            vulnerable_techniques=["meta_charset_utf7"],
+            blocked_techniques=[],
+            issues=["1 tecnicas de charset bypass vulneraveis"],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "VULNERAVEL" in captured.out
+        assert "meta_charset_utf7" in captured.out
+
+    def test_blocked(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = CharsetBypassResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=["meta_charset_utf16"],
+            issues=["1 tecnicas bloqueadas pelo servidor"],
+            overall_status="blocked",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "BLOQUEADO" in captured.out
+        assert "meta_charset_utf16" in captured.out
+
 
 class TestMain:
     """Testes para main."""
@@ -430,6 +557,237 @@ class TestMain:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()
+
+
+def _make_scan_client() -> AsyncMock:
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.content = b"ok"
+    mock_client = AsyncMock()
+    mock_client.get.return_value = resp
+    mock_client.post.return_value = resp
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    return mock_client
+
+
+def _attempt(
+    technique: str,
+    category: str,
+    vulnerable: bool = False,
+    status_changed: bool = False,
+) -> CharsetBypassAttempt:
+    return CharsetBypassAttempt(
+        technique=technique,
+        category=category,
+        url="https://example.com",
+        payload="p",
+        status_baseline=200,
+        status_test=500 if status_changed else 200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=status_changed,
+        size_changed=False,
+        vulnerable=vulnerable,
+        details="d",
+        error="",
+    )
+
+
+class TestScanCharsetBypass:
+    @pytest.mark.asyncio
+    async def test_no_scheme_all_categories(self) -> None:
+        mock_client = _make_scan_client()
+        with (
+            patch(
+                "mytools.web.charsetbypass.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b""),
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_meta_charset",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_content_type_charset",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_bom_charset",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_xml_charset",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_mixed_charset",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await scan_charset_bypass("target.com")
+        assert result.target == "http://target.com"
+        assert result.overall_status == "secure"
+        assert result.issues == []
+
+    @pytest.mark.asyncio
+    async def test_single_category_vulnerable(self) -> None:
+        mock_client = _make_scan_client()
+        with (
+            patch(
+                "mytools.web.charsetbypass.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b""),
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_meta_charset",
+                new_callable=AsyncMock,
+                return_value=[_attempt("meta_charset_utf7", "meta", vulnerable=True)],
+            ),
+        ):
+            result = await scan_charset_bypass("https://example.com", category="meta")
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["meta_charset_utf7"]
+        assert result.issues == ["1 tecnicas de charset bypass vulneraveis"]
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_and_blocked(self) -> None:
+        mock_client = _make_scan_client()
+        with (
+            patch(
+                "mytools.web.charsetbypass.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b""),
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_meta_charset",
+                new_callable=AsyncMock,
+                return_value=[
+                    _attempt("meta_charset_utf7", "meta", vulnerable=True),
+                    _attempt("meta_charset_utf7", "meta", status_changed=True),
+                    _attempt("meta_charset_utf16", "meta", status_changed=True),
+                ],
+            ),
+        ):
+            result = await scan_charset_bypass("https://example.com")
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["meta_charset_utf7"]
+        assert result.blocked_techniques == ["meta_charset_utf16"]
+        assert result.issues == [
+            "1 tecnicas de charset bypass vulneraveis",
+            "1 tecnicas bloqueadas pelo servidor",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_unknown_category(self) -> None:
+        mock_client = _make_scan_client()
+        with (
+            patch(
+                "mytools.web.charsetbypass.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b""),
+            ),
+        ):
+            result = await scan_charset_bypass("https://example.com", category="bogus")
+        assert result.overall_status == "error"
+        assert any("Categoria desconhecida" in i for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_task_exception_skipped(self) -> None:
+        mock_client = _make_scan_client()
+        with (
+            patch(
+                "mytools.web.charsetbypass.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b""),
+            ),
+            patch(
+                "mytools.web.charsetbypass._test_meta_charset",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            result = await scan_charset_bypass("https://example.com")
+        assert result.overall_status == "secure"
+
+
+class TestScannerMethods:
+    @pytest.mark.asyncio
+    async def test_run_scan_method(self) -> None:
+        scanner = CharsetbypassScanner()
+        result = CharsetBypassResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        with patch(
+            "mytools.web.charsetbypass.scan_charset_bypass",
+            new_callable=AsyncMock,
+            return_value=result,
+        ) as mock_scan:
+            out = await scanner.run_scan(url="https://example.com")
+        assert out is result
+        mock_scan.assert_called_once_with(url="https://example.com")
+
+    def test_print_results_method(self, capsys: pytest.CaptureFixture[str]) -> None:
+        scanner = CharsetbypassScanner()
+        result = CharsetBypassResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        scanner.print_results(result)
+        captured = capsys.readouterr()
+        assert "CHARSET" in captured.out
+
+
+class TestMainGuard:
+    def test_main_guard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import runpy
+
+        def _raise(*_args: object, **_kwargs: object) -> int:
+            raise SystemExit(0)
+
+        monkeypatch.setattr("mytools.core.base.run_main_loop", _raise)
+        with pytest.raises(SystemExit):
+            runpy.run_module("mytools.web.charsetbypass", run_name="__main__")
 
 
 class TestMismatchPayloads:

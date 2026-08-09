@@ -3,7 +3,8 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+import runpy
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -21,7 +22,9 @@ from mytools.osint.googledorking import (
     add_custom_dorks,
     build_parser,
     generate_dorks,
+    main,
     print_results,
+    run_once,
     scan_dorks,
     search_ddg,
 )
@@ -217,6 +220,15 @@ class TestParseDdgResults:
         assert len(results) == 1
         assert results[0]["title"] == "X"
         assert results[0]["url"] == ""
+
+    def test_empty_title_and_url(self):
+        html = """
+        <div class="result">
+            <a class="result__snippet" href="#">Only snippet</a>
+        </div>
+        """
+        results = _parse_ddg_results(html)
+        assert results == []
 
 
 # ── print_results ─────────────────────────────────────────────────────────────
@@ -471,3 +483,143 @@ class TestOutputDir:
         assert out_file.exists()
         data = json.loads(out_file.read_text(encoding="utf-8"))
         assert data[0]["dork"] == "filetype:pdf"
+
+
+# ── print_results quiet / edge paths ─────────────────────────────────────────
+
+
+class TestPrintResultsEdges:
+    def test_quiet(self, capsys) -> None:
+        print_results([], quiet=True)
+        out = capsys.readouterr().out
+        assert out == ""
+
+    def test_mixed_results(self, capsys) -> None:
+        queries = [
+            DorkQuery(
+                category="filetype",
+                dork="filetype:pdf",
+                full_query="site:ex.com filetype:pdf",
+                google_url="https://google.com/search?q=x",
+                ddg_url="https://ddg.com/x",
+                results=[{"title": "T", "url": "http://x.com", "snippet": "S"}],
+            ),
+            DorkQuery(
+                category="filetype",
+                dork="filetype:sql",
+                full_query="site:ex.com filetype:sql",
+                google_url="https://google.com/search?q=y",
+                ddg_url="https://ddg.com/y",
+            ),
+        ]
+        print_results(queries)
+        out = capsys.readouterr().out
+        assert "Resultados encontrados" in out
+        assert "filetype:sql" in out
+
+
+# ── run_once / _async_run_once / main ────────────────────────────────────────
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["ex.com"])
+        with (
+            patch(
+                "mytools.osint.googledorking._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.osint.googledorking.safe_asyncio_run",
+                new_callable=MagicMock,
+                return_value=0,
+            ) as mock_safe,
+        ):
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["ex.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_file_not_found(self) -> None:
+        args = build_parser().parse_args(["-l", "missing.txt"])
+        with patch(
+            "mytools.osint.googledorking.read_target_lines",
+            side_effect=FileNotFoundError,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_no_results_warning(self) -> None:
+        args = build_parser().parse_args(["ex.com"])
+        with patch(
+            "mytools.osint.googledorking.scan_dorks",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results_path(self) -> None:
+        query = DorkQuery(
+            category="filetype",
+            dork="filetype:pdf",
+            full_query="site:ex.com filetype:pdf",
+            google_url="https://google.com/",
+            ddg_url="https://ddg.co/",
+        )
+        args = build_parser().parse_args(["ex.com"])
+        with patch(
+            "mytools.osint.googledorking.scan_dorks",
+            new=AsyncMock(return_value=[query]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        query = DorkQuery(
+            category="filetype",
+            dork="filetype:pdf",
+            full_query="site:ex.com filetype:pdf",
+            google_url="https://google.com/",
+            ddg_url="https://ddg.co/",
+        )
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["ex.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.googledorking.scan_dorks",
+                new=AsyncMock(return_value=[query]),
+            ),
+            patch("mytools.osint.googledorking.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.osint.googledorking.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-dork", "ex.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.osint.googledorking", run_name="__main__")

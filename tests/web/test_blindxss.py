@@ -497,6 +497,290 @@ class TestBuildParser:
             assert args.category == cat
 
 
+# ─── Not Reflected (branches falsos) ─────────────────────────────────────────
+class TestNotReflected:
+    @pytest.mark.asyncio
+    async def test_input_not_reflected(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"hello world"
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_input(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_header_not_reflected(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"hello world"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_header(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_attr_not_reflected(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"hello world"
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_attr(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_event_not_reflected(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"hello world"
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_event(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_bypass_indicator_match(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"callback here"
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.vulnerable for r in results)
+
+
+# ─── Error Handling (except httpx.RequestError) ──────────────────────────────
+class TestErrorHandlingExtra:
+    @pytest.mark.asyncio
+    async def test_header_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_header(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.error for r in results)
+
+    @pytest.mark.asyncio
+    async def test_attr_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_attr(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.error for r in results)
+
+    @pytest.mark.asyncio
+    async def test_event_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_event(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.error for r in results)
+
+    @pytest.mark.asyncio
+    async def test_bypass_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(r.error for r in results)
+
+
+# ─── Print Results Extra Branches ────────────────────────────────────────────
+class TestPrintResultsExtra:
+    def _vuln(self, technique: str, field: str, details: str) -> BlindXSSAttempt:
+        return BlindXSSAttempt(
+            technique=technique,
+            category="input",
+            field=field,
+            payload="<script>fetch(...)</script>",
+            callback_url="https://hook.example.com/xss/abc123",
+            method="POST",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=False,
+            size_changed=True,
+            vulnerable=True,
+            details=details,
+            error="",
+        )
+
+    def test_duplicate_key_and_empty_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = BlindXSSResult(
+            target="https://test.com",
+            webhook_url="https://hook.example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                self._vuln("script_input", "input", "path=/contact"),
+                self._vuln("script_input", "input", ""),
+                self._vuln("img_input", "input", ""),
+            ],
+            vulnerable_techniques=["script_input", "img_input"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Total" in output
+        assert "Detalhes" in output
+
+
+# ─── Run Scan ────────────────────────────────────────────────────────────────
+class TestRunScan:
+    def _mock_cm(self, client: AsyncMock) -> MagicMock:
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return MagicMock(return_value=client)
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_all_categories(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"<script>echo</script>"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.blindxss import run_scan
+
+        with patch("mytools.web.blindxss.create_async_client", cm):
+            result = await run_scan(
+                target="https://test.com",
+                webhook_url="https://hook.example.com",
+                categories=[],
+                timeout=10.0,
+                output_file=None,
+            )
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_with_output(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("boom"))
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("boom"))
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.blindxss import run_scan
+
+        with (
+            patch("mytools.web.blindxss.create_async_client", cm),
+            patch("mytools.web.blindxss.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                target="test.com",
+                webhook_url="https://hook.example.com",
+                categories=["invalid"],
+                timeout=10.0,
+                output_file="out.json",
+            )
+        assert result == 0
+        mock_write.assert_called_once()
+
+
+# ─── Banner Art ──────────────────────────────────────────────────────────────
+class TestBannerArt:
+    def test_banner_art(self) -> None:
+        from mytools.web.blindxss import banner_art
+
+        with patch("mytools.web.blindxss.create_banner") as mock_banner:
+            banner_art()
+            mock_banner.assert_called_once()
+
+
 # ─── Run Once ────────────────────────────────────────────────────────────────
 class TestRunOnce:
     @patch("mytools.web.blindxss.run_scan")
@@ -511,3 +795,55 @@ class TestRunOnce:
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()
+
+    @patch("mytools.web.blindxss.run_scan")
+    def test_run_once_with_category(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = 0
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "https://test.com",
+                "--webhook",
+                "https://hook.example.com",
+                "-c",
+                "input",
+            ]
+        )
+        from mytools.web.blindxss import run_once
+
+        result = run_once(args)
+        assert result == 0
+        assert mock_run.call_args[1]["categories"] == ["input"]
+
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+class TestMain:
+    def test_main(self) -> None:
+        from mytools.web.blindxss import main
+
+        with patch("mytools.web.blindxss.run_main_loop", return_value=0) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+# ─── Main Guard ──────────────────────────────────────────────────────────────
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch(
+                "sys.argv",
+                [
+                    "mytools-blindxss",
+                    "https://test.com",
+                    "--webhook",
+                    "https://hook.example.com",
+                ],
+            ),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.blindxss", run_name="__main__")
+        assert exc_info.value.code == 0

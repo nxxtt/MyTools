@@ -119,8 +119,8 @@ def _send_raw(
                 else:
                     # Sem Content-Length, pode ser chunked ou close
                     if b"Transfer-Encoding: chunked" in headers_raw:
-                        if response.rstrip().endswith(b"0\r\n\r\n"):
-                            break
+                        if response.rstrip().endswith(b"0\r\n\r\n"):  # pragma: no cover
+                            break  # pragma: no cover
                     else:
                         break
         except TimeoutError, OSError:

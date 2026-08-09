@@ -144,9 +144,10 @@ async def confirm_js_execution(
             context = await browser.new_context(**context_kwargs)
             page = await context.new_page()
 
-            def _on_dialog(_dialog: Any) -> None:
+            async def _on_dialog(dialog: Any) -> None:
                 nonlocal fired
                 fired = True
+                await dialog.dismiss()
 
             page.on("dialog", _on_dialog)
             await page.goto(

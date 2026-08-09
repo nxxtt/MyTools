@@ -414,6 +414,143 @@ class TestBuildParser:
             assert args.category == cat
 
 
+# ─── Test Legacy Error ───────────────────────────────────────────────────────
+class TestLegacyError:
+    @pytest.mark.asyncio
+    async def test_legacy_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_legacy(mock_client, "https://test.com")
+        assert len(results) == 5
+        assert all(r.error for r in results)
+
+
+# ─── Print Results Extra Branches ────────────────────────────────────────────
+class TestPrintResultsExtra:
+    def test_duplicate_key_and_empty_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def _attempt(technique: str, details: str) -> ClickjackAttempt:
+            return ClickjackAttempt(
+                technique=technique,
+                category="xframe",
+                header_tested="X-Frame-Options",
+                header_value="",
+                vulnerable=True,
+                details=details,
+                error="",
+            )
+
+        result = ClickjackResult(
+            target="https://test.com",
+            tls=True,
+            attempts=[
+                _attempt("xframe_absent", "X-Frame-Options ausente"),
+                _attempt("xframe_absent", ""),
+                _attempt("xframe_invalid", ""),
+            ],
+            vulnerable_techniques=["xframe_absent", "xframe_invalid"],
+            protected_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Total" in output
+        assert "Detalhes" in output
+
+
+# ─── Run Scan ────────────────────────────────────────────────────────────────
+class TestRunScan:
+    def _mock_cm(self, client: AsyncMock) -> MagicMock:
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return MagicMock(return_value=client)
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_all_categories(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"hello"
+        mock_resp.headers = {}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.clickjacking import run_scan
+
+        with patch("mytools.web.clickjacking.create_async_client", cm):
+            result = await run_scan(
+                target="https://test.com",
+                categories=[],
+                timeout=10.0,
+                output_file=None,
+            )
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_safe_xframe(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_resp.headers = {"x-frame-options": "DENY"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.clickjacking import run_scan
+
+        with patch("mytools.web.clickjacking.create_async_client", cm):
+            result = await run_scan(
+                target="test.com",
+                categories=["xframe"],
+                timeout=10.0,
+                output_file=None,
+            )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_json_output(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("boom"))
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.clickjacking import run_scan
+
+        with (
+            patch("mytools.web.clickjacking.create_async_client", cm),
+            patch("mytools.web.clickjacking.print_json") as mock_json,
+            patch("mytools.web.clickjacking.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                target="test.com",
+                categories=["invalid"],
+                timeout=10.0,
+                output_file="out.json",
+                json_output=True,
+            )
+        assert result == 0
+        mock_json.assert_called_once()
+        mock_write.assert_called_once()
+
+
+# ─── Banner Art ──────────────────────────────────────────────────────────────
+class TestBannerArt:
+    def test_banner_art(self) -> None:
+        from mytools.web.clickjacking import banner_art
+
+        with patch("mytools.web.clickjacking.create_banner") as mock_banner:
+            banner_art()
+            mock_banner.assert_called_once()
+
+
 # ─── Run Once ────────────────────────────────────────────────────────────────
 class TestRunOnce:
     @patch("mytools.web.clickjacking.run_scan")
@@ -426,3 +563,41 @@ class TestRunOnce:
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()
+
+    @patch("mytools.web.clickjacking.run_scan")
+    def test_run_once_with_category(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = 0
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com", "-c", "xframe"])
+        from mytools.web.clickjacking import run_once
+
+        result = run_once(args)
+        assert result == 0
+        assert mock_run.call_args[1]["categories"] == ["xframe"]
+
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+class TestMain:
+    def test_main(self) -> None:
+        from mytools.web.clickjacking import main
+
+        with patch(
+            "mytools.web.clickjacking.run_main_loop", return_value=0
+        ) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+# ─── Main Guard ──────────────────────────────────────────────────────────────
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-clickjack", "https://test.com"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.clickjacking", run_name="__main__")
+        assert exc_info.value.code == 0

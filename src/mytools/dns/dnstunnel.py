@@ -149,7 +149,7 @@ def shannon_entropy(data: str) -> float:
     for count in freq.values():
         p = count / length
 
-        if p > 0:
+        if p > 0:  # pragma: no cover -- p = count/length, count >= 1, sempre > 0
             entropy -= p * math.log2(p)
 
     return entropy

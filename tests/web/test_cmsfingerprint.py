@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -243,6 +245,23 @@ class TestDetectWpVersion:
 
     @respx.mock
     @pytest.mark.asyncio
+    async def test_detects_from_version_php(self) -> None:
+        respx.get("https://example.com/readme.html").mock(
+            return_value=httpx.Response(200, text="no version here")
+        )
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="no generator meta")
+        )
+        respx.get("https://example.com/wp-includes/version.php").mock(
+            return_value=httpx.Response(200, text="$wp_version = '6.2.0';")
+        )
+        async with httpx.AsyncClient() as client:
+            version, evidence = await _detect_wp_version(client, "https://example.com")
+            assert version == "6.2.0"
+            assert "version.php" in evidence
+
+    @respx.mock
+    @pytest.mark.asyncio
     async def test_no_version_found(self) -> None:
         async def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404, text="")
@@ -254,6 +273,22 @@ class TestDetectWpVersion:
         respx.route(
             method="GET", url="https://example.com/wp-includes/version.php"
         ).mock(side_effect=_handler)
+        async with httpx.AsyncClient() as client:
+            version, _evidence = await _detect_wp_version(client, "https://example.com")
+            assert version == ""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_no_match_in_version_php(self) -> None:
+        respx.get("https://example.com/readme.html").mock(
+            return_value=httpx.Response(200, text="no version here")
+        )
+        respx.get("https://example.com/").mock(
+            return_value=httpx.Response(200, text="no generator meta")
+        )
+        respx.get("https://example.com/wp-includes/version.php").mock(
+            return_value=httpx.Response(200, text="garbage content")
+        )
         async with httpx.AsyncClient() as client:
             version, _evidence = await _detect_wp_version(client, "https://example.com")
             assert version == ""
@@ -372,6 +407,85 @@ class TestDetectWpUsers:
             assert "admin" in users
             assert "editor" in users
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_finds_users_via_redirect(self) -> None:
+        respx.get("https://example.com/?author=1").mock(
+            return_value=httpx.Response(301, text="/author/admin")
+        )
+        respx.get("https://example.com/?author=2").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/?author=3").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/wp-json/wp/v2/users").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        async with httpx.AsyncClient() as client:
+            users = await _detect_wp_users(client, "https://example.com")
+            assert users == ["admin"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_redirect_without_author(self) -> None:
+        respx.get("https://example.com/?author=1").mock(
+            return_value=httpx.Response(301, text="Location: /wp-login.php")
+        )
+        respx.get("https://example.com/?author=2").mock(
+            return_value=httpx.Response(301, text="Location: /wp-login.php")
+        )
+        respx.get("https://example.com/?author=3").mock(
+            return_value=httpx.Response(301, text="Location: /wp-login.php")
+        )
+        respx.get("https://example.com/wp-json/wp/v2/users").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        async with httpx.AsyncClient() as client:
+            users = await _detect_wp_users(client, "https://example.com")
+            assert users == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_rest_api_non_list(self) -> None:
+        respx.get("https://example.com/wp-json/wp/v2/users").mock(
+            return_value=httpx.Response(200, text='{"error": "forbidden"}')
+        )
+        respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
+        async with httpx.AsyncClient() as client:
+            users = await _detect_wp_users(client, "https://example.com")
+            assert users == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_rest_api_entries_missing_name(self) -> None:
+        respx.get("https://example.com/wp-json/wp/v2/users").mock(
+            return_value=httpx.Response(
+                200,
+                text=json.dumps(
+                    [
+                        {"name": "admin"},
+                        {"id": 5},
+                    ]
+                ),
+            )
+        )
+        respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
+        async with httpx.AsyncClient() as client:
+            users = await _detect_wp_users(client, "https://example.com")
+            assert users == ["admin"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_rest_api_invalid_json(self) -> None:
+        respx.get("https://example.com/wp-json/wp/v2/users").mock(
+            return_value=httpx.Response(200, text="not json at all")
+        )
+        respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
+        async with httpx.AsyncClient() as client:
+            users = await _detect_wp_users(client, "https://example.com")
+            assert users == []
+
 
 # ---------------------------------------------------------------------------
 # Joomla detection tests
@@ -421,6 +535,69 @@ class TestDetectJoomlaInfo:
             side_effect=_handler,
         )
         respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
+        async with httpx.AsyncClient() as client:
+            version, extensions = await _detect_joomla_info(
+                client,
+                "https://example.com",
+                ["com_hikashop"],
+            )
+            assert version == ""
+            assert extensions == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_detects_version_from_manifests(self) -> None:
+        respx.get("https://example.com/language/en-GB/en-GB.xml").mock(
+            return_value=httpx.Response(200, text="no version tag")
+        )
+        respx.get("https://example.com/administrator/manifests/files/joomla.xml").mock(
+            return_value=httpx.Response(200, text="<version>5.0.0</version>")
+        )
+        respx.get("https://example.com/administrator/components/com_hikashop/").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        async with httpx.AsyncClient() as client:
+            version, extensions = await _detect_joomla_info(
+                client,
+                "https://example.com",
+                ["com_hikashop"],
+            )
+            assert version == "5.0.0"
+            assert extensions == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_detects_extension(self) -> None:
+        respx.get("https://example.com/language/en-GB/en-GB.xml").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/administrator/manifests/files/joomla.xml").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/administrator/components/com_hikashop/").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        async with httpx.AsyncClient() as client:
+            version, extensions = await _detect_joomla_info(
+                client,
+                "https://example.com",
+                ["com_hikashop"],
+            )
+            assert version == ""
+            assert extensions == ["com_hikashop"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_manifests_without_version(self) -> None:
+        respx.get("https://example.com/language/en-GB/en-GB.xml").mock(
+            return_value=httpx.Response(200, text="no version tag")
+        )
+        respx.get("https://example.com/administrator/manifests/files/joomla.xml").mock(
+            return_value=httpx.Response(200, text="no version here either")
+        )
+        respx.get("https://example.com/administrator/components/com_hikashop/").mock(
+            return_value=httpx.Response(404, text="")
+        )
         async with httpx.AsyncClient() as client:
             version, extensions = await _detect_joomla_info(
                 client,
@@ -502,6 +679,64 @@ class TestScanCmsFingerprint:
         assert result.cms_detected == ""
         assert result.overall_status == "secure"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_wp_themes_only(self) -> None:
+        respx.get("https://example.com/wp-content/themes/astra/style.css").mock(
+            return_value=httpx.Response(200, text="/* Theme Name: Astra */")
+        )
+        respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
+        result = await scan_cms_fingerprint(
+            base_url="https://example.com",
+            categories=["wp_themes"],
+            timeout=5.0,
+            plugin_limit=5,
+            theme_limit=5,
+        )
+        assert result.cms_detected == ""
+        assert any(a.technique == "wp_theme_probe" for a in result.attempts)
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_joomla_scan(self) -> None:
+        respx.get("https://example.com/language/en-GB/en-GB.xml").mock(
+            return_value=httpx.Response(200, text="<version>4.3.0</version>")
+        )
+        respx.get("https://example.com/administrator/manifests/files/joomla.xml").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/administrator/components/com_hikashop/").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
+        result = await scan_cms_fingerprint(
+            base_url="https://example.com",
+            categories=["joomla_info"],
+            timeout=5.0,
+            plugin_limit=5,
+            theme_limit=5,
+        )
+        assert result.cms_detected == ""
+        assert result.version == "4.3.0"
+        assert result.overall_status == "vulnerable"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_wp_plugins_only(self) -> None:
+        respx.get("https://example.com/wp-content/plugins/akismet/readme.txt").mock(
+            return_value=httpx.Response(200, text="Akismet")
+        )
+        respx.route(method="GET").mock(return_value=httpx.Response(404, text=""))
+        result = await scan_cms_fingerprint(
+            base_url="https://example.com",
+            categories=["wp_plugins"],
+            timeout=5.0,
+            plugin_limit=5,
+            theme_limit=5,
+        )
+        assert result.cms_detected == ""
+        assert any(a.technique == "wp_plugin_probe" for a in result.attempts)
+
 
 # ---------------------------------------------------------------------------
 # Parser tests
@@ -573,3 +808,125 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "wordpress" in output
         assert "akismet" in output
+
+    def test_print_no_findings_in_category(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        attempt = CmsAttempt(
+            technique="cms_identify",
+            category="cms_detect",
+            description="No CMS detected",
+            status_code=0,
+            vulnerable=False,
+            details="",
+            error="",
+        )
+        result = CmsResult(
+            target="https://example.com",
+            cms_detected="",
+            version="",
+            attempts=[attempt],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "no findings" in output
+
+
+# ---------------------------------------------------------------------------
+# CLI tests
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncRunOnce:
+    @patch("mytools.web.cmsfingerprint.scan_cms_fingerprint")
+    def test_async_run_once(
+        self,
+        mock_scan: MagicMock,
+        base_ns: argparse.Namespace,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from mytools.web.cmsfingerprint import _async_run_once
+
+        mock_scan.return_value = CmsResult(
+            target="https://example.com",
+            cms_detected="",
+            version="",
+            attempts=[],
+            issues=[],
+            overall_status="secure",
+        )
+        args = base_ns
+        args.url = "example.com"
+        result = _async_run_once(args)
+        assert result is not None
+        assert mock_scan.call_args[1]["base_url"] == "https://example.com"
+
+    @patch("mytools.web.cmsfingerprint.write_output")
+    @patch("mytools.web.cmsfingerprint.scan_cms_fingerprint")
+    def test_async_run_once_with_output(
+        self,
+        mock_scan: MagicMock,
+        mock_write: MagicMock,
+        base_ns: argparse.Namespace,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from mytools.web.cmsfingerprint import _async_run_once
+
+        mock_scan.return_value = CmsResult(
+            target="https://example.com",
+            cms_detected="",
+            version="",
+            attempts=[],
+            issues=[],
+            overall_status="secure",
+        )
+        args = base_ns
+        args.url = "https://example.com"
+        args.output = "out.json"
+        _async_run_once(args)
+        mock_write.assert_called_once()
+
+
+class TestRunOnce:
+    @patch("mytools.web.cmsfingerprint._async_run_once")
+    def test_run_once(self, mock_async: MagicMock) -> None:
+        from mytools.web.cmsfingerprint import run_once
+
+        mock_async.return_value = CmsResult(
+            target="https://example.com",
+            cms_detected="",
+            version="",
+            attempts=[],
+            issues=[],
+            overall_status="secure",
+        )
+        result = run_once(MagicMock())
+        assert result == 0
+        mock_async.assert_called_once()
+
+
+class TestMain:
+    def test_main(self) -> None:
+        from mytools.web.cmsfingerprint import main
+
+        with patch(
+            "mytools.web.cmsfingerprint.run_main_loop", return_value=0
+        ) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-cmsfp", "https://example.com"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.cmsfingerprint", run_name="__main__")
+        assert exc_info.value.code == 0

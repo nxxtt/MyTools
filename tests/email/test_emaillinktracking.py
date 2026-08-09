@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Link Tracking."""
 
+import asyncio
+import runpy
 import smtplib
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +12,7 @@ from mytools.email.emaillinktracking import (
     _CATEGORY_MAP,
     TrackingAttempt,
     TrackingResult,
+    _async_run_once,
     _build_test_email,
     _build_test_html,
     _connect_smtp,
@@ -26,8 +29,11 @@ from mytools.email.emaillinktracking import (
     _detect_utm_params,
     _detect_web_beacon,
     _get_banner,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_link_tracking,
 )
 
@@ -169,6 +175,32 @@ class TestConnectSmtp:
         with pytest.raises(ConnectionError):
             _connect_smtp("bad.host", 587, 5.0)
 
+    @patch("mytools.email.emaillinktracking.smtplib.SMTP")
+    def test_starttls_attempted(self, mock_smtp: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250-mail\n250-STARTTLS")
+        mock_server.starttls.return_value = (220, b"Ready")
+        mock_smtp.return_value = mock_server
+        _server, tls = _connect_smtp("mail.test.com", 587, 10.0)
+        mock_server.starttls.assert_called_once()
+        assert tls is True
+
+    @patch("mytools.email.emaillinktracking.smtplib.SMTP")
+    def test_connect_smtpconnecterror(self, mock_smtp: MagicMock) -> None:
+        mock_smtp.side_effect = smtplib.SMTPConnectError(421, b"unavail")
+        with pytest.raises(ConnectionError, match="Falha ao conectar"):
+            _connect_smtp("bad.host", 587, 5.0)
+
+    @patch("mytools.email.emaillinktracking.smtplib.SMTP")
+    def test_starttls_error_suppressed(self, mock_smtp: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250-mail\n250-STARTTLS")
+        mock_server.starttls.side_effect = smtplib.SMTPException("no TLS")
+        mock_smtp.return_value = mock_server
+        server, tls = _connect_smtp("mail.test.com", 587, 10.0)
+        assert server is not None
+        assert tls is False
+
 
 class TestGetBanner:
     def test_banner_ok(self) -> None:
@@ -185,6 +217,14 @@ class TestGetBanner:
 class TestDetectors:
     def test_pixel_1x1_detected(self) -> None:
         status, _details = _detect_pixel_1x1("", 'width="1" height="1"')
+        assert status == "detected"
+
+    def test_pixel_1x1_detected_keyword(self) -> None:
+        status, _details = _detect_pixel_1x1("1x1 marker", "")
+        assert status == "detected"
+
+    def test_pixel_1x1_detected_url(self) -> None:
+        status, _details = _detect_pixel_1x1("", "pixel.gif at tracking URL")
         assert status == "detected"
 
     def test_pixel_1x1_not_detected(self) -> None:
@@ -208,6 +248,10 @@ class TestDetectors:
     def test_web_beacon_not_detected(self) -> None:
         status, _ = _detect_web_beacon("", "normal content")
         assert status == "not_detected"
+
+    def test_web_beacon_invisible(self) -> None:
+        status, _ = _detect_web_beacon("", 'beacon width="0"')
+        assert status == "detected"
 
     def test_link_rewrite_not_detected(self) -> None:
         status, _ = _detect_link_rewrite(
@@ -281,6 +325,10 @@ class TestDetectors:
     def test_hidden_element_not_detected(self) -> None:
         status, _ = _detect_hidden_element("visible content")
         assert status == "not_detected"
+
+    def test_hidden_element_font_zero(self) -> None:
+        status, _ = _detect_hidden_element('style="font-size:0"')
+        assert status == "detected"
 
     def test_css_tracking_detected(self) -> None:
         status, _ = _detect_css_tracking(
@@ -383,6 +431,116 @@ class TestScanLinkTracking:
         result = scan_link_tracking("mail.test.com", 587)
         assert len(result.attempts) == 12
 
+    @patch("mytools.email.emaillinktracking._connect_smtp")
+    def test_smtp_response_exception(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_server.data.side_effect = smtplib.SMTPResponseException(550, b"Rejected")
+        mock_conn.return_value = (mock_server, False)
+
+        result = scan_link_tracking("mail.test.com", 587)
+        assert len(result.attempts) == 12
+
+    @patch("mytools.email.emaillinktracking._connect_smtp")
+    def test_smtp_exception(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_server.data.side_effect = smtplib.SMTPException("fail")
+        mock_conn.return_value = (mock_server, False)
+
+        result = scan_link_tracking("mail.test.com", 587)
+        assert len(result.attempts) == 12
+
+    @patch("mytools.email.emaillinktracking._connect_smtp")
+    def test_unknown_detector_skipped(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_server.data.return_value = (250, b"OK")
+        mock_conn.return_value = (mock_server, False)
+
+        with patch(
+            "mytools.email.emaillinktracking._CATEGORY_MAP",
+            {"bogus_cat": ["nonexistent_technique"]},
+        ):
+            result = scan_link_tracking("mail.test.com", 587, category="bogus_cat")
+        assert result.attempts == []
+        assert result.overall_status == "warning"
+
+    @patch("mytools.email.emaillinktracking._connect_smtp")
+    def test_unimplemented_detector(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_server.data.return_value = (250, b"OK")
+        mock_conn.return_value = (mock_server, False)
+
+        custom = {
+            "custom_tech": (
+                "custom_tech",
+                "Custom technique",
+                lambda *a: ("not_detected", "nope"),
+            )
+        }
+        with (
+            patch(
+                "mytools.email.emaillinktracking._CATEGORY_MAP",
+                {"custom": ["custom_tech"]},
+            ),
+            patch(
+                "mytools.email.emaillinktracking._DETECTOR_MAP",
+                custom,
+            ),
+        ):
+            result = scan_link_tracking("mail.test.com", 587, category="custom")
+        assert len(result.attempts) == 1
+        assert result.attempts[0].status == "not_detected"
+        assert "nao implementado" in result.attempts[0].details
+
+    @patch("mytools.email.emaillinktracking._connect_smtp")
+    def test_detector_detected(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_server.data.return_value = (250, b"OK")
+        mock_conn.return_value = (mock_server, False)
+
+        with patch(
+            "mytools.email.emaillinktracking._DETECTOR_MAP",
+            {
+                "utm_params": (
+                    "utm_params",
+                    "UTM parameter injection",
+                    lambda email_body: ("detected", "UTM params found"),
+                )
+            },
+        ):
+            result = scan_link_tracking("mail.test.com", 587, category="link")
+        assert result.overall_status == "tracking_detected"
+        assert "utm_params" in result.detected_techniques
+        assert any("Tracking detectado" in i for i in result.issues)
+
+    @patch("mytools.email.emaillinktracking._connect_smtp")
+    def test_detector_exception(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_server.data.return_value = (250, b"OK")
+        mock_conn.return_value = (mock_server, False)
+
+        def _boom(*args: object, **kwargs: object) -> tuple[str, str]:
+            raise RuntimeError("boom")
+
+        with (
+            patch(
+                "mytools.email.emaillinktracking._CATEGORY_MAP",
+                {"custom": ["pixel_1x1"]},
+            ),
+            patch(
+                "mytools.email.emaillinktracking._DETECTOR_MAP",
+                {"pixel_1x1": ("pixel_1x1", "Pixel", _boom)},
+            ),
+        ):
+            result = scan_link_tracking("mail.test.com", 587, category="custom")
+        assert result.attempts[0].status == "error"
+        assert result.overall_status == "warning"
+
 
 class TestPrintResults:
     def test_print_tracking_detected(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -469,3 +627,124 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         assert "timeout" in captured.out
+
+
+class TestBanner:
+    def test_banner_art(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner_art()
+        captured = capsys.readouterr()
+        assert "link tracking" in captured.out
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["mail.test.com"])
+        with (
+            patch(
+                "mytools.email.emaillinktracking._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.email.emaillinktracking.safe_asyncio_run",
+                new_callable=MagicMock,
+            ) as mock_safe,
+        ):
+            mock_safe.return_value = 0
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["mail.test.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results(self) -> None:
+        result = TrackingResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=[],
+            overall_status="clean",
+        )
+        args = build_parser().parse_args(["mail.test.com"])
+        with patch(
+            "mytools.email.emaillinktracking.scan_link_tracking",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        result = TrackingResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=[],
+            overall_status="clean",
+        )
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["mail.test.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.email.emaillinktracking.scan_link_tracking",
+                return_value=result,
+            ),
+            patch("mytools.email.emaillinktracking.write_output") as mock_write,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_write.assert_called_once()
+
+    def test_quiet(self) -> None:
+        result = TrackingResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=[],
+            overall_status="clean",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--quiet"])
+        with patch(
+            "mytools.email.emaillinktracking.scan_link_tracking",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.email.emaillinktracking.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-linktrack", "mail.test.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.email.emaillinktracking", run_name="__main__")

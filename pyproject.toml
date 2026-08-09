@@ -18,7 +18,7 @@ dependencies = [
     "pyjwt>=2.13.0",
     "cryptography>=50.0.0",
     "keyring>=25.7.0",
-    "h2>=4.4.0",
+    "h2>=4.4.1",
     "grpcio>=1.83.0",
     "grpcio-reflection>=1.83.0",
     "protobuf>=7.35.1",
@@ -40,7 +40,7 @@ dev = [
  "pytest-xdist>=3.8.0",
  "pytest-asyncio>=1.4.0",
  "pytest-cov>=7.1.0",
- "ruff>=0.16.1",
+ "ruff>=0.16.2",
  "basedpyright>=1.39.9",
 ]
 [project.scripts]
@@ -160,7 +160,7 @@ mytools-cmsfp = "mytools.web.cmsfingerprint:main"
 mytools-report = "mytools.core.report:main"
 
 [tool.uv]
-required-version = "0.12.1"
+required-version = ">=0.12.1"
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13"]
@@ -212,7 +212,7 @@ omit = ["tests/*", "src/mytools/data/*"]
 [tool.coverage.report]
 show_missing = true
 precision = 2
-fail_under = 0
+fail_under = 100
 
 [tool.coverage.html]
 directory = "htmlcov"

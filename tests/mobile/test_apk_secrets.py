@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import zipfile
+from unittest.mock import patch
 
 from mytools.mobile.apk_secrets import _SECRET_PATTERNS, detect_secrets
 
@@ -63,3 +64,30 @@ class TestDetectSecrets:
             zf.writestr("classes.dex", b'password = "SuperSecret123"')
         result = detect_secrets(str(apk_path))
         assert result["total_secrets"] > 0
+
+    def test_deduplication_by_value(self, tmp_path) -> None:
+        apk_path = tmp_path / "dedup.apk"
+        with zipfile.ZipFile(str(apk_path), "w") as zf:
+            zf.writestr(
+                "classes.dex",
+                b"AKIAIOSFODNN7EXAMPLE AKIAIOSFODNN7EXAMPLE AKIAIOSFODNN7EXAMPLE",
+            )
+        result = detect_secrets(str(apk_path))
+        aws_count = sum(1 for f in result["findings"] if "AWS" in f["pattern"])
+        assert aws_count == 1
+        assert result["unique_patterns"] == 1
+
+    def test_dex_read_error_skipped(self, tmp_path) -> None:
+        apk_path = tmp_path / "bad.apk"
+        with zipfile.ZipFile(str(apk_path), "w") as zf:
+            zf.writestr("classes.dex", b"AKIAIOSFODNN7EXAMPLE")
+            zf.writestr("classes2.dex", b"ok")
+
+        def _boom(name: str) -> bytes:
+            if name == "classes.dex":
+                raise RuntimeError("corrupt")
+            return b""
+
+        with patch.object(zipfile.ZipFile, "read", side_effect=_boom):
+            result = detect_secrets(str(apk_path))
+        assert result["total_secrets"] == 0

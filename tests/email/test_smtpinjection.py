@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de SMTP Header Injection."""
 
+import asyncio
+import runpy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,10 +10,14 @@ import pytest
 from mytools.email.smtpinjection import (
     InjectionAttempt,
     InjectionResult,
+    _async_run_once,
     _connect_smtp,
     _test_injection,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_smtp_injection,
 )
 
@@ -122,6 +128,29 @@ class TestConnectSmtp:
         with pytest.raises(ConnectionError, match="Erro de conexao"):
             _connect_smtp("bad.host", 25, 5.0, False)
 
+    @patch("mytools.email.smtpinjection.smtplib.SMTP")
+    def test_connect_starttls(self, mock_smtp: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"Hello")
+        mock_server.starttls.return_value = (220, b"Ready")
+        mock_smtp.return_value = mock_server
+        server, banner, ehlo = _connect_smtp("mail.test.com", 587, 10.0, True)
+        assert server is mock_server
+        assert "[STARTTLS]" in banner
+        assert ehlo == banner
+
+    @patch("mytools.email.smtpinjection.smtplib.SMTP")
+    def test_connect_starttls_not_supported(self, mock_smtp: MagicMock) -> None:
+        import smtplib
+
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"Hello")
+        mock_server.starttls.side_effect = smtplib.SMTPNotSupportedError()
+        mock_smtp.return_value = mock_server
+        server, banner, _ehlo = _connect_smtp("mail.test.com", 587, 10.0, True)
+        assert server is mock_server
+        assert "[STARTTLS]" not in banner
+
 
 class TestTestInjection:
     def _make_server(self, sendmail_exc: Exception | None = None) -> MagicMock:
@@ -189,6 +218,27 @@ class TestTestInjection:
             server, "a@b.com", "x@y.com", "To", "crlf_body", "\r\n\r\nINJECTED"
         )
         assert attempt.status == "timeout"
+
+    def test_error_other_code(self) -> None:
+        import smtplib
+
+        exc = smtplib.SMTPDataError(451, b"Local error")
+        server = self._make_server(sendmail_exc=exc)
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test"
+        )
+        assert attempt.status == "error"
+        assert "451" in attempt.server_response
+
+    def test_error_bytes_message(self) -> None:
+        import smtplib
+
+        exc = smtplib.SMTPDataError(451, b"\xe9\xe3 bytes")
+        server = self._make_server(sendmail_exc=exc)
+        attempt = _test_injection(
+            server, "a@b.com", "x@y.com", "To", "crlf_header", "\r\nX-Injected: test"
+        )
+        assert attempt.status == "error"
 
 
 class TestScanSmtpInjection:
@@ -292,3 +342,156 @@ class TestPrintResults:
         out = capsys.readouterr().out
         assert "Nenhuma injecao detectada" in out
         assert "corretamente" in out.lower()
+
+    def test_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = InjectionResult(
+            target="err.host",
+            port=587,
+            tls=False,
+            banner="ESMTP",
+            ehlo_response="250",
+            attempts=[
+                InjectionAttempt("To", "crlf", "x", "error", "451", "local error"),
+                InjectionAttempt("To", "crlf", "y", "timeout", "", "timed out"),
+                InjectionAttempt("To", "crlf", "z", "blocked", "501", ""),
+            ],
+            vulnerable_fields=[],
+            issues=["Nenhuma injecao detectada"],
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "Erros/Timeouts" in out
+        assert "BLOQUEADO" in out
+
+    def test_no_banner(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = InjectionResult(
+            target="nb.host",
+            port=587,
+            tls=True,
+            banner="",
+            ehlo_response="250",
+            attempts=[InjectionAttempt("To", "crlf", "x", "blocked", "501", "")],
+            vulnerable_fields=[],
+            issues=["Nenhuma injecao detectada"],
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "BLOQUEADO" in out
+
+
+class TestBanner:
+    def test_banner_art(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner_art()
+        captured = capsys.readouterr()
+        assert "smtp injection" in captured.out
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["mail.test.com"])
+        with (
+            patch(
+                "mytools.email.smtpinjection._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.email.smtpinjection.safe_asyncio_run",
+                new_callable=MagicMock,
+            ) as mock_safe,
+        ):
+            mock_safe.return_value = 0
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["mail.test.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results(self) -> None:
+        result = InjectionResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="ESMTP",
+            ehlo_response="250",
+            attempts=[],
+            vulnerable_fields=[],
+            issues=["Nenhuma injecao detectada"],
+        )
+        args = build_parser().parse_args(["mail.test.com"])
+        with patch(
+            "mytools.email.smtpinjection.scan_smtp_injection",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        result = InjectionResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="ESMTP",
+            ehlo_response="250",
+            attempts=[],
+            vulnerable_fields=[],
+            issues=["Nenhuma injecao detectada"],
+        )
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["mail.test.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.email.smtpinjection.scan_smtp_injection",
+                return_value=result,
+            ),
+            patch("mytools.email.smtpinjection.write_output") as mock_write,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_write.assert_called_once()
+
+    def test_quiet(self) -> None:
+        result = InjectionResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="ESMTP",
+            ehlo_response="250",
+            attempts=[],
+            vulnerable_fields=[],
+            issues=["Nenhuma injecao detectada"],
+        )
+        args = build_parser().parse_args(["mail.test.com", "--quiet"])
+        with patch(
+            "mytools.email.smtpinjection.scan_smtp_injection",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.email.smtpinjection.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-smtpinject", "mail.test.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.email.smtpinjection", run_name="__main__")

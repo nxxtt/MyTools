@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de SMTP Downgrade Attack."""
 
+import asyncio
+import runpy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,13 +11,17 @@ from mytools.email import smtpdowngrade
 from mytools.email.smtpdowngrade import (
     DowngradeResult,
     DowngradeTest,
+    _async_run_once,
     _check_starttls,
     _connect_smtp,
     _get_banner,
     _test_helo_downgrade,
     _test_plaintext_mail,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_smtp_downgrade,
 )
 
@@ -159,6 +165,13 @@ class TestTestPlaintextMail:
         accepted, _details = _test_plaintext_mail(server, "a@b.com", "c@d.com")
         assert accepted is False
 
+    def test_smtp_exception(self) -> None:
+        server = MagicMock()
+        server.mail.side_effect = smtpdowngrade.smtplib.SMTPException("boom")
+        accepted, details = _test_plaintext_mail(server, "a@b.com", "c@d.com")
+        assert accepted is False
+        assert details == "boom"
+
 
 class TestTestHeloDowngrade:
     @patch("mytools.email.smtpdowngrade.smtplib.SMTP")
@@ -277,6 +290,36 @@ class TestScanSmtpDowngrade:
             assert result.ehlo_advertises_starttls is False
             assert result.supports_starttls is False
 
+    def test_auth_requires_tls(self) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"220 mail\nSTARTTLS")
+        mock_server.starttls.return_value = (220, b"Ready")
+        mock_server.mail.return_value = (530, b"Auth required")
+        mock_server.rcpt.return_value = (530, b"Auth required")
+        mock_server.docmd.return_value = (530, b"Must issue STARTTLS first")
+
+        with (
+            patch(
+                "mytools.email.smtpdowngrade._connect_smtp", return_value=mock_server
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._get_banner",
+                return_value="220 mail\nSTARTTLS",
+            ),
+            patch("mytools.email.smtpdowngrade._check_starttls", return_value=True),
+            patch(
+                "mytools.email.smtpdowngrade._test_plaintext_mail",
+                return_value=(False, "530"),
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._test_helo_downgrade",
+                return_value=(False, "fail"),
+            ),
+        ):
+            result = scan_smtp_downgrade("mail.test.com", 587)
+            assert result.auth_without_tls is False
+            assert not any("MITM possivel" in i for i in result.issues)
+
     def test_custom_port(self) -> None:
         mock_server = MagicMock()
         mock_server.ehlo.return_value = (250, b"220 mail")
@@ -363,3 +406,154 @@ class TestPrintResults:
         out = capsys.readouterr().out
         assert "T1" in out
         assert "T2" in out
+
+    def test_warning(self, capsys: pytest.CaptureFixture[str]) -> None:
+        r = DowngradeResult(
+            target="mail.test.com",
+            port=587,
+            banner="",
+            ehlo_advertises_starttls=False,
+            supports_starttls=False,
+            requires_starttls=True,
+            plaintext_accepted=False,
+            helo_downgrade_accepted=True,
+            auth_without_tls=False,
+            tests=[
+                DowngradeTest("HELO Downgrade", "fail", "desc", "det"),
+            ],
+            issues=[],
+            overall_status="warning",
+        )
+        print_results(r)
+        out = capsys.readouterr().out
+        assert "parcial" in out
+
+
+class TestBanner:
+    def test_banner_art(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner_art()
+        captured = capsys.readouterr()
+        assert "smtp downgrade" in captured.out
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["mail.test.com"])
+        with (
+            patch(
+                "mytools.email.smtpdowngrade._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.email.smtpdowngrade.safe_asyncio_run",
+                new_callable=MagicMock,
+            ) as mock_safe,
+        ):
+            mock_safe.return_value = 0
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["mail.test.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results(self) -> None:
+        result = DowngradeResult(
+            target="mail.test.com",
+            port=587,
+            banner="",
+            ehlo_advertises_starttls=False,
+            supports_starttls=False,
+            requires_starttls=True,
+            plaintext_accepted=False,
+            helo_downgrade_accepted=False,
+            auth_without_tls=False,
+            tests=[],
+            issues=[],
+            overall_status="secure",
+        )
+        args = build_parser().parse_args(["mail.test.com"])
+        with patch(
+            "mytools.email.smtpdowngrade.scan_smtp_downgrade",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        result = DowngradeResult(
+            target="mail.test.com",
+            port=587,
+            banner="",
+            ehlo_advertises_starttls=False,
+            supports_starttls=False,
+            requires_starttls=True,
+            plaintext_accepted=False,
+            helo_downgrade_accepted=False,
+            auth_without_tls=False,
+            tests=[],
+            issues=[],
+            overall_status="secure",
+        )
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["mail.test.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.email.smtpdowngrade.scan_smtp_downgrade",
+                return_value=result,
+            ),
+            patch("mytools.email.smtpdowngrade.write_output") as mock_write,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_write.assert_called_once()
+
+    def test_quiet(self) -> None:
+        result = DowngradeResult(
+            target="mail.test.com",
+            port=587,
+            banner="",
+            ehlo_advertises_starttls=False,
+            supports_starttls=False,
+            requires_starttls=True,
+            plaintext_accepted=False,
+            helo_downgrade_accepted=False,
+            auth_without_tls=False,
+            tests=[],
+            issues=[],
+            overall_status="secure",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--quiet"])
+        with patch(
+            "mytools.email.smtpdowngrade.scan_smtp_downgrade",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.email.smtpdowngrade.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-smtpdown", "mail.test.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.email.smtpdowngrade", run_name="__main__")

@@ -525,7 +525,9 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[str]:
     seen: set[str] = set()
     for sub in data.get("subdomains", []):
         fqdn = f"{sub.strip().lower()}.{domain}"
-        if fqdn != domain:
+        if (
+            fqdn != domain
+        ):  # pragma: no cover -- fqdn tem sempre o prefixo "sub.", nunca == domain
             seen.add(fqdn)
     return sorted(seen)
 

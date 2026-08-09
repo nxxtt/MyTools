@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Social Engineering Recon."""
 
+import asyncio
+import json
+import runpy
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
 import respx
@@ -8,13 +13,16 @@ import respx
 from mytools.core.utils import RateLimiter
 from mytools.osint.socialengrecon import (
     EmployeeInfo,
+    _async_run_once,
     _dedup_employees,
     _extract_domain_name,
     _query_github,
     _query_hunter,
     _query_webpages,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_employees,
 )
 
@@ -416,3 +424,659 @@ async def test_scan_employees_hunter_no_key():
         user_agent="test/1.0",
     )
     assert employees == []
+
+
+@pytest.mark.asyncio
+async def test_scan_employees_unknown_source():
+    employees = await scan_employees(
+        domain="example.com",
+        sources=["unknown_source"],
+        api_keys={},
+        timeout=5.0,
+        concurrency=3,
+        user_agent="test/1.0",
+    )
+    assert employees == []
+
+
+# ── _query_github edge/error paths ───────────────────────────────────────────
+
+
+class TestGithubEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_repos_invalid_json(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_repos_not_list(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json={"a": 1}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_repo_not_dict_and_no_name(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(
+                200,
+                json=["bad", {"other": 1}, {"full_name": "example/repo1"}],
+            ),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "john@example.com",
+                    "bio": "",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert len(emps) == 1
+        assert emps[0].name == "John"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_contributors_fetch_error(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_contributors_non_200(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_contributors_invalid_json(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_contributors_not_list(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json={"a": 1}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_contrib_not_dict(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[42]),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_user_fetch_error(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_user_non_200(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_user_invalid_json(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_user_not_dict(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(200, json=[1, 2]),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_duplicate_login_skipped(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(
+                200, json=[{"login": "john"}, {"login": "john"}]
+            ),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "john@example.com",
+                    "bio": "",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert len(emps) == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_bio_no_separator(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "john@example.com",
+                    "bio": "Independent Developer",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert len(emps) == 1
+        assert emps[0].position == ""
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_bio_sep_case_mismatch(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "john@example.com",
+                    "bio": "John At Example",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert len(emps) == 1
+        assert emps[0].position == ""
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_user_no_name_email(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "ghost"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={"name": "", "email": "", "bio": "", "html_url": ""},
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_bio_position(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "",
+                    "bio": "Software Engineer at Example Corp",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert any("Example Corp" in e.position for e in emps)
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_results_repo_break(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(
+                200,
+                json=[{"full_name": "example/repo1"}, {"full_name": "example/repo2"}],
+            ),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(200, json=[{"login": "john"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "john@example.com",
+                    "bio": "",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl, max_results=1)
+        await client.aclose()
+        assert len(emps) == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_results_contrib_break(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(200, json=[{"full_name": "example/repo1"}]),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(
+                200,
+                json=[{"login": "john"}, {"login": "jane"}],
+            ),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "john@example.com",
+                    "bio": "",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl, max_results=1)
+        await client.aclose()
+        assert len(emps) == 1
+
+
+# ── _query_hunter edge/error paths ───────────────────────────────────────────
+
+
+class TestHunterEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self):
+        respx.get(url__startswith="https://api.hunter.io/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_hunter(client, "example.com", "key", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_json(self):
+        respx.get(url__startswith="https://api.hunter.io/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_hunter(client, "example.com", "key", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_emails_not_list(self):
+        respx.get(url__startswith="https://api.hunter.io/").mock(
+            return_value=httpx.Response(200, json={"data": {"emails": {"a": 1}}}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_hunter(client, "example.com", "key", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_item_not_dict(self):
+        respx.get(url__startswith="https://api.hunter.io/").mock(
+            return_value=httpx.Response(200, json={"data": {"emails": [42]}}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_hunter(client, "example.com", "key", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+
+# ── _query_webpages edge paths ───────────────────────────────────────────────
+
+
+class _BadDecodeBody:
+    def decode(self, *args, **kwargs):
+        raise json.JSONDecodeError("bad", "doc", 0)
+
+
+class TestWebpagesEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_decode_error(self):
+        with patch(
+            "mytools.osint.socialengrecon.fetch",
+            new=AsyncMock(return_value=(200, {}, _BadDecodeBody(), {})),
+        ):
+            client = httpx.AsyncClient()
+            rl = RateLimiter(0)
+            emps = await _query_webpages(client, "example.com", 5.0, rl)
+            await client.aclose()
+            assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_filters(self):
+        html = """
+        <h2>John Doe</h2><p>CEO</p>
+        <h3>Phone 12345</h3><p>CTO</p>
+        <h3>abc</h3><p>CEO</p>
+        <h3>a</h3><p>CEO</p>
+        <h3></h3><p>CEO</p>
+        <h2>Jane Smith</h2><p>random text no keyword</p>
+        """
+        respx.get(url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text=html),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_webpages(client, "example.com", 5.0, rl)
+        await client.aclose()
+        names = {e.name for e in emps}
+        assert "John Doe" in names
+        assert "Jane Smith" in names
+        assert all(e.position == "CEO" or e.position == "" for e in emps)
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_results_break(self):
+        html = "<h2>John Doe</h2><p>CEO</p>"
+        respx.get(url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text=html),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_webpages(client, "example.com", 5.0, rl, max_results=1)
+        await client.aclose()
+        assert len(emps) == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_lowercase_name_and_no_sibling(self):
+        html = """
+        <h2>john smith</h2><p>CEO</p>
+        <h3>John Doe</h3>
+        """
+        respx.get(url="https://example.com/about").mock(
+            return_value=httpx.Response(200, text=html),
+        )
+        respx.get(url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(404),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_webpages(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert len(emps) == 1
+        assert emps[0].name == "John Doe"
+        assert emps[0].position == ""
+
+
+# ── scan_employees com fonte web ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_scan_employees_web_source():
+    html = "<h2>John Doe</h2><p>CEO</p>"
+    respx.get(url__startswith="https://example.com/").mock(
+        return_value=httpx.Response(200, text=html),
+    )
+    employees = await scan_employees(
+        domain="example.com",
+        sources=["web"],
+        api_keys={},
+        timeout=5.0,
+        concurrency=3,
+        user_agent="test/1.0",
+    )
+    assert any(e.source == "web" for e in employees)
+
+
+# ── run_once / _async_run_once / main ────────────────────────────────────────
+
+
+class TestRunOnce:
+    def test_run_once(self):
+        args = build_parser().parse_args(["example.com"])
+        with (
+            patch(
+                "mytools.osint.socialengrecon._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.osint.socialengrecon.safe_asyncio_run",
+                new_callable=MagicMock,
+                return_value=0,
+            ) as mock_safe,
+        ):
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_dry_run(self):
+        args = build_parser().parse_args(["example.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_hunter_without_key(self):
+        args = build_parser().parse_args(["example.com", "--source", "hunter"])
+        with patch(
+            "mytools.osint.socialengrecon.scan_employees",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results_path(self):
+        emp = EmployeeInfo(domain="example.com", name="John Doe", source="github")
+        args = build_parser().parse_args(["example.com"])
+        with patch(
+            "mytools.osint.socialengrecon.scan_employees",
+            new=AsyncMock(return_value=[emp]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_output_flag(self, tmp_path):
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["example.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.socialengrecon.scan_employees",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.socialengrecon.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+    def test_quiet_skips_print(self, tmp_path):
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["example.com", "-q", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.socialengrecon.scan_employees",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.socialengrecon.print_results") as mock_print,
+            patch("mytools.osint.socialengrecon.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_print.assert_not_called()
+        mock_write.assert_called_once()
+
+
+class TestMain:
+    def test_main(self):
+        with patch(
+            "mytools.osint.socialengrecon.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self):
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-soceng", "example.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.osint.socialengrecon", run_name="__main__")

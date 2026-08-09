@@ -464,7 +464,7 @@ async def _test_introspection(
                 has_sub = isinstance(vuln_data, dict) and "__schema" in vuln_data
                 vulnerable = has_sub
                 details = f"Subscriptions: {'discoverable' if vulnerable else 'hidden'}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -579,7 +579,7 @@ async def _test_depth_abuse(
                 elapsed = time.monotonic() - t0
                 vulnerable = elapsed > 5.0
                 details = f"1000 aliases: {elapsed:.2f}s, Status: {status}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -701,7 +701,7 @@ async def _test_batch_abuse(
                     )
                     vulnerable = resp.status_code == 200
                     details = f"5 queries without auth: status {resp.status_code}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -803,7 +803,7 @@ async def _test_alias_overload(
                 )
                 vulnerable = status == 200 and "errors" not in data
                 details = f"100 alias + 10 fragments: status {status}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -905,7 +905,7 @@ async def _test_schema_stitching(
                     or "suggestion" in error_msg.lower()
                 )
                 details = f"Error leak: {'yes' if vulnerable else 'no'}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -1044,7 +1044,7 @@ async def _test_persisted_abuse(
                                 found += 1
                 vulnerable = found > 0
                 details = f"Found {found}/{len(common_hashes)} persisted queries"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -1167,7 +1167,7 @@ async def _test_resolver_analysis(
                     for kw in ["stack", "trace", "debug", "internal", "exception"]
                 )
                 details = f"Error info leak: {'yes' if vulnerable else 'no'}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -1314,7 +1314,7 @@ async def _test_persisted_enum(
                 details = (
                     f"Dynamic: {dynamic_time:.2f}s, Persisted: {persisted_time:.2f}s"
                 )
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de SSTI Detection."""
 
+import argparse
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import mytools.web.sstidetect as sstidetect_module
 from mytools.web.sstidetect import (
     _BYPASS_PAYLOADS,
     _CATEGORY_MAP,
@@ -26,6 +29,8 @@ from mytools.web.sstidetect import (
     build_parser,
     main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 
@@ -234,6 +239,20 @@ class TestCheckResponse:
     def test_config_match(self) -> None:
         assert _check_response(b"config items: SECRET_KEY", "SECRET") is True
 
+    def test_digit_word_boundary(self) -> None:
+        with patch("re.search", return_value=MagicMock()) as mock_search:
+            assert _check_response(b"abc", "49") is True
+        mock_search.assert_called_once()
+
+    def test_digit_not_expected_value(self) -> None:
+        assert _check_response(b"abc", "123") is False
+
+    def test_digit_word_boundary_no_match(self) -> None:
+        assert _check_response(b"abc", "49") is False
+
+    def test_digit_value_error(self) -> None:
+        assert _check_response(b"abc", "\u00b2") is False
+
 
 class TestCheckExploit:
     """Testes para _check_exploit."""
@@ -380,6 +399,47 @@ class TestTestParamSSTI:
         assert len(attempts) > 0
         assert any(a.error for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_second_order_confirmed(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"result: 49"
+        client.get = AsyncMock(return_value=resp)
+
+        with patch(
+            "mytools.web.sstidetect.verify_positive",
+            new_callable=AsyncMock,
+            return_value=(True, "56"),
+        ):
+            attempts = await _test_param_ssti(
+                client,
+                "https://example.com",
+                (200, 100, b"ok"),
+            )
+        vuln = [a for a in attempts if a.vulnerable]
+        assert len(vuln) > 0
+        assert vuln[0].engine_detected == "jinja2"
+        assert vuln[0].exploit == "{{7*7}}"
+
+    @pytest.mark.asyncio
+    async def test_second_order_no_verify_payload(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"result: 49"
+        client.get = AsyncMock(return_value=resp)
+
+        with patch("mytools.web.sstidetect.get_verify_payload", return_value=None):
+            attempts = await _test_param_ssti(
+                client,
+                "https://example.com",
+                (200, 100, b"ok"),
+            )
+        vuln = [a for a in attempts if a.vulnerable]
+        assert len(vuln) > 0
+        assert all("2nd-order" not in a.details for a in vuln)
+
 
 class TestTestHeaderSSTI:
     """Testes para _test_header_ssti."""
@@ -399,6 +459,21 @@ class TestTestHeaderSSTI:
         )
         assert len(attempts) > 0
 
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        import httpx
+
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_header_ssti(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(attempts) > 0
+        assert any(a.error for a in attempts)
+
 
 class TestTestBodySSTI:
     """Testes para _test_body_ssti."""
@@ -417,6 +492,21 @@ class TestTestBodySSTI:
             (200, 100, b"ok"),
         )
         assert len(attempts) > 0
+
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        import httpx
+
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_body_ssti(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(attempts) > 0
+        assert all(a.error for a in attempts)
 
 
 class TestTestExploit:
@@ -449,6 +539,22 @@ class TestTestExploit:
         )
         assert len(attempts) > 0
 
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        import httpx
+
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_exploit(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+            ["jinja2"],
+        )
+        assert len(attempts) > 0
+        assert all(a.error for a in attempts)
+
 
 class TestTestBypass:
     """Testes para _test_bypass."""
@@ -467,6 +573,21 @@ class TestTestBypass:
             (200, 100, b"ok"),
         )
         assert len(attempts) == 15
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        import httpx
+
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_bypass(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(attempts) == 15
+        assert all(a.error for a in attempts)
 
 
 @pytest.mark.smoke
@@ -529,6 +650,274 @@ class TestPrintResults:
         captured = capsys.readouterr()
         clean = re.sub(r"\033\[[0-9;]*m", "", captured.out)
         assert "JINJA2" in clean
+
+    def test_vulnerable_with_attempt(self, capsys: pytest.CaptureFixture[str]) -> None:
+        import re
+
+        attempt = SSTIAttempt(
+            technique="jinja2_math",
+            category="detect",
+            url="https://example.com",
+            payload="{{7*7}}",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=False,
+            size_changed=True,
+            engine_detected="jinja2",
+            vulnerable=True,
+            details="Param name: jinja2_math -> ENGINE=jinja2",
+            error="",
+            exploit="{{7*7}}",
+            tool="Tplmap",
+        )
+        result = SSTIResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=1000,
+            tls=True,
+            attempts=[attempt],
+            vulnerable_engines=["jinja2"],
+            blocked_techniques=[],
+            issues=["VULN: jinja2_math"],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        clean = re.sub(r"\033\[[0-9;]*m", "", captured.out)
+        assert "JINJA2" in clean
+        assert "Severidade: ALTA" in clean
+
+    def test_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        import re
+
+        attempt = SSTIAttempt(
+            technique="jinja2_math",
+            category="detect",
+            url="https://example.com",
+            payload="{{7*7}}",
+            status_baseline=200,
+            status_test=0,
+            size_baseline=100,
+            size_test=0,
+            status_changed=False,
+            size_changed=False,
+            engine_detected="",
+            vulnerable=False,
+            details="",
+            error="Connection refused",
+        )
+        result = SSTIResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=1000,
+            tls=True,
+            attempts=[attempt],
+            vulnerable_engines=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        clean = re.sub(r"\033\[[0-9;]*m", "", captured.out)
+        assert "Erros (1)" in clean
+        assert "Connection refused" in clean
+
+
+def _make_scan_client() -> AsyncMock:
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.content = b"ok"
+    client = AsyncMock()
+    client.get.return_value = resp
+    client.post.return_value = resp
+    client.aclose = AsyncMock()
+    return client
+
+
+class TestRunScan:
+    @pytest.mark.asyncio
+    async def test_baseline_error(self) -> None:
+        client = _make_scan_client()
+        with (
+            patch("mytools.web.sstidetect.create_async_client", return_value=client),
+            patch(
+                "mytools.web.sstidetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(0, 0, b""),
+            ),
+        ):
+            code = await run_scan("https://example.com", [], 10, 5, None, False)
+        assert code == 1
+        client.aclose.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_all_categories_secure(self) -> None:
+        client = _make_scan_client()
+        with (
+            patch("mytools.web.sstidetect.create_async_client", return_value=client),
+            patch(
+                "mytools.web.sstidetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.sstidetect._test_param_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_header_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_body_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_bypass",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            code = await run_scan("https://example.com", [], 10, 5, None, False)
+        assert code == 0
+        client.aclose.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_exploit_only_no_engines(self) -> None:
+        client = _make_scan_client()
+        with (
+            patch("mytools.web.sstidetect.create_async_client", return_value=client),
+            patch(
+                "mytools.web.sstidetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+        ):
+            code = await run_scan(
+                "https://example.com", ["exploit"], 10, 5, None, False
+            )
+        assert code == 0
+
+    @pytest.mark.asyncio
+    async def test_task_exception_skipped(self) -> None:
+        client = _make_scan_client()
+        with (
+            patch("mytools.web.sstidetect.create_async_client", return_value=client),
+            patch(
+                "mytools.web.sstidetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.sstidetect._test_param_ssti",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
+            patch(
+                "mytools.web.sstidetect._test_header_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_body_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_bypass",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            code = await run_scan("https://example.com", [], 10, 5, None, False)
+        assert code == 0
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_with_exploit_and_output(self, tmp_path: Path) -> None:
+        client = _make_scan_client()
+        vuln = SSTIAttempt(
+            technique="jinja2_math",
+            category="detect",
+            url="https://example.com",
+            payload="{{7*7}}",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=False,
+            size_changed=True,
+            engine_detected="jinja2",
+            vulnerable=True,
+            details="Param name: jinja2_math -> ENGINE=jinja2",
+            error="",
+            exploit="{{7*7}}",
+            tool="Tplmap",
+        )
+        out = str(tmp_path / "out.json")
+        with (
+            patch("mytools.web.sstidetect.create_async_client", return_value=client),
+            patch(
+                "mytools.web.sstidetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.sstidetect._test_param_ssti",
+                new_callable=AsyncMock,
+                return_value=[vuln],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_exploit",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            code = await run_scan(
+                "https://example.com", ["detect", "exploit"], 10, 5, out, False
+            )
+        assert code == 1
+        assert tmp_path.joinpath("out.json").exists()
+
+
+def _run_once_args(**overrides: object) -> argparse.Namespace:
+    defaults: dict[str, object] = {
+        "url": "https://example.com",
+        "category": None,
+        "timeout": 10,
+        "concurrency": 5,
+        "output": None,
+        "verbose": False,
+    }
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+class TestRunOnce:
+    def test_no_category(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sstidetect_module, "run_scan", AsyncMock(return_value=0))
+        assert run_once(_run_once_args()) == 0
+
+    def test_with_category(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sstidetect_module, "run_scan", AsyncMock(return_value=1))
+        assert run_once(_run_once_args(category="detect")) == 1
+
+
+class TestMainGuard:
+    def test_main_guard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import runpy
+
+        def _raise() -> int:
+            raise SystemExit(0)
+
+        monkeypatch.setattr(sstidetect_module, "main", _raise)
+        with pytest.raises(SystemExit):
+            runpy.run_module("mytools.web.sstidetect", run_name="__main__")
 
 
 class TestMain:

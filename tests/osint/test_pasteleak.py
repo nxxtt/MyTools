@@ -1,18 +1,31 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Paste/Leak Monitoring."""
 
+import asyncio
+import runpy
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
 import respx
 
+from mytools.core.utils import RateLimiter
 from mytools.osint.pasteleak import (
     LeakRecord,
+    _async_run_once,
     _contains_domain,
     _dedup_leaks,
     _mask_secret,
+    _query_github_code,
+    _query_github_gists,
+    _query_gitlab_snippets,
+    _query_pastebin_rss,
     _scan_content,
+    banner,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_leaks,
 )
 
@@ -332,6 +345,17 @@ class TestScanLeaks:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_unknown_source(self) -> None:
+        leaks = await scan_leaks(
+            domain="example.com",
+            sources=["unknown_source"],
+            api_keys={},
+            max_results=5,
+        )
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_github_code_with_token(self) -> None:
         code_result = {
             "items": [
@@ -420,3 +444,636 @@ class TestScanLeaks:
         )
         aws_leaks = [leak for leak in leaks if leak.matched_pattern == "aws_key"]
         assert len(aws_leaks) == 2
+
+
+# ── Edge/error paths de _query_github_gists ──────────────────────────────────
+
+
+class TestQueryGithubGistsEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error(self) -> None:
+        respx.get(url__startswith="https://api.github.com/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.get(url__startswith="https://api.github.com/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_json(self) -> None:
+        respx.get(url__startswith="https://api.github.com/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_raw_fetch_error(self) -> None:
+        gist_list = [
+            {
+                "description": "config for example.com",
+                "html_url": "http://gist.github.com/1",
+                "files": {"c.py": {"raw_url": "http://raw.gist/1"}},
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/gists/public").mock(
+            return_value=httpx.Response(200, json=gist_list),
+        )
+        respx.get("http://raw.gist/1").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_results_break(self) -> None:
+        gist_list = [
+            {
+                "description": "config for example.com",
+                "html_url": "http://gist.github.com/1",
+                "files": {"c.py": {"raw_url": "http://raw.gist/1"}},
+            },
+            {
+                "description": "other",
+                "html_url": "http://gist.github.com/2",
+                "files": {"d.py": {"raw_url": "http://raw.gist/2"}},
+            },
+        ]
+        respx.get("https://api.github.com/gists/public?per_page=1").mock(
+            return_value=httpx.Response(200, json=gist_list),
+        )
+        respx.get("http://raw.gist/1").mock(
+            return_value=httpx.Response(200, text="password=secret123"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl, max_results=1)
+        await client.aclose()
+        assert len(leaks) == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_description_not_matching(self) -> None:
+        gist_list = [
+            {
+                "description": "unrelated content",
+                "html_url": "http://gist.github.com/1",
+                "files": {"c.py": {"raw_url": "http://raw.gist/1"}},
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/gists/public").mock(
+            return_value=httpx.Response(200, json=gist_list),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_file_without_raw_url(self) -> None:
+        gist_list = [
+            {
+                "description": "config for example.com",
+                "html_url": "http://gist.github.com/1",
+                "files": {"c.py": {}},
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/gists/public").mock(
+            return_value=httpx.Response(200, json=gist_list),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_raw_non_200(self) -> None:
+        gist_list = [
+            {
+                "description": "config for example.com",
+                "html_url": "http://gist.github.com/1",
+                "files": {"c.py": {"raw_url": "http://raw.gist/1"}},
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/gists/public").mock(
+            return_value=httpx.Response(200, json=gist_list),
+        )
+        respx.get("http://raw.gist/1").mock(return_value=httpx.Response(500))
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+
+# ── Edge/error paths de _query_pastebin_rss ──────────────────────────────────
+
+
+class TestQueryPastebinRssEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error(self) -> None:
+        respx.get(url__startswith="https://pastebin.com/feed.php").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_pastebin_rss(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.get(url__startswith="https://pastebin.com/feed.php").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_pastebin_rss(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_xml(self) -> None:
+        respx.get(url__startswith="https://pastebin.com/feed.php").mock(
+            return_value=httpx.Response(200, text="not xml at all"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_pastebin_rss(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_entry_without_link(self) -> None:
+        rss_xml = (
+            '<?xml version="1.0"?><feed><entry><title>no link</title></entry></feed>'
+        )
+        respx.get(url__startswith="https://pastebin.com/feed.php").mock(
+            return_value=httpx.Response(200, text=rss_xml),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_pastebin_rss(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_raw_fetch_error(self) -> None:
+        rss_xml = """<?xml version="1.0"?>
+<feed>
+  <entry>
+    <title>p1</title>
+    <link href="https://pastebin.com/raw/xyz"/>
+  </entry>
+</feed>"""
+        respx.get(url__startswith="https://pastebin.com/feed.php").mock(
+            return_value=httpx.Response(200, text=rss_xml),
+        )
+        respx.get("https://pastebin.com/raw/xyz").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_pastebin_rss(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_results_break(self) -> None:
+        rss_xml = """<?xml version="1.0"?>
+<feed>
+  <entry>
+    <title>p1</title>
+    <link href="https://pastebin.com/raw/abc"/>
+  </entry>
+  <entry>
+    <title>p2</title>
+    <link href="https://pastebin.com/raw/def"/>
+  </entry>
+</feed>"""
+        respx.get(url__startswith="https://pastebin.com/feed.php").mock(
+            return_value=httpx.Response(200, text=rss_xml),
+        )
+        respx.get("https://pastebin.com/raw/abc").mock(
+            return_value=httpx.Response(200, text="password=secret123"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_pastebin_rss(client, "example.com", 5.0, rl, max_results=1)
+        await client.aclose()
+        assert len(leaks) == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_raw_non_200(self) -> None:
+        rss_xml = """<?xml version="1.0"?>
+<feed>
+  <entry>
+    <title>p1</title>
+    <link href="https://pastebin.com/raw/xyz"/>
+  </entry>
+</feed>"""
+        respx.get(url__startswith="https://pastebin.com/feed.php").mock(
+            return_value=httpx.Response(200, text=rss_xml),
+        )
+        respx.get("https://pastebin.com/raw/xyz").mock(return_value=httpx.Response(500))
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_pastebin_rss(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+
+# ── Edge/error paths de _query_gitlab_snippets ───────────────────────────────
+
+
+class TestQueryGitlabEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error(self) -> None:
+        respx.get(url__startswith="https://gitlab.com/api/v4/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.get(url__startswith="https://gitlab.com/api/v4/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_raw_fetch_error(self) -> None:
+        snippets = [
+            {
+                "web_url": "https://gitlab.com/snippets/1",
+                "files": {"c.py": {"raw_url": "https://gitlab.com/snippets/1/raw"}},
+            },
+        ]
+        respx.get(url__startswith="https://gitlab.com/api/v4/snippets/public").mock(
+            return_value=httpx.Response(200, json=snippets),
+        )
+        respx.get("https://gitlab.com/snippets/1/raw").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_results_break(self) -> None:
+        snippets = [
+            {
+                "web_url": "https://gitlab.com/snippets/1",
+                "files": {"c.py": {"raw_url": "https://gitlab.com/snippets/1/raw"}},
+            },
+            {
+                "web_url": "https://gitlab.com/snippets/2",
+                "files": {"d.py": {"raw_url": "https://gitlab.com/snippets/2/raw"}},
+            },
+        ]
+        respx.get("https://gitlab.com/api/v4/snippets/public?per_page=1").mock(
+            return_value=httpx.Response(200, json=snippets),
+        )
+        respx.get("https://gitlab.com/snippets/1/raw").mock(
+            return_value=httpx.Response(200, text="password=secret123"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(
+            client, "example.com", 5.0, rl, max_results=1
+        )
+        await client.aclose()
+        assert len(leaks) == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_file_without_raw_url(self) -> None:
+        snippets = [
+            {
+                "web_url": "https://gitlab.com/snippets/1",
+                "files": {"c.py": {}},
+            },
+        ]
+        respx.get(url__startswith="https://gitlab.com/api/v4/snippets/public").mock(
+            return_value=httpx.Response(200, json=snippets),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_raw_non_200(self) -> None:
+        snippets = [
+            {
+                "web_url": "https://gitlab.com/snippets/1",
+                "files": {"c.py": {"raw_url": "https://gitlab.com/snippets/1/raw"}},
+            },
+        ]
+        respx.get(url__startswith="https://gitlab.com/api/v4/snippets/public").mock(
+            return_value=httpx.Response(200, json=snippets),
+        )
+        respx.get("https://gitlab.com/snippets/1/raw").mock(
+            return_value=httpx.Response(500)
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+
+# ── Edge/error paths de _query_github_code ───────────────────────────────────
+
+
+class TestQueryGithubCodeEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error(self) -> None:
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_json(self) -> None:
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_raw_fetch_error(self) -> None:
+        items = [
+            {
+                "path": "config.py",
+                "html_url": "https://github.com/user/repo/blob/main/config.py",
+                "download_url": "https://raw.githubusercontent.com/user/repo/main/config.py",
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(200, json={"items": items}),
+        )
+        respx.get("https://raw.githubusercontent.com/user/repo/main/config.py").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_results_break(self) -> None:
+        items = [
+            {
+                "path": "config.py",
+                "html_url": "https://github.com/user/repo/blob/main/config.py",
+                "download_url": "https://raw.githubusercontent.com/user/repo/main/config.py",
+            },
+            {
+                "path": "x.py",
+                "html_url": "https://github.com/user/repo/blob/main/x.py",
+                "download_url": "https://raw.githubusercontent.com/user/repo/main/x.py",
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(200, json={"items": items}),
+        )
+        respx.get("https://raw.githubusercontent.com/user/repo/main/config.py").mock(
+            return_value=httpx.Response(200, text="password=secret123")
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 1)
+        await client.aclose()
+        assert len(leaks) >= 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_item_without_download_url(self) -> None:
+        items = [
+            {
+                "path": "config.py",
+                "html_url": "https://github.com/user/repo/blob/main/config.py",
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(200, json={"items": items}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_download_non_200(self) -> None:
+        items = [
+            {
+                "path": "config.py",
+                "html_url": "https://github.com/user/repo/blob/main/config.py",
+                "download_url": "https://raw.githubusercontent.com/user/repo/main/config.py",
+            },
+        ]
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(200, json={"items": items}),
+        )
+        respx.get("https://raw.githubusercontent.com/user/repo/main/config.py").mock(
+            return_value=httpx.Response(500)
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+
+# ── Banner / run_once / _async_run_once / main ───────────────────────────────
+
+
+class TestBanner:
+    def test_banner(self) -> None:
+        with patch("mytools.osint.pasteleak.create_banner") as mock_create:
+            mock_create.return_value = MagicMock()
+            banner()
+        mock_create.assert_called_once()
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["example.com"])
+        with (
+            patch(
+                "mytools.osint.pasteleak._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.osint.pasteleak.safe_asyncio_run",
+                new_callable=MagicMock,
+                return_value=0,
+            ) as mock_safe,
+        ):
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_file_not_found(self) -> None:
+        args = build_parser().parse_args(["-l", "definitely_missing_12345.txt"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["example.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_domain_from_file(self, tmp_path) -> None:
+        domain_file = tmp_path / "domains.txt"
+        domain_file.write_text("example.com\nother.com\n\n", encoding="utf-8")
+        args = build_parser().parse_args(["-l", str(domain_file)])
+        with patch(
+            "mytools.osint.pasteleak.scan_leaks",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_github_code_without_token(self) -> None:
+        args = build_parser().parse_args(["example.com", "--source", "github_code"])
+        with patch(
+            "mytools.osint.pasteleak.scan_leaks",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_with_output(self, tmp_path) -> None:
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["example.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.pasteleak.scan_leaks",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.pasteleak.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+    def test_quiet_skips_print(self, tmp_path) -> None:
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["example.com", "-q", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.pasteleak.scan_leaks",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.pasteleak.print_results") as mock_print,
+            patch("mytools.osint.pasteleak.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_print.assert_not_called()
+        mock_write.assert_called_once()
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.osint.pasteleak.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-pasteleak", "example.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.osint.pasteleak", run_name="__main__")

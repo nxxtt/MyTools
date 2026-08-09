@@ -1,12 +1,13 @@
 import argparse
 import re
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 import respx
 
-from mytools.core.utils import Cyber, severity_color
+from mytools.core.utils import Cyber, RateLimiter, severity_color
 from mytools.web.attackaudit import (
     _ERROR_INFO_SEVERITY,
     _JS_ENDPOINT_PATTERNS,
@@ -31,19 +32,39 @@ from mytools.web.attackaudit import (
     Probe,
     TLSVersionResult,
     _async_run_once,
+    _check_tls_versions_sync,
     _extract_query_params,
+    _extract_session_id,
+    _resolve_ip_sync,
+    _run_single,
+    _save_audit_output,
+    _tls_info_sync,
     analyze_error_response,
     analyze_headers_findings,
     analyze_hidden_fields,
     analyze_js_content,
+    analyze_js_files,
     analyze_url_params,
     build_findings,
     build_parser,
+    check_session_fixation,
     check_sqli_errors,
     check_tls_versions,
     check_xss_reflection,
+    load_paths_from_file,
     normalize_url,
+    parse_allowed_methods,
+    print_result,
+    probe_path,
+    resolve_ip,
     risk_score,
+    run_audit,
+    run_once,
+    scan_paths,
+    tls_info,
+)
+from mytools.web.attackaudit import (
+    test_http_methods as module_test_http_methods,
 )
 
 pytestmark = pytest.mark.integration
@@ -142,6 +163,11 @@ class TestPageParser:
         parser.feed("<!-- TODO: fix this -->")
         assert len(parser.comments) == 1
         assert "TODO" in parser.comments[0]
+
+    def test_empty_comment_ignored(self):
+        parser = PageParser()
+        parser.feed("<!--   -->")
+        assert len(parser.comments) == 0
 
     def test_no_title(self):
         parser = PageParser()
@@ -288,6 +314,15 @@ class TestBuildFindings:
         )
         headers_findings = [f for f in findings if f.category == "headers"]
         assert len(headers_findings) == len(SECURITY_HEADERS_RECS)
+
+    def test_security_header_present(self):
+        parser = PageParser()
+        headers = {"strict-transport-security": "max-age=31536000"}
+        findings = build_findings(
+            "https://example.com", 200, headers, parser, [], [], "example.com"
+        )
+        headers_findings = [f for f in findings if f.category == "headers"]
+        assert len(headers_findings) == len(SECURITY_HEADERS_RECS) - 1
 
     def test_cors_wildcard(self):
         parser = PageParser()
@@ -2083,3 +2118,1321 @@ class TestCheckSessionFixation:
                 )
                 assert vuln is False
                 assert "alterou" in details.lower()
+
+
+class _FakeCM:
+    def __init__(self, obj):
+        self._obj = obj
+
+    async def __aenter__(self):
+        return self._obj
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class TestAnalyzeJsFiles:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_finds_secret_in_js_file(self, async_client):
+        respx.get("https://example.com/app.js").mock(
+            return_value=httpx.Response(
+                200, text='var key = "AIzaSyD_example_key_35_chars_padding000";'
+            )
+        )
+        findings = await analyze_js_files(
+            async_client, "https://example.com", ["/app.js"], 5.0
+        )
+        assert any("google_api_key" in f.item for f in findings)
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_200_skips_file(self, async_client):
+        respx.get("https://example.com/missing.js").mock(
+            return_value=httpx.Response(404)
+        )
+        findings = await analyze_js_files(
+            async_client, "https://example.com", ["/missing.js"], 5.0
+        )
+        assert findings == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fetch_error_is_ignored(self, async_client):
+        respx.get("https://example.com/broken.js").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        findings = await analyze_js_files(
+            async_client, "https://example.com", ["/broken.js"], 5.0
+        )
+        assert findings == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_only_first_five_scripts(self, async_client):
+        for i in range(7):
+            respx.get(f"https://example.com/s{i}.js").mock(
+                return_value=httpx.Response(200, text="console.log(1);")
+            )
+        findings = await analyze_js_files(
+            async_client,
+            "https://example.com",
+            [f"/s{i}.js" for i in range(7)],
+            5.0,
+        )
+        assert respx.get("https://example.com/s0.js").called is True
+        assert respx.get("https://example.com/s6.js").called is False
+        assert findings == []
+
+
+class TestLoadPathsFromFile:
+    def test_empty_file_raises(self, tmp_path):
+        p = tmp_path / "paths.txt"
+        p.write_text("# apenas comentario\n\n", encoding="utf-8")
+        with pytest.raises(ValueError):
+            load_paths_from_file(str(p))
+
+    def test_valid_paths(self, tmp_path):
+        p = tmp_path / "paths.txt"
+        p.write_text("/admin\n# comment\n/api\n/api\n", encoding="utf-8")
+        assert load_paths_from_file(str(p)) == ["/admin", "/api"]
+
+
+class TestResolveIP:
+    @pytest.mark.asyncio
+    async def test_success(self, monkeypatch):
+        monkeypatch.setattr(
+            "mytools.web.attackaudit.socket.gethostbyname", lambda _: "1.2.3.4"
+        )
+        assert await resolve_ip("example.com") == "1.2.3.4"
+
+    @pytest.mark.asyncio
+    async def test_oserror_returns_empty(self, monkeypatch):
+        def _boom(_hostname):
+            raise OSError("no such host")
+
+        monkeypatch.setattr("mytools.web.attackaudit.socket.gethostbyname", _boom)
+        assert await resolve_ip("nonexistent.invalid") == ""
+
+    def test_sync_oserror_returns_empty(self, monkeypatch):
+        def _boom(_hostname):
+            raise OSError("no such host")
+
+        monkeypatch.setattr("mytools.web.attackaudit.socket.gethostbyname", _boom)
+        assert _resolve_ip_sync("nonexistent.invalid") == ""
+
+
+class TestTlsInfoSync:
+    @staticmethod
+    def _install_fakes(monkeypatch, *, cert=None, tls_error=None, sock_error=None):
+        class FakeSock:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        class FakeTLS:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def getpeercert(self):
+                if tls_error is not None:
+                    raise tls_error
+                return cert
+
+        class FakeCtx:
+            def wrap_socket(self, sock, server_hostname=None):
+                return FakeTLS()
+
+        def _create_connection(*args, **kwargs):
+            if sock_error is not None:
+                raise sock_error
+            return FakeSock()
+
+        monkeypatch.setattr(
+            "mytools.web.attackaudit.socket.create_connection", _create_connection
+        )
+        monkeypatch.setattr(
+            "mytools.web.attackaudit.ssl.create_default_context", lambda: FakeCtx()
+        )
+
+    def test_success(self, monkeypatch):
+        cert = {
+            "subject": (
+                (("commonName", "example.com"),),
+                (("organizationName", "Example Org"),),
+            ),
+            "issuer": ((("commonName", "Example CA"),),),
+            "notAfter": "Dec 31 00:00:00 2025 GMT",
+        }
+        self._install_fakes(monkeypatch, cert=cert)
+        subject, issuer, not_after = _tls_info_sync("https://example.com", 5.0)
+        assert "example.com" in subject
+        assert "Example Org" in subject
+        assert "Example CA" in issuer
+        assert not_after == "Dec 31 00:00:00 2025 GMT"
+
+    def test_flatten_name_variants(self, monkeypatch):
+        cert = {
+            "subject": [
+                (("commonName", "example.com"),),
+            ],
+            "issuer": (
+                "cert-authority",
+                (("countryName", "US"), ("commonName", "Example CA")),
+            ),
+            "notAfter": "Dec 31 00:00:00 2025 GMT",
+        }
+        self._install_fakes(monkeypatch, cert=cert)
+        subject, issuer, not_after = _tls_info_sync("https://example.com", 5.0)
+        assert subject == ""
+        assert issuer == "Example CA"
+        assert not_after == "Dec 31 00:00:00 2025 GMT"
+
+    def test_cert_none(self, monkeypatch):
+        self._install_fakes(monkeypatch, cert=None)
+        assert _tls_info_sync("https://example.com", 5.0) == ("", "", "")
+
+    def test_oserror(self, monkeypatch):
+        self._install_fakes(monkeypatch, sock_error=OSError("conn refused"))
+        assert _tls_info_sync("https://example.com", 5.0) == ("", "", "")
+
+    def test_ssl_error(self, monkeypatch):
+        import ssl as ssl_mod
+
+        self._install_fakes(monkeypatch, tls_error=ssl_mod.SSLError("bad cert"))
+        assert _tls_info_sync("https://example.com", 5.0) == ("", "", "")
+
+    def test_timeout_error(self, monkeypatch):
+        self._install_fakes(monkeypatch, tls_error=TimeoutError("timed out"))
+        assert _tls_info_sync("https://example.com", 5.0) == ("", "", "")
+
+    def test_http_scheme_returns_empty(self, monkeypatch):
+        self._install_fakes(monkeypatch)
+        assert _tls_info_sync("http://example.com", 5.0) == ("", "", "")
+
+
+class TestTlsInfo:
+    @pytest.mark.asyncio
+    async def test_returns_tls_info(self):
+        with patch(
+            "mytools.web.attackaudit._tls_info_sync",
+            return_value=("example.com", "Issuer", "Dec 31"),
+        ):
+            assert await tls_info("https://example.com", 5.0) == (
+                "example.com",
+                "Issuer",
+                "Dec 31",
+            )
+
+
+class TestCheckTlsVersionsSync:
+    @staticmethod
+    def _install_fakes(
+        monkeypatch,
+        *,
+        fail_at: object | None = None,
+        fail_type: type[BaseException] | None = None,
+    ):
+        import ssl as ssl_mod
+
+        class FakeSock:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        class FakeTLS:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def version(self):
+                return "TLSv1.3"
+
+        class FakeCtx:
+            check_hostname = True
+            verify_mode = None
+            minimum_version = None
+            maximum_version = None
+
+            def wrap_socket(self, sock, server_hostname=None):
+                if fail_at is not None and self.minimum_version == fail_at:
+                    assert fail_type is not None
+                    raise fail_type("tls handshake failed")
+                return FakeTLS()
+
+        def _create_connection(*args, **kwargs):
+            return FakeSock()
+
+        monkeypatch.setattr(
+            "mytools.web.attackaudit.socket.create_connection", _create_connection
+        )
+        monkeypatch.setattr(
+            "mytools.web.attackaudit.ssl.SSLContext", lambda *_a, **_k: FakeCtx()
+        )
+        return ssl_mod
+
+    def test_http_returns_empty(self, monkeypatch):
+        self._install_fakes(monkeypatch)
+        assert _check_tls_versions_sync("http://example.com", 5.0) == []
+
+    def test_all_available_supported(self, monkeypatch):
+        import ssl as ssl_mod
+
+        class FakeTLSVersion:
+            TLSv1_2 = object()
+            TLSv1_3 = object()
+
+        monkeypatch.setattr(ssl_mod, "TLSVersion", FakeTLSVersion)
+        self._install_fakes(monkeypatch)
+        results = _check_tls_versions_sync("https://example.com", 5.0)
+        by_proto = {r.protocol: r for r in results}
+        assert by_proto["TLS 1.2"].supported is True
+        assert by_proto["TLS 1.3"].supported is True
+        for name in ("SSLv3", "TLS 1.0", "TLS 1.1"):
+            assert by_proto[name].supported is False
+            assert by_proto[name].reason == "nao disponivel no Python"
+
+    def test_ssl_error_marks_unsupported(self, monkeypatch):
+        import ssl as ssl_mod
+
+        self._install_fakes(
+            monkeypatch, fail_at=ssl_mod.TLSVersion.TLSv1_2, fail_type=ssl_mod.SSLError
+        )
+        results = _check_tls_versions_sync("https://example.com", 5.0)
+        tls12 = next(r for r in results if r.protocol == "TLS 1.2")
+        assert tls12.supported is False
+        assert "tls handshake failed" in tls12.reason
+
+    def test_timeout_error_marks_unsupported(self, monkeypatch):
+        import ssl as ssl_mod
+
+        self._install_fakes(
+            monkeypatch, fail_at=ssl_mod.TLSVersion.TLSv1_3, fail_type=TimeoutError
+        )
+        results = _check_tls_versions_sync("https://example.com", 5.0)
+        tls13 = next(r for r in results if r.protocol == "TLS 1.3")
+        assert tls13.supported is False
+
+    def test_oserror_marks_unsupported(self, monkeypatch):
+        import ssl as ssl_mod
+
+        self._install_fakes(
+            monkeypatch, fail_at=ssl_mod.TLSVersion.TLSv1_2, fail_type=OSError
+        )
+        results = _check_tls_versions_sync("https://example.com", 5.0)
+        tls12 = next(r for r in results if r.protocol == "TLS 1.2")
+        assert tls12.supported is False
+
+
+class TestParseAllowedMethods:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_allow_header(self, async_client):
+        respx.route(method="OPTIONS", url="https://example.com").mock(
+            return_value=httpx.Response(200, headers={"Allow": "GET, post, DELETE"})
+        )
+        methods = await parse_allowed_methods(async_client, "https://example.com", 5.0)
+        assert methods == ["DELETE", "GET", "POST"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_access_control_allow_methods(self, async_client):
+        respx.route(method="OPTIONS", url="https://example.com").mock(
+            return_value=httpx.Response(
+                200, headers={"Access-Control-Allow-Methods": "GET, OPTIONS"}
+            )
+        )
+        methods = await parse_allowed_methods(async_client, "https://example.com", 5.0)
+        assert methods == ["GET", "OPTIONS"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_empty_header(self, async_client):
+        respx.route(method="OPTIONS", url="https://example.com").mock(
+            return_value=httpx.Response(200)
+        )
+        methods = await parse_allowed_methods(async_client, "https://example.com", 5.0)
+        assert methods == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fetch_error_returns_empty(self, async_client):
+        respx.route(method="OPTIONS", url="https://example.com").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        methods = await parse_allowed_methods(async_client, "https://example.com", 5.0)
+        assert methods == []
+
+
+class TestProbePath:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_200_returns_probe(self, async_client):
+        respx.get("https://example.com/.env").mock(
+            return_value=httpx.Response(
+                200, content=b"SECRET", headers={"location": "/redirect"}
+            )
+        )
+        probe = await probe_path(
+            async_client, RateLimiter(0), "https://example.com", ".env", 5.0
+        )
+        assert probe is not None
+        assert probe.status == 200
+        assert probe.size == 6
+        assert probe.location == "/redirect"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_404_returns_none(self, async_client):
+        respx.get("https://example.com/nope").mock(return_value=httpx.Response(404))
+        probe = await probe_path(
+            async_client, RateLimiter(0), "https://example.com", "nope", 5.0
+        )
+        assert probe is None
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fetch_error_returns_none(self, async_client):
+        respx.get("https://example.com/err").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        probe = await probe_path(
+            async_client, RateLimiter(0), "https://example.com", "err", 5.0
+        )
+        assert probe is None
+
+
+class TestScanPaths:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_sorted_probes(self, async_client):
+        respx.get(url__regex=r"https://example\.com/.+").mock(
+            return_value=httpx.Response(200, content=b"ok")
+        )
+        probes = await scan_paths(
+            async_client, RateLimiter(0), "https://example.com", 5.0, 5, ["/b", "/a"]
+        )
+        assert [p.url for p in probes] == [
+            "https://example.com/a",
+            "https://example.com/b",
+        ]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_spa_detection_filters_probes(self, async_client):
+        def handler(request):
+            if request.url.path == "/unique":
+                return httpx.Response(200, content=b"different content here")
+            return httpx.Response(200, content=b"shell")
+
+        respx.get(url__regex=r"https://example\.com/.+").mock(side_effect=handler)
+        probes = await scan_paths(
+            async_client,
+            RateLimiter(0),
+            "https://example.com",
+            5.0,
+            5,
+            ["/a", "/b", "/c", "/d", "/e", "/unique"],
+        )
+        urls = [p.url for p in probes]
+        assert "https://example.com/unique" in urls
+        assert "https://example.com/a" not in urls
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_spa_detection_removes_all_probes(self, async_client):
+        respx.get(url__regex=r"https://example\.com/.+").mock(
+            return_value=httpx.Response(200, content=b"shell")
+        )
+        probes = await scan_paths(
+            async_client,
+            RateLimiter(0),
+            "https://example.com",
+            5.0,
+            5,
+            ["/a", "/b", "/c", "/d", "/e", "/f"],
+        )
+        assert probes == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fetch_error_probe_dropped(self, async_client):
+        def handler(request):
+            if request.url.path == "/broken":
+                raise httpx.ConnectError("refused")
+            return httpx.Response(200, content=b"ok")
+
+        respx.get(url__regex=r"https://example\.com/.+").mock(side_effect=handler)
+        probes = await scan_paths(
+            async_client,
+            RateLimiter(0),
+            "https://example.com",
+            5.0,
+            2,
+            ["/ok", "/broken"],
+        )
+        assert [p.url for p in probes] == ["https://example.com/ok"]
+
+
+class TestHttpMethods:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_dangerous_methods_detected(self, async_client):
+        def handler(request):
+            return httpx.Response(200, content=b"allowed")
+
+        respx.route(method="PUT", url="https://example.com/x").mock(side_effect=handler)
+        respx.route(method="DELETE", url="https://example.com/x").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.route(method="PATCH", url="https://example.com/x").mock(
+            side_effect=handler
+        )
+        respx.route(method="TRACE", url="https://example.com/x").mock(
+            side_effect=handler
+        )
+        probes = [
+            Probe(url="https://example.com/x", status=200, size=3, location=""),
+        ]
+        results = await module_test_http_methods(
+            async_client,
+            probes,
+            5.0,
+            RateLimiter(0),
+            methods=["PUT", "DELETE", "PATCH", "TRACE"],
+        )
+        methods = {(r.method, r.status) for r in results}
+        assert ("PUT", 200) in methods
+        assert ("PATCH", 200) in methods
+        assert ("TRACE", 200) in methods
+        assert ("DELETE", 404) not in methods
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_skips_non_interesting_probe_status(self, async_client):
+        probes = [Probe(url="https://example.com/x", status=302, size=3, location="")]
+        results = await module_test_http_methods(
+            async_client, probes, 5.0, RateLimiter(0)
+        )
+        assert results == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_deduplicates_pairs(self, async_client):
+        respx.route(method="PUT", url="https://example.com/x").mock(
+            return_value=httpx.Response(200, content=b"ok")
+        )
+        probes = [
+            Probe(url="https://example.com/x", status=200, size=3, location=""),
+            Probe(url="https://example.com/x", status=200, size=3, location=""),
+        ]
+        results = await module_test_http_methods(
+            async_client, probes, 5.0, RateLimiter(0), methods=["PUT"]
+        )
+        assert len(results) == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fetch_error_returns_none(self, async_client):
+        respx.route(method="PUT", url="https://example.com/x").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        probes = [Probe(url="https://example.com/x", status=200, size=3, location="")]
+        results = await module_test_http_methods(
+            async_client, probes, 5.0, RateLimiter(0), methods=["PUT"]
+        )
+        assert results == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_success_status_kept(self, async_client):
+        respx.route(method="PUT", url="https://example.com/x").mock(
+            return_value=httpx.Response(500, content=b"err")
+        )
+        probes = [Probe(url="https://example.com/x", status=200, size=3, location="")]
+        results = await module_test_http_methods(
+            async_client, probes, 5.0, RateLimiter(0), methods=["PUT"]
+        )
+        assert [r.status for r in results] == [500]
+
+
+class TestExtractSessionIdExtra:
+    def test_session_word_match(self):
+        raw = {"set-cookie": ["global_session=abc123; Path=/"]}
+        assert _extract_session_id(raw) == "global_session=abc123"
+
+    def test_sid_word_match(self):
+        raw = {"set-cookie": ["player_sid=xyz789; Path=/"]}
+        assert _extract_session_id(raw) == "player_sid=xyz789"
+
+
+class TestCheckSessionFixationExtra:
+    @pytest.mark.asyncio
+    async def test_no_session_after_login(self):
+        client = AsyncMock()
+        client.post = AsyncMock()
+        call_count = 0
+
+        def side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return (200, {}, b"ok", {"set-cookie": ["PHPSESSID=abc123; Path=/"]})
+            return (200, {}, b"ok", {"set-cookie": ["theme=dark"]})
+
+        with patch("mytools.web.attackaudit.fetch", side_effect=side_effect):
+            vuln, details = await check_session_fixation(
+                client, "https://test.com", "/login", timeout=5.0
+            )
+        assert vuln is False
+        assert "pos-login" in details.lower()
+
+    @pytest.mark.asyncio
+    async def test_fetch_error_returns_false(self):
+        from mytools.core.utils import FetchError
+
+        client = AsyncMock()
+        client.post = AsyncMock()
+
+        def _boom(*args, **kwargs):
+            raise FetchError(
+                url="https://test.com", attempts=3, last_error=ValueError("x")
+            )
+
+        with patch("mytools.web.attackaudit.fetch", side_effect=_boom):
+            vuln, details = await check_session_fixation(
+                client, "https://test.com", "/login", timeout=5.0
+            )
+        assert vuln is False
+        assert "erro ao acessar" in details.lower()
+
+
+class TestBuildFindingsExtra:
+    def test_password_input_https_info(self):
+        parser = PageParser()
+        parser.feed("<input type='password'>")
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], [], "example.com"
+        )
+        auth = [f for f in findings if f.category == "auth"]
+        assert any("Formulario de login" in f.item for f in auth)
+        assert any(f.severity == "info" for f in auth)
+
+    def test_dump_backup_phpinfo_actuator_probes(self):
+        parser = PageParser()
+        probes = [
+            Probe(url="https://example.com/dump.sql", status=200, size=1, location=""),
+            Probe(
+                url="https://example.com/backup.zip", status=200, size=1, location=""
+            ),
+            Probe(
+                url="https://example.com/phpinfo.php", status=200, size=1, location=""
+            ),
+            Probe(
+                url="https://example.com/actuator/env", status=200, size=1, location=""
+            ),
+        ]
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], probes, "example.com"
+        )
+        exploits = " ".join(f.exploit for f in findings)
+        assert "vazamento de banco de dados" in exploits
+        assert "vazamento de banco de dados" in exploits
+        assert "modulos, configs" in exploits
+        assert "actuator" in exploits.lower()
+
+    def test_config_probe_no_specific_hint(self):
+        parser = PageParser()
+        probes = [
+            Probe(
+                url="https://example.com/config.yaml", status=200, size=1, location=""
+            )
+        ]
+        findings = build_findings(
+            "https://example.com", 200, {}, parser, [], probes, "example.com"
+        )
+        exposure = [f for f in findings if f.category == "exposure"]
+        assert len(exposure) == 1
+        assert exposure[0].exploit == "curl -s https://example.com/config.yaml"
+
+    def test_body_text_analyzed(self):
+        parser = PageParser()
+        findings = build_findings(
+            "https://example.com",
+            200,
+            {},
+            parser,
+            [],
+            [],
+            "example.com",
+            body_text="Traceback (most recent call last):\n  File app.py line 10",
+        )
+        assert any("stack_trace" in f.item for f in findings)
+
+
+def _enter_run_audit_patches(stack, overrides=None, side_effects=None):
+    overrides = overrides or {}
+    side_effects = side_effects or {}
+    defaults = {
+        "fetch": (200, {"content-type": "text/html"}, b"<html></html>", {}),
+        "resolve_ip": "1.2.3.4",
+        "tls_info": ("example.com", "Issuer", "Dec 31"),
+        "check_tls_versions": [TLSVersionResult("TLS 1.3", supported=True)],
+        "parse_allowed_methods": ["GET", "POST"],
+        "check_xss_reflection": (False, ""),
+        "check_sqli_errors": [],
+        "test_http_methods": [],
+        "analyze_js_files": [],
+        "check_session_fixation": (False, "nao fixo"),
+        "scan_paths": [],
+    }
+    stack.enter_context(
+        patch(
+            "mytools.web.attackaudit.create_async_client",
+            return_value=_FakeCM(AsyncMock()),
+        )
+    )
+    stack.enter_context(
+        patch(
+            "mytools.web.attackaudit.apply_session_auth_async", new_callable=AsyncMock
+        )
+    )
+    for name, value in defaults.items():
+        if name in side_effects:
+            stack.enter_context(
+                patch(
+                    f"mytools.web.attackaudit.{name}",
+                    new_callable=AsyncMock,
+                    side_effect=side_effects[name],
+                )
+            )
+        else:
+            stack.enter_context(
+                patch(
+                    f"mytools.web.attackaudit.{name}",
+                    new_callable=AsyncMock,
+                    return_value=overrides.get(name, value),
+                )
+            )
+
+
+class TestRunAudit:
+    @pytest.mark.asyncio
+    async def test_basic_https(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "fetch": (
+                        200,
+                        {"content-type": "text/html"},
+                        b"<html><body><input type='password'></body></html>",
+                        {},
+                    ),
+                },
+            )
+            result = await run_audit(
+                "https://example.com",
+                5.0,
+                "TestAgent/1.0",
+                20,
+                deep=False,
+            )
+        assert result.status == 200
+        assert result.ip == "1.2.3.4"
+        assert result.tls_subject == "example.com"
+        assert result.password_inputs == 1
+        assert result.allowed_methods == ["GET", "POST"]
+        assert result.elapsed >= 0
+
+    @pytest.mark.asyncio
+    async def test_ip_not_resolved(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(stack, overrides={"resolve_ip": ""})
+            result = await run_audit("https://example.com", 5.0, "UA", 20, deep=False)
+        assert result.ip == ""
+
+    @pytest.mark.asyncio
+    async def test_http_no_tls_versions(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(stack)
+            result = await run_audit("http://example.com", 5.0, "UA", 20, deep=False)
+        assert result.tls_versions == []
+
+    @pytest.mark.asyncio
+    async def test_non_html_content(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "fetch": (
+                        200,
+                        {"content-type": "application/json"},
+                        b'{"a": 1}',
+                        {},
+                    )
+                },
+            )
+            result = await run_audit("https://example.com", 5.0, "UA", 20, deep=False)
+        assert result.title == ""
+        assert result.forms == 0
+
+    @pytest.mark.asyncio
+    async def test_deep_and_methods(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "scan_paths": [Probe("https://example.com/.env", 200, 50, "")],
+                    "test_http_methods": [
+                        MethodResult("https://example.com/.env", "PUT", 200, 50)
+                    ],
+                },
+            )
+            result = await run_audit(
+                "https://example.com",
+                5.0,
+                "UA",
+                20,
+                deep=True,
+                test_methods=True,
+            )
+        assert len(result.probes) == 1
+        assert result.method_results[0].method == "PUT"
+
+    @pytest.mark.asyncio
+    async def test_methods_no_results_logs(self, caplog):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "scan_paths": [Probe("https://example.com/.env", 200, 50, "")],
+                    "test_http_methods": [],
+                },
+            )
+            with caplog.at_level("INFO", logger="mytools.attackaudit"):
+                result = await run_audit(
+                    "https://example.com",
+                    5.0,
+                    "UA",
+                    20,
+                    deep=True,
+                    test_methods=True,
+                )
+        assert result.method_results == []
+        assert any("Nenhum metodo perigoso" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_vulns_and_external_scripts(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "fetch": (
+                        200,
+                        {"content-type": "text/html"},
+                        b"<html><script src='/app.js'></script></html>",
+                        {},
+                    ),
+                    "check_xss_reflection": (True, "refletido em html_body"),
+                    "check_sqli_errors": ["mysql"],
+                    "analyze_js_files": [
+                        Finding(
+                            "low", "info_leak", "Endpoint exposto em JS", "ev", "rec"
+                        )
+                    ],
+                },
+            )
+            result = await run_audit(
+                "https://example.com",
+                5.0,
+                "UA",
+                20,
+                deep=False,
+                test_vulns=True,
+            )
+        assert result.xss_reflected is True
+        assert result.sqli_errors == ["mysql"]
+        assert any("Endpoint exposto em JS" in f.item for f in result.findings)
+
+    @pytest.mark.asyncio
+    async def test_safe_handlers_catch_exceptions(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "fetch": (
+                        200,
+                        {"content-type": "text/html"},
+                        b"<html><script src='/app.js'></script></html>",
+                        {},
+                    ),
+                    "scan_paths": [Probe("https://example.com/.env", 200, 50, "")],
+                },
+                side_effects={
+                    "check_xss_reflection": RuntimeError("boom"),
+                    "check_sqli_errors": RuntimeError("boom"),
+                    "test_http_methods": RuntimeError("boom"),
+                    "analyze_js_files": RuntimeError("boom"),
+                },
+            )
+            result = await run_audit(
+                "https://example.com",
+                5.0,
+                "UA",
+                20,
+                deep=True,
+                test_vulns=True,
+                test_methods=True,
+            )
+        assert result.xss_reflected is False
+        assert result.sqli_errors == []
+        assert result.method_results == []
+
+    @pytest.mark.asyncio
+    async def test_session_fixation_vulnerable(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "check_session_fixation": (True, "Session ID fixo apos login: abc")
+                },
+            )
+            result = await run_audit(
+                "https://example.com",
+                5.0,
+                "UA",
+                20,
+                deep=False,
+                login_url="/login",
+            )
+        assert result.session_fixation is True
+
+    @pytest.mark.asyncio
+    async def test_session_fixation_secure(self, caplog):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={
+                    "check_session_fixation": (False, "Session ID alterou apos login")
+                },
+            )
+            with caplog.at_level("INFO", logger="mytools.attackaudit"):
+                result = await run_audit(
+                    "https://example.com",
+                    5.0,
+                    "UA",
+                    20,
+                    deep=False,
+                    login_url="/login",
+                )
+        assert result.session_fixation is False
+
+    @pytest.mark.asyncio
+    async def test_custom_paths_and_inject_params(self):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            _enter_run_audit_patches(
+                stack,
+                overrides={"scan_paths": [Probe("https://example.com/x", 200, 1, "")]},
+            )
+            result = await run_audit(
+                "https://example.com",
+                5.0,
+                "UA",
+                20,
+                deep=True,
+                paths=["/custom"],
+                inject_params=["q"],
+            )
+        assert result.status == 200
+
+
+def _make_audit_result(**overrides: object) -> AuditResult:
+    defaults: dict[str, Any] = dict(
+        target="https://example.com",
+        final_url="https://example.com",
+        status=200,
+        title="My Site",
+        ip="1.2.3.4",
+        tls_subject="example.com",
+        tls_issuer="Example CA",
+        tls_not_after="Dec 31 2025",
+        allowed_methods=["GET", "POST"],
+        forms=2,
+        password_inputs=1,
+        probes=[],
+        findings=[],
+        risk_score=0,
+        elapsed=1.0,
+    )
+    defaults.update(overrides)
+    return AuditResult(**defaults)
+
+
+class TestPrintResult:
+    def test_empty_result(self, capsys):
+        result = _make_audit_result(findings=[])
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "Nenhum finding relevante" in captured.out
+
+    def test_full_result(self, capsys):
+        result = _make_audit_result(
+            tls_versions=[
+                TLSVersionResult("TLS 1.1", supported=True),
+                TLSVersionResult("TLS 1.3", supported=True),
+            ],
+            allowed_methods=["GET", "PUT"],
+            xss_reflected=True,
+            sqli_errors=["mysql"],
+            csrf_missing=2,
+            session_fixation=True,
+            method_results=[
+                MethodResult("https://example.com/up", "PUT", 200, 100),
+                MethodResult("https://example.com/tr", "TRACE", 403, 0),
+            ],
+            findings=[
+                Finding(
+                    "critical",
+                    "sqli",
+                    "Possivel injecao SQL",
+                    "banco",
+                    "use prepared statements",
+                    "curl -X PUT",
+                ),
+                Finding("info", "waf", "WAF detectado", "cloudflare", "considere", ""),
+            ],
+        )
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "example.com" in captured.out
+        assert "TLS versions" in captured.out
+        assert "PUT" in captured.out
+        assert "SQLi erros" in captured.out
+        assert "CSRF ausente" in captured.out
+        assert "Session Fixation" in captured.out
+        assert "Possivel injecao SQL" in captured.out
+
+    def test_strong_only_tls_versions(self, capsys):
+        result = _make_audit_result(
+            tls_versions=[
+                TLSVersionResult("TLS 1.2", supported=True),
+                TLSVersionResult("TLS 1.3", supported=True),
+            ]
+        )
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "TLS versions" in captured.out
+        assert "TLS 1.2" in captured.out
+        assert "TLS 1.3" in captured.out
+
+    def test_no_allowed_methods(self, capsys):
+        result = _make_audit_result(allowed_methods=[])
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "Metodos:" not in captured.out
+
+    def test_no_tls_subject(self, capsys):
+        result = _make_audit_result(tls_subject="", title="")
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "Resumo" in captured.out
+
+
+class TestSaveAuditOutput:
+    def test_writes_output(self):
+        result = _make_audit_result()
+        with patch("mytools.web.attackaudit.write_output") as mock_write:
+            _save_audit_output("out.json", result)
+        mock_write.assert_called_once()
+        assert mock_write.call_args.args[0] == "out.json"
+
+
+class TestRunSingle:
+    @pytest.mark.asyncio
+    async def test_defaults(self):
+        result = _make_audit_result()
+        args = argparse.Namespace(
+            url="https://example.com",
+            paths_file=None,
+            params=None,
+            timeout=5.0,
+            user_agent="UA",
+            concurrency=20,
+            deep=False,
+            proxy=None,
+            verify=False,
+            delay=0.0,
+            test_vulns=False,
+            test_methods=False,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=None,
+            login_url=None,
+        )
+        with (
+            patch(
+                "mytools.web.attackaudit.run_audit",
+                new_callable=AsyncMock,
+                return_value=result,
+            ) as mock_audit,
+            patch("mytools.web.attackaudit.print_result") as mock_print,
+        ):
+            out = await _run_single("https://example.com", args, quiet=True)
+        assert out is result
+        mock_audit.assert_awaited_once()
+        mock_print.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_paths_file_and_params(self, tmp_path):
+        result = _make_audit_result()
+        p = tmp_path / "paths.txt"
+        p.write_text("/a\n/b\n", encoding="utf-8")
+        args = argparse.Namespace(
+            url="https://example.com",
+            paths_file=str(p),
+            params="q,id",
+            timeout=5.0,
+            user_agent="UA",
+            concurrency=20,
+            deep=False,
+            proxy=None,
+            verify=False,
+            delay=0.0,
+            test_vulns=False,
+            test_methods=False,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=None,
+            login_url=None,
+        )
+        with patch(
+            "mytools.web.attackaudit.run_audit",
+            new_callable=AsyncMock,
+            return_value=result,
+        ) as mock_audit:
+            await _run_single("https://example.com", args, quiet=True)
+        await_args = mock_audit.await_args
+        assert await_args is not None
+        kwargs = await_args.kwargs
+        assert kwargs["paths"] == ["/a", "/b"]
+        assert kwargs["inject_params"] == ["q", "id"]
+
+    @pytest.mark.asyncio
+    async def test_not_quiet_prints(self):
+        result = _make_audit_result()
+        args = argparse.Namespace(
+            url="https://example.com",
+            paths_file=None,
+            params=None,
+            timeout=5.0,
+            user_agent="UA",
+            concurrency=20,
+            deep=False,
+            proxy=None,
+            verify=False,
+            delay=0.0,
+            test_vulns=False,
+            test_methods=False,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=None,
+            login_url=None,
+        )
+        with (
+            patch(
+                "mytools.web.attackaudit.run_audit",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
+            patch("mytools.web.attackaudit.print_result") as mock_print,
+        ):
+            await _run_single("https://example.com", args, quiet=False)
+        mock_print.assert_called_once()
+
+
+class TestAsyncRunOnceExtra:
+    @pytest.mark.asyncio
+    async def test_paths_file_sets_deep(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--dry-run",
+                "--paths-file",
+                "x.txt",
+                "--params",
+                "q",
+                "--test-vulns",
+                "--test-methods",
+                "--deep",
+            ]
+        )
+        with patch("mytools.web.attackaudit.load_paths_from_file", return_value=["/a"]):
+            result = await _async_run_once(args)
+        assert result == 0
+        assert args.deep is True
+
+    @pytest.mark.asyncio
+    async def test_zero_concurrency_raises(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com", "--concurrency", "0"])
+        with pytest.raises(ValueError):
+            await _async_run_once(args)
+
+    @pytest.mark.asyncio
+    async def test_dry_run_feature_flags(self, caplog):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--dry-run",
+                "--deep",
+                "--test-vulns",
+                "--test-methods",
+                "--params",
+                "q,id",
+            ]
+        )
+        with caplog.at_level("INFO", logger="mytools.attackaudit"):
+            result = await _async_run_once(args)
+        assert result == 0
+        messages = " ".join(r.message for r in caplog.records)
+        assert "path probing" in messages
+        assert "XSS/SQLi tests" in messages
+        assert "HTTP method tests" in messages
+        assert "params=q,id" in messages
+
+    @pytest.mark.asyncio
+    async def test_full_run_with_outputs(self, tmp_path):
+        result = _make_audit_result()
+        parser = build_parser()
+        out_dir = str(tmp_path / "out")
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--output-dir",
+                out_dir,
+                "-o",
+                str(tmp_path / "all.json"),
+            ]
+        )
+        with (
+            patch(
+                "mytools.web.attackaudit.resolve_target_urls",
+                return_value=["https://example.com"],
+            ),
+            patch(
+                "mytools.web.attackaudit._run_single",
+                new_callable=AsyncMock,
+                side_effect=lambda u, args, quiet: result,
+            ),
+            patch("mytools.web.attackaudit._save_audit_output") as mock_save,
+            patch("mytools.web.attackaudit.write_output") as mock_write,
+        ):
+            code = await _async_run_once(args)
+        assert code == 0
+        assert mock_save.called
+        assert not mock_write.called
+
+    @pytest.mark.asyncio
+    async def test_full_run_multiple_results(self, tmp_path):
+        result = _make_audit_result()
+        parser = build_parser()
+        args = parser.parse_args(
+            ["https://example.com", "-o", str(tmp_path / "all.json")]
+        )
+        with (
+            patch(
+                "mytools.web.attackaudit.resolve_target_urls",
+                return_value=["https://a.com", "https://b.com"],
+            ),
+            patch(
+                "mytools.web.attackaudit._run_single",
+                new_callable=AsyncMock,
+                side_effect=lambda u, args, quiet: result,
+            ),
+            patch("mytools.web.attackaudit._save_audit_output"),
+            patch("mytools.web.attackaudit.write_output") as mock_write,
+        ):
+            code = await _async_run_once(args)
+        assert code == 0
+        assert mock_write.called
+
+    @pytest.mark.asyncio
+    async def test_full_run_without_output(self):
+        result = _make_audit_result()
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        with (
+            patch(
+                "mytools.web.attackaudit.resolve_target_urls",
+                return_value=["https://example.com"],
+            ),
+            patch(
+                "mytools.web.attackaudit._run_single",
+                new_callable=AsyncMock,
+                side_effect=lambda u, args, quiet: result,
+            ),
+            patch("mytools.web.attackaudit._save_audit_output") as mock_save,
+            patch("mytools.web.attackaudit.write_output") as mock_write,
+        ):
+            code = await _async_run_once(args)
+        assert code == 0
+        assert not mock_save.called
+        assert not mock_write.called
+
+
+class TestRunOnce:
+    def test_returns_zero(self):
+        args = argparse.Namespace()
+        with patch("mytools.web.attackaudit._async_run_once", return_value=0):
+            result = run_once(args)
+        assert result == 0
+
+
+class TestAttackAuditMainGuard:
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-attackaudit"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.attackaudit", run_name="__main__")
+        assert exc_info.value.code == 0

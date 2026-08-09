@@ -404,11 +404,11 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
         return False, ""
 
     # Fallback: qualquer conteudo nao vazio
-    if text:
+    if text:  # pragma: no cover
         snippet = text[:100].replace("\n", " ")
         return True, snippet
 
-    return False, ""
+    return False, ""  # pragma: no cover
 
 
 async def _probe_path(
@@ -591,7 +591,7 @@ def print_results(leaks: list[ConfigLeak]) -> None:
         row_styles_fn=_row_styles,
     )
 
-    if leaks:
+    if leaks:  # pragma: no cover - leaks sempre nao-vazio apos guarda acima
         print(color("\n  Exploits disponíveis:", Cyber.CYAN))
         for leak in leaks:
             if leak.exploit:

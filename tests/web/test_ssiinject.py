@@ -434,6 +434,36 @@ class TestTestBlind:
         assert len(results) > 0
         assert all(r.error for r in results)
 
+    @pytest.mark.asyncio
+    async def test_time_sleep_detected(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client.get.return_value = mock_resp
+
+        with patch(
+            "mytools.web.ssiinject.time.monotonic",
+            side_effect=[0.0] + [10.0] * 40,
+        ):
+            results = await _test_blind(
+                mock_client, "https://example.com", (200, 100, b"")
+            )
+        assert results[0].technique.startswith("blind_sleep")
+        assert results[0].vulnerable is True
+        assert "Sleep detectado" in results[0].details
+
+    @pytest.mark.asyncio
+    async def test_status_changed_details(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.content = b"ok"
+        mock_client.get.return_value = mock_resp
+
+        results = await _test_blind(mock_client, "https://example.com", (200, 100, b""))
+        assert any("Status 200->500" in r.details for r in results)
+
 
 class TestTestBypass:
     """Testes para _test_bypass."""
@@ -500,6 +530,39 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "Nenhuma SSI Injection detectada" in output
 
+    def test_errors_block(self, capsys: pytest.CaptureFixture[str]) -> None:
+        error_attempt = SSIiAttempt(
+            technique="blind_sleep_user",
+            category="blind",
+            payload="p",
+            param="user",
+            method="query",
+            status_baseline=200,
+            status_test=0,
+            size_baseline=100,
+            size_test=0,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="connection refused",
+        )
+        result = SSIiResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[error_attempt],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Erros" in output
+        assert "connection refused" in output
+
 
 @pytest.mark.smoke
 class TestBuildParser:
@@ -543,6 +606,21 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+
+class TestMainGuard:
+    """Testes para o guard __main__."""
+
+    def test_main_guard_runs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import runpy
+
+        import mytools.web.ssiinject as ssi_mod
+
+        monkeypatch.setattr(
+            ssi_mod, "main", lambda: (_ for _ in ()).throw(SystemExit(0))
+        )
+        with patch("sys.argv", ["mytools-ssiinject"]), pytest.raises(SystemExit):
+            runpy.run_module("mytools.web.ssiinject", run_name="__main__")
 
 
 class TestIntegration:
@@ -628,6 +706,50 @@ class TestIntegration:
             output_file=output_file,
             verbose=False,
         )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_unknown_category(self) -> None:
+        from mytools.web.ssiinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["bogus"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_tester_exception(self) -> None:
+        from mytools.web.ssiinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        with patch(
+            "mytools.web.ssiinject._test_detect",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("boom"),
+        ):
+            result = await run_scan(
+                target="https://example.com",
+                categories=["detect"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+            )
         assert result == 0
 
     def test_run_once(self) -> None:

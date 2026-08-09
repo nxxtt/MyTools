@@ -2,6 +2,7 @@
 """Testes unitarios do modulo de Double URL Encoding Bypass."""
 
 import argparse
+import runpy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,6 +11,7 @@ from mytools.web.doubleurlencode import (
     _CATEGORY_MAP,
     DoubleURLEncodeAttempt,
     DoubleURLEncodeResult,
+    DoubleurlencodeScanner,
     _build_double_url,
     _double_encode,
     _test_baseline,
@@ -79,6 +81,17 @@ class TestBuildDoubleUrl:
     def test_no_scheme_adds_http(self) -> None:
         result = _build_double_url("example.com/page", "/", "%252f", "path")
         assert result.startswith("http://")
+
+    def test_invalid_position_returns_original(self) -> None:
+        result = _build_double_url("https://example.com/page", "/", "%252f", "invalid")
+        assert result == "https://example.com/page"
+
+    def test_query_position_preserves_existing_query(self) -> None:
+        result = _build_double_url(
+            "https://example.com/page?foo=bar", "/", "%252f", "query"
+        )
+        assert "foo=bar" in result
+        assert "test=%252f" in result
 
 
 class TestCategoryMap:
@@ -188,6 +201,20 @@ class TestTestDoubleUrl:
         categories = {a.category for a in attempts}
         assert "url" in categories
 
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_double_url(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) > 0
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
+
 
 class TestTestDoubleParams:
     """Testes para _test_double_params."""
@@ -224,6 +251,21 @@ class TestTestDoubleParams:
         assert "double_post" in techniques
         assert "double_json" in techniques
 
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_double_params(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
+
 
 class TestTestDoubleTraversal:
     """Testes para _test_double_traversal."""
@@ -241,6 +283,20 @@ class TestTestDoubleTraversal:
         )
         assert len(attempts) > 0
         assert all(a.category == "traversal" for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_double_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) > 0
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
 
 
 class TestTestDoubleHeaders:
@@ -260,6 +316,20 @@ class TestTestDoubleHeaders:
         assert len(attempts) == 3
         assert all(a.category == "header" for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_double_headers(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
+
 
 class TestTestDoubleWaf:
     """Testes para _test_double_waf."""
@@ -277,6 +347,20 @@ class TestTestDoubleWaf:
         )
         assert len(attempts) == 3
         assert all(a.category == "waf" for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_double_waf(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
 
 
 class TestScanDoubleURLEncode:
@@ -303,6 +387,168 @@ class TestScanDoubleURLEncode:
     async def test_no_tls(self) -> None:
         result = await scan_double_url_encode("http://example.com", category="url")
         assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_missing_scheme_prepends_http(self) -> None:
+        with (
+            patch(
+                "mytools.web.doubleurlencode._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_url",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_params",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_headers",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_waf",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await scan_double_url_encode("example.com")
+        assert result.target == "http://example.com"
+        assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_all_categories_executed(self) -> None:
+        with (
+            patch(
+                "mytools.web.doubleurlencode._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_url",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_params",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_headers",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_waf",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await scan_double_url_encode("https://example.com")
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_attempt_is_flagged(self) -> None:
+        attempt = DoubleURLEncodeAttempt(
+            technique="double_path",
+            category="url",
+            url="https://example.com/%252f",
+            payload="%252f",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=300,
+            status_changed=False,
+            size_changed=True,
+            vulnerable=True,
+            details="Mudanca detectada",
+            error="",
+            exploit="double_encoded_payload",
+            tool="wfuzz",
+        )
+        with (
+            patch(
+                "mytools.web.doubleurlencode._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_url",
+                AsyncMock(return_value=[attempt]),
+            ),
+        ):
+            result = await scan_double_url_encode("https://example.com", category="url")
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["double_path"]
+        assert any("vulneraveis" in i for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_task_exception_is_skipped(self) -> None:
+        with (
+            patch(
+                "mytools.web.doubleurlencode._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_url",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_params",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_headers",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_waf",
+                AsyncMock(side_effect=RuntimeError("boom")),
+            ),
+        ):
+            result = await scan_double_url_encode("https://example.com")
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_blocked_attempt_is_flagged(self) -> None:
+        attempt = DoubleURLEncodeAttempt(
+            technique="double_path",
+            category="url",
+            url="https://example.com/%252f",
+            payload="%252f",
+            status_baseline=200,
+            status_test=403,
+            size_baseline=100,
+            size_test=100,
+            status_changed=True,
+            size_changed=False,
+            vulnerable=False,
+            details="Status 200->403",
+            error="",
+        )
+        with (
+            patch(
+                "mytools.web.doubleurlencode._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.doubleurlencode._test_double_url",
+                AsyncMock(return_value=[attempt]),
+            ),
+        ):
+            result = await scan_double_url_encode("https://example.com", category="url")
+        assert result.overall_status == "blocked"
+        assert result.blocked_techniques == ["double_path"]
+        assert any("bloqueadas" in i for i in result.issues)
 
 
 class TestDoubleURLEncodeAttempt:
@@ -432,6 +678,80 @@ class TestPrintResults:
         captured = capsys.readouterr()
         assert "SECURE" in captured.out
 
+    def test_print_vulnerable_without_matching_attempt(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = DoubleURLEncodeResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=["double_path"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "VULNERAVEL" in captured.out
+
+    def test_print_blocked(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = DoubleURLEncodeResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=["double_path"],
+            issues=["1 tecnicas bloqueadas"],
+            overall_status="blocked",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "BLOQUEADO" in captured.out
+
+
+class TestScannerMethods:
+    """Testes para os metodos do scanner DoubleurlencodeScanner."""
+
+    @pytest.mark.asyncio
+    async def test_run_scan(self) -> None:
+        scanner = DoubleurlencodeScanner()
+        with patch("mytools.web.doubleurlencode.scan_double_url_encode") as mock_scan:
+            mock_scan.return_value = DoubleURLEncodeResult(
+                target="https://example.com",
+                baseline_status=200,
+                baseline_size=100,
+                tls=True,
+                attempts=[],
+                vulnerable_techniques=[],
+                blocked_techniques=[],
+                issues=[],
+                overall_status="secure",
+            )
+            result = await scanner.run_scan(url="https://example.com")
+        assert result.overall_status == "secure"
+        mock_scan.assert_called_once()
+
+    def test_scanner_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        scanner = DoubleurlencodeScanner()
+        result = DoubleURLEncodeResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        scanner.print_results(result)
+        captured = capsys.readouterr()
+        assert "DOUBLE URL" in captured.out
+
 
 class TestMain:
     """Testes para main()."""
@@ -443,3 +763,11 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+    def test_main_entrypoint_guard(self) -> None:
+        with (
+            patch("sys.argv", ["mytools-dblurl"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.doubleurlencode", run_name="__main__")

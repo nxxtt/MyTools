@@ -100,6 +100,14 @@ class TestCheckCORSHeaders:
         )
         assert vuln is False
 
+    def test_subdomain_wildcard(self) -> None:
+        vuln, details = _check_cors_headers(
+            {"access-control-allow-origin": "*.example.com"},
+            "https://evil.com",
+        )
+        assert vuln is True
+        assert "wildcard" in details.lower()
+
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
 class TestCORSAttempt:
@@ -206,6 +214,23 @@ class TestSubdomain:
         assert len(results) == 5
         assert all(r.category == "subdomain" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_subdomain(
+            mock_client,
+            "https://test.com",
+            "https://test.com",
+        )
+        assert len(results) == 5
+        assert all(r.error for r in results)
+
 
 # ─── Test Credentials ────────────────────────────────────────────────────────
 class TestCredentials:
@@ -230,6 +255,79 @@ class TestCredentials:
         assert len(results) == 5
         assert all(r.category == "credentials" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_preflight_checks(self) -> None:
+        resp_wild = MagicMock()
+        resp_wild.status_code = 200
+        resp_wild.headers = {
+            "access-control-allow-origin": "*",
+            "access-control-allow-credentials": "true",
+        }
+        resp_origin = MagicMock()
+        resp_origin.status_code = 200
+        resp_origin.headers = {
+            "access-control-allow-origin": "https://safe.com",
+            "access-control-allow-credentials": "true",
+        }
+        mock_client = AsyncMock()
+        mock_client.options = AsyncMock(
+            side_effect=[resp_wild, resp_wild, resp_origin, resp_origin, resp_origin]
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "mytools.web.corsmisconfig._check_cors_headers", return_value=(False, "")
+        ):
+            results = await _test_credentials(
+                mock_client,
+                "https://test.com",
+                "https://test.com",
+            )
+        assert len(results) == 5
+        assert all(r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_preflight_no_vulnerability(self) -> None:
+        resp_safe = MagicMock()
+        resp_safe.status_code = 200
+        resp_safe.headers = {
+            "access-control-allow-origin": "https://safe.com",
+            "access-control-allow-credentials": "false",
+        }
+        mock_client = AsyncMock()
+        mock_client.options = AsyncMock(return_value=resp_safe)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "mytools.web.corsmisconfig._check_cors_headers", return_value=(False, "")
+        ):
+            results = await _test_credentials(
+                mock_client,
+                "https://test.com",
+                "https://test.com",
+            )
+        assert len(results) == 5
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.options = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_credentials(
+            mock_client,
+            "https://test.com",
+            "https://test.com",
+        )
+        assert len(results) == 5
+        assert all(r.error for r in results)
+
 
 # ─── Test Reflected ──────────────────────────────────────────────────────────
 class TestReflected:
@@ -253,6 +351,23 @@ class TestReflected:
         assert len(results) == 5
         assert all(r.category == "reflected" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_reflected(
+            mock_client,
+            "https://test.com",
+            "https://test.com",
+        )
+        assert len(results) == 5
+        assert all(r.error for r in results)
+
 
 # ─── Test Bypass ─────────────────────────────────────────────────────────────
 class TestBypass:
@@ -275,6 +390,23 @@ class TestBypass:
         )
         assert len(results) == 5
         assert all(r.category == "bypass" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client,
+            "https://test.com",
+            "https://test.com",
+        )
+        assert len(results) == 5
+        assert all(r.error for r in results)
 
 
 # ─── Print Results ───────────────────────────────────────────────────────────
@@ -334,6 +466,132 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "Observacoes" in output
 
+    def test_duplicate_key_and_empty_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def _attempt(technique: str, origin: str, details: str) -> CORSAttempt:
+            return CORSAttempt(
+                technique=technique,
+                category="null_origin",
+                origin=origin,
+                acao="null",
+                acac="true",
+                status=200,
+                vulnerable=True,
+                details=details,
+                error="",
+            )
+
+        result = CORSResult(
+            target="https://test.com",
+            tls=True,
+            attempts=[
+                _attempt("null_origin", "null", "Origin null aceito"),
+                _attempt("null_origin", "null", ""),
+                _attempt("null_origin_acac", "null", ""),
+            ],
+            vulnerable_techniques=["null_origin", "null_origin_acac"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Total" in output
+        assert "Detalhes" in output
+
+
+# ─── Run Scan ────────────────────────────────────────────────────────────────
+class TestRunScan:
+    def _mock_cm(self, client: AsyncMock) -> MagicMock:
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return MagicMock(return_value=client)
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_all_categories(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {
+            "access-control-allow-origin": "*",
+            "access-control-allow-credentials": "true",
+        }
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.options = AsyncMock(return_value=mock_resp)
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.corsmisconfig import run_scan
+
+        with patch("mytools.web.corsmisconfig.create_async_client", cm):
+            result = await run_scan(
+                target="https://test.com",
+                categories=[],
+                timeout=10.0,
+                output_file=None,
+            )
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_safe_null_origin(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {
+            "access-control-allow-origin": "https://safe.com",
+        }
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.options = AsyncMock(return_value=mock_resp)
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.corsmisconfig import run_scan
+
+        with patch("mytools.web.corsmisconfig.create_async_client", cm):
+            result = await run_scan(
+                target="test.com",
+                categories=["null_origin"],
+                timeout=10.0,
+                output_file=None,
+            )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_json_output(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("boom"))
+        mock_client.options = AsyncMock(side_effect=httpx.RequestError("boom"))
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.corsmisconfig import run_scan
+
+        with (
+            patch("mytools.web.corsmisconfig.create_async_client", cm),
+            patch("mytools.web.corsmisconfig.print_json") as mock_json,
+            patch("mytools.web.corsmisconfig.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                target="test.com",
+                categories=["invalid"],
+                timeout=10.0,
+                output_file="out.json",
+                json_output=True,
+            )
+        assert result == 0
+        mock_json.assert_called_once()
+        mock_write.assert_called_once()
+
+
+# ─── Banner Art ──────────────────────────────────────────────────────────────
+class TestBannerArt:
+    def test_banner_art(self) -> None:
+        from mytools.web.corsmisconfig import banner_art
+
+        with patch("mytools.web.corsmisconfig.create_banner") as mock_banner:
+            banner_art()
+            mock_banner.assert_called_once()
+
 
 # ─── Build Parser ────────────────────────────────────────────────────────────
 @pytest.mark.smoke
@@ -379,3 +637,41 @@ class TestRunOnce:
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()
+
+    @patch("mytools.web.corsmisconfig.run_scan")
+    def test_run_once_with_category(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = 0
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com", "-c", "null_origin"])
+        from mytools.web.corsmisconfig import run_once
+
+        result = run_once(args)
+        assert result == 0
+        assert mock_run.call_args[1]["categories"] == ["null_origin"]
+
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+class TestMain:
+    def test_main(self) -> None:
+        from mytools.web.corsmisconfig import main
+
+        with patch(
+            "mytools.web.corsmisconfig.run_main_loop", return_value=0
+        ) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+# ─── Main Guard ──────────────────────────────────────────────────────────────
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-cors", "https://test.com"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.corsmisconfig", run_name="__main__")
+        assert exc_info.value.code == 0

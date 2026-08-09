@@ -241,7 +241,7 @@ async def _test_xml_signature_wrapping_category(
 
     results: list[dict[str, object]] = []
 
-    has_signature = any(root.iter(f"{{{_SAML_NS['ds']}}}Signature"))
+    has_signature = next(root.iter(f"{{{_SAML_NS['ds']}}}Signature"), None) is not None
 
     results.append(
         {
@@ -445,7 +445,7 @@ async def run_scan(
 
     assertion_id = _extract_assertion_id(root)
 
-    has_signature = any(root.iter(f"{{{_SAML_NS['ds']}}}Signature"))
+    has_signature = next(root.iter(f"{{{_SAML_NS['ds']}}}Signature"), None) is not None
 
     all_attempts: list[SAMLAttempt] = []
 

@@ -26,6 +26,7 @@ from mytools.web.cachepoisoning import (
     _test_header,
     _test_host,
     _test_path,
+    banner_art,
     build_parser,
     main,
     print_results,
@@ -493,6 +494,22 @@ class TestPrintResults:
                     details="evil.com found",
                     error="",
                 ),
+                CacheAttempt(
+                    technique="path_semicolon",
+                    category="path",
+                    payload="/;param",
+                    param="data",
+                    method="get",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=False,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="",
+                    error="",
+                ),
             ],
             vulnerable_techniques=["xfwd_host"],
             blocked_techniques=[],
@@ -518,6 +535,56 @@ class TestPrintResults:
         print_results(result)
         output = capsys.readouterr().out
         assert "Nenhuma Cache Poisoning detectada" in output
+
+    def test_with_blocked_and_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = CacheResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                CacheAttempt(
+                    technique="xfwd_host",
+                    category="host",
+                    payload='{"X-Forwarded-Host": "evil.com"}',
+                    param="data",
+                    method="get_headers",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="403 Forbidden",
+                ),
+                CacheAttempt(
+                    technique="path_semicolon",
+                    category="path",
+                    payload="/;param",
+                    param="data",
+                    method="get",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="Connection refused",
+                ),
+            ],
+            vulnerable_techniques=[],
+            blocked_techniques=["xfwd_host"],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "payloads bloqueados (403/429)" in output
+        assert "1 erros de conexao" in output
 
 
 @pytest.mark.smoke
@@ -564,6 +631,26 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+
+class TestMainGuard:
+    """Testes para o guard if __name__ == '__main__'."""
+
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.cachepoisoning", run_name="__main__")
+
+
+class TestBannerArt:
+    """Testes para banner_art."""
+
+    def test_runs(self) -> None:
+        banner_art()
 
 
 class TestCdnPayloads:
@@ -720,6 +807,27 @@ class TestIntegration:
             timeout=10,
             concurrency=5,
             output_file=output_file,
+            verbose=False,
+        )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_invalid_category(self) -> None:
+        from mytools.web.cachepoisoning import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["invalid"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
             verbose=False,
         )
         assert result == 0

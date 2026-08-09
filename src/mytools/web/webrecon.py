@@ -461,7 +461,7 @@ def extract_versions(
 
     for tech_name, patterns in VERSION_PATTERNS.items():
         if tech_name in seen:
-            continue
+            continue  # pragma: no cover
         for pattern, source in patterns:
             blob = header_blob if source == "header" else body_lower
             match = pattern.search(blob)

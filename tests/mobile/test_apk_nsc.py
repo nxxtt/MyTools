@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import zipfile
+from unittest.mock import patch
 
 from mytools.mobile.apk_nsc import analyze_nsc
 
@@ -50,3 +51,44 @@ class TestAnalyzeNsc:
             zf.writestr("AndroidManifest.xml", b"networkSecurityConfig")
         result = analyze_nsc(str(apk_path))
         assert any("manifest" in f.lower() for f in result["findings"])
+
+    def test_system_ca(self, tmp_path) -> None:
+        apk_path = tmp_path / "system.apk"
+        with zipfile.ZipFile(str(apk_path), "w") as zf:
+            zf.writestr(
+                "res/xml/network_security_config.xml",
+                b"certificates system",
+            )
+        result = analyze_nsc(str(apk_path))
+        assert result["trust_system_ca"] is True
+        assert any("system CA" in f for f in result["findings"])
+
+    def test_nsc_read_error_ignored(self, tmp_path) -> None:
+        apk_path = tmp_path / "badread.apk"
+        with zipfile.ZipFile(str(apk_path), "w") as zf:
+            zf.writestr("res/xml/network_security_config.xml", b"pin-set")
+
+        def _boom(name: str) -> bytes:
+            if "network_security_config" in name:
+                raise RuntimeError("corrupt")
+            return b""
+
+        with patch.object(zipfile.ZipFile, "read", side_effect=_boom):
+            result = analyze_nsc(str(apk_path))
+        assert result["has_nsc"] is True
+        assert result["has_pins"] is False
+
+    def test_manifest_read_error_ignored(self, tmp_path) -> None:
+        apk_path = tmp_path / "badmanifest.apk"
+        with zipfile.ZipFile(str(apk_path), "w") as zf:
+            zf.writestr("AndroidManifest.xml", b"networkSecurityConfig")
+
+        def _boom(name: str) -> bytes:
+            if name == "AndroidManifest.xml":
+                raise RuntimeError("corrupt")
+            return b""
+
+        with patch.object(zipfile.ZipFile, "read", side_effect=_boom):
+            result = analyze_nsc(str(apk_path))
+        assert result["has_nsc"] is False
+        assert all("Manifest" not in f for f in result["findings"])

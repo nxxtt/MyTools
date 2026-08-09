@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de SSRF Detection."""
 
+import argparse
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.ssrfdetect import (
@@ -10,12 +13,14 @@ from mytools.web.ssrfdetect import (
     _CATEGORY_MAP,
     _CLOUD_PAYLOADS,
     _DETECT_PAYLOADS,
+    _DETECT_PAYLOADS_DEFAULT,
     _HEADER_PAYLOADS,
     _INTERNAL_PAYLOADS,
     _URL_PARAMS,
     SSRFAttempt,
     SSRFResult,
     _check_ssrf_response,
+    _load_ssrf_payloads,
     _test_baseline,
     _test_bypass,
     _test_cloud,
@@ -25,7 +30,54 @@ from mytools.web.ssrfdetect import (
     build_parser,
     main,
     print_results,
+    run_once,
+    run_scan,
 )
+
+
+def _ns(**overrides: object) -> argparse.Namespace:
+    ns = argparse.Namespace(
+        url="https://example.com",
+        category=None,
+        timeout=10,
+        concurrency=5,
+        output=None,
+        verbose=False,
+        json_output=False,
+    )
+    for key, value in overrides.items():
+        setattr(ns, key, value)
+    return ns
+
+
+def _attempt(
+    *,
+    technique: str = "localhost_80_url",
+    vulnerable: bool = False,
+    error: str = "",
+    details: str = "",
+    exploit: str = "",
+) -> SSRFAttempt:
+    return SSRFAttempt(
+        technique=technique,
+        category="detect",
+        url="https://example.com?url=http://127.0.0.1:80",
+        payload="http://127.0.0.1:80",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=1000,
+        size_test=1000,
+        time_baseline=0.5,
+        time_test=0.5,
+        status_changed=False,
+        size_changed=False,
+        time_changed=False,
+        vulnerable=vulnerable,
+        details=details,
+        error=error,
+        exploit=exploit,
+        tool="curl",
+    )
 
 
 class TestURLParams:
@@ -140,6 +192,26 @@ class TestHeaderPayloads:
 
     def test_count(self) -> None:
         assert len(_HEADER_PAYLOADS) == 8
+
+
+class TestLoadSSRFPayloads:
+    def test_non_list_returns_default(self) -> None:
+        with patch(
+            "mytools.data.load_payloads",
+            return_value={"detect_payloads": "not-a-list"},
+        ):
+            result = _load_ssrf_payloads("detect_payloads", _DETECT_PAYLOADS_DEFAULT)
+        assert result == _DETECT_PAYLOADS_DEFAULT
+
+    def test_converts_nested_lists_to_tuples(self) -> None:
+        with patch(
+            "mytools.data.load_payloads",
+            return_value={
+                "detect_payloads": [["custom", "http://127.0.0.1", "response"]]
+            },
+        ):
+            result = _load_ssrf_payloads("detect_payloads", _DETECT_PAYLOADS_DEFAULT)
+        assert result == [("custom", "http://127.0.0.1", "response")]
 
 
 class TestCategoryMap:
@@ -338,6 +410,19 @@ class TestTestInternal:
         )
         assert len(attempts) > 0
 
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_internal(
+            client,
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        assert len(attempts) > 0
+        assert any(a.error for a in attempts)
+
 
 class TestTestBypass:
     """Testes para _test_bypass."""
@@ -356,6 +441,19 @@ class TestTestBypass:
             (200, 100, b"ok", 0.5),
         )
         assert len(attempts) > 0
+
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_bypass(
+            client,
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        assert len(attempts) > 0
+        assert any(a.error for a in attempts)
 
 
 class TestTestCloud:
@@ -376,6 +474,19 @@ class TestTestCloud:
         )
         assert len(attempts) > 0
 
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_cloud(
+            client,
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        assert len(attempts) > 0
+        assert any(a.error for a in attempts)
+
 
 class TestTestHeader:
     """Testes para _test_header."""
@@ -394,6 +505,19 @@ class TestTestHeader:
             (200, 100, b"ok", 0.5),
         )
         assert len(attempts) == 8
+
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_header(
+            client,
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        assert len(attempts) == 8
+        assert all(a.error for a in attempts)
 
 
 @pytest.mark.smoke
@@ -457,6 +581,34 @@ class TestPrintResults:
         clean = re.sub(r"\033\[[0-9;]*m", "", captured.out)
         assert "VULNERAVEIS" in clean
 
+    def test_vulnerable_with_attempt_and_errors(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        import re
+
+        att = _attempt(
+            vulnerable=True,
+            details="Param url: localhost_80_url -> changed",
+            exploit="curl http://169.254.169.254/latest/meta-data/",
+        )
+        err = _attempt(technique="blocked_x", error="connection refused")
+        result = SSRFResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=1000,
+            tls=False,
+            attempts=[att, err],
+            vulnerable_techniques=["localhost_80_url"],
+            blocked_techniques=["blocked_x"],
+            issues=["VULN: localhost_80_url"],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        clean = re.sub(r"\033\[[0-9;]*m", "", captured.out)
+        assert "Erros" in clean
+        assert "curl http://169.254.169.254" in clean
+
 
 class TestMain:
     """Testes para main."""
@@ -469,3 +621,195 @@ class TestMain:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()
+
+
+class TestRunScan:
+    @pytest.mark.asyncio
+    async def test_baseline_failure_returns_1(self) -> None:
+        mock_client = AsyncMock()
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(0, 0, b"", 0.0),
+            ),
+        ):
+            result = await run_scan("https://example.com", [], 10, 5, None, False)
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_secure_all_categories(self) -> None:
+        mock_client = AsyncMock()
+        baseline = (200, 1000, b"ok", 0.5)
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=baseline,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_detect",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_internal",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_bypass",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_cloud",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_header",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await run_scan("https://example.com", [], 10, 5, None, False)
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_json_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_client = AsyncMock()
+        vuln = _attempt(vulnerable=True, details="Param url: x")
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok", 0.5),
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_detect",
+                new_callable=AsyncMock,
+                return_value=[vuln],
+            ),
+        ):
+            result = await run_scan(
+                "https://example.com", ["detect"], 10, 5, None, False, True
+            )
+        assert result == 1
+        out = capsys.readouterr().out
+        assert '"overall_status": "vulnerable"' in out
+
+    @pytest.mark.asyncio
+    async def test_invalid_category(self) -> None:
+        mock_client = AsyncMock()
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok", 0.5),
+            ),
+        ):
+            result = await run_scan(
+                "https://example.com", ["invalid"], 10, 5, None, False
+            )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_output_file_written(self, tmp_path: Path) -> None:
+        mock_client = AsyncMock()
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok", 0.5),
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_detect",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            out = str(tmp_path / "out.json")
+            result = await run_scan(
+                "https://example.com", ["detect"], 10, 5, out, False
+            )
+        assert result == 0
+        assert (tmp_path / "out.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_gather_exception_is_skipped(self) -> None:
+        mock_client = AsyncMock()
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok", 0.5),
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_detect",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            result = await run_scan(
+                "https://example.com", ["detect"], 10, 5, None, False
+            )
+        assert result == 0
+
+
+class TestRunOnce:
+    def test_no_category_returns_0(self) -> None:
+        with patch(
+            "mytools.web.ssrfdetect.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            assert run_once(_ns()) == 0
+        mock_scan.assert_called_once()
+
+    def test_with_category_returns_1(self) -> None:
+        with patch(
+            "mytools.web.ssrfdetect.run_scan",
+            new_callable=AsyncMock,
+            return_value=1,
+        ) as mock_scan:
+            assert run_once(_ns(category="detect")) == 1
+        _, kwargs = mock_scan.call_args
+        assert kwargs["categories"] == ["detect"]
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.ssrfdetect", run_name="__main__")

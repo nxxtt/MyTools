@@ -1,7 +1,12 @@
 import argparse
+import builtins
+import sys
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from mytools.core import stealth as stealth_mod
 from mytools.core.stealth import (
     ProxyPool,
     TorManager,
@@ -142,6 +147,181 @@ class TestTorManager:
         proxy = await tor.get_proxy()
         assert proxy.startswith("socks5://")
 
+    @pytest.mark.asyncio
+    async def test_get_ip_success(self, monkeypatch):
+        fake_transport = MagicMock()
+
+        class _FakeTransport:
+            @classmethod
+            def from_url(cls, url):
+                fake_transport.url = url
+                return fake_transport
+
+        fake_mod = MagicMock()
+        fake_mod.AsyncProxyTransport = _FakeTransport
+        monkeypatch.setitem(sys.modules, "httpx_socks", fake_mod)
+
+        class _FakeClient:
+            get: Any
+
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        client = _FakeClient()
+        resp = MagicMock()
+        resp.json.return_value = {"ip": "1.2.3.4"}
+        client.get = AsyncMock(return_value=resp)
+        monkeypatch.setattr(
+            "mytools.core.stealth.httpx.AsyncClient",
+            MagicMock(return_value=client),
+        )
+
+        tor = TorManager()
+        ip = await tor.get_ip()
+        assert ip == "1.2.3.4"
+        assert fake_transport.url == "socks5://127.0.0.1:9050"
+
+    @pytest.mark.asyncio
+    async def test_get_ip_import_error(self, monkeypatch):
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "httpx_socks":
+                raise ImportError
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        tor = TorManager()
+        assert await tor.get_ip() == "unknown"
+
+    @pytest.mark.asyncio
+    async def test_get_ip_exception(self, monkeypatch):
+        fake_mod = MagicMock()
+        fake_mod.AsyncProxyTransport = MagicMock()
+        monkeypatch.setitem(sys.modules, "httpx_socks", fake_mod)
+
+        client = MagicMock()
+        client.__aenter__.return_value = client
+        client.__aexit__.return_value = False
+        client.get.side_effect = RuntimeError("falha de rede")
+        monkeypatch.setattr(
+            "mytools.core.stealth.httpx.AsyncClient",
+            MagicMock(return_value=client),
+        )
+
+        tor = TorManager()
+        assert await tor.get_ip() == "unknown"
+
+    @pytest.mark.asyncio
+    async def test_new_circuit_success(self, monkeypatch):
+        class _FakeSock:
+            def __init__(self, *args):
+                self.responses = [b"250 OK", b"250 OK"]
+
+            def settimeout(self, t):
+                pass
+
+            def connect(self, addr):
+                pass
+
+            def send(self, data):
+                return len(data)
+
+            def recv(self, size):
+                return self.responses.pop(0)
+
+            def close(self):
+                pass
+
+        fake_socket = MagicMock()
+        fake_socket.AF_INET = 1
+        fake_socket.SOCK_STREAM = 2
+        fake_socket.socket.return_value = _FakeSock()
+        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+
+        tor = TorManager()
+        monkeypatch.setattr(tor, "get_ip", AsyncMock(return_value="9.9.9.9"))
+        assert await tor.new_circuit() == "9.9.9.9"
+
+    @pytest.mark.asyncio
+    async def test_new_circuit_exception(self, monkeypatch):
+        fake_socket = MagicMock()
+        fake_socket.AF_INET = 1
+        fake_socket.SOCK_STREAM = 2
+        fake_socket.socket.side_effect = OSError("conexao recusada")
+        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+
+        tor = TorManager()
+        assert await tor.new_circuit() is None
+
+    @pytest.mark.asyncio
+    async def test_new_circuit_no_auth_response(self, monkeypatch):
+        class _FakeSock:
+            def __init__(self, *args):
+                pass
+
+            def settimeout(self, t):
+                pass
+
+            def connect(self, addr):
+                pass
+
+            def send(self, data):
+                return len(data)
+
+            def recv(self, size):
+                return b"500 ERROR"
+
+            def close(self):
+                pass
+
+        fake_socket = MagicMock()
+        fake_socket.AF_INET = 1
+        fake_socket.SOCK_STREAM = 2
+        fake_socket.socket.return_value = _FakeSock()
+        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+
+        tor = TorManager()
+        monkeypatch.setattr(tor, "get_ip", AsyncMock(return_value="9.9.9.9"))
+        assert await tor.new_circuit() is None
+
+    @pytest.mark.asyncio
+    async def test_new_circuit_nym_response_rejected(self, monkeypatch):
+        class _FakeSock:
+            def __init__(self, *args):
+                self.responses = [b"250 OK", b"500 ERROR"]
+
+            def settimeout(self, t):
+                pass
+
+            def connect(self, addr):
+                pass
+
+            def send(self, data):
+                return len(data)
+
+            def recv(self, size):
+                return self.responses.pop(0)
+
+            def close(self):
+                pass
+
+        fake_socket = MagicMock()
+        fake_socket.AF_INET = 1
+        fake_socket.SOCK_STREAM = 2
+        fake_socket.socket.return_value = _FakeSock()
+        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+
+        tor = TorManager()
+        monkeypatch.setattr(tor, "get_ip", AsyncMock(return_value="9.9.9.9"))
+        assert await tor.new_circuit() is None
+
 
 class TestApplyJitter:
     def test_no_jitter(self):
@@ -222,6 +402,29 @@ class TestWafEncodeUrl:
         # At least some should have encoding
         assert any(r != url for r in results)
 
+    def test_encodes_dot_as_percent2e(self, monkeypatch):
+        # randbelow(2) == 0 -> ponto vira %2e (depois %252e pelo double encode)
+        monkeypatch.setattr(
+            stealth_mod.secrets, "randbelow", lambda n: 0 if n == 2 else 1
+        )
+        result = waf_encode_url("https://example.com/a.b")
+        assert "%252e" in result
+
+    def test_encodes_space_as_percent20(self, monkeypatch):
+        # randbelow(2) == 0 -> espaco vira %20 (depois %2520 pelo double encode)
+        monkeypatch.setattr(
+            stealth_mod.secrets, "randbelow", lambda n: 0 if n == 2 else 1
+        )
+        result = waf_encode_url("https://example.com/a b")
+        assert "%2520" in result
+
+    def test_double_encodes_percent_sign(self, monkeypatch):
+        monkeypatch.setattr(
+            stealth_mod.secrets, "randbelow", lambda n: 0 if n == 2 else 1
+        )
+        result = waf_encode_url("https://example.com/a.b")
+        assert "%25" in result  # %2e -> %252e
+
 
 class TestWafEncodeHeaders:
     def test_preserves_values(self):
@@ -271,6 +474,12 @@ class TestRandomizeSourcePort:
     def test_varies(self):
         ports = {randomize_source_port() for _ in range(50)}
         assert len(ports) > 1
+
+
+def test_random_user_agent_returns_known_agent():
+    ua = stealth_mod.random_user_agent()
+    assert ua in stealth_mod._USER_AGENTS
+    assert ua
 
 
 class TestDetectModuleType:

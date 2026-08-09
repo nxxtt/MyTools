@@ -1,12 +1,13 @@
 import argparse
 import re
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 import respx
 
-from mytools.core.utils import Cyber, severity_color
+from mytools.core.utils import Cyber, FetchError, severity_color
 from mytools.web.webrecon import (
     CMS_SIGNATURES,
     EMAIL_PATTERN,
@@ -19,7 +20,12 @@ from mytools.web.webrecon import (
     WhoisResult,
     _async_run_once,
     _ensure_list,
+    _fetch_file,
     _format_date,
+    _print_cve_findings,
+    _print_whois,
+    _run_single,
+    _run_whois_sync,
     build_parser,
     candidate_urls,
     crawl_internal_links,
@@ -29,7 +35,10 @@ from mytools.web.webrecon import (
     harvest_emails,
     lookup_cves,
     normalize_url,
+    print_result,
     probe_status,
+    run_once,
+    run_recon,
     run_whois,
     status_text,
 )
@@ -469,6 +478,10 @@ class TestExtractVersions:
 
     def test_no_versions(self):
         versions = extract_versions({}, "")
+        assert versions == []
+
+    def test_match_without_capture_group(self):
+        versions = extract_versions({"Server": "Caddy"}, "")
         assert versions == []
 
     def test_deduplicates(self):
@@ -1227,3 +1240,585 @@ class TestMain:
         ):
             result = main()
             assert result == 1
+
+
+class TestFetchFile:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_body_and_status(self, async_client):
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(200, text="User-agent: *")
+        )
+        body, status = await _fetch_file(
+            async_client, "https://example.com/robots.txt", 5.0
+        )
+        assert body == "User-agent: *"
+        assert status == 200
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fetch_error_returns_empty(self, async_client):
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        body, status = await _fetch_file(
+            async_client, "https://example.com/robots.txt", 5.0
+        )
+        assert body == ""
+        assert status is None
+
+
+class TestLookupCvesException:
+    @pytest.mark.asyncio
+    async def test_query_nvd_raising_returns_empty(self):
+        with patch("mytools.web.webrecon.query_nvd", side_effect=RuntimeError("boom")):
+            findings = await lookup_cves([("Apache", "2.4.41")])
+        assert findings == []
+
+
+class TestEnsureListExtra:
+    def test_non_string_non_list_returns_none(self):
+        assert _ensure_list(123) is None
+
+
+class TestRunWhoisSync:
+    def test_whois_returns_none_object(self):
+        import unittest.mock
+
+        import whois as _whois
+
+        with unittest.mock.patch.object(_whois, "whois", return_value=None):
+            assert _run_whois_sync("example.com") is None
+
+
+def _make_recon_result(**overrides: object) -> ReconResult:
+    defaults: dict[str, Any] = dict(
+        url="https://example.com",
+        status=200,
+        final_url="https://example.com",
+        title="Example Site",
+        server="nginx",
+        powered_by="PHP/7.4",
+        content_type="text/html",
+        content_length=1234,
+        redirect="",
+        security_headers_present=[],
+        security_headers_missing=[],
+        robots_status=200,
+        sitemap_status=404,
+        elapsed=1.5,
+        technologies=None,
+        cve_findings=[],
+        waf_detected=[],
+        emails=[],
+        whois_data=None,
+    )
+    defaults.update(overrides)
+    return ReconResult(**defaults)
+
+
+class TestRunRecon:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_full_html_recon(self):
+        html = (
+            "<html><head><title>Example</title></head><body>"
+            '<a href="/wp-content/style.css">x</a>'
+            "<p>Contact: admin@example.com</p>"
+            "</body></html>"
+        )
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            return_value=httpx.Response(
+                200,
+                text=html,
+                headers={"Server": "nginx/1.24.0", "Content-Type": "text/html"},
+            )
+        )
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(200, text="Contact: bot@example.com")
+        )
+        respx.get(url__regex=r"^https://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        with patch("mytools.web.webrecon._run_whois_sync", return_value=None):
+            result = await run_recon("https://example.com", 5.0, "TestAgent/1.0")
+        assert result.status == 200
+        assert result.title == "Example"
+        assert result.server == "nginx/1.24.0"
+        assert result.robots_status == 200
+        assert result.sitemap_status == 404
+        technologies = result.technologies
+        assert technologies is not None
+        assert "WordPress" in technologies["cms"]
+        assert "Nginx" in technologies["server"]
+        assert "admin@example.com" in result.emails
+        assert "bot@example.com" in result.emails
+        assert result.elapsed >= 0
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_https_fails_falls_back_to_http(self):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        respx.get(url__regex=r"^http://example\.com/?$").mock(
+            return_value=httpx.Response(200, text="<html><title>HTTP OK</title></html>")
+        )
+        respx.get(url__regex=r"^http://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        respx.get(url__regex=r"^http://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        with patch("mytools.web.webrecon._run_whois_sync", return_value=None):
+            result = await run_recon("example.com", 5.0, "TestAgent/1.0")
+        assert result.status == 200
+        assert result.url == "http://example.com"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_both_schemes_fail_raises(self):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        respx.get(url__regex=r"^http://example\.com/?$").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        with pytest.raises(FetchError) as exc_info:
+            await run_recon("example.com", 5.0, "TestAgent/1.0")
+        assert exc_info.value.attempts == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_single_scheme_fail_raises(self):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        with pytest.raises(FetchError) as exc_info:
+            await run_recon("https://example.com", 5.0, "TestAgent/1.0")
+        assert exc_info.value.attempts == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_cve_lookup(self):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            return_value=httpx.Response(
+                200,
+                text="<html></html>",
+                headers={"Server": "Apache/2.4.41", "Content-Type": "text/html"},
+            )
+        )
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get(url__regex=r"^https://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        fake_cve = CVEFinding(
+            cve_id="CVE-2021-44228",
+            description="Log4j",
+            score=10.0,
+            severity="CRITICAL",
+            technology="Apache",
+            version="2.4.41",
+        )
+        with (
+            patch("mytools.web.webrecon._run_whois_sync", return_value=None),
+            patch(
+                "mytools.web.webrecon.lookup_cves",
+                new_callable=AsyncMock,
+                return_value=[fake_cve],
+            ),
+        ):
+            result = await run_recon(
+                "https://example.com", 5.0, "TestAgent/1.0", cve=True
+            )
+        assert result.cve_findings == [fake_cve]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_cve_lookup_no_versions(self):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            return_value=httpx.Response(
+                200,
+                text="<html></html>",
+                headers={"Content-Type": "text/html"},
+            )
+        )
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get(url__regex=r"^https://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        with (
+            patch("mytools.web.webrecon._run_whois_sync", return_value=None),
+            patch(
+                "mytools.web.webrecon.lookup_cves",
+                new_callable=AsyncMock,
+            ) as mock_lookup,
+        ):
+            result = await run_recon(
+                "https://example.com", 5.0, "TestAgent/1.0", cve=True
+            )
+        assert result.cve_findings == []
+        mock_lookup.assert_not_called()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_deep_crawl_collects_emails(self):
+        html = '<html><a href="/contact">Contact</a></html>'
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            return_value=httpx.Response(
+                200, text=html, headers={"Content-Type": "text/html"}
+            )
+        )
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get(url__regex=r"^https://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get(url__regex=r"^https://example\.com/contact$").mock(
+            return_value=httpx.Response(
+                200,
+                text="<p>deep@example.com</p>",
+                headers={"Content-Type": "text/html"},
+            )
+        )
+        with patch("mytools.web.webrecon._run_whois_sync", return_value=None):
+            result = await run_recon(
+                "https://example.com", 5.0, "TestAgent/1.0", deep=True
+            )
+        assert "deep@example.com" in result.emails
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_html_content_type(self):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            return_value=httpx.Response(
+                200,
+                content=b'{"a": 1}',
+                headers={"Content-Type": "application/json"},
+            )
+        )
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get(url__regex=r"^https://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        with patch("mytools.web.webrecon._run_whois_sync", return_value=None):
+            result = await run_recon("https://example.com", 5.0, "TestAgent/1.0")
+        assert result.title == ""
+        assert result.content_length == 8
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_whois_data_populated(self):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            return_value=httpx.Response(200, text="<html></html>")
+        )
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get(url__regex=r"^https://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        w = WhoisResult(domain="example.com", registrar="GoDaddy")
+        with patch("mytools.web.webrecon._run_whois_sync", return_value=w):
+            result = await run_recon("https://example.com", 5.0, "TestAgent/1.0")
+        assert result.whois_data == w
+
+
+class TestPrintResult:
+    def test_full_result(self, capsys):
+        result = _make_recon_result(
+            redirect="https://example.com/new",
+            title="Example Site",
+            server="nginx",
+            powered_by="PHP/7.4",
+            security_headers_present=["content-security-policy"],
+            security_headers_missing=["x-frame-options", "strict-transport-security"],
+            technologies={
+                "cms": ["WordPress"],
+                "frameworks": [],
+                "libraries": [],
+                "server": ["Nginx"],
+            },
+            cve_findings=[
+                CVEFinding(
+                    "CVE-2021-44228", "Log4j", 10.0, "CRITICAL", "Apache", "2.4.41"
+                )
+            ],
+            waf_detected=["Cloudflare"],
+            emails=["admin@example.com", "bot@example.com"],
+            whois_data=WhoisResult(
+                domain="example.com",
+                registrar="GoDaddy",
+                registrant_name="Jane",
+                registrant_organization="Org",
+                registrant_country="US",
+                creation_date="2020-01-01",
+                expiration_date="2030-01-01",
+                updated_date="2024-01-01",
+                name_servers=["ns1.example.com"],
+                emails=["whois@example.com"],
+                status=["active"],
+            ),
+        )
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "example.com" in captured.out
+        assert "Status: 200" in captured.out
+        assert "Redirect:" in captured.out
+        assert "Example Site" in captured.out
+        assert "content-security-policy" in captured.out
+        assert "x-frame-options" in captured.out
+        assert "WordPress" in captured.out
+        assert "Nginx" in captured.out
+        assert "CVE-2021-44228" in captured.out
+        assert "Cloudflare" in captured.out
+        assert "admin@example.com" in captured.out
+        assert "GoDaddy" in captured.out
+        assert "ns1.example.com" in captured.out
+        assert "robots.txt" in captured.out
+
+    def test_minimal_result(self, capsys):
+        result = _make_recon_result(
+            server="",
+            powered_by="",
+            title="",
+            redirect="",
+            security_headers_present=[],
+            security_headers_missing=[],
+        )
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "ausente" in captured.out
+
+    def test_print_whois_empty_values(self, capsys):
+        _print_whois(WhoisResult(domain="example.com"))
+        captured = capsys.readouterr()
+        assert "WHOIS" in captured.out
+        assert "Nameservers" not in captured.out
+        assert "Emails" not in captured.out
+        assert "Status" not in captured.out
+
+    def test_technologies_all_empty(self, capsys):
+        result = _make_recon_result(
+            technologies={
+                "cms": [],
+                "frameworks": [],
+                "libraries": [],
+                "server": [],
+            }
+        )
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "Tecnologias detectadas" not in captured.out
+
+    def test_many_emails_truncated(self, capsys):
+        emails = [f"user{i}@example.com" for i in range(35)]
+        result = _make_recon_result(emails=emails)
+        print_result(result)
+        captured = capsys.readouterr()
+        assert "... e mais 5 emails" in captured.out
+
+
+class TestPrintCveFindings:
+    def test_empty(self, capsys):
+        _print_cve_findings([])
+        captured = capsys.readouterr()
+        assert "Nenhuma vulnerabilidade encontrada" in captured.out
+
+    def test_many_truncated(self, capsys):
+        findings = [
+            CVEFinding(f"CVE-2024-{i:04d}", "desc", 5.0, "MEDIUM", "Apache", "2.4")
+            for i in range(25)
+        ]
+        _print_cve_findings(findings)
+        captured = capsys.readouterr()
+        assert "... e mais 5 CVEs" in captured.out
+
+
+class TestRunSingle:
+    def _args(self):
+        return argparse.Namespace(
+            timeout=5.0,
+            user_agent="UA",
+            proxy=None,
+            verify=False,
+            auth=None,
+            bearer_token=None,
+            cookie=None,
+            header=None,
+            cve=False,
+            nvd_api_key=None,
+            deep=False,
+            crawl_limit=10,
+        )
+
+    @pytest.mark.asyncio
+    async def test_quiet_returns_result(self):
+        result = _make_recon_result()
+        args = self._args()
+        with (
+            patch(
+                "mytools.web.webrecon.run_recon",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
+            patch("mytools.web.webrecon.print_result") as mock_print,
+        ):
+            out = await _run_single("https://example.com", args, quiet=True)
+        assert out is result
+        mock_print.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_not_quiet_prints(self):
+        result = _make_recon_result()
+        args = self._args()
+        with (
+            patch(
+                "mytools.web.webrecon.run_recon",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
+            patch("mytools.web.webrecon.print_result") as mock_print,
+        ):
+            await _run_single("https://example.com", args, quiet=False)
+        mock_print.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_passes_args(self):
+        result = _make_recon_result()
+        args = self._args()
+        args.proxy = "http://proxy"
+        args.cve = True
+        args.deep = True
+        args.crawl_limit = 3
+        args.bearer_token = "tok"
+        with patch(
+            "mytools.web.webrecon.run_recon",
+            new_callable=AsyncMock,
+            return_value=result,
+        ) as mock_recon:
+            await _run_single("https://example.com", args, quiet=True)
+        await_args = mock_recon.await_args
+        assert await_args is not None
+        kwargs = await_args.kwargs
+        assert kwargs["proxy"] == "http://proxy"
+        assert kwargs["cve"] is True
+        assert kwargs["deep"] is True
+        assert kwargs["crawl_limit"] == 3
+        assert kwargs["bearer_token"] == "tok"
+
+
+class TestAsyncRunOnceExtra:
+    @pytest.mark.asyncio
+    async def test_dry_run_feature_flags(self, capsys):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "https://example.com",
+                "--dry-run",
+                "--cve",
+                "--deep",
+                "--crawl-limit",
+                "5",
+            ]
+        )
+        await _async_run_once(args)
+        captured = capsys.readouterr()
+        assert "CVE lookup" in captured.out
+        assert "deep crawl (limit=5)" in captured.out
+        assert "Features:" in captured.out
+
+    @pytest.mark.asyncio
+    async def test_run_multiple_with_output_dir(self, tmp_path):
+        result = _make_recon_result()
+        parser = build_parser()
+        out_dir = str(tmp_path / "out")
+        args = parser.parse_args(["https://example.com", "--output-dir", out_dir])
+        with (
+            patch(
+                "mytools.web.webrecon.resolve_target_urls",
+                return_value=["https://a.com", "https://b.com"],
+            ),
+            patch(
+                "mytools.web.webrecon._run_single",
+                new_callable=AsyncMock,
+                side_effect=lambda u, args, quiet: result,
+            ),
+            patch("mytools.web.webrecon.write_output") as mock_write,
+        ):
+            code = await _async_run_once(args)
+        assert code == 0
+        assert mock_write.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_single_output_file(self, tmp_path):
+        result = _make_recon_result()
+        parser = build_parser()
+        out = str(tmp_path / "recon.json")
+        args = parser.parse_args(["https://example.com", "-o", out])
+        with (
+            patch(
+                "mytools.web.webrecon.resolve_target_urls",
+                return_value=["https://example.com"],
+            ),
+            patch(
+                "mytools.web.webrecon._run_single",
+                new_callable=AsyncMock,
+                side_effect=lambda u, args, quiet: result,
+            ),
+            patch("mytools.web.webrecon.write_output") as mock_write,
+        ):
+            code = await _async_run_once(args)
+        assert code == 0
+        assert mock_write.call_count == 1
+        assert mock_write.call_args.args[0] == out
+
+    @pytest.mark.asyncio
+    async def test_run_multiple_output_file(self, tmp_path):
+        result = _make_recon_result()
+        parser = build_parser()
+        out = str(tmp_path / "recon.json")
+        args = parser.parse_args(["https://example.com", "-o", out])
+        with (
+            patch(
+                "mytools.web.webrecon.resolve_target_urls",
+                return_value=["https://a.com", "https://b.com"],
+            ),
+            patch(
+                "mytools.web.webrecon._run_single",
+                new_callable=AsyncMock,
+                side_effect=lambda u, args, quiet: result,
+            ),
+            patch("mytools.web.webrecon.write_output") as mock_write,
+        ):
+            code = await _async_run_once(args)
+        assert code == 0
+        assert mock_write.call_count == 1
+        assert isinstance(mock_write.call_args.args[1], list)
+
+
+class TestRunOnce:
+    def test_returns_zero(self):
+        args = argparse.Namespace()
+        with patch("mytools.web.webrecon._async_run_once", return_value=0):
+            assert run_once(args) == 0
+
+
+class TestWebReconMainGuard:
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-webrecon"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.webrecon", run_name="__main__")
+        assert exc_info.value.code == 0

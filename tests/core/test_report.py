@@ -5,14 +5,23 @@ from mytools.core.report import (
     Finding,
     HostReport,
     ScanResult,
+    _attempt_title,
+    _derive_severity,
     _diff_scans,
     _extract_findings,
+    _findings_from_legacy,
     _group_by_host,
+    _host_from_path,
+    _is_vulnerable_item,
+    _item_fingerprint,
+    _legacy_title,
+    _load_json,
     _load_scan_files,
     _normalize,
     _render_html,
     build_parser,
     main,
+    run_once,
 )
 
 # ---------------------------------------------------------------------------
@@ -59,6 +68,24 @@ class TestParser:
         assert args.diff is True
         assert args.json is True
         assert args.quiet is True
+
+
+# ---------------------------------------------------------------------------
+# _derive_severity
+# ---------------------------------------------------------------------------
+
+
+class TestDeriveSeverity:
+    def test_known_severity(self):
+        assert _derive_severity("high") == "high"
+        assert _derive_severity("CRITICAL") == "critical"
+        assert _derive_severity("  medium  ") == "medium"
+
+    def test_unknown_severity_high_by_default(self):
+        assert _derive_severity("mystery") == "high"
+
+    def test_unknown_severity_info_when_not_vulnerable(self):
+        assert _derive_severity("mystery", vulnerable=False) == "info"
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +151,20 @@ class TestExtractFindings:
         assert _extract_findings({}) == []
         assert _extract_findings({"attempts": []}) == []
         assert _extract_findings({"findings": []}) == []
+
+    def test_findings_unknown_severity_falls_back(self):
+        data = {
+            "findings": [
+                {
+                    "severity": "mystery",
+                    "category": "headers",
+                    "item": "x-powered-by",
+                }
+            ],
+        }
+        findings = _extract_findings(data)
+        assert len(findings) == 1
+        assert findings[0].severity == "high"
 
 
 # ---------------------------------------------------------------------------
@@ -398,3 +439,231 @@ def main_runner(argv: list[str]):
         return main()
     finally:
         sys.argv = old
+
+
+# ---------------------------------------------------------------------------
+# helpers de extração (bordas)
+# ---------------------------------------------------------------------------
+
+
+class TestAttemptTitle:
+    def test_with_category(self):
+        assert _attempt_title({"technique": "t", "category": "dom"}) == "dom: t"
+
+    def test_with_name_and_type(self):
+        assert _attempt_title({"name": "n"}) == "n"
+        assert _attempt_title({"type": "ty"}) == "ty"
+
+    def test_default(self):
+        assert _attempt_title({}) == "Attempt"
+
+
+class TestLegacyTitle:
+    def test_with_url_and_status(self):
+        assert (
+            _legacy_title({"url": "http://x/.env", "status": 404})
+            == "http://x/.env [404]"
+        )
+
+    def test_with_path_no_status(self):
+        assert _legacy_title({"path": "/a"}) == "/a"
+
+    def test_no_url(self):
+        assert _legacy_title({}) == "Item"
+
+
+class TestItemFingerprint:
+    def test_technique(self):
+        assert _item_fingerprint({"technique": "t"}) == "technique:t"
+
+    def test_url(self):
+        assert _item_fingerprint({"url": "http://x"}) == "url:http://x"
+
+    def test_category_with_item(self):
+        assert _item_fingerprint({"category": "c", "item": "i"}) == "category:c|item:i"
+
+    def test_category_without_item(self):
+        assert _item_fingerprint({"category": "c"}) == "category:c"
+
+    def test_unknown(self):
+        assert _item_fingerprint({}) == "item:unknown"
+
+
+class TestIsVulnerableItem:
+    def test_bool_keys(self):
+        assert _is_vulnerable_item({"vulnerable": True}) is True
+        assert _is_vulnerable_item({"confirmed": False}) is False
+
+    def test_status_int(self):
+        assert _is_vulnerable_item({"status": 200}) is True
+        assert _is_vulnerable_item({"status": 500}) is False
+        assert _is_vulnerable_item({"status": 404}) is False
+
+    def test_default_true(self):
+        assert _is_vulnerable_item({}) is True
+        assert _is_vulnerable_item({"status": "x"}) is True
+
+
+class TestFindingsFromLegacy:
+    def test_skips_non_vulnerable(self):
+        out = _findings_from_legacy(
+            [
+                {"url": "http://x/a", "status": 500},
+                {"url": "http://x/b", "status": 200},
+            ],
+            "legacy",
+        )
+        assert len(out) == 1
+        assert out[0].title == "http://x/b [200]"
+
+
+class TestExtractFindingsEdges:
+    def test_list_with_non_dict(self):
+        assert _extract_findings(["a", 1]) == []
+
+    def test_iterable_without_technique_uses_legacy(self):
+        data = {"results": [{"url": "http://x/a", "status": 200}]}
+        findings = _extract_findings(data, "tool")
+        assert len(findings) == 1
+        assert findings[0].fingerprint == "url:http://x/a"
+
+    def test_issues_strings(self):
+        data = {"issues": ["a", "b"]}
+        findings = _extract_findings(data, "tool")
+        assert len(findings) == 2
+        assert {f.title for f in findings} == {"a", "b"}
+        assert all(f.severity == "high" for f in findings)
+
+    def test_vulnerable_techniques(self):
+        data = {"vulnerable_techniques": ["xss"]}
+        findings = _extract_findings(data, "tool")
+        assert len(findings) == 1
+        assert findings[0].title == "xss"
+
+    def test_blocked_techniques_not_vulnerable(self):
+        data = {"blocked_techniques": ["waf"]}
+        findings = _extract_findings(data, "tool")
+        assert len(findings) == 0
+
+
+class TestHostFromPath:
+    def test_infers_host(self):
+        path = Path("out/example.com/2026-08-01T10-00-00.json")
+        assert _host_from_path(path) == "example.com"
+
+    def test_fallback_stem(self):
+        assert _host_from_path(Path("out/scan.json")) == "scan"
+
+
+class TestLoadJson:
+    def test_invalid_json(self, tmp_path: Path):
+        p = tmp_path / "bad.json"
+        p.write_text("{not json", encoding="utf-8")
+        assert _load_json(p) is None
+
+    def test_missing_file(self, tmp_path: Path):
+        assert _load_json(tmp_path / "missing.json") is None
+
+    def test_non_dict_list(self, tmp_path: Path):
+        p = tmp_path / "n.json"
+        p.write_text("42", encoding="utf-8")
+        assert _load_json(p) is None
+
+    def test_valid(self, tmp_path: Path):
+        p = tmp_path / "ok.json"
+        p.write_text('{"a": 1}', encoding="utf-8")
+        assert _load_json(p) == {"a": 1}
+
+
+class TestLoadScanFilesEdges:
+    def test_not_a_dir(self, tmp_path: Path):
+        assert _load_scan_files(tmp_path / "nope") == []
+
+    def test_group_by_host_skips_invalid(self, tmp_path: Path):
+        host_dir = tmp_path / "example.com"
+        host_dir.mkdir()
+        (host_dir / "bad.json").write_text("{oops", encoding="utf-8")
+        (host_dir / "good.json").write_text(
+            json.dumps({"overall_status": "ok", "findings": []}), encoding="utf-8"
+        )
+        reports = _group_by_host(_load_scan_files(tmp_path))
+        assert len(reports) == 1
+        assert len(reports[0].scans) == 1
+
+
+# ---------------------------------------------------------------------------
+# run_once / main shell
+# ---------------------------------------------------------------------------
+
+
+class TestRunOnceEdges:
+    def test_no_inputs(self, capsys):
+
+        from mytools.core.report import build_parser
+
+        args = build_parser().parse_args([])
+        assert run_once(args) == 1
+        assert "Erro: informe ao menos um --file ou --dir." in capsys.readouterr().err
+
+    def test_quiet_writes_report(self, tmp_path: Path):
+        from mytools.core.report import build_parser
+
+        host_dir = tmp_path / "example.com"
+        host_dir.mkdir()
+        (host_dir / "2026-08-01T10-00-00.json").write_text(
+            json.dumps({"overall_status": "ok", "findings": []}), encoding="utf-8"
+        )
+        out = tmp_path / "q.html"
+        args = build_parser().parse_args(["-d", str(tmp_path), "-o", str(out), "-q"])
+        assert run_once(args) == 0
+        assert out.exists()
+        assert "Relatorio salvo" not in args.output
+
+    def test_json_output(self, tmp_path: Path, capsys):
+        from mytools.core.report import build_parser
+
+        host_dir = tmp_path / "example.com"
+        host_dir.mkdir()
+        (host_dir / "2026-08-01T10-00-00.json").write_text(
+            json.dumps({"overall_status": "ok", "findings": []}), encoding="utf-8"
+        )
+        args = build_parser().parse_args(["-d", str(tmp_path), "--json"])
+        assert run_once(args) == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["hosts"][0]["host"] == "example.com"
+
+
+class TestMainShell:
+    def test_no_args_enters_shell(self):
+        import sys
+        from unittest.mock import patch
+
+        from mytools.core.report import main
+
+        with patch("mytools.core.report.run_interactive_shell") as mock_shell:
+            mock_shell.return_value = 0
+            with patch.object(sys, "argv", ["mytools-report"]):
+                assert main() == 0
+            assert mock_shell.call_args.kwargs["prompt"] == "report> "
+
+    def test_main_guard_runs(self, tmp_path: Path):
+        import runpy
+        import sys
+        from unittest.mock import patch
+
+        host_dir = tmp_path / "example.com"
+        host_dir.mkdir()
+        (host_dir / "2026-08-01T10-00-00.json").write_text(
+            json.dumps({"overall_status": "ok", "findings": []}), encoding="utf-8"
+        )
+        out = tmp_path / "r.html"
+        with patch.object(
+            sys,
+            "argv",
+            ["mytools-report", "-d", str(tmp_path), "-o", str(out), "-q"],
+        ):
+            import pytest
+
+            with pytest.raises(SystemExit) as exc:
+                runpy.run_module("mytools.core.report", run_name="__main__")
+            assert exc.value.code == 0

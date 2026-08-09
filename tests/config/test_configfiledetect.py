@@ -3,7 +3,9 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.config.configfiledetect import (
     ALL_CATEGORIES,
@@ -21,6 +23,10 @@ from mytools.config.configfiledetect import (
     _load_paths_from_args,
     _validate_content,
     build_parser,
+    main,
+    print_results,
+    run_once,
+    scan_configs,
 )
 
 
@@ -102,6 +108,13 @@ class TestIsSensitive:
         assert _is_sensitive("config.json") is False
         assert _is_sensitive("robots.txt") is False
         assert _is_sensitive("index.html") is False
+
+    def test_save_and_tilde_sensitive(self):
+        assert _is_sensitive("config.php.save") is True
+        assert _is_sensitive("index.php~") is True
+
+    def test_backup_extension_sensitive(self):
+        assert _is_sensitive("config.php.bak") is True
 
 
 class TestValidateContent:
@@ -207,6 +220,26 @@ class TestValidateContent:
 
     def test_empty_text(self):
         ok, _ = _validate_content(".env", b"   \n  \n  ")
+        assert ok is False
+
+    def test_config_json_list(self):
+        ok, _ = _validate_content("config.json", b'["a", "b"]')
+        assert ok is False
+
+    def test_framework_no_match(self):
+        ok, _ = _validate_content("web.config", b"hello world")
+        assert ok is False
+
+    def test_database_no_match(self):
+        ok, _ = _validate_content("my.cnf", b"nothing here")
+        assert ok is False
+
+    def test_docker_no_match(self):
+        ok, _ = _validate_content("Dockerfile", b"random stuff")
+        assert ok is False
+
+    def test_credentials_no_match(self):
+        ok, _ = _validate_content("credentials.json", b"hello world")
         assert ok is False
 
 
@@ -403,3 +436,360 @@ class TestJsonOutput:
         data, _ = decoder.raw_decode(captured)
         assert isinstance(data, list)
         assert data[0]["path"] == ".env"
+
+
+# ── scan_configs (mock HTTP) ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_no_results():
+    with respx.mock:
+        respx.route(method="HEAD", url__startswith="http://x.com/").mock(
+            return_value=httpx.Response(404),
+        )
+        respx.route(method="GET", url__startswith="http://x.com/").mock(
+            return_value=httpx.Response(404),
+        )
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_finds_env():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200, headers={"content-length": "50"}),
+        )
+        respx.route(method="GET", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200, content=b"DB_HOST=localhost\n"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".env" for leak in leaks)
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_skips_large():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200, headers={"content-length": "6000000"}),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_head_bad_length():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200, headers={"content-length": "abc"}),
+        )
+        respx.route(method="GET", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200, content=b"DB_HOST=localhost\n"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".env" for leak in leaks)
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_head_405_followed_by_get():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.env").mock(
+            return_value=httpx.Response(405),
+        )
+        respx.route(method="GET", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200, content=b"DB_HOST=localhost\n"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".env" for leak in leaks)
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_head_fetch_error():
+    with respx.mock:
+        respx.route(method="HEAD", url__startswith="http://x.com/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.route(method="GET", url__startswith="http://x.com/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_get_fetch_error():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.env").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_get_non_200():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.env").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.env").mock(
+            return_value=httpx.Response(500),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_invalid_content():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/config.json").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/config.json").mock(
+            return_value=httpx.Response(200, content=b"not json"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+            custom_paths=["config.json"],
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_configs_sensitive_only():
+    with respx.mock:
+        respx.route(method="HEAD", url__startswith="http://x.com/").mock(
+            return_value=httpx.Response(404),
+        )
+        respx.route(method="GET", url__startswith="http://x.com/").mock(
+            return_value=httpx.Response(404),
+        )
+        leaks = await scan_configs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+            custom_paths=["credentials.json", "robots.txt"],
+            sensitive_only=True,
+        )
+        assert leaks == []
+
+
+# ── print_results ─────────────────────────────────────────────────────────────
+
+
+class TestPrintResults:
+    def test_empty(self, capsys):
+        print_results([])
+        out = capsys.readouterr().out
+        assert "Nenhum" in out
+
+    def test_with_results(self, capsys):
+        leaks = [
+            ConfigLeak(
+                category="env",
+                url="http://x.com/.env",
+                path=".env",
+                status=200,
+                detail="DB_HOST=localhost",
+                raw_size=50,
+            ),
+        ]
+        print_results(leaks)
+        out = capsys.readouterr().out
+        assert ".env" in out
+
+    def test_with_exploit(self, capsys):
+        leak = ConfigLeak(
+            category="env",
+            url="http://x.com/.env",
+            path=".env",
+            status=200,
+            detail="DB_HOST=localhost",
+            raw_size=50,
+            exploit="curl http://x.com/.env",
+            tool="curl",
+        )
+        print_results([leak])
+        out = capsys.readouterr().out
+        assert "Exploits" in out
+
+
+class TestAsyncRunOnce:
+    def _args(self):
+        args = build_parser().parse_args(["http://x.com"])
+        args.dry_run = False
+        args.json_output = False
+        args.output = None
+        args.output_dir = None
+        return args
+
+    def test_dry_run(self):
+        args = self._args()
+        args.dry_run = True
+        with (
+            patch(
+                "mytools.config.configfiledetect.init_scanner",
+                return_value=False,
+            ),
+            patch(
+                "mytools.config.configfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_prints_results_when_not_quiet(self, capsys):
+        args = self._args()
+        with (
+            patch(
+                "mytools.config.configfiledetect.init_scanner",
+                return_value=False,
+            ),
+            patch(
+                "mytools.config.configfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.config.configfiledetect.scan_configs",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_output_dir(self, tmp_path):
+        args = self._args()
+        args.output_dir = str(tmp_path)
+        with (
+            patch(
+                "mytools.config.configfiledetect.init_scanner",
+                return_value=True,
+            ),
+            patch(
+                "mytools.config.configfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.config.configfiledetect.scan_configs",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.config.configfiledetect.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+    def test_output_file(self, tmp_path):
+        args = self._args()
+        args.output = str(tmp_path / "out.json")
+        with (
+            patch(
+                "mytools.config.configfiledetect.init_scanner",
+                return_value=True,
+            ),
+            patch(
+                "mytools.config.configfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.config.configfiledetect.scan_configs",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.config.configfiledetect.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+
+# ── run_once / main / __main__ guard ─────────────────────────────────────────
+
+
+class TestRunOnceAndMain:
+    def test_run_once(self):
+        args = argparse.Namespace()
+        with patch(
+            "mytools.config.configfiledetect._async_run_once",
+            new_callable=AsyncMock,
+            return_value=0,
+        ):
+            assert run_once(args) == 0
+
+    def test_main(self):
+        with patch(
+            "mytools.config.configfiledetect.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-configfiledetect"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.config.configfiledetect", run_name="__main__")

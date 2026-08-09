@@ -1,8 +1,11 @@
 import argparse
 import json
+import runpy
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.dns.dnshistory import (
     BANNER_ART,
@@ -12,6 +15,8 @@ from mytools.dns.dnshistory import (
     _parse_dnslytics,
     _parse_securitytrails,
     _parse_viewdns,
+    _query_all_sources,
+    _query_source,
     build_parser,
     run_history,
     run_once,
@@ -250,7 +255,213 @@ class TestBuildParser:
         assert args.timeout == DEFAULT_TIMEOUT
 
 
+class TestQuerySource:
+    """Testes da funcao _query_source com respx."""
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_dnslytics_success(self):
+        respx.get("https://api.dnslytics.net/v1/hostinghistory/example.com").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "succeed",
+                    "data": {"ipv4": [{"ip": "1.2.3.4"}]},
+                },
+            )
+        )
+        records = await _query_source("dnslytics", "example.com", None, ["a"], 5.0)
+        assert len(records) == 1
+        assert records[0].source == "dnslytics"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_dnslytics_with_api_key(self):
+        respx.get(
+            "https://api.dnslytics.net/v1/hostinghistory/example.com?apikey=KEY123"
+        ).mock(return_value=httpx.Response(200, json={"status": "succeed", "data": {}}))
+        records = await _query_source("dnslytics", "example.com", "KEY123", ["a"], 5.0)
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_dnslytics_non_200(self):
+        respx.get("https://api.dnslytics.net/v1/hostinghistory/example.com").mock(
+            return_value=httpx.Response(500)
+        )
+        records = await _query_source("dnslytics", "example.com", None, ["a"], 5.0)
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_securitytrails_without_key(self):
+        records = await _query_source("securitytrails", "example.com", None, ["a"], 5.0)
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_securitytrails_success(self):
+        for rtype in ("a", "mx"):
+            respx.get(
+                f"https://api.securitytrails.com/v1/history/example.com/dns/{rtype}"
+            ).mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "type": f"{rtype}/ipv4",
+                        "records": [{"values": [{"ip": "1.2.3.4"}]}],
+                    },
+                )
+            )
+        records = await _query_source(
+            "securitytrails", "example.com", "KEY", ["a", "mx"], 5.0
+        )
+        assert len(records) == 2
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_securitytrails_rate_limited(self):
+        respx.get("https://api.securitytrails.com/v1/history/example.com/dns/a").mock(
+            return_value=httpx.Response(429)
+        )
+        records = await _query_source(
+            "securitytrails", "example.com", "KEY", ["a", "mx"], 5.0
+        )
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_securitytrails_other_error(self):
+        for rtype in ("a", "mx"):
+            respx.get(
+                f"https://api.securitytrails.com/v1/history/example.com/dns/{rtype}"
+            ).mock(return_value=httpx.Response(403))
+        records = await _query_source(
+            "securitytrails", "example.com", "KEY", ["a", "mx"], 5.0
+        )
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_viewdns_without_key(self):
+        records = await _query_source("viewdns", "example.com", None, ["a"], 5.0)
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_viewdns_success(self):
+        respx.get(
+            "https://api.viewdns.info/iphistory/?domain=example.com&apikey=KEY&output=json"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "response": {"records": [{"ip": "1.2.3.4", "owner": "Cloudflare"}]}
+                },
+            )
+        )
+        records = await _query_source("viewdns", "example.com", "KEY", ["a"], 5.0)
+        assert len(records) == 1
+        assert records[0].owner == "Cloudflare"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_viewdns_non_200(self):
+        respx.get(
+            "https://api.viewdns.info/iphistory/?domain=example.com&apikey=KEY&output=json"
+        ).mock(return_value=httpx.Response(500))
+        records = await _query_source("viewdns", "example.com", "KEY", ["a"], 5.0)
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_unknown_source(self):
+        records = await _query_source("unknown", "example.com", None, ["a"], 5.0)
+        assert records == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error_returns_empty(self):
+        respx.get("https://api.dnslytics.net/v1/hostinghistory/example.com").mock(
+            side_effect=httpx.ConnectError("boom")
+        )
+        records = await _query_source("dnslytics", "example.com", None, ["a"], 5.0)
+        assert records == []
+
+
+class TestQueryAllSources:
+    """Testes da funcao _query_all_sources."""
+
+    @pytest.mark.asyncio
+    async def test_consolidates_and_dedupes(self):
+        rec = DnsHistoryRecord(
+            record_type="a", value="1.2.3.4", last_seen="2024-01-01", source="x"
+        )
+        with patch(
+            "mytools.dns.dnshistory._query_source",
+            new_callable=AsyncMock,
+            side_effect=[[rec], [rec]],
+        ) as mock_query:
+            records = await _query_all_sources(
+                "example.com",
+                ["dnslytics", "securitytrails"],
+                {"dnslytics": None, "securitytrails": None},
+                ["a"],
+                5.0,
+            )
+        assert mock_query.await_count == 2
+        assert len(records) == 1
+
+    @pytest.mark.asyncio
+    async def test_skips_non_list_results(self):
+        rec = DnsHistoryRecord(
+            record_type="a", value="1.2.3.4", last_seen="2024-01-01", source="x"
+        )
+        with patch(
+            "mytools.dns.dnshistory._query_source",
+            new_callable=AsyncMock,
+            side_effect=[[rec], None],
+        ):
+            records = await _query_all_sources(
+                "example.com",
+                ["dnslytics", "securitytrails"],
+                {"dnslytics": None, "securitytrails": None},
+                ["a"],
+                5.0,
+            )
+        assert len(records) == 1
+
+    @pytest.mark.asyncio
+    async def test_empty_sources(self):
+        records = await _query_all_sources("example.com", [], {}, ["a"], 5.0)
+        assert records == []
+
+
 class TestRunOnce:
+    def test_warns_for_missing_api_keys(self, caplog):
+        args = argparse.Namespace(
+            domain="example.com",
+            source=["securitytrails"],
+            dnslytics_key=None,
+            st_api_key=None,
+            viewdns_key=None,
+            record_types=None,
+            timeout=5.0,
+            dry_run=False,
+            output=None,
+            verbose=False,
+            quiet=False,
+            color=None,
+            log_file=None,
+        )
+        with (
+            patch("mytools.dns.dnshistory.run_history", return_value=[]),
+            caplog.at_level("WARNING", logger="mytools.dnshistory"),
+        ):
+            result = run_once(args)
+        assert result == 0
+        assert any("requer API key" in r.message for r in caplog.records)
+
     def test_returns_zero(self, capsys):
         args = argparse.Namespace(
             domain="example.com",
@@ -400,3 +611,12 @@ class TestMain:
                     result = main()
             assert result == 0
             mock_run.assert_called_once()
+
+    def test_main_guard(self):
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-dnshistory"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.dns.dnshistory", run_name="__main__")
+        assert exc_info.value.code == 0

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
 import json
-from unittest.mock import AsyncMock, patch
+import runpy
+from collections.abc import Awaitable, Callable, Sequence
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -20,8 +24,14 @@ from mytools.web.multitenant import (
     _extract_cookie_samesite,
     _make_attempt,
     _parse_jwt_payload,
+    _test_cross_tenant_ssrf,
+    _test_shared_resource,
+    _test_subdomain_isolation,
+    _test_tenant_id,
     build_parser,
+    main,
     print_results,
+    run_once,
     run_scan,
 )
 
@@ -436,3 +446,470 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         assert "VULNERABLE" in captured.out
+
+    def test_print_secure_category(self, capsys: pytest.CaptureFixture[str]) -> None:
+        attempt = _make_attempt(
+            technique="header_x_tenant_id",
+            category="tenant_id",
+            tenant_id="OTHER",
+            endpoint="https://example.com",
+            payload="",
+            b_status=200,
+            b_size=1000,
+            t_status=200,
+            t_size=1000,
+            vulnerable=False,
+        )
+        result = _make_result(attempts=[attempt], overall="secure")
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "tenant_id: secure" in captured.out
+
+
+# ─── Fetch Routers ───────────────────────────────────────────────────────────
+
+
+def _route_fetch(
+    rules: Sequence[tuple[str, object]],
+) -> Callable[..., Awaitable[tuple[int, httpx.Headers, bytes, dict[str, list[str]]]]]:
+    """Router de fetch baseado em substring da URL."""
+
+    async def _fetch(
+        _client: object, url: str, **_kwargs: object
+    ) -> tuple[int, httpx.Headers, bytes, dict[str, list[str]]]:
+        for pattern, outcome in rules:
+            if pattern in url:
+                if isinstance(outcome, Exception):
+                    raise outcome
+                status, headers, body = outcome  # type: ignore[misc]
+                return (status, httpx.Headers(headers or {}), body, {})
+        raise AssertionError(f"unexpected URL: {url}")
+
+    return _fetch
+
+
+def _route_fetch_headers(
+    rules: Sequence[tuple[str, bool, object]],
+) -> Callable[..., Awaitable[tuple[int, httpx.Headers, bytes, dict[str, list[str]]]]]:
+    """Router de fetch que decide por presença de header."""
+
+    async def _fetch(
+        _client: object, url: str, **kwargs: object
+    ) -> tuple[int, httpx.Headers, bytes, dict[str, list[str]]]:
+        raw_headers = cast(dict[str, str], kwargs.get("headers") or {})
+        hdrs = {k.lower(): v for k, v in raw_headers.items()}
+        for key, required, outcome in rules:
+            present = (key.lower() in hdrs) if required else (key.lower() not in hdrs)
+            if present:
+                if isinstance(outcome, Exception):
+                    raise outcome
+                status, headers, body = outcome  # type: ignore[misc]
+                return (status, httpx.Headers(headers or {}), body, {})
+        raise AssertionError(f"unexpected URL: {url} kwargs={kwargs}")
+
+    return _fetch
+
+
+def _make_result(
+    *,
+    overall: str = "secure",
+    attempts: list[TenantAttempt] | None = None,
+) -> TenantResult:
+    """Cria TenantResult com campos default preenchidos."""
+    return TenantResult(
+        target="https://example.com",
+        tls=True,
+        baseline_status=200,
+        baseline_size=1000,
+        current_tenant="TENANT_A",
+        attempts=attempts or [],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
+        overall_status=overall,
+    )
+
+
+# ─── JWT Padding / Cookie Multi-Header ───────────────────────────────────────
+
+
+class TestJWTPadding:
+    def test_payload_requires_padding(self) -> None:
+        import base64
+
+        payload = '{"a":"bcd"}'
+        payload_b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+        assert len(payload_b64) % 4 != 0
+        token = f"h.{payload_b64}.sig"
+        assert _parse_jwt_payload(token) == {"a": "bcd"}
+
+
+class TestCookieMultiHeader:
+    def test_domain_first_header_not_cookie(self) -> None:
+        headers = {"X-Custom": "1", "Set-Cookie": "session=1; Domain=.example.com"}
+        assert _extract_cookie_domain(headers) == ".example.com"
+
+    def test_samesite_first_header_not_cookie(self) -> None:
+        headers = {"X-Custom": "1", "Set-Cookie": "s=1; SameSite=None"}
+        assert _extract_cookie_samesite(headers) == "None"
+
+
+# ─── Tenant ID Tester ────────────────────────────────────────────────────────
+
+
+class TestTenantIdTester:
+    @pytest.mark.asyncio
+    async def test_all_sections_success(self) -> None:
+        vuln_body = b'{"tenant_id": "TENANT_A", "user_id": "1"}'
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", (200, {}, vuln_body))]),
+            ):
+                attempts = await _test_tenant_id(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 14
+        assert all(a.vulnerable for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_all_sections_exception(self) -> None:
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", httpx.ConnectError("boom"))]),
+            ):
+                attempts = await _test_tenant_id(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 14
+        assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_jwt_claims_vulnerable(self) -> None:
+        auth_resp = (
+            200,
+            {"Authorization": f"Bearer {_encode_jwt_payload({'tenant': 'TENANT_A'})}"},
+            b"hello",
+        )
+        vuln_resp = (200, {}, b'{"user_id": 1, "tenant": "OTHER"}')
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch_headers(
+                    [
+                        ("Authorization", True, vuln_resp),
+                        ("Authorization", False, auth_resp),
+                    ]
+                ),
+            ):
+                attempts = await _test_tenant_id(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        jwt = [a for a in attempts if a.technique.startswith("jwt_")]
+        assert len(attempts) == 18
+        assert len(jwt) == 4
+        assert all(a.vulnerable for a in jwt)
+
+    @pytest.mark.asyncio
+    async def test_jwt_claims_exception(self) -> None:
+        auth_resp = (
+            200,
+            {"Authorization": f"Bearer {_encode_jwt_payload({'tenant': 'TENANT_A'})}"},
+            b"hello",
+        )
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch_headers(
+                    [
+                        ("Authorization", True, httpx.ConnectError("boom")),
+                        ("Authorization", False, auth_resp),
+                    ]
+                ),
+            ):
+                attempts = await _test_tenant_id(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        jwt = [a for a in attempts if a.technique.startswith("jwt_")]
+        assert len(jwt) == 4
+        assert all(a.error for a in jwt)
+
+    @pytest.mark.asyncio
+    async def test_no_auth_header_skips_jwt(self) -> None:
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch_headers(
+                    [("Authorization", False, (200, {}, b"hello"))]
+                ),
+            ):
+                attempts = await _test_tenant_id(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 14
+
+    @pytest.mark.asyncio
+    async def test_unparseable_jwt_skips_claims(self) -> None:
+        bad = (200, {"Authorization": "Bearer not-a.jwt"}, b"hello")
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch_headers([("Authorization", False, bad)]),
+            ):
+                attempts = await _test_tenant_id(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 14
+
+
+# ─── Subdomain Isolation Tester ──────────────────────────────────────────────
+
+
+class TestSubdomainIsolationTester:
+    @pytest.mark.asyncio
+    async def test_wildcard_and_samesite_none(self) -> None:
+        resp = (
+            200,
+            {"Set-Cookie": "session=1; Domain=.example.com; SameSite=None"},
+            b"hello",
+        )
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", resp)]),
+            ):
+                attempts = await _test_subdomain_isolation(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 6
+        by_tech = {a.technique: a for a in attempts}
+        assert by_tech["cookie_domain_wildcard"].vulnerable is True
+        assert by_tech["samesite_none_bypass"].vulnerable is True
+        assert by_tech["cross_subdomain_referer"].vulnerable is False
+        assert by_tech["cross_subdomain_origin"].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_secure_cookies(self) -> None:
+        resp = (200, {"Set-Cookie": "session=1; SameSite=Strict"}, b"hello")
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", resp)]),
+            ):
+                attempts = await _test_subdomain_isolation(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 6
+        by_tech = {a.technique: a for a in attempts}
+        assert by_tech["cookie_domain_wildcard"].vulnerable is False
+        assert by_tech["samesite_none_bypass"].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_exceptions(self) -> None:
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", httpx.ConnectError("boom"))]),
+            ):
+                attempts = await _test_subdomain_isolation(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 6
+        assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_short_host_skips_subdomains(self) -> None:
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", (200, {}, b"hello"))]),
+            ):
+                attempts = await _test_subdomain_isolation(
+                    client, "http://localhost:8080", 5.0, 200, 1000
+                )
+        assert len(attempts) == 2
+
+
+# ─── Shared Resource Tester ──────────────────────────────────────────────────
+
+
+class TestSharedResourceTester:
+    @pytest.mark.asyncio
+    async def test_all_success(self) -> None:
+        vuln_body = b'{"user_id": 1, "tenant": "OTHER"}'
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", (200, {}, vuln_body))]),
+            ):
+                attempts = await _test_shared_resource(
+                    client, "https://example.com:8443", 5.0, 200, 1000
+                )
+        assert len(attempts) == 14
+        assert all(a.vulnerable for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_uuid_not_found(self) -> None:
+        vuln_body = b'{"user_id": 1, "tenant": "OTHER"}'
+        rules = [
+            ("/api/v1/files/", (404, {}, b"not found")),
+            ("", (200, {}, vuln_body)),
+        ]
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch(rules),
+            ):
+                attempts = await _test_shared_resource(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        uuid_attempts = [a for a in attempts if a.technique == "uuid_enumeration"]
+        assert len(uuid_attempts) == 4
+        assert all(not a.vulnerable for a in uuid_attempts)
+
+    @pytest.mark.asyncio
+    async def test_exceptions(self) -> None:
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", httpx.ConnectError("boom"))]),
+            ):
+                attempts = await _test_shared_resource(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 14
+        assert all(a.error for a in attempts)
+
+
+# ─── Cross-Tenant SSRF Tester ────────────────────────────────────────────────
+
+
+class TestCrossTenantSsrfTester:
+    @pytest.mark.asyncio
+    async def test_metadata_vulnerable(self) -> None:
+        rules = [
+            ("latest/meta-data", (200, {}, b"ami-id: i-123")),
+            ("", (200, {}, b"hello")),
+        ]
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch(rules),
+            ):
+                attempts = await _test_cross_tenant_ssrf(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        assert len(attempts) == 61
+        meta = [a for a in attempts if a.technique == "metadata_service"]
+        assert len(meta) == 16
+        assert all(a.vulnerable for a in meta)
+        others = [a for a in attempts if a.technique != "metadata_service"]
+        assert all(not a.vulnerable for a in others)
+
+    @pytest.mark.asyncio
+    async def test_exceptions(self) -> None:
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch([("", httpx.ConnectError("boom"))]),
+            ):
+                attempts = await _test_cross_tenant_ssrf(
+                    client, "https://example.com?x=1", 5.0, 200, 1000
+                )
+        assert len(attempts) == 61
+        assert all(a.error for a in attempts)
+
+
+# ─── Run Scan / CLI ──────────────────────────────────────────────────────────
+
+
+class TestRunScanUnknownCategory:
+    @pytest.mark.asyncio
+    async def test_unknown_category_skipped(self) -> None:
+        with patch(
+            "mytools.web.multitenant.fetch",
+            side_effect=_route_fetch([("", (200, {}, b'{"tenant_id": "TENANT_A"}'))]),
+        ):
+            result = await run_scan(
+                "https://example.com", ["not_a_real_cat"], 5.0, None
+            )
+        assert result.overall_status == "secure"
+        assert len(result.attempts) == 0
+
+
+class TestRunScanBlocked:
+    @pytest.mark.asyncio
+    async def test_blocked_techniques_and_output(self) -> None:
+        baseline = (200, {}, b'{"tenant_id": "TENANT_A"}', {})
+        blocked = (403, {}, b"forbidden", {})
+        with (
+            patch(
+                "mytools.web.multitenant.fetch",
+                new_callable=AsyncMock,
+                side_effect=[baseline] + [blocked] * 14,
+            ),
+            patch("mytools.web.multitenant.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                "https://example.com", ["tenant_id"], 5.0, "out.json"
+            )
+        assert len(result.blocked_techniques) > 0
+        assert any("blocked" in i for i in result.issues)
+        assert result.overall_status == "secure"
+        mock_write.assert_called_once()
+
+
+class TestRunOnce:
+    def test_vulnerable_returns_1(self) -> None:
+        result = _make_result(overall="vulnerable")
+        with (
+            patch(
+                "mytools.web.multitenant.run_scan",
+                new_callable=MagicMock,
+                return_value=result,
+            ),
+            patch(
+                "mytools.web.multitenant.safe_asyncio_run", return_value=result
+            ) as mock_run,
+        ):
+            code = run_once(argparse.Namespace(url="https://example.com"))
+        assert code == 1
+        mock_run.assert_called_once()
+
+    def test_secure_returns_0(self) -> None:
+        result = _make_result(overall="secure")
+        with (
+            patch(
+                "mytools.web.multitenant.run_scan",
+                new_callable=MagicMock,
+                return_value=result,
+            ),
+            patch("mytools.web.multitenant.safe_asyncio_run", return_value=result),
+        ):
+            code = run_once(
+                argparse.Namespace(
+                    url="https://example.com",
+                    categories=None,
+                    timeout=10.0,
+                    output=None,
+                )
+            )
+        assert code == 0
+
+
+class TestMain:
+    def test_main_returns(self) -> None:
+        with patch(
+            "mytools.web.multitenant.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.web.multitenant.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-multitenant"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.multitenant", run_name="__main__")

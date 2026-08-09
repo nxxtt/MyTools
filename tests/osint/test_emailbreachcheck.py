@@ -3,7 +3,8 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+import runpy
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -22,7 +23,9 @@ from mytools.osint.emailbreachcheck import (
     _query_xposedornot,
     build_parser,
     check_breaches,
+    main,
     print_results,
+    run_once,
 )
 
 # ── Dataclass ────────────────────────────────────────────────────────────────
@@ -562,3 +565,314 @@ class TestOutputDir:
         assert out_file.exists()
         data = json.loads(out_file.read_text(encoding="utf-8"))
         assert data[0]["breach_name"] == "LinkedIn"
+
+
+# ── Edge/error paths de _query_xposedornot ───────────────────────────────────
+
+
+class TestXposedornotEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_json(self) -> None:
+        respx.route(method="GET", url__startswith="https://api.xposedornot.com/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_xposedornot(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_dict_items(self) -> None:
+        respx.route(method="GET", url__startswith="https://api.xposedornot.com/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "breaches": [
+                        {
+                            "name": "LinkedIn",
+                            "date": "2012-05-05",
+                            "pwn_count": 10,
+                            "data_classes": "passwords,emails",
+                        },
+                    ]
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_xposedornot(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert len(breaches) == 1
+        assert breaches[0].pwn_count == 10
+        assert breaches[0].data_classes == "passwords,emails"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_other_breach_types(self) -> None:
+        respx.route(method="GET", url__startswith="https://api.xposedornot.com/").mock(
+            return_value=httpx.Response(200, json={"breaches": [123, 4.5]}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_xposedornot(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_breaches_string(self) -> None:
+        respx.route(method="GET", url__startswith="https://api.xposedornot.com/").mock(
+            return_value=httpx.Response(200, json={"breaches": "LinkedIn"}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_xposedornot(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+
+# ── Edge/error paths de _query_leakcheck ─────────────────────────────────────
+
+
+class TestLeakcheckEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_leakcheck(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_json(self) -> None:
+        respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_leakcheck(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_sources_not_list(self) -> None:
+        respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
+            return_value=httpx.Response(
+                200,
+                json={"success": True, "found": 1, "sources": {"LinkedIn": 1}},
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_leakcheck(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_other_source_types(self) -> None:
+        respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "found": 1,
+                    "sources": [{"name": "LinkedIn"}, 42],
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_leakcheck(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert len(breaches) == 1
+
+
+# ── Edge/error paths de _query_hibp ──────────────────────────────────────────
+
+
+class TestHibpEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.route(method="GET", url__startswith="https://haveibeenpwned.com/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_hibp(client, "test@test.com", "fake-key", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_json(self) -> None:
+        respx.route(method="GET", url__startswith="https://haveibeenpwned.com/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_hibp(client, "test@test.com", "fake-key", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_not_list(self) -> None:
+        respx.route(method="GET", url__startswith="https://haveibeenpwned.com/").mock(
+            return_value=httpx.Response(200, json={"Name": "LinkedIn"}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_hibp(client, "test@test.com", "fake-key", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
+
+# ── _query_email com fonte hibp ──────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_query_email_hibp_source():
+    with respx.mock:
+        respx.route(method="GET", url__startswith="https://haveibeenpwned.com/").mock(
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {
+                        "Name": "LinkedIn",
+                        "BreachDate": "2012-05-05",
+                        "PwnCount": 164000000,
+                        "DataClasses": ["passwords", "emails"],
+                    },
+                ],
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_email(
+            client, "test@test.com", ["hibp"], {"hibp": "fake-key"}, 5.0, rl
+        )
+        await client.aclose()
+        assert len(breaches) == 1
+        assert breaches[0].source == "hibp"
+
+
+@pytest.mark.asyncio
+async def test_query_email_unknown_source():
+    client = httpx.AsyncClient()
+    rl = RateLimiter(0)
+    breaches = await _query_email(client, "test@test.com", ["unknown"], {}, 5.0, rl)
+    await client.aclose()
+    assert breaches == []
+
+
+# ── _load_emails com arquivo ─────────────────────────────────────────────────
+
+
+class TestLoadEmailsFile:
+    def test_from_file(self, tmp_path) -> None:
+        email_file = tmp_path / "emails.txt"
+        email_file.write_text("a@b.com\n\nc@d.com\nnot-an-email\n", encoding="utf-8")
+        args = build_parser().parse_args(["-f", str(email_file)])
+        emails = _load_emails(args)
+        assert emails == ["a@b.com", "c@d.com"]
+
+    def test_file_not_found(self) -> None:
+        args = build_parser().parse_args(["-f", "definitely_missing_12345.txt"])
+        emails = _load_emails(args)
+        assert emails == []
+
+
+# ── run_once / _async_run_once / main ────────────────────────────────────────
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["a@b.com"])
+        with (
+            patch(
+                "mytools.osint.emailbreachcheck._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.osint.emailbreachcheck.safe_asyncio_run",
+                new_callable=MagicMock,
+                return_value=0,
+            ) as mock_safe,
+        ):
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_emails(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["a@b.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_hibp_without_key(self) -> None:
+        args = build_parser().parse_args(["a@b.com", "--source", "hibp"])
+        with patch(
+            "mytools.osint.emailbreachcheck.check_breaches",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results_path(self) -> None:
+        breach = EmailBreach(email="a@b.com", breach_name="LinkedIn", source="hibp")
+        args = build_parser().parse_args(["a@b.com"])
+        with patch(
+            "mytools.osint.emailbreachcheck.check_breaches",
+            new=AsyncMock(return_value=[breach]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["a@b.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.emailbreachcheck.check_breaches",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.emailbreachcheck.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.osint.emailbreachcheck.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-breach", "a@b.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.osint.emailbreachcheck", run_name="__main__")

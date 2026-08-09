@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -15,6 +16,7 @@ from mytools.web.attackanalysis import (
     build_graph,
     build_parser,
     export_dot,
+    main,
     print_results,
     render_png,
     render_svg,
@@ -257,6 +259,18 @@ class TestExportDot:
         content = Path(output).read_text(encoding="utf-8")
         assert "digraph AttackGraph" in content
 
+    def test_export_dot_with_edges(self, tmp_path: Path) -> None:
+        findings = [
+            {"severity": "high", "category": "xss", "item": "XSS1"},
+            {"severity": "medium", "category": "xss", "item": "XSS2"},
+        ]
+        graph = build_graph(findings, "test.com")
+        output = str(tmp_path / "edges.dot")
+        export_dot(graph, output)
+        content = Path(output).read_text(encoding="utf-8")
+        assert '"vuln_0" -> "vuln_1"' in content
+        assert "same_category" in content
+
 
 class TestPrintResults:
     def test_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -282,6 +296,26 @@ class TestPrintResults:
         print_results(graph, [])
         captured = capsys.readouterr()
         assert "No exploits suggested" in captured.out
+
+    def test_print_results_all_severities(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        graph = AttackGraph(
+            nodes=[],
+            edges=[],
+            target="test.com",
+            total_vulnerabilities=5,
+            critical_count=1,
+            high_count=1,
+            medium_count=1,
+            low_count=1,
+            info_count=1,
+        )
+        print_results(graph, [])
+        captured = capsys.readouterr()
+        assert "Critical: 1" in captured.out
+        assert "Medium: 1" in captured.out
+        assert "Info: 1" in captured.out
 
 
 class TestRunOnceLogging:
@@ -390,6 +424,52 @@ class TestRunOnceLogging:
             result = run_once(args)
         assert result == 0
         assert "DOT salvo" in caplog.text
+
+    def test_dict_findings_wrapped(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        import argparse
+
+        findings = tmp_path / "findings.json"
+        findings.write_text(
+            '{"severity": "low", "category": "test", "item": "T"}',
+            encoding="utf-8",
+        )
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com",
+            output=None,
+            png=None,
+            svg=None,
+            dot=None,
+            json_output=False,
+        )
+        result = run_once(args)
+        out = capsys.readouterr().out
+        assert "Attack Analysis" in out
+        assert result == 0
+
+    def test_output_file_written(self, tmp_path: Path) -> None:
+        import argparse
+
+        findings = tmp_path / "findings.json"
+        findings.write_text(
+            '[{"severity": "low", "category": "test", "item": "T"}]',
+            encoding="utf-8",
+        )
+        out_file = str(tmp_path / "out.json")
+        args = argparse.Namespace(
+            findings_file=str(findings),
+            target="test.com",
+            output=out_file,
+            png=None,
+            svg=None,
+            dot=None,
+            json_output=False,
+        )
+        result = run_once(args)
+        assert result == 0
+        assert Path(out_file).exists()
 
 
 class TestJsonOutput:
@@ -510,3 +590,28 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args(["findings.json", "--exploits-only"])
         assert args.exploits_only is True
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.attackanalysis.run_main_loop", return_value=0
+        ) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_main_guard_runs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import runpy
+
+        import mytools.web.attackanalysis as analysis_mod
+
+        monkeypatch.setattr(
+            analysis_mod,
+            "main",
+            lambda: (_ for _ in ()).throw(SystemExit(0)),
+        )
+        with patch("sys.argv", ["mytools-analysis"]), pytest.raises(SystemExit):
+            runpy.run_module("mytools.web.attackanalysis", run_name="__main__")

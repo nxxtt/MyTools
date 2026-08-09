@@ -153,6 +153,25 @@ class TestFetchStealth:
 
     @respx.mock
     @pytest.mark.anyio
+    async def test_user_agent_rotate_keeps_existing_headers(self):
+        init_scanner(_make_args(user_agent_rotate=True))
+        captured: dict[str, dict[str, str]] = {}
+
+        def capture(request):
+            captured["headers"] = dict(request.headers)
+            return httpx.Response(200, content=b"ok")
+
+        respx.route(method="GET").mock(side_effect=capture)
+        client = httpx.AsyncClient()
+        status, _, _, _ = await fetch(
+            client, "http://example.com/test", headers={"X-Custom": "1"}
+        )
+        assert status == 200
+        assert captured["headers"].get("x-custom") == "1"
+        assert "user-agent" in captured["headers"]
+
+    @respx.mock
+    @pytest.mark.anyio
     async def test_no_stealth_fetch_unchanged(self):
         init_scanner(_make_args())
         respx.get("http://example.com/plain").mock(

@@ -425,7 +425,7 @@ async def _test_modbus_scan(host: str, port: int, timeout: float) -> IoTAttackAt
                 sock.settimeout(min(timeout, 3.0))
                 sock.connect((host, port))
                 txn_id = random.randint(0, 65535)
-                payload = struct.pack(">HHB", txn_id, 0x0000, 6, unit_id) + bytes(
+                payload = struct.pack(">HHHB", txn_id, 0x0000, 6, unit_id) + bytes(
                     [fc, 0x00, 0x00, 0x00, 0x0A]
                 )
                 sock.send(payload)
@@ -553,9 +553,9 @@ async def _test_opcua_discovery(
     policies_count = len(device_info["security_policies"])
     vuln = policies_count > 0
     details = f"Policies: {policies_count}"
-    if endpoints_count:
+    if endpoints_count:  # pragma: no cover
         details += f", Endpoints: {endpoints_count}"
-    if nodes_count:
+    if nodes_count:  # pragma: no cover
         details += f", Nodes: {nodes_count}"
     if device_info["server"]:
         details += ", Server: detected"

@@ -1,16 +1,28 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Dark Web Monitoring."""
 
+import asyncio
+import runpy
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
 import respx
 
+from mytools.core.utils import RateLimiter
 from mytools.osint.darkwebmonitor import (
     DarkWebMention,
+    _async_run_once,
     _classify_severity,
     _dedup_mentions,
+    _query_ahmia,
+    _query_darksearch,
+    _query_intelx,
+    banner,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_darkweb,
 )
 
@@ -241,6 +253,17 @@ class TestScanDarkweb:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_unknown_source(self) -> None:
+        mentions = await scan_darkweb(
+            domain="example.com",
+            sources=["unknown_source"],
+            api_keys={},
+            max_results=5,
+        )
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_dedup_across_sources(self) -> None:
         html = '<div class="result"><h3><a href="http://test.onion">example password</a></h3></div>'
         respx.get("https://ahmia.fi/search/").mock(
@@ -267,3 +290,330 @@ class TestScanDarkweb:
             max_results=5,
         )
         assert len(mentions) == 2
+
+
+# ── Edge/error paths de _query_ahmia ─────────────────────────────────────────
+
+
+class TestQueryAhmiaEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error(self) -> None:
+        respx.get(url__startswith="https://ahmia.fi/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_ahmia(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.get(url__startswith="https://ahmia.fi/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_ahmia(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_empty_title(self) -> None:
+        html = '<h3><a href="http://x.onion"></a></h3>'
+        respx.get(url__startswith="https://ahmia.fi/").mock(
+            return_value=httpx.Response(200, text=html),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_ahmia(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert mentions == []
+
+
+# ── Edge/error paths de _query_darksearch ────────────────────────────────────
+
+
+class TestQueryDarksearchEdges:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error(self) -> None:
+        respx.get(url__startswith="https://darksearch.io/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_darksearch(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.get(url__startswith="https://darksearch.io/").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_darksearch(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_missing_link(self) -> None:
+        api_response = {
+            "data": [
+                {
+                    "title": "example.com password leak",
+                    "description": "password dump",
+                    "date": "2025-01-01",
+                },
+            ],
+        }
+        respx.get(url__startswith="https://darksearch.io/").mock(
+            return_value=httpx.Response(200, json=api_response),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_darksearch(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert mentions == []
+
+
+# ── _query_intelx ────────────────────────────────────────────────────────────
+
+
+class TestQueryIntelx:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_success(self) -> None:
+        respx.post("https://2.intelx.io/intelligent/search").mock(
+            return_value=httpx.Response(200, json={"id": "abc123"}),
+        )
+        respx.get("https://2.intelx.io/intelligent/search/result?id=abc123&x=20").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "records": [
+                        {
+                            "name": "password dump for example.com",
+                            "selector_value": "test@example.com",
+                            "bucket": "pastes",
+                        },
+                    ]
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "key123")
+        await client.aclose()
+        assert len(mentions) == 1
+        assert mentions[0].source == "intelx"
+        assert mentions[0].severity == "critical"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_no_key(self) -> None:
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "")
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error(self) -> None:
+        respx.post("https://2.intelx.io/intelligent/search").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "key123")
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self) -> None:
+        respx.post("https://2.intelx.io/intelligent/search").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "key123")
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_json(self) -> None:
+        respx.post("https://2.intelx.io/intelligent/search").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "key123")
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_no_search_id(self) -> None:
+        respx.post("https://2.intelx.io/intelligent/search").mock(
+            return_value=httpx.Response(200, json={"id": ""}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "key123")
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_result_fetch_error(self) -> None:
+        respx.post("https://2.intelx.io/intelligent/search").mock(
+            return_value=httpx.Response(200, json={"id": "abc123"}),
+        )
+        respx.get(url__startswith="https://2.intelx.io/intelligent/search/result").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "key123")
+        await client.aclose()
+        assert mentions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_result_non_200(self) -> None:
+        respx.post("https://2.intelx.io/intelligent/search").mock(
+            return_value=httpx.Response(200, json={"id": "abc123"}),
+        )
+        respx.get(url__startswith="https://2.intelx.io/intelligent/search/result").mock(
+            return_value=httpx.Response(500),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        mentions = await _query_intelx(client, "example.com", 5.0, rl, "key123")
+        await client.aclose()
+        assert mentions == []
+
+
+# ── Banner / run_once / _async_run_once / main ───────────────────────────────
+
+
+class TestBanner:
+    def test_banner(self) -> None:
+        with patch("mytools.osint.darkwebmonitor.create_banner") as mock_create:
+            mock_create.return_value = MagicMock()
+            banner()
+        mock_create.assert_called_once()
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["example.com"])
+        with (
+            patch(
+                "mytools.osint.darkwebmonitor._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.osint.darkwebmonitor.safe_asyncio_run",
+                new_callable=MagicMock,
+                return_value=0,
+            ) as mock_safe,
+        ):
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_file_not_found(self) -> None:
+        args = build_parser().parse_args(["-l", "definitely_missing_12345.txt"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["example.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_domain_from_file(self, tmp_path) -> None:
+        domain_file = tmp_path / "domains.txt"
+        domain_file.write_text("example.com\nother.com\n\n", encoding="utf-8")
+        args = build_parser().parse_args(["-l", str(domain_file)])
+        with patch(
+            "mytools.osint.darkwebmonitor.scan_darkweb",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_intelx_without_key(self) -> None:
+        args = build_parser().parse_args(["example.com", "--source", "intelx"])
+        with patch(
+            "mytools.osint.darkwebmonitor.scan_darkweb",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_with_output(self, tmp_path) -> None:
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["example.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.darkwebmonitor.scan_darkweb",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.darkwebmonitor.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+    def test_quiet_skips_print(self, tmp_path) -> None:
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["example.com", "-q", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.osint.darkwebmonitor.scan_darkweb",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.darkwebmonitor.print_results") as mock_print,
+            patch("mytools.osint.darkwebmonitor.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_print.assert_not_called()
+        mock_write.assert_called_once()
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.osint.darkwebmonitor.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-darkwebmonitor", "example.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.osint.darkwebmonitor", run_name="__main__")

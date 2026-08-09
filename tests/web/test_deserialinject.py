@@ -30,6 +30,7 @@ from mytools.web.deserialinject import (
     _test_php,
     _test_python,
     _test_ruby,
+    banner_art,
     build_parser,
     main,
     print_results,
@@ -507,6 +508,41 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "VULNERABILIDADES DETECTADAS" in output
 
+    def test_vulnerable_without_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = DeserialResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                DeserialAttempt(
+                    technique="php_basic",
+                    category="php",
+                    payload="payload",
+                    param="data",
+                    method="post_json",
+                    status_baseline=200,
+                    status_test=200,
+                    size_baseline=100,
+                    size_test=200,
+                    status_changed=False,
+                    size_changed=True,
+                    vulnerable=True,
+                    details="",
+                    error="",
+                ),
+            ],
+            vulnerable_techniques=["php_basic"],
+            blocked_techniques=[],
+            issues=["VULN: php_basic via data"],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "php_basic" in output
+
     def test_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = DeserialResult(
             target="https://example.com",
@@ -522,6 +558,56 @@ class TestPrintResults:
         print_results(result)
         output = capsys.readouterr().out
         assert "Nenhuma Deserialization Injection detectada" in output
+
+    def test_with_blocked_and_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = DeserialResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                DeserialAttempt(
+                    technique="php_basic",
+                    category="php",
+                    payload="payload",
+                    param="data",
+                    method="post_json",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="403 Forbidden",
+                ),
+                DeserialAttempt(
+                    technique="java_ysoserial",
+                    category="java",
+                    payload="payload",
+                    param="data",
+                    method="post_json",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="Connection refused",
+                ),
+            ],
+            vulnerable_techniques=[],
+            blocked_techniques=["php_basic"],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "payloads bloqueados (403/429)" in output
+        assert "1 erros de conexao" in output
 
 
 @pytest.mark.smoke
@@ -568,6 +654,26 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+
+class TestMainGuard:
+    """Testes para o guard if __name__ == '__main__'."""
+
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.deserialinject", run_name="__main__")
+
+
+class TestBannerArt:
+    """Testes para banner_art."""
+
+    def test_runs(self) -> None:
+        banner_art()
 
 
 class TestRubyPayloads:
@@ -787,6 +893,27 @@ class TestIntegration:
             verbose=False,
         )
         assert result == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_invalid_category(self) -> None:
+        from mytools.web.deserialinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["invalid"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 0
 
     @pytest.mark.asyncio
     @respx.mock

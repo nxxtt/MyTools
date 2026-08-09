@@ -25,7 +25,9 @@ from mytools.config.backupfiledetect import (
     _load_paths_from_args,
     _validate_content,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_backups,
 )
 
@@ -114,6 +116,18 @@ class TestClassifyBackup:
             for p in paths:
                 assert _classify_backup(p) == btype
 
+    def test_tilde_extension_not_in_list(self):
+        assert _classify_backup("custom-file~") == "tilde"
+
+    def test_sql_extension_not_in_list(self):
+        assert _classify_backup("mydb.sql") == "sql"
+
+    def test_orig_tmp_extension_not_in_list(self):
+        assert _classify_backup("foo.tmp") == "orig_tmp"
+
+    def test_no_extension_falls_back_to_bak(self):
+        assert _classify_backup("plainname") == "bak"
+
 
 # ── _validate_content ────────────────────────────────────────────────────────
 
@@ -181,6 +195,24 @@ class TestValidateContent:
 
     def test_swp_too_small(self):
         ok, _ = _validate_content(".config.php.swp", b"\xff\x00\x01")
+        assert ok is False
+
+    def test_lzma_archive(self):
+        ok, detail = _validate_content(
+            "archive.tar.gz", b"]\x00\x00\x04" + b"\x00" * 50
+        )
+        assert ok is True
+        assert "LZMA" in detail
+
+    def test_7z_archive(self):
+        ok, detail = _validate_content(
+            "backup.zip", b"7z\xbc\xaf\x27\x1c" + b"\x00" * 50
+        )
+        assert ok is True
+        assert "LZMA" in detail
+
+    def test_archive_without_magic(self):
+        ok, _ = _validate_content("backup.zip", b"not really a zip")
         assert ok is False
 
 
@@ -496,6 +528,86 @@ async def test_scan_backups_fetch_error():
 
 
 @pytest.mark.asyncio
+async def test_scan_backups_head_200_without_content_length():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/config.php.bak").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/config.php.bak").mock(
+            return_value=httpx.Response(200, content=b"backup content here"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        backups = await scan_backups(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(b.path == "config.php.bak" for b in backups)
+
+
+@pytest.mark.asyncio
+async def test_scan_backups_head_bad_content_length():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/config.php.bak").mock(
+            return_value=httpx.Response(200, headers={"content-length": "abc"}),
+        )
+        respx.route(method="GET", url="http://x.com/config.php.bak").mock(
+            return_value=httpx.Response(200, content=b"backup content here"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        backups = await scan_backups(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(b.path == "config.php.bak" for b in backups)
+
+
+@pytest.mark.asyncio
+async def test_scan_backups_get_connect_error():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/config.php.bak").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/config.php.bak").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        backups = await scan_backups(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert backups == []
+
+
+@pytest.mark.asyncio
+async def test_scan_backups_get_non_200():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/config.php.bak").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/config.php.bak").mock(
+            return_value=httpx.Response(500),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        backups = await scan_backups(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert backups == []
+
+
+@pytest.mark.asyncio
 async def test_scan_backups_custom_type_filter():
     with respx.mock:
         respx.route(method="HEAD", url__startswith="http://x.com/").mock(
@@ -572,3 +684,140 @@ class TestJsonOutput:
         data, _ = decoder.raw_decode(captured)
         assert isinstance(data, list)
         assert data[0]["path"] == "c.php.bak"
+
+
+class TestPrintResultsExploit:
+    def test_with_exploit(self, capsys):
+        backup = BackupFile(
+            backup_type="sql",
+            url="http://x.com/dump.sql",
+            path="dump.sql",
+            status=200,
+            detail="SQL dump",
+            raw_size=1024,
+            exploit="curl http://x.com/dump.sql",
+            tool="curl",
+        )
+        print_results([backup])
+        out = capsys.readouterr().out
+        assert "Exploits" in out
+
+
+class TestAsyncRunOnce:
+    def _args(self):
+        args = build_parser().parse_args(["http://x.com"])
+        args.dry_run = False
+        args.json_output = False
+        args.output = None
+        args.output_dir = None
+        return args
+
+    def test_dry_run(self):
+        args = self._args()
+        args.dry_run = True
+        with (
+            patch(
+                "mytools.config.backupfiledetect.init_scanner",
+                return_value=False,
+            ),
+            patch(
+                "mytools.config.backupfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_prints_results_when_not_quiet(self, capsys):
+        args = self._args()
+        with (
+            patch(
+                "mytools.config.backupfiledetect.init_scanner",
+                return_value=False,
+            ),
+            patch(
+                "mytools.config.backupfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.config.backupfiledetect.scan_backups",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_output_dir(self, tmp_path):
+        args = self._args()
+        args.output_dir = str(tmp_path)
+        with (
+            patch(
+                "mytools.config.backupfiledetect.init_scanner",
+                return_value=True,
+            ),
+            patch(
+                "mytools.config.backupfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.config.backupfiledetect.scan_backups",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.config.backupfiledetect.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+    def test_output_file(self, tmp_path):
+        args = self._args()
+        args.output = str(tmp_path / "out.json")
+        with (
+            patch(
+                "mytools.config.backupfiledetect.init_scanner",
+                return_value=True,
+            ),
+            patch(
+                "mytools.config.backupfiledetect.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.config.backupfiledetect.scan_backups",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.config.backupfiledetect.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+
+# ── run_once / main / __main__ guard ─────────────────────────────────────────
+
+
+class TestRunOnceAndMain:
+    def test_run_once(self):
+        args = argparse.Namespace()
+        with patch(
+            "mytools.config.backupfiledetect._async_run_once",
+            new_callable=AsyncMock,
+            return_value=0,
+        ):
+            assert run_once(args) == 0
+
+    def test_main(self):
+        with patch(
+            "mytools.config.backupfiledetect.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-backupfiledetect"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.config.backupfiledetect", run_name="__main__")

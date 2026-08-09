@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+import argparse
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -24,7 +25,10 @@ from mytools.web.headeredge import (
     _test_malformed_version,
     _test_null_request_byte,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 # ─── Dataclass Tests ─────────────────────────────────────────────────────────
@@ -253,6 +257,58 @@ class TestSendRaw:
         status, _response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
         assert status == 0
 
+    def test_no_content_length_short(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\n\r\nshort-body",
+            b"",
+        ]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert response == b"HTTP/1.1 200 OK\r\n\r\nshort-body"
+
+    def test_no_content_length_long(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\n\r\n" + b"A" * 2048,
+            b"",
+        ]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert len(response) > 1024
+
+    def test_http09_response(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [b"HTTP/0.9\r\n\r\nplain body", b""]
+        status, response = _send_raw(mock_sock, b"GET /\r\n", 5.0)
+        assert status == 200
+        assert response == b"HTTP/0.9\r\n\r\nplain body"
+
+    def test_incomplete_headers(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [b"HTTP/1.1 200 OK\r\n", b""]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert response == b"HTTP/1.1 200 OK\r\n"
+
+    def test_partial_body_then_complete(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n12345",
+            b"67890",
+            b"",
+        ]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert response == b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n1234567890"
+
+    def test_response_without_status_line(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [b"GARBAGE\r\n\r\nbody", b""]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 0
+        assert response == b"GARBAGE\r\n\r\nbody"
+
 
 # ─── Baseline Tests ──────────────────────────────────────────────────────────
 
@@ -343,6 +399,23 @@ class TestMalformedVersion:
             assert len(results) == 5
             assert all(r.category == "malformed_version" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_handles_exception(self) -> None:
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
+            results = await _test_malformed_version(
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
+            )
+            assert len(results) == 5
+            assert all(r.error != "" for r in results)
+
 
 # ─── Category Tests: null_request_byte ───────────────────────────────────────
 
@@ -365,6 +438,23 @@ class TestNullRequestByte:
             )
             assert len(results) == 5
             assert all(r.category == "null_request_byte" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_handles_exception(self) -> None:
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
+            results = await _test_null_request_byte(
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
+            )
+            assert len(results) == 5
+            assert all(r.error != "" for r in results)
 
 
 # ─── Category Tests: header_whitespace ───────────────────────────────────────
@@ -389,6 +479,23 @@ class TestHeaderWhitespace:
             assert len(results) == 5
             assert all(r.category == "header_whitespace" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_handles_exception(self) -> None:
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
+            results = await _test_header_whitespace(
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
+            )
+            assert len(results) == 5
+            assert all(r.error != "" for r in results)
+
 
 # ─── Category Tests: header_case ─────────────────────────────────────────────
 
@@ -411,6 +518,23 @@ class TestHeaderCase:
             )
             assert len(results) == 5
             assert all(r.category == "header_case" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_handles_exception(self) -> None:
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
+            results = await _test_header_case(
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
+            )
+            assert len(results) == 5
+            assert all(r.error != "" for r in results)
 
 
 # ─── Category Tests: absolute_uri ────────────────────────────────────────────
@@ -435,6 +559,23 @@ class TestAbsoluteUri:
             assert len(results) == 5
             assert all(r.category == "absolute_uri" for r in results)
 
+    @pytest.mark.asyncio
+    async def test_handles_exception(self) -> None:
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
+            results = await _test_absolute_uri(
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
+            )
+            assert len(results) == 5
+            assert all(r.error != "" for r in results)
+
 
 # ─── Category Tests: http09_request ──────────────────────────────────────────
 
@@ -457,6 +598,23 @@ class TestHttp09Request:
             )
             assert len(results) == 5
             assert all(r.category == "http09_request" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_handles_exception(self) -> None:
+        with patch(
+            "mytools.web.headeredge._create_connection", side_effect=OSError("fail")
+        ):
+            results = await _test_http09_request(
+                "example.com",
+                80,
+                "/",
+                5.0,
+                False,
+                200,
+                100,
+            )
+            assert len(results) == 5
+            assert all(r.error != "" for r in results)
 
 
 # ─── Parser Tests ────────────────────────────────────────────────────────────
@@ -561,3 +719,239 @@ class TestPrintResults:
         print_results(result)
         output = capsys.readouterr().out
         assert "Issues:" in output
+
+
+# ─── Print Results (extra) ───────────────────────────────────────────────────
+
+
+class TestPrintResultsExtra:
+    def test_print_secure_category(self, capsys: pytest.CaptureFixture[str]) -> None:
+        attempt = HeaderEdgeAttempt(
+            technique="dup_host",
+            category="duplicate_headers",
+            raw_request="GET / HTTP/1.1\r\nHost: a.com\r\nHost: b.com",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=1000,
+            size_test=1000,
+            vulnerable=False,
+            details="",
+            error="",
+        )
+        result = HeaderEdgeResult(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[attempt],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "duplicate_headers: secure" in output
+
+    def test_print_vulnerable_with_issues(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        attempt = HeaderEdgeAttempt(
+            technique="dup_host",
+            category="duplicate_headers",
+            raw_request="GET / HTTP/1.1\r\nHost: a.com\r\nHost: b.com",
+            status_baseline=200,
+            status_test=400,
+            size_baseline=1000,
+            size_test=200,
+            vulnerable=True,
+            details="Status: 400 (baseline: 200)",
+            error="",
+        )
+        result = HeaderEdgeResult(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[attempt],
+            vulnerable_techniques=["dup_host"],
+            issues=["Errors: dup_host"],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Issues:" in output
+        assert "duplicate_headers: 1 vulnerable(s)" in output
+        assert "VULNERABLE" in output
+
+
+# ─── Run Scan Tests ──────────────────────────────────────────────────────────
+
+
+class TestRunScan:
+    def _attempt(self, vulnerable: bool) -> HeaderEdgeAttempt:
+        return HeaderEdgeAttempt(
+            technique="dup_host",
+            category="duplicate_headers",
+            raw_request="GET / HTTP/1.1\r\nHost: a.com\r\nHost: b.com",
+            status_baseline=200,
+            status_test=400 if vulnerable else 200,
+            size_baseline=1000,
+            size_test=200 if vulnerable else 1000,
+            vulnerable=vulnerable,
+            details="Status: 400 (baseline: 200)",
+            error="",
+        )
+
+    @pytest.mark.asyncio
+    async def test_vulnerable(self) -> None:
+        with (
+            patch("mytools.web.headeredge._get_baseline", return_value=(200, 100)),
+            patch(
+                "mytools.web.headeredge._CATEGORY_DISPATCH",
+                {"duplicate_headers": AsyncMock(return_value=[self._attempt(True)])},
+            ),
+            patch("mytools.web.headeredge.print_results") as mock_print,
+        ):
+            result = await run_scan(
+                "https://example.com", ["duplicate_headers"], 5.0, None
+            )
+        assert result.overall_status == "vulnerable"
+        assert result.baseline_status == 200
+        assert result.vulnerable_techniques == ["dup_host"]
+        mock_print.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_secure_with_output_file(self) -> None:
+        with (
+            patch("mytools.web.headeredge._get_baseline", return_value=(200, 100)),
+            patch(
+                "mytools.web.headeredge._CATEGORY_DISPATCH",
+                {"duplicate_headers": AsyncMock(return_value=[self._attempt(False)])},
+            ),
+            patch("mytools.web.headeredge.print_results"),
+            patch("mytools.web.headeredge.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                "http://example.com", ["duplicate_headers"], 5.0, "out.json"
+            )
+        assert result.overall_status == "secure"
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_tester_error(self) -> None:
+        with (
+            patch("mytools.web.headeredge._get_baseline", return_value=(200, 100)),
+            patch(
+                "mytools.web.headeredge._CATEGORY_DISPATCH",
+                {"duplicate_headers": AsyncMock(side_effect=OSError("boom"))},
+            ),
+            patch("mytools.web.headeredge.print_results"),
+        ):
+            result = await run_scan(
+                "http://example.com", ["duplicate_headers"], 5.0, None
+            )
+        assert result.overall_status == "secure"
+        assert len(result.attempts) == 1
+        assert result.attempts[0].error != ""
+        assert result.issues
+
+    @pytest.mark.asyncio
+    async def test_unknown_category(self) -> None:
+        with (
+            patch("mytools.web.headeredge._get_baseline", return_value=(200, 100)),
+            patch("mytools.web.headeredge.print_results"),
+        ):
+            result = await run_scan("http://example.com", ["does_not_exist"], 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_default_categories(self) -> None:
+        with (
+            patch("mytools.web.headeredge._get_baseline", return_value=(200, 100)),
+            patch("mytools.web.headeredge._CATEGORY_DISPATCH", {}),
+            patch("mytools.web.headeredge.print_results"),
+        ):
+            result = await run_scan("http://example.com", None, 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+
+# ─── Run Once Tests ──────────────────────────────────────────────────────────
+
+
+class TestRunOnce:
+    def _make_result(self, status: str) -> HeaderEdgeResult:
+        return HeaderEdgeResult(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status=status,
+        )
+
+    def test_run_once_vulnerable(self, base_ns: argparse.Namespace) -> None:
+        base_ns.url = "https://example.com"
+        base_ns.categories = None
+        base_ns.timeout = 5.0
+        base_ns.output = None
+        with (
+            patch(
+                "mytools.web.headeredge.run_scan",
+                MagicMock(return_value=self._make_result("vulnerable")),
+            ),
+            patch(
+                "mytools.web.headeredge.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            assert run_once(base_ns) == 1
+
+    def test_run_once_secure(self, base_ns: argparse.Namespace) -> None:
+        base_ns.url = "https://example.com"
+        base_ns.categories = None
+        base_ns.timeout = 5.0
+        base_ns.output = None
+        with (
+            patch(
+                "mytools.web.headeredge.run_scan",
+                MagicMock(return_value=self._make_result("secure")),
+            ),
+            patch(
+                "mytools.web.headeredge.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            assert run_once(base_ns) == 0
+
+
+# ─── Main Tests ──────────────────────────────────────────────────────────────
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch("mytools.web.headeredge.run_main_loop", return_value=0) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_guard(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-headeredge"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.headeredge", run_name="__main__")
+        assert exc_info.value.code == 0

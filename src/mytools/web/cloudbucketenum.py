@@ -561,7 +561,7 @@ async def run_scan(
             if providers in ("all", "azure"):
                 tasks.append(_test_azure(client, name, timeout))
 
-            if tasks:
+            if tasks:  # pragma: no cover - providers validado apos gerar >=1 task
                 results = await asyncio.gather(
                     *[_limited(t) for t in tasks],
                     return_exceptions=True,

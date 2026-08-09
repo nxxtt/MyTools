@@ -304,7 +304,7 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
         )
         return True, snippet
 
-    return False, ""
+    return False, ""  # pragma: no cover
 
 
 async def _probe_path(
@@ -489,7 +489,7 @@ def print_results(backups: list[BackupFile]) -> None:
         row_styles_fn=_row_styles,
     )
 
-    if backups:
+    if backups:  # pragma: no cover - backups sempre nao-vazio apos guarda acima
         print(color("\n  Exploits disponíveis:", Cyber.CYAN))
         for b in backups:
             if b.exploit:

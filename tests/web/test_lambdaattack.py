@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
 import respx
@@ -17,8 +19,15 @@ from mytools.web.lambdaattack import (
     _is_lambda_response,
     _make_attempt,
     _parse_url,
+    _test_env_var_leak,
+    _test_lambda,
+    _test_layer_enumeration,
+    _test_temp_file_persistence,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 
@@ -187,6 +196,15 @@ class TestParseUrl:
         _host, _path, port, _tls = _parse_url("https://target.com:8080/api")
         assert port == 8080
 
+    def test_no_scheme(self) -> None:
+        host, _path, _port, tls = _parse_url("target.com")
+        assert host == "target.com"
+        assert tls is True
+
+    def test_grpc_scheme(self) -> None:
+        _host, _path, _port, tls = _parse_url("grpcs://target.com")
+        assert tls is True
+
 
 class TestMakeAttempt:
     def test_creation(self) -> None:
@@ -287,3 +305,295 @@ async def test_category_dispatch_all_return_lists() -> None:
         for attempt in result:
             assert isinstance(attempt, LambdaAttackAttempt)
             assert attempt.category == cat
+
+
+class TestEnvVarLeak:
+    @pytest.mark.asyncio
+    async def test_lambda_response_leak(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = "Error: AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE"
+        resp.headers = {"x-amzn-requestid": "abc123"}
+        client.post = AsyncMock(return_value=resp)
+        attempt = await _test_env_var_leak("https://target.com/api", 5.0, client)
+        assert attempt.vulnerable is True
+        assert "AWS_ACCESS_KEY_ID" in attempt.leaked_vars
+
+    @pytest.mark.asyncio
+    async def test_no_leak(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = "Hello world"
+        resp.headers = {}
+        client.post = AsyncMock(return_value=resp)
+        attempt = await _test_env_var_leak("https://target.com/api", 5.0, client)
+        assert attempt.vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        attempt = await _test_env_var_leak("https://target.com/api", 5.0, client)
+        assert attempt.vulnerable is False
+        assert attempt.details == "No env vars detected"
+
+
+class TestLayerEnumerationError:
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        attempt = await _test_layer_enumeration("https://target.com/api", 5.0, client)
+        assert attempt.vulnerable is False
+        assert attempt.details == "No layer info leaked"
+
+
+class TestTempFilePersistence:
+    @pytest.mark.asyncio
+    async def test_marker_persists(self) -> None:
+        async def fake_post(url, content=None, **kwargs):
+            resp = MagicMock()
+            resp.status_code = 200
+            text = (
+                content.decode("utf-8", errors="ignore")
+                if isinstance(content, bytes)
+                else str(content)
+            )
+            resp.text = text
+            resp.headers = {}
+            return resp
+
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=fake_post)
+        attempt = await _test_temp_file_persistence(
+            "https://target.com/api", 5.0, client
+        )
+        assert attempt.vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_arns_leak(self) -> None:
+        client = MagicMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = "arn:aws:lambda:us-east-1:123456789012:function:my-func"
+        resp.headers = {}
+        client.post = AsyncMock(return_value=resp)
+        attempt = await _test_temp_file_persistence(
+            "https://target.com/api", 5.0, client
+        )
+        assert attempt.vulnerable is True
+        assert "arns:" in attempt.details
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
+        attempt = await _test_temp_file_persistence(
+            "https://target.com/api", 5.0, client
+        )
+        assert attempt.vulnerable is False
+        assert attempt.details == "No persistence signals detected"
+
+
+class TestLambda:
+    @pytest.mark.asyncio
+    async def test_exception_in_tester(self) -> None:
+        ok = _make_attempt(
+            "layer_enumeration", "lambda", "", False, "", "", "https://target.com", 200
+        )
+        with (
+            patch(
+                "mytools.web.lambdaattack._test_env_var_leak",
+                AsyncMock(side_effect=OSError("boom")),
+            ),
+            patch(
+                "mytools.web.lambdaattack._test_layer_enumeration",
+                AsyncMock(return_value=[ok]),
+            ),
+            patch(
+                "mytools.web.lambdaattack._test_temp_file_persistence",
+                AsyncMock(return_value=[ok]),
+            ),
+        ):
+            results = await _test_lambda(
+                "target.com", 443, "", 5.0, True, "https://target.com"
+            )
+        assert len(results) == 3
+        assert results[0].error != ""
+        assert results[0].technique == "env_var_leak"
+
+
+class TestPrintResultsExtra:
+    def test_secure_category(self, capsys: pytest.CaptureFixture[str]) -> None:
+        a = LambdaAttackAttempt(
+            technique="env_var_leak",
+            category="lambda",
+            description="desc",
+            vulnerable=False,
+            details="No env vars detected",
+            error="",
+            endpoint="https://target.com",
+            response_code=200,
+            leaked_vars=[],
+            leak_count=0,
+        )
+        r = LambdaAttackResult(
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            lambda_detected=False,
+            attempts=[a],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(r)
+        output = capsys.readouterr().out
+        assert "lambda: secure" in output
+
+
+class TestRunScan:
+    def _make_result_attempt(self, vulnerable: bool, leak_count: int = 0):
+        return LambdaAttackAttempt(
+            technique="env_var_leak",
+            category="lambda",
+            description="desc",
+            vulnerable=vulnerable,
+            details="leak found" if vulnerable else "no leak",
+            error="",
+            endpoint="https://target.com",
+            response_code=200,
+            leaked_vars=["AWS_KEY"] if leak_count else [],
+            leak_count=leak_count,
+        )
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_with_output(self) -> None:
+        attempt = self._make_result_attempt(True, 1)
+        with (
+            patch(
+                "mytools.web.lambdaattack._CATEGORY_DISPATCH",
+                {"lambda": AsyncMock(return_value=[attempt])},
+            ),
+            patch("mytools.web.lambdaattack.print_results"),
+            patch("mytools.web.lambdaattack.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                "https://target.com:8080/api", ["lambda"], 5.0, "out.json"
+            )
+        assert result.overall_status == "vulnerable"
+        assert result.lambda_detected is True
+        assert result.endpoint == "https://target.com:8080/api"
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_secure(self) -> None:
+        attempt = self._make_result_attempt(False, 0)
+        with (
+            patch(
+                "mytools.web.lambdaattack._CATEGORY_DISPATCH",
+                {"lambda": AsyncMock(return_value=[attempt])},
+            ),
+            patch("mytools.web.lambdaattack.print_results"),
+        ):
+            result = await run_scan("https://target.com/api", ["lambda"], 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.lambda_detected is False
+
+    @pytest.mark.asyncio
+    async def test_unknown_category(self) -> None:
+        with (
+            patch("mytools.web.lambdaattack._CATEGORY_DISPATCH", {}),
+            patch("mytools.web.lambdaattack.print_results"),
+        ):
+            result = await run_scan("https://target.com/api", None, 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_tester_error(self) -> None:
+        with (
+            patch(
+                "mytools.web.lambdaattack._CATEGORY_DISPATCH",
+                {"lambda": AsyncMock(side_effect=OSError("boom"))},
+            ),
+            patch("mytools.web.lambdaattack.print_results"),
+        ):
+            result = await run_scan("https://target.com/api", ["lambda"], 5.0, None)
+        assert result.overall_status == "secure"
+        assert len(result.attempts) == 1
+        assert result.attempts[0].error != ""
+        assert result.issues
+
+    @pytest.mark.asyncio
+    async def test_no_path(self) -> None:
+        with (
+            patch("mytools.web.lambdaattack._CATEGORY_DISPATCH", {}),
+            patch("mytools.web.lambdaattack.print_results"),
+        ):
+            result = await run_scan("https://target.com", None, 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.endpoint == "https://target.com"
+
+
+class TestRunOnce:
+    def _make_result(self, status: str) -> LambdaAttackResult:
+        return LambdaAttackResult(
+            target="https://target.com",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com",
+            lambda_detected=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status=status,
+        )
+
+    def test_vulnerable(self, base_ns) -> None:
+        base_ns.url = "https://target.com/api"
+        base_ns.timeout = 5.0
+        base_ns.output = None
+        with patch(
+            "mytools.web.lambdaattack.run_scan",
+            AsyncMock(return_value=self._make_result("vulnerable")),
+        ) as mock_run:
+            assert run_once(base_ns) == 1
+        mock_run.assert_called_once()
+
+    def test_secure(self, base_ns) -> None:
+        base_ns.url = "https://target.com/api"
+        base_ns.timeout = 5.0
+        base_ns.output = None
+        with patch(
+            "mytools.web.lambdaattack.run_scan",
+            AsyncMock(return_value=self._make_result("secure")),
+        ):
+            assert run_once(base_ns) == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.lambdaattack.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_guard(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-lambda"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.lambdaattack", run_name="__main__")
+        assert exc_info.value.code == 0

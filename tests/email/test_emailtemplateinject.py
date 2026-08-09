@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Template Injection."""
 
+import asyncio
+import runpy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,13 +11,17 @@ from mytools.email import emailtemplateinject
 from mytools.email.emailtemplateinject import (
     TemplateInjectionResult,
     TemplateProbe,
+    _async_run_once,
     _build_email,
     _connect_smtp,
     _detect_engine_from_response,
     _get_banner,
     _send_template_email,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_email_template_injection,
 )
 
@@ -312,6 +318,27 @@ class TestScanEmailTemplateInjection:
             )
             assert result.port == 25
 
+    def test_send_error(self) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"220 mail")
+
+        with (
+            patch(
+                "mytools.email.emailtemplateinject._connect_smtp",
+                return_value=mock_server,
+            ),
+            patch(
+                "mytools.email.emailtemplateinject._get_banner", return_value="220 mail"
+            ),
+            patch(
+                "mytools.email.emailtemplateinject._send_template_email",
+                side_effect=emailtemplateinject.smtplib.SMTPException("boom"),
+            ),
+        ):
+            result = scan_email_template_injection("mail.test.com", 587)
+            assert all(p.status == "error" for p in result.probes)
+            assert result.overall_status == "safe"
+
 
 class TestPrintResults:
     def test_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -398,3 +425,118 @@ class TestPrintResults:
         assert "jinja2" in out
         assert "handlebars" in out
         assert "jinja2_expr" in out
+
+
+class TestBanner:
+    def test_banner_art(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner_art()
+        captured = capsys.readouterr()
+        assert "template injection" in captured.out
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["mail.test.com"])
+        with (
+            patch(
+                "mytools.email.emailtemplateinject._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.email.emailtemplateinject.safe_asyncio_run",
+                new_callable=MagicMock,
+            ) as mock_safe,
+        ):
+            mock_safe.return_value = 0
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["mail.test.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results(self) -> None:
+        result = TemplateInjectionResult(
+            target="mail.test.com",
+            port=587,
+            banner="220",
+            engines_detected=[],
+            probes=[],
+            issues=[],
+            overall_status="unknown",
+        )
+        args = build_parser().parse_args(["mail.test.com"])
+        with patch(
+            "mytools.email.emailtemplateinject.scan_email_template_injection",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        result = TemplateInjectionResult(
+            target="mail.test.com",
+            port=587,
+            banner="220",
+            engines_detected=[],
+            probes=[],
+            issues=[],
+            overall_status="unknown",
+        )
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["mail.test.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.email.emailtemplateinject.scan_email_template_injection",
+                return_value=result,
+            ),
+            patch("mytools.email.emailtemplateinject.write_output") as mock_write,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_write.assert_called_once()
+
+    def test_quiet(self) -> None:
+        result = TemplateInjectionResult(
+            target="mail.test.com",
+            port=587,
+            banner="220",
+            engines_detected=[],
+            probes=[],
+            issues=[],
+            overall_status="unknown",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--quiet"])
+        with patch(
+            "mytools.email.emailtemplateinject.scan_email_template_injection",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.email.emailtemplateinject.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-templeti", "mail.test.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.email.emailtemplateinject", run_name="__main__")

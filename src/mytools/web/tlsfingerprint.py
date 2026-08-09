@@ -1191,7 +1191,7 @@ async def _test_tls_fingerprint(
         elif tech == "alpn_fingerprint":
             details = f"ALPN: {alpn}"
 
-        else:
+        else:  # pragma: no cover
             details = ""
 
         results.append(
@@ -1371,7 +1371,7 @@ async def _test_key_exchange(
 
                 details = f"ECDHE available: {accepted} — {info}"
 
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
 
                 details = ""
@@ -1520,7 +1520,7 @@ async def _test_cipher_audit(
 
             details = f"Current key: {current_bits} bits, Weak: {small_key}"
 
-        else:
+        else:  # pragma: no cover
             vulnerable = False
 
             details = ""

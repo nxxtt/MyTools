@@ -31,7 +31,9 @@ from mytools.web.fileupload import (
     _test_polyglot_category,
     _test_svg_xxe_category,
     _test_zip_slip_category,
+    banner_art,
     build_parser,
+    main,
     print_results,
     run_once,
     run_scan,
@@ -460,6 +462,60 @@ def test_print_results_with_issues(capsys: pytest.CaptureFixture[str]) -> None:
     assert "upload nao detectado" in out
 
 
+def test_print_results_vuln_without_details(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    attempt = UploadAttempt(
+        technique="jpg_php",
+        category="polyglot",
+        filename="polyglot.jpg.php",
+        content_type="image/jpeg",
+        method="POST",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=200,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="",
+        error="",
+        exploit="polyglot_file_content",
+        tool="curl",
+    )
+    result = _make_result(attempts=[attempt], overall_status="vulnerable")
+    print_results(result)
+    out = capsys.readouterr().out
+    assert "jpg_php" in out
+
+
+def test_print_results_deduplicates_vuln_attempts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    attempt = UploadAttempt(
+        technique="jpg_php",
+        category="polyglot",
+        filename="polyglot.jpg.php",
+        content_type="image/jpeg",
+        method="POST",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=200,
+        status_changed=False,
+        size_changed=True,
+        vulnerable=True,
+        details="dup",
+        error="",
+        exploit="polyglot_file_content",
+        tool="curl",
+    )
+    result = _make_result(attempts=[attempt, attempt], overall_status="vulnerable")
+    print_results(result)
+    out = capsys.readouterr().out
+    assert out.count("jpg_php") == 1
+
+
 # --- build_parser tests ---
 
 
@@ -595,6 +651,42 @@ class TestRunScan:
                         await run_scan(_TARGET, [], 10, "output.json")
                         mock_write.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_unknown_category_skipped(self) -> None:
+        with patch("mytools.web.fileupload.create_async_client") as mock_mac:
+            mock_client = AsyncMock()
+            mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "mytools.web.fileupload.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
+                with patch("mytools.web.fileupload._CATEGORY_TESTERS") as mock_testers:
+                    mock_testers.get.return_value = None
+                    result = await run_scan(_TARGET, ["bogus_cat"], 10, None)
+                    assert result == 0
+                    mock_testers.get.assert_called_once_with("bogus_cat")
+
+    @pytest.mark.asyncio
+    async def test_missing_upload_endpoint_adds_issue(self) -> None:
+        with patch("mytools.web.fileupload.create_async_client") as mock_mac:
+            mock_client = AsyncMock()
+            mock_mac.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_mac.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "mytools.web.fileupload.fetch", new_callable=AsyncMock
+            ) as mock_fetch:
+                mock_fetch.return_value = (200, {}, b"<html>safe</html>", b"")
+                with patch("mytools.web.fileupload._find_upload_endpoint") as mock_find:
+                    mock_find.return_value = None
+                    with patch(
+                        "mytools.web.fileupload._CATEGORY_TESTERS"
+                    ) as mock_testers:
+                        mock_testers.get.return_value = AsyncMock(return_value=[])
+                        result = await run_scan(_TARGET, [], 10, None)
+                        assert result == 0
+                        mock_find.assert_called_once()
+
 
 # --- run_once tests ---
 
@@ -625,3 +717,34 @@ class TestRunOnce:
         ) as mock_scan:
             run_once(args)
             assert mock_scan.call_args.kwargs["categories"] == []
+
+
+# --- banner_art / main / guard tests ---
+
+
+class TestBannerArt:
+    def test_banner_art(self) -> None:
+        with patch("mytools.web.fileupload.create_banner") as mock_banner:
+            mock_banner.return_value = MagicMock()
+            banner_art()
+            mock_banner.assert_called_once()
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch("mytools.web.fileupload.run_main_loop", return_value=0) as mock_loop:
+            result = main()
+            assert result == 0
+            mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_main_guard_runs(self) -> None:
+        with (
+            patch("sys.argv", ["mytools-fileupload"]),
+            patch("mytools.core.utils.run_main_loop", return_value=0),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.fileupload", run_name="__main__")

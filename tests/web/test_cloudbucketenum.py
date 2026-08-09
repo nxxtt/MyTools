@@ -1,8 +1,10 @@
 """Testes do modulo cloudbucketenum."""
 
+import argparse
 from dataclasses import asdict
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.cloudbucketenum import (
@@ -17,12 +19,31 @@ from mytools.web.cloudbucketenum import (
     _get_prefixes,
     _get_s3_indicators,
     _get_suffixes,
+    _test_azure,
+    _test_gcp,
+    _test_s3,
     banner_art,
     build_parser,
     main,
     print_results,
+    run_once,
     run_scan,
 )
+
+
+def _ns(**overrides: object) -> argparse.Namespace:
+    ns = argparse.Namespace(
+        domain="example.com",
+        providers="all",
+        timeout=10.0,
+        concurrency=5,
+        output=None,
+        json_output=False,
+    )
+    for key, value in overrides.items():
+        setattr(ns, key, value)
+    return ns
+
 
 # ---------------------------------------------------------------------------
 # _get_suffixes / _get_prefixes
@@ -55,6 +76,34 @@ class TestPayloads:
 
     def test_azure_indicators(self) -> None:
         ind = _get_azure_indicators()
+        assert "open" in ind
+        assert "not_found" in ind
+
+    def test_s3_indicators_fallback(self) -> None:
+        with patch(
+            "mytools.web.cloudbucketenum._load_payloads",
+            return_value={"s3_indicators": "not-a-dict"},
+        ):
+            ind = _get_s3_indicators()
+        assert "open" in ind
+        assert "exists" in ind
+        assert "access_denied" in ind
+
+    def test_gcp_indicators_fallback(self) -> None:
+        with patch(
+            "mytools.web.cloudbucketenum._load_payloads",
+            return_value={"gcp_indicators": "not-a-dict"},
+        ):
+            ind = _get_gcp_indicators()
+        assert "open" in ind
+        assert "not_found" in ind
+
+    def test_azure_indicators_fallback(self) -> None:
+        with patch(
+            "mytools.web.cloudbucketenum._load_payloads",
+            return_value={"azure_indicators": "not-a-dict"},
+        ):
+            ind = _get_azure_indicators()
         assert "open" in ind
         assert "not_found" in ind
 
@@ -144,6 +193,39 @@ class TestCheckS3Response:
         assert exists is False
         assert "500" in detail
 
+    def test_404_without_indicator(self) -> None:
+        indicators = {
+            "open": ["ListBucketResult"],
+            "exists": ["NoSuchBucket"],
+            "access_denied": ["AccessDenied"],
+        }
+        open_b, exists, detail = _check_s3_response(404, "plain body", indicators)
+        assert open_b is False
+        assert exists is False
+        assert detail == "HTTP 404"
+
+    def test_403_without_indicator(self) -> None:
+        indicators = {
+            "open": ["ListBucketResult"],
+            "exists": ["NoSuchBucket"],
+            "access_denied": ["AccessDenied"],
+        }
+        open_b, exists, detail = _check_s3_response(403, "plain body", indicators)
+        assert open_b is False
+        assert exists is True
+        assert detail == "HTTP 403"
+
+    def test_200_without_indicator(self) -> None:
+        indicators = {
+            "open": ["ListBucketResult"],
+            "exists": ["NoSuchBucket"],
+            "access_denied": ["AccessDenied"],
+        }
+        open_b, exists, detail = _check_s3_response(200, "plain body", indicators)
+        assert open_b is False
+        assert exists is True
+        assert detail == "HTTP 200 sem indicadores de listagem"
+
 
 # ---------------------------------------------------------------------------
 # _check_gcp_response
@@ -170,6 +252,27 @@ class TestCheckGCPResponse:
         open_b, exists, _detail = _check_gcp_response(403, "Forbidden", indicators)
         assert open_b is False
         assert exists is True
+
+    def test_404_without_indicator(self) -> None:
+        indicators = {"open": ["items"], "not_found": ["NoSuchBucket"]}
+        open_b, exists, detail = _check_gcp_response(404, "plain body", indicators)
+        assert open_b is False
+        assert exists is False
+        assert detail == "HTTP 404"
+
+    def test_200_without_indicator(self) -> None:
+        indicators = {"open": ["items"], "not_found": ["NoSuchBucket"]}
+        open_b, exists, detail = _check_gcp_response(200, "plain body", indicators)
+        assert open_b is False
+        assert exists is True
+        assert detail == "HTTP 200 sem indicadores de listagem"
+
+    def test_unknown_status(self) -> None:
+        indicators = {"open": ["items"], "not_found": ["NoSuchBucket"]}
+        open_b, exists, detail = _check_gcp_response(500, "error", indicators)
+        assert open_b is False
+        assert exists is False
+        assert detail == "HTTP 500"
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +305,107 @@ class TestCheckAzureResponse:
         open_b, exists, _detail = _check_azure_response(403, "Forbidden", indicators)
         assert open_b is False
         assert exists is True
+
+    def test_404_without_indicator(self) -> None:
+        indicators = {"open": ["EnumerationResults"], "not_found": ["BlobNotFound"]}
+        open_b, exists, detail = _check_azure_response(404, "plain body", indicators)
+        assert open_b is False
+        assert exists is False
+        assert detail == "HTTP 404"
+
+    def test_400_not_found(self) -> None:
+        indicators = {"open": ["EnumerationResults"], "not_found": ["BlobNotFound"]}
+        open_b, exists, detail = _check_azure_response(400, "BlobNotFound", indicators)
+        assert open_b is False
+        assert exists is False
+        assert "nao existe" in detail
+
+    def test_400_without_indicator(self) -> None:
+        indicators = {"open": ["EnumerationResults"], "not_found": ["BlobNotFound"]}
+        open_b, exists, detail = _check_azure_response(400, "plain body", indicators)
+        assert open_b is False
+        assert exists is False
+        assert detail == "HTTP 400"
+
+    def test_200_without_indicator(self) -> None:
+        indicators = {"open": ["EnumerationResults"], "not_found": ["BlobNotFound"]}
+        open_b, exists, detail = _check_azure_response(200, "plain body", indicators)
+        assert open_b is False
+        assert exists is True
+        assert detail == "HTTP 200 sem indicadores de listagem"
+
+
+# ---------------------------------------------------------------------------
+# _test_s3 / _test_gcp / _test_azure
+# ---------------------------------------------------------------------------
+
+
+class TestProviderTests:
+    @pytest.mark.asyncio()
+    async def test_s3_success(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<ListBucketResult><Key>file.txt</Key></ListBucketResult>"
+        mock_resp.content = b"<ListBucketResult>"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        attempts = await _test_s3(mock_client, "test", 10.0)
+        assert len(attempts) == 2
+        assert all(a.provider == "s3" for a in attempts)
+        assert any(a.open_bucket for a in attempts)
+
+    @pytest.mark.asyncio()
+    async def test_s3_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        attempts = await _test_s3(mock_client, "test", 10.0)
+        assert len(attempts) == 2
+        assert all(a.error for a in attempts)
+        assert all(a.status_code == 0 for a in attempts)
+
+    @pytest.mark.asyncio()
+    async def test_gcp_success(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '{"kind": "storage#objects", "items": []}'
+        mock_resp.content = b'{"kind": "storage#objects"}'
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        attempts = await _test_gcp(mock_client, "test", 10.0)
+        assert len(attempts) == 1
+        assert attempts[0].provider == "gcp"
+        assert attempts[0].open_bucket is True
+
+    @pytest.mark.asyncio()
+    async def test_gcp_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        attempts = await _test_gcp(mock_client, "test", 10.0)
+        assert len(attempts) == 1
+        assert attempts[0].error
+        assert attempts[0].status_code == 0
+
+    @pytest.mark.asyncio()
+    async def test_azure_success(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<EnumerationResults><Blobs><Blob><Name>x</Name></Blob></Blobs></EnumerationResults>"
+        mock_resp.content = b"<EnumerationResults>"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        attempts = await _test_azure(mock_client, "test", 10.0)
+        assert len(attempts) == 1
+        assert attempts[0].provider == "azure"
+        assert attempts[0].open_bucket is True
+
+    @pytest.mark.asyncio()
+    async def test_azure_request_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        attempts = await _test_azure(mock_client, "test", 10.0)
+        assert len(attempts) == 1
+        assert attempts[0].error
+        assert attempts[0].status_code == 0
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +558,20 @@ class TestPrintResults:
         assert "VULNERABLE" in captured.out
         assert "s3:example" in captured.out
 
+    def test_existing_buckets_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = BucketResult(
+            domain="example.com",
+            attempts=[],
+            open_buckets=[],
+            existing_buckets=["s3:example-backup"],
+            issues=["Buckets existentes"],
+            overall_status="secure",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "BUCKETS EXISTENTES" in captured.out
+        assert "s3:example-backup" in captured.out
+
 
 # ---------------------------------------------------------------------------
 # banner_art
@@ -438,3 +656,171 @@ class TestRunScan:
             )
             assert result.overall_status == "secure"
             assert len(result.open_buckets) == 0
+
+    @pytest.mark.asyncio()
+    async def test_s3_access_denied(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.text = "<AccessDenied>Access Denied</AccessDenied>"
+        mock_resp.content = b"<AccessDenied>"
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.cloudbucketenum.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "example.com",
+                providers="s3",
+                concurrency=50,
+            )
+            assert result.overall_status == "secure"
+            assert len(result.open_buckets) == 0
+            assert len(result.existing_buckets) > 0
+            assert any("existentes" in i for i in result.issues)
+
+    @pytest.mark.asyncio()
+    async def test_gcp_open_bucket(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '{"kind": "storage#objects", "items": []}'
+        mock_resp.content = b'{"kind": "storage#objects"}'
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.cloudbucketenum.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "example.com",
+                providers="gcp",
+                concurrency=50,
+            )
+            assert result.overall_status == "vulnerable"
+            assert any("gcp:" in b for b in result.open_buckets)
+
+    @pytest.mark.asyncio()
+    async def test_azure_open_bucket(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<EnumerationResults><Blobs><Blob><Name>x</Name></Blob></Blobs></EnumerationResults>"
+        mock_resp.content = b"<EnumerationResults>"
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mytools.web.cloudbucketenum.create_async_client") as mock_factory:
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "example.com",
+                providers="azure",
+                concurrency=50,
+            )
+            assert result.overall_status == "vulnerable"
+            assert any("azure:" in b for b in result.open_buckets)
+
+    @pytest.mark.asyncio()
+    async def test_task_exception_is_skipped(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("mytools.web.cloudbucketenum.create_async_client") as mock_factory,
+            patch(
+                "mytools.web.cloudbucketenum._test_s3",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            mock_factory.return_value = mock_client
+            result = await run_scan(
+                "example.com",
+                providers="s3",
+                concurrency=50,
+            )
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+
+class TestRunOnce:
+    def _result(self, status: str) -> BucketResult:
+        return BucketResult(
+            domain="example.com",
+            attempts=[],
+            open_buckets=[] if status != "vulnerable" else ["s3:example"],
+            existing_buckets=[],
+            issues=[],
+            overall_status=status,
+        )
+
+    def test_returns_0_on_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with (
+            patch("mytools.web.cloudbucketenum.init_scanner") as mock_init,
+            patch(
+                "mytools.web.cloudbucketenum.run_scan",
+                new_callable=AsyncMock,
+                return_value=self._result("secure"),
+            ),
+        ):
+            code = run_once(_ns())
+        assert code == 0
+        mock_init.assert_called_once()
+        out = capsys.readouterr().out
+        assert "CLOUD BUCKET" in out
+
+    def test_returns_1_on_error(self) -> None:
+        with (
+            patch("mytools.web.cloudbucketenum.init_scanner"),
+            patch(
+                "mytools.web.cloudbucketenum.run_scan",
+                new_callable=AsyncMock,
+                return_value=self._result("error"),
+            ),
+        ):
+            code = run_once(_ns())
+        assert code == 1
+
+    def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with (
+            patch("mytools.web.cloudbucketenum.init_scanner"),
+            patch(
+                "mytools.web.cloudbucketenum.run_scan",
+                new_callable=AsyncMock,
+                return_value=self._result("vulnerable"),
+            ),
+        ):
+            code = run_once(_ns(json_output=True))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert '"overall_status": "vulnerable"' in out
+
+    def test_output_file_written(self, tmp_path: object) -> None:
+        out = str(tmp_path) + "/out.json"
+        with (
+            patch("mytools.web.cloudbucketenum.init_scanner"),
+            patch(
+                "mytools.web.cloudbucketenum.run_scan",
+                new_callable=AsyncMock,
+                return_value=self._result("secure"),
+            ),
+        ):
+            code = run_once(_ns(output=out))
+        assert code == 0
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.cloudbucketenum", run_name="__main__")

@@ -2,7 +2,9 @@ import argparse
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.whois.whoishistory import (
     BANNER_ART,
@@ -11,6 +13,7 @@ from mytools.whois.whoishistory import (
     _parse_securitytrails,
     _parse_whoisxml,
     build_parser,
+    main,
     run_history,
     run_once,
 )
@@ -100,6 +103,25 @@ class TestParseSecurityTrails:
         assert len(result) == 1
         assert result[0].registrant_name == ""
 
+    def test_ended_bad_timestamp(self):
+        data = {"result": {"items": [{"ended": -62135596801000}]}}
+        result = _parse_securitytrails(json.dumps(data).encode(), "example.com")
+        assert result[0].date == "-62135596801000"
+
+    def test_registrar_type_contact(self):
+        data = {
+            "result": {
+                "items": [
+                    {
+                        "ended": 1512131429698,
+                        "contact": [{"type": "registrar", "organization": "GoDaddy"}],
+                    }
+                ]
+            }
+        }
+        result = _parse_securitytrails(json.dumps(data).encode(), "example.com")
+        assert result[0].registrar == "GoDaddy"
+
 
 class TestParseWhoisxml:
     def test_extracts_record(self):
@@ -138,6 +160,11 @@ class TestParseWhoisxml:
     def test_invalid_json(self):
         result = _parse_whoisxml(b"bad", "example.com")
         assert result == []
+
+    def test_no_created_date(self):
+        data = {"records": [{"registrarName": "MarkMonitor Inc."}]}
+        result = _parse_whoisxml(json.dumps(data).encode(), "example.com")
+        assert result[0].date == ""
 
 
 class TestQuerySource:
@@ -217,6 +244,101 @@ class TestQuerySource:
                     "securitytrails", "example.com", "key", 10.0
                 )
                 assert result == []
+
+    @pytest.mark.asyncio
+    async def test_securitytrails_429(self):
+        from mytools.whois.whoishistory import _query_source
+
+        with respx.mock:
+            respx.route(
+                method="GET",
+                url="https://api.securitytrails.com/v1/history/example.com/whois",
+            ).mock(return_value=httpx.Response(429))
+            result = await _query_source("securitytrails", "example.com", "key", 10.0)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_securitytrails_other_status(self):
+        from mytools.whois.whoishistory import _query_source
+
+        with respx.mock:
+            respx.route(
+                method="GET",
+                url="https://api.securitytrails.com/v1/history/example.com/whois",
+            ).mock(return_value=httpx.Response(403))
+            result = await _query_source("securitytrails", "example.com", "key", 10.0)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_whoisxml_success(self):
+        from mytools.whois.whoishistory import _query_source
+
+        body = json.dumps(
+            {
+                "records": [
+                    {
+                        "createdDateISO8601": "1997-09-15T00:00:00-07:00",
+                        "registrarName": "MarkMonitor Inc.",
+                    }
+                ]
+            }
+        ).encode()
+        with respx.mock:
+            respx.route(
+                method="GET",
+                url__startswith="https://whois-history.whoisxmlapi.com/api/v1",
+            ).mock(return_value=httpx.Response(200, content=body))
+            result = await _query_source("whoisxml", "example.com", "key", 10.0)
+            assert len(result) == 1
+            assert result[0].registrar == "MarkMonitor Inc."
+
+    @pytest.mark.asyncio
+    async def test_whoisxml_other_status(self):
+        from mytools.whois.whoishistory import _query_source
+
+        with respx.mock:
+            respx.route(
+                method="GET",
+                url__startswith="https://whois-history.whoisxmlapi.com/api/v1",
+            ).mock(return_value=httpx.Response(403))
+            result = await _query_source("whoisxml", "example.com", "key", 10.0)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_query_all_sources_dedup_and_sort(self):
+        from mytools.whois.whoishistory import _query_all_sources
+
+        rec1 = WhoisHistoryRecord(
+            domain="example.com",
+            date="2024-01-01",
+            registrar="A",
+            source="securitytrails",
+        )
+        rec_dup = WhoisHistoryRecord(
+            domain="example.com",
+            date="2024-01-01",
+            registrar="A",
+            source="securitytrails",
+        )
+        rec2 = WhoisHistoryRecord(
+            domain="example.com",
+            date="2023-01-01",
+            registrar="B",
+            source="whoisxml",
+        )
+        with patch(
+            "mytools.whois.whoishistory._query_source",
+            new_callable=AsyncMock,
+        ) as mock_q:
+            mock_q.side_effect = [[rec1, rec_dup], [rec2], None]
+            result = await _query_all_sources(
+                "example.com",
+                ["securitytrails", "whoisxml", "third"],
+                {"securitytrails": "k1", "whoisxml": "k2"},
+                10.0,
+            )
+        assert len(result) == 2
+        assert result[0].date == "2023-01-01"
 
 
 class TestRunHistory:
@@ -306,6 +428,74 @@ class TestRunOnce:
             with patch("mytools.whois.whoishistory.init_scanner"):
                 run_once(args)
             mock_hist.assert_called_once()
+
+    def test_calls_run_history_with_keys(self):
+        args = self._make_args(
+            st_api_key="key123",
+            whoisxml_key="k2",
+            source=["securitytrails", "whoisxml"],
+        )
+        with patch(
+            "mytools.whois.whoishistory.run_history", return_value=[]
+        ) as mock_hist:
+            with patch("mytools.whois.whoishistory.init_scanner"):
+                run_once(args)
+            mock_hist.assert_called_once()
+
+    def test_output_writes(self, tmp_path):
+        out = str(tmp_path / "whois.json")
+        args = self._make_args(output=out)
+        with (
+            patch("mytools.whois.whoishistory.run_history", return_value=[]),
+            patch("mytools.whois.whoishistory.init_scanner"),
+            patch("mytools.whois.whoishistory.write_output") as mock_write,
+        ):
+            run_once(args)
+        mock_write.assert_called_once()
+
+
+class TestPrintHistory:
+    def test_empty(self, caplog):
+        from mytools.whois.whoishistory import _print_history
+
+        with caplog.at_level("INFO", logger="mytools.whoishistory"):
+            _print_history([])
+        assert any("Nenhum registro" in r.message for r in caplog.records)
+
+    def test_with_records(self, capsys):
+        from mytools.whois.whoishistory import _print_history
+
+        records = [
+            WhoisHistoryRecord(
+                domain="example.com",
+                date="2024-01-01",
+                registrar="GoDaddy",
+                source="securitytrails",
+            ),
+        ]
+        _print_history(records)
+        out = capsys.readouterr().out
+        assert "GoDaddy" in out
+
+
+class TestMainAndGuard:
+    def test_main_with_domain(self):
+        with (
+            patch("mytools.whois.whoishistory.run_once", return_value=0) as mock_run,
+            patch("sys.argv", ["mytools-whoishistory", "example.com"]),
+        ):
+            assert main() == 0
+        mock_run.assert_called_once()
+
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-whoishistory"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.whois.whoishistory", run_name="__main__")
 
 
 class TestBannerArt:

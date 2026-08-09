@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+import argparse
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,17 +11,30 @@ from mytools.web.websocketattack import (
     _CATEGORY_DISPATCH,
     _CATEGORY_MAP,
     _PAYLOADS_WS_FUZZ,
+    WS_OPCODE_CLOSE,
+    WS_OPCODE_TEXT,
     WSAttackAttempt,
     WSAttackResult,
     _build_ws_frame,
     _create_connection,
     _generate_ws_key,
+    _get_baseline,
     _parse_url,
     _recv_ws_frame,
+    _send_http_request,
     _send_ws_frame,
+    _test_ws_compression_bomb,
+    _test_ws_dos,
+    _test_ws_message_inject,
     _test_ws_payload_fuzz,
+    _test_ws_scanner,
+    _test_ws_upgrade_abuse,
+    _ws_handshake,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 # ─── Dataclass Tests ─────────────────────────────────────────────────────────
@@ -592,3 +606,769 @@ class TestPayloadFuzzParser:
             ]
         )
         assert "ws_payload_fuzz" in args.categories
+
+
+# ─── Handshake Tests ────────────────────────────────────────────────────────
+
+
+class TestWsHandshake:
+    def test_success(self) -> None:
+        sock = MagicMock()
+        sock.recv.return_value = (
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n"
+        )
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._generate_ws_key", return_value="dGVzdA=="
+            ),
+        ):
+            result = _ws_handshake("example.com", 80, "/ws", 5.0, False)
+        assert result is not None
+        returned_sock, key = result
+        assert key == "dGVzdA=="
+        assert returned_sock is sock
+        sent = sock.sendall.call_args[0][0]
+        assert b"GET /ws HTTP/1.1" in sent
+        assert b"Host: example.com" in sent
+        assert b"Sec-WebSocket-Version: 13" in sent
+
+    def test_success_with_origin_headers_and_port(self) -> None:
+        sock = MagicMock()
+        sock.recv.return_value = (
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n"
+        )
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._generate_ws_key", return_value="dGVzdA=="
+            ),
+        ):
+            result = _ws_handshake(
+                "example.com",
+                8443,
+                "/ws",
+                5.0,
+                True,
+                origin="http://evil.com",
+                extra_headers=[("Cookie", "a=b")],
+            )
+        assert result is not None
+        sent = sock.sendall.call_args[0][0]
+        assert b"Host: example.com:8443" in sent
+        assert b"Origin: http://evil.com" in sent
+        assert b"Cookie: a=b" in sent
+        sock.close.assert_not_called()
+
+    def test_non_101_response(self) -> None:
+        sock = MagicMock()
+        sock.recv.return_value = b"HTTP/1.1 404 Not Found\r\n\r\n"
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch("mytools.web.websocketattack._generate_ws_key", return_value="key"),
+        ):
+            result = _ws_handshake("example.com", 80, "/ws", 5.0, False)
+        assert result is None
+        sock.close.assert_called_once()
+
+    def test_empty_chunk(self) -> None:
+        sock = MagicMock()
+        sock.recv.return_value = b""
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch("mytools.web.websocketattack._generate_ws_key", return_value="key"),
+        ):
+            result = _ws_handshake("example.com", 80, "/ws", 5.0, False)
+        assert result is None
+        sock.close.assert_called_once()
+
+    def test_timeout_during_recv(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = TimeoutError("t")
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch("mytools.web.websocketattack._generate_ws_key", return_value="key"),
+        ):
+            result = _ws_handshake("example.com", 80, "/ws", 5.0, False)
+        assert result is None
+        sock.close.assert_called_once()
+
+    def test_oserror_during_recv(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = OSError("e")
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch("mytools.web.websocketattack._generate_ws_key", return_value="key"),
+        ):
+            result = _ws_handshake("example.com", 80, "/ws", 5.0, False)
+        assert result is None
+
+    def test_create_connection_exception(self) -> None:
+        with (
+            patch(
+                "mytools.web.websocketattack._create_connection",
+                side_effect=Exception("boom"),
+            ),
+            patch("mytools.web.websocketattack._generate_ws_key", return_value="key"),
+        ):
+            result = _ws_handshake("example.com", 80, "/ws", 5.0, False)
+        assert result is None
+
+
+# ─── Recv Frame Extended Tests ──────────────────────────────────────────────
+
+
+class TestRecvWsFrameExtended:
+    def test_length_126(self) -> None:
+        sock = MagicMock()
+        frame = _build_ws_frame(0x1, b"X" * 200, mask=False)
+        sock.recv.side_effect = [frame[:2], frame[2:4], frame[4:]]
+        result = _recv_ws_frame(sock, 5.0)
+        assert result is not None
+        opcode, payload = result
+        assert opcode == 0x1
+        assert payload == b"X" * 200
+
+    def test_length_127(self) -> None:
+        sock = MagicMock()
+        frame = _build_ws_frame(0x1, b"X" * 70000, mask=False)
+        sock.recv.side_effect = [frame[:2], frame[2:10], frame[10:]]
+        result = _recv_ws_frame(sock, 5.0)
+        assert result is not None
+        opcode, payload = result
+        assert opcode == 0x1
+        assert payload == b"X" * 70000
+
+    def test_masked_frame(self) -> None:
+        sock = MagicMock()
+        frame = _build_ws_frame(0x1, b"hello", mask=True)
+        sock.recv.side_effect = [frame[:2], frame[2:6], frame[6:]]
+        result = _recv_ws_frame(sock, 5.0)
+        assert result == (0x1, b"hello")
+
+    def test_masked_short_key(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"\x81\x85", b"\x01"]
+        assert _recv_ws_frame(sock, 5.0) is None
+
+    def test_short_ext_126(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"\x81\x7e", b"\x01"]
+        assert _recv_ws_frame(sock, 5.0) is None
+
+    def test_short_ext_127(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"\x81\x7f", b"\x01\x02"]
+        assert _recv_ws_frame(sock, 5.0) is None
+
+    def test_empty_chunk_in_payload(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"\x81\x05", b""]
+        result = _recv_ws_frame(sock, 5.0)
+        assert result == (0x1, b"")
+
+
+# ─── Send HTTP Request Tests ────────────────────────────────────────────────
+
+
+class TestSendHttpRequest:
+    def test_with_headers_and_body(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"]
+        status, response = _send_http_request(
+            sock,
+            "POST",
+            "/submit",
+            "example.com",
+            headers=[("X-A", "1")],
+            body=b"abcde",
+        )
+        assert status == 200
+        assert response.endswith(b"hello")
+        request_bytes = sock.sendall.call_args_list[0][0][0]
+        assert request_bytes.startswith(b"POST /submit HTTP/1.1")
+        assert b"X-A: 1" in request_bytes
+        assert b"Content-Length: 5" in request_bytes
+        assert sock.sendall.call_args_list[1][0][0] == b"abcde"
+
+    def test_no_content_length(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"HTTP/1.1 301 Moved\r\nLocation: /new\r\n\r\n"]
+        status, _response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 301
+
+    def test_chunked_body_until_complete(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n",
+            b"12345",
+            b"12345",
+        ]
+        status, response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 200
+        assert response.endswith(b"1234512345")
+
+    def test_header_terminator_split_across_chunks(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nContent-Len",
+            b"gth: 5\r\n\r\nhello",
+        ]
+        status, response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 200
+        assert response.endswith(b"hello")
+
+    def test_timeout_breaks_loop(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = TimeoutError("t")
+        status, response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 0
+        assert response == b""
+
+    def test_oserror_breaks_loop(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = OSError("e")
+        status, _response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 0
+
+    def test_empty_recv_breaks(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b""]
+        status, _response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 0
+
+    def test_invalid_status_parsing(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"HTTP/1.1 XYZ\r\n\r\n"]
+        status, _response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 0
+
+    def test_short_first_line(self) -> None:
+        sock = MagicMock()
+        sock.recv.side_effect = [b"HTTP/1.1\r\n\r\n"]
+        status, _response = _send_http_request(sock, "GET", "/x", "example.com")
+        assert status == 0
+
+
+# ─── Baseline Tests ─────────────────────────────────────────────────────────
+
+
+class TestGetBaseline:
+    def test_success(self) -> None:
+        sock = MagicMock()
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(200, b"hello"),
+            ),
+        ):
+            status, size = _get_baseline("example.com", 80, "/", 5.0, False)
+        assert (status, size) == (200, 5)
+        sock.close.assert_called_once()
+
+    def test_exception(self) -> None:
+        with patch(
+            "mytools.web.websocketattack._create_connection",
+            side_effect=OSError("down"),
+        ):
+            status, size = _get_baseline("example.com", 80, "/", 5.0, False)
+        assert (status, size) == (0, 0)
+
+
+# ─── ws_scanner ─────────────────────────────────────────────────────────────
+
+
+class TestWsScanner:
+    @pytest.mark.asyncio
+    async def test_handshakes_ok_insecure(self) -> None:
+        mock_sock = MagicMock()
+        with patch(
+            "mytools.web.websocketattack._ws_handshake",
+            return_value=(mock_sock, "key"),
+        ):
+            results = await _test_ws_scanner(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        insecure = next(r for r in results if r.technique == "insecure_scheme")
+        assert insecure.vulnerable is True
+        cswh = next(r for r in results if r.technique == "cswh_hijack")
+        assert cswh.vulnerable is True
+        rate_limit = next(r for r in results if r.technique == "no_rate_limit")
+        assert rate_limit.details == "5 conexoes rapidas completadas"
+
+    @pytest.mark.asyncio
+    async def test_insecure_scheme_secure_when_tls(self) -> None:
+        with patch(
+            "mytools.web.websocketattack._ws_handshake",
+            return_value=(MagicMock(), "key"),
+        ):
+            results = await _test_ws_scanner(
+                "example.com", 443, "/ws", 5.0, True, 200, 100
+            )
+        insecure = next(r for r in results if r.technique == "insecure_scheme")
+        assert insecure.vulnerable is False
+        assert insecure.status_test == 200
+
+    @pytest.mark.asyncio
+    async def test_handshake_refused(self) -> None:
+        with patch("mytools.web.websocketattack._ws_handshake", return_value=None):
+            results = await _test_ws_scanner(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        refused = next(r for r in results if r.technique == "cswh_hijack")
+        assert refused.vulnerable is False
+        assert "Handshake recusado" in refused.details
+
+    @pytest.mark.asyncio
+    async def test_exception(self) -> None:
+        with patch(
+            "mytools.web.websocketattack._ws_handshake",
+            side_effect=Exception("boom"),
+        ):
+            results = await _test_ws_scanner(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        errored = [r for r in results if r.error]
+        assert len(errored) == 4
+        assert all(r.technique != "insecure_scheme" for r in errored)
+
+
+# ─── ws_upgrade_abuse ───────────────────────────────────────────────────────
+
+
+class TestWsUpgradeAbuse:
+    @pytest.mark.asyncio
+    async def test_all_rejected(self) -> None:
+        sock = MagicMock()
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(404, b"Not Found"),
+            ) as mock_send,
+        ):
+            results = await _test_ws_upgrade_abuse(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(not r.vulnerable for r in results)
+        assert all(r.status_test == 404 for r in results)
+        versions = [mock_send.call_args_list[i].kwargs["version"] for i in range(5)]
+        assert versions.count("HTTP/1.0") == 1
+
+    @pytest.mark.asyncio
+    async def test_all_upgraded(self) -> None:
+        sock = MagicMock()
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(101, b"Switching Protocols"),
+            ),
+        ):
+            results = await _test_ws_upgrade_abuse(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert all(r.vulnerable for r in results)
+        assert all(r.status_test == 101 for r in results)
+
+    @pytest.mark.asyncio
+    async def test_exception(self) -> None:
+        with patch(
+            "mytools.web.websocketattack._create_connection",
+            side_effect=Exception("boom"),
+        ):
+            results = await _test_ws_upgrade_abuse(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(r.error for r in results)
+
+
+# ─── ws_message_inject ──────────────────────────────────────────────────────
+
+
+class TestWsMessageInject:
+    @pytest.mark.asyncio
+    async def test_all_responses(self) -> None:
+        with (
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame",
+                return_value=(WS_OPCODE_TEXT, b"echo"),
+            ),
+        ):
+            results = await _test_ws_message_inject(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(r.vulnerable for r in results)
+        assert all(r.status_test == 101 for r in results)
+
+    @pytest.mark.asyncio
+    async def test_no_response(self) -> None:
+        with (
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", return_value=None),
+        ):
+            results = await _test_ws_message_inject(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert all(not r.vulnerable for r in results)
+        assert all("Sem resposta" in r.details for r in results)
+
+    @pytest.mark.asyncio
+    async def test_handshake_failed(self) -> None:
+        with patch("mytools.web.websocketattack._ws_handshake", return_value=None):
+            results = await _test_ws_message_inject(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all("Handshake falhou" in r.details for r in results)
+
+    @pytest.mark.asyncio
+    async def test_exception(self) -> None:
+        with patch(
+            "mytools.web.websocketattack._ws_handshake",
+            side_effect=Exception("boom"),
+        ):
+            results = await _test_ws_message_inject(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert all(r.error for r in results)
+
+
+# ─── ws_dos ─────────────────────────────────────────────────────────────────
+
+
+class TestWsDos:
+    @pytest.mark.asyncio
+    async def test_all_close_response(self) -> None:
+        mock_sock = MagicMock()
+        with (
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(mock_sock, "key"),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame",
+                return_value=(WS_OPCODE_CLOSE, b""),
+            ),
+        ):
+            results = await _test_ws_dos("example.com", 80, "/ws", 5.0, False, 200, 100)
+        assert len(results) == 5
+        assert all(r.vulnerable for r in results)
+        assert mock_sock.sendall.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_no_response(self) -> None:
+        with (
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", return_value=None),
+        ):
+            results = await _test_ws_dos("example.com", 80, "/ws", 5.0, False, 200, 100)
+        assert all(not r.vulnerable for r in results)
+        assert all("Sem resposta" in r.details for r in results)
+
+    @pytest.mark.asyncio
+    async def test_handshake_failed(self) -> None:
+        with patch("mytools.web.websocketattack._ws_handshake", return_value=None):
+            results = await _test_ws_dos("example.com", 80, "/ws", 5.0, False, 200, 100)
+        assert len(results) == 5
+        assert all("Handshake falhou" in r.details for r in results)
+
+    @pytest.mark.asyncio
+    async def test_exception(self) -> None:
+        with patch(
+            "mytools.web.websocketattack._ws_handshake",
+            side_effect=Exception("boom"),
+        ):
+            results = await _test_ws_dos("example.com", 80, "/ws", 5.0, False, 200, 100)
+        assert all(r.error for r in results)
+
+
+# ─── ws_compression_bomb ────────────────────────────────────────────────────
+
+
+class TestWsCompressionBomb:
+    @pytest.mark.asyncio
+    async def test_upgraded_with_deflate(self) -> None:
+        sock = MagicMock()
+        response = (
+            b"HTTP/1.1 101 Switching Protocols\r\n"
+            b"Sec-WebSocket-Extensions: permessage-deflate\r\n\r\n"
+        )
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(101, response),
+            ),
+        ):
+            results = await _test_ws_compression_bomb(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(r.vulnerable for r in results)
+        assert all(r.status_test == 101 for r in results)
+
+    @pytest.mark.asyncio
+    async def test_not_upgraded(self) -> None:
+        sock = MagicMock()
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(404, b"Not Found"),
+            ),
+        ):
+            results = await _test_ws_compression_bomb(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_exception(self) -> None:
+        with patch(
+            "mytools.web.websocketattack._create_connection",
+            side_effect=Exception("boom"),
+        ):
+            results = await _test_ws_compression_bomb(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert all(r.error for r in results)
+
+
+# ─── Payload Fuzz Timing Branch ─────────────────────────────────────────────
+
+
+class TestPayloadFuzzTiming:
+    @pytest.mark.asyncio
+    async def test_timing_threshold_reached(self) -> None:
+        mock_sock = MagicMock()
+        values: list[float] = []
+        for _ in range(8):
+            values.extend([0.0, 100.0])
+        with (
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(mock_sock, "key"),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame", return_value=(0x1, b"ok")
+            ),
+            patch("mytools.web.websocketattack.time.monotonic", side_effect=values),
+        ):
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        timing_vuln = [
+            r for r in results if r.vulnerable and r.technique.endswith("_timing")
+        ]
+        assert len(timing_vuln) == 8
+        assert all("threshold" in r.details for r in timing_vuln)
+
+
+# ─── Print Results Secure Category ──────────────────────────────────────────
+
+
+class TestPrintResultsSecureCategory:
+    def test_print_secure_category(self, capsys: pytest.CaptureFixture[str]) -> None:
+        attempt = WSAttackAttempt(
+            technique="cswh_hijack",
+            category="ws_scanner",
+            description="desc",
+            status_baseline=200,
+            status_test=0,
+            size_baseline=1000,
+            size_test=0,
+            vulnerable=False,
+            details="Handshake recusado",
+            error="",
+        )
+        result = WSAttackResult(
+            target="wss://example.com/ws",
+            host="example.com",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[attempt],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "ws_scanner: secure" in output
+        assert "SECURE" in output
+
+
+# ─── run_scan ───────────────────────────────────────────────────────────────
+
+
+class TestRunScan:
+    @pytest.mark.asyncio
+    async def test_full_scan_vulnerable(self) -> None:
+        vuln = WSAttackAttempt(
+            technique="cswh_hijack",
+            category="ws_scanner",
+            description="d",
+            status_baseline=200,
+            status_test=101,
+            size_baseline=100,
+            size_test=0,
+            vulnerable=True,
+            details="handshake aceito",
+            error="",
+        )
+        fake_tester = AsyncMock(return_value=[vuln])
+        with (
+            patch(
+                "mytools.web.websocketattack._parse_url",
+                return_value=("example.com", "/ws", 80, False),
+            ),
+            patch(
+                "mytools.web.websocketattack._get_baseline",
+                return_value=(200, 100),
+            ),
+            patch(
+                "mytools.web.websocketattack._CATEGORY_DISPATCH",
+                {"ws_scanner": fake_tester},
+            ),
+            patch("mytools.web.websocketattack.print_results"),
+            patch("mytools.web.websocketattack.write_output") as mock_write,
+        ):
+            result = await run_scan(
+                "ws://example.com/ws", ["ws_scanner"], 5.0, "out.json"
+            )
+        assert result.overall_status == "vulnerable"
+        assert result.baseline_status == 200
+        assert result.baseline_size == 100
+        assert result.host == "example.com"
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_unknown_category_skipped(self) -> None:
+        with (
+            patch(
+                "mytools.web.websocketattack._parse_url",
+                return_value=("example.com", "/ws", 80, False),
+            ),
+            patch(
+                "mytools.web.websocketattack._get_baseline",
+                return_value=(200, 100),
+            ),
+            patch("mytools.web.websocketattack._CATEGORY_DISPATCH", {}),
+            patch("mytools.web.websocketattack.print_results"),
+        ):
+            result = await run_scan("ws://example.com/ws", ["bogus"], 5.0, None)
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_default_categories_and_tester_error(self) -> None:
+        def bad_tester(*_args: object, **_kwargs: object) -> object:
+            raise RuntimeError("boom")
+
+        with (
+            patch(
+                "mytools.web.websocketattack._parse_url",
+                return_value=("example.com", "/ws", 80, False),
+            ),
+            patch(
+                "mytools.web.websocketattack._get_baseline",
+                return_value=(200, 100),
+            ),
+            patch(
+                "mytools.web.websocketattack._CATEGORY_DISPATCH",
+                {"ws_scanner": bad_tester},
+            ),
+            patch("mytools.web.websocketattack.print_results"),
+        ):
+            result = await run_scan("ws://example.com/ws", None, 5.0, None)
+        assert any(a.technique == "ws_scanner_error" for a in result.attempts)
+        assert result.issues
+
+
+# ─── Run Once ───────────────────────────────────────────────────────────────
+
+
+class TestRunOnce:
+    def test_vulnerable_returns_1(self) -> None:
+        mock_result = MagicMock()
+        mock_result.overall_status = "vulnerable"
+        args = argparse.Namespace(
+            url="ws://example.com/ws", categories=None, timeout=5.0, output=None
+        )
+        with (
+            patch(
+                "mytools.web.websocketattack.run_scan",
+                MagicMock(return_value=mock_result),
+            ),
+            patch(
+                "mytools.web.websocketattack.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            assert run_once(args) == 1
+
+    def test_secure_returns_0(self) -> None:
+        mock_result = MagicMock()
+        mock_result.overall_status = "secure"
+        args = argparse.Namespace(
+            url="ws://example.com/ws", categories=None, timeout=5.0, output=None
+        )
+        with (
+            patch(
+                "mytools.web.websocketattack.run_scan",
+                MagicMock(return_value=mock_result),
+            ),
+            patch(
+                "mytools.web.websocketattack.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            assert run_once(args) == 0
+
+
+# ─── Main ───────────────────────────────────────────────────────────────────
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.websocketattack.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_guard(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-wsattack", "ws://example.com/ws"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.websocketattack", run_name="__main__")
+        assert exc_info.value.code == 0

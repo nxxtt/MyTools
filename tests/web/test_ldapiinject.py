@@ -503,6 +503,57 @@ class TestPrintResults:
         output = capsys.readouterr().out
         assert "Nenhuma LDAP Injection detectada" in output
 
+    def test_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = LDAPiResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[
+                LDAPiAttempt(
+                    technique="wildcard_user",
+                    category="detect",
+                    payload="*",
+                    param="user",
+                    method="post_form",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="Connection refused",
+                ),
+                LDAPiAttempt(
+                    technique="and_condition",
+                    category="detect",
+                    payload="(&(uid=*))",
+                    param="user",
+                    method="post_form",
+                    status_baseline=200,
+                    status_test=0,
+                    size_baseline=100,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error="Timeout",
+                ),
+            ],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        output = capsys.readouterr().out
+        assert "Erros (2)" in output
+        assert "Connection refused" in output
+        assert "Timeout" in output
+
 
 @pytest.mark.smoke
 class TestBuildParser:
@@ -546,6 +597,19 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+
+class TestMainGuard:
+    """Testes para o guard if __name__ == '__main__'."""
+
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.ldapiinject", run_name="__main__")
 
 
 class TestIntegration:
@@ -671,3 +735,43 @@ class TestIntegration:
 
             result = run_once(args)
             assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_unknown_category(self) -> None:
+        from mytools.web.ldapiinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        result = await run_scan(
+            target="https://example.com",
+            categories=["bogus"],
+            timeout=10,
+            concurrency=5,
+            output_file=None,
+            verbose=False,
+        )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_tester_exception(self) -> None:
+        from mytools.web.ldapiinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        with patch(
+            "mytools.web.ldapiinject._test_detect",
+            AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            result = await run_scan(
+                target="https://example.com",
+                categories=["detect"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+            )
+        assert result == 0

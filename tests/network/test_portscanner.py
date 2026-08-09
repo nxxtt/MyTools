@@ -1,4 +1,5 @@
 import argparse
+import socket
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,9 +11,15 @@ from mytools.network.portscanner import (
     Finding,
     _create_connection,
     build_parser,
+    grab_banner,
     ip_sort_key,
     parse_ports,
+    print_port_table,
     resolve_targets,
+    run_once,
+    scan_port,
+    scan_targets,
+    service_name,
 )
 
 
@@ -266,6 +273,23 @@ class TestResolveTargetsIPv6:
         with pytest.raises(ValueError, match="nao consegui resolver"):
             resolve_targets(["thishostdoesnotexist.invalid"])
 
+    def test_hostname_duplicate_addresses_deduped(self):
+        with patch(
+            "mytools.network.portscanner.socket.getaddrinfo",
+            return_value=[
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.1", 0)),
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.1", 0)),
+            ],
+        ):
+            targets = resolve_targets(["example.com"])
+        assert len(targets) == 1
+        assert targets[0] == ("example.com", "192.0.2.1")
+
+    def test_overlapping_network_targets_deduped(self):
+        targets = resolve_targets(["127.0.0.1", "127.0.0.1/32"])
+        assert len(targets) == 1
+        assert targets[0] == ("127.0.0.1", "127.0.0.1")
+
 
 class TestCreateConnection:
     @patch("mytools.network.portscanner.socket.socket")
@@ -428,3 +452,310 @@ class TestMain:
         ):
             result = main()
             assert result == 1
+
+
+class TestServiceName:
+    @patch("mytools.network.portscanner.socket.getservbyport", return_value="http")
+    def test_known_port(self, mock_get):
+        assert service_name(80) == "http"
+        mock_get.assert_called_once_with(80, "tcp")
+
+    @patch(
+        "mytools.network.portscanner.socket.getservbyport",
+        side_effect=OSError("no service"),
+    )
+    def test_unknown_port(self, mock_get):
+        assert service_name(59999) == "unknown"
+
+
+class TestGrabBanner:
+    def test_http_probe_sends_head(self):
+        sock = MagicMock()
+        sock.recv.return_value = b"HTTP/1.1 200 OK\r\n\r\n"
+        result = grab_banner(sock, 80, 1.0)
+        assert result == "HTTP/1.1 200 OK"
+        sock.sendall.assert_called_once_with(BANNER_PROBES[80])
+        sock.settimeout.assert_called_once_with(1.0)
+
+    def test_no_probe_still_reads(self):
+        sock = MagicMock()
+        sock.recv.return_value = b"SSH-2.0-OpenSSH\r\n"
+        result = grab_banner(sock, 22, 1.0)
+        assert result == "SSH-2.0-OpenSSH"
+        sock.sendall.assert_not_called()
+
+    def test_oserror_returns_empty(self):
+        sock = MagicMock()
+        sock.recv.side_effect = OSError("timeout")
+        assert grab_banner(sock, 80, 1.0) == ""
+
+
+class TestCreateConnectionSuccess:
+    @patch("mytools.network.portscanner.socket.socket")
+    def test_ipv4_success(self, mock_socket_cls):
+        mock_sock = MagicMock()
+        mock_socket_cls.return_value = mock_sock
+        result = _create_connection("192.0.2.1", 80, 0.5)
+        assert result is mock_sock
+        mock_sock.connect.assert_called_once_with(("192.0.2.1", 80))
+        mock_sock.settimeout.assert_called_once_with(0.5)
+
+    @patch("mytools.network.portscanner.socket.socket")
+    def test_ipv6_success(self, mock_socket_cls):
+        mock_sock = MagicMock()
+        mock_socket_cls.return_value = mock_sock
+        result = _create_connection("2001:db8::1", 443, 0.5)
+        assert result is mock_sock
+        mock_sock.connect.assert_called_once_with(("2001:db8::1", 443))
+
+
+class TestScanPort:
+    @patch("mytools.network.portscanner.service_name", return_value="http")
+    @patch("mytools.network.portscanner.grab_banner", return_value="HTTP banner")
+    @patch("mytools.network.portscanner._create_connection")
+    def test_open_with_banner(self, mock_conn, mock_banner, mock_service):
+        mock_sock = MagicMock()
+        mock_sock.__enter__.return_value = mock_sock
+        mock_conn.return_value = mock_sock
+        result = scan_port("host", "192.0.2.1", 80, 0.5, True)
+        assert result is not None
+        assert result.state == "open"
+        assert result.service == "http"
+        assert result.banner == "HTTP banner"
+        mock_banner.assert_called_once_with(mock_sock, 80, 0.5)
+
+    @patch("mytools.network.portscanner.service_name", return_value="ssh")
+    @patch("mytools.network.portscanner._create_connection")
+    def test_open_without_banner(self, mock_conn, mock_service):
+        mock_sock = MagicMock()
+        mock_sock.__enter__.return_value = mock_sock
+        mock_conn.return_value = mock_sock
+        result = scan_port("host", "192.0.2.1", 22, 0.5, False)
+        assert result is not None
+        assert result.banner == ""
+
+    @patch("mytools.network.portscanner._create_connection")
+    def test_connection_refused_returns_none(self, mock_conn):
+        mock_conn.side_effect = ConnectionRefusedError("refused")
+        assert scan_port("h", "192.0.2.1", 22, 0.5, False) is None
+
+    @patch("mytools.network.portscanner._create_connection")
+    def test_timeout_returns_none(self, mock_conn):
+        mock_conn.side_effect = TimeoutError("timed out")
+        assert scan_port("h", "192.0.2.1", 22, 0.5, False) is None
+
+    @patch("mytools.network.portscanner._create_connection")
+    def test_oserror_returns_none(self, mock_conn):
+        mock_conn.side_effect = OSError("network unreachable")
+        assert scan_port("h", "192.0.2.1", 22, 0.5, False) is None
+
+
+class TestScanTargets:
+    def _finding(self, port: int) -> Finding:
+        return Finding(
+            host="192.0.2.1",
+            address="192.0.2.1",
+            port=port,
+            state="open",
+            service="http",
+        )
+
+    def test_scans_all_ports(self):
+        with patch(
+            "mytools.network.portscanner.scan_port",
+            side_effect=[self._finding(80), self._finding(443)],
+        ):
+            findings = scan_targets(
+                [("192.0.2.1", "192.0.2.1")], [80, 443], 0.5, 1, False
+            )
+        assert len(findings) == 2
+        assert {f.port for f in findings} == {80, 443}
+
+    def test_flushes_in_batches(self):
+        with patch(
+            "mytools.network.portscanner.scan_port",
+            side_effect=[self._finding(80), self._finding(443), self._finding(8080)],
+        ):
+            findings = scan_targets(
+                [("192.0.2.1", "192.0.2.1")], [80, 443, 8080], 0.5, 1, False
+            )
+        assert len(findings) == 3
+
+    def test_exception_in_future_logs_warning(self, caplog):
+        f = self._finding(443)
+        with (
+            patch(
+                "mytools.network.portscanner.scan_port",
+                side_effect=[RuntimeError("boom"), f],
+            ),
+            caplog.at_level("WARNING", logger="mytools.portscanner"),
+        ):
+            findings = scan_targets(
+                [("192.0.2.1", "192.0.2.1")], [80, 443], 0.5, 1, False
+            )
+        assert findings == [f]
+        assert any("erro no scan_port" in r.message for r in caplog.records)
+
+
+class TestPrintPortTable:
+    def test_empty_message(self, capsys):
+        print_port_table([])
+        assert "Nenhuma porta aberta" in capsys.readouterr().out
+
+    def test_with_findings(self, capsys):
+        f = Finding(
+            host="host", address="192.0.2.1", port=80, state="open", service="http"
+        )
+        print_port_table([f])
+        out = capsys.readouterr().out
+        assert "192.0.2.1" in out
+        assert "http" in out
+
+
+class TestRunOnce:
+    def test_timeout_zero_raises(self):
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "--timeout", "0"])
+        with pytest.raises(ValueError, match="timeout"):
+            run_once(args)
+
+    def test_workers_zero_raises(self):
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "--workers", "0"])
+        with pytest.raises(ValueError, match="workers"):
+            run_once(args)
+
+    def test_no_targets_raises(self):
+        parser = build_parser()
+        args = parser.parse_args(["-p", "80"])
+        with pytest.raises(ValueError, match="alvo"):
+            run_once(args)
+
+    def test_target_list_used(self, tmp_path):
+        lst = tmp_path / "targets.txt"
+        lst.write_text("127.0.0.1\n")
+        parser = build_parser()
+        args = parser.parse_args(["-l", str(lst), "-p", "80", "--dry-run"])
+        assert run_once(args) == 0
+
+    @pytest.mark.filterwarnings("ignore:.*deprecated.*:DeprecationWarning")
+    def test_threads_deprecated(self, caplog):
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "80", "--threads", "5"])
+        with caplog.at_level("WARNING", logger="mytools.portscanner"):
+            result = run_once(args)
+        assert result == 0
+        assert args.workers == 5
+        assert any("deprecated" in r.message for r in caplog.records)
+
+    def test_full_scan_prints_table(self, capsys):
+        f = Finding(
+            host="127.0.0.1",
+            address="127.0.0.1",
+            port=80,
+            state="open",
+            service="http",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "80"])
+        with patch("mytools.network.portscanner.scan_targets", return_value=[f]):
+            assert run_once(args) == 0
+        assert "127.0.0.1" in capsys.readouterr().out
+
+    def test_json_output(self, capsys):
+        f = Finding(
+            host="127.0.0.1",
+            address="127.0.0.1",
+            port=80,
+            state="open",
+            service="http",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "80", "--json"])
+        with patch("mytools.network.portscanner.scan_targets", return_value=[f]):
+            assert run_once(args) == 0
+        assert '"port": 80' in capsys.readouterr().out
+
+    def test_quiet_no_table_no_output(self, capsys):
+        f = Finding(
+            host="127.0.0.1",
+            address="127.0.0.1",
+            port=80,
+            state="open",
+            service="http",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "80", "--quiet"])
+        with patch("mytools.network.portscanner.scan_targets", return_value=[f]):
+            assert run_once(args) == 0
+        assert capsys.readouterr().out == ""
+
+    def test_output_file(self, tmp_path):
+        f = Finding(
+            host="127.0.0.1",
+            address="127.0.0.1",
+            port=80,
+            state="open",
+            service="http",
+        )
+        out = tmp_path / "out.json"
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "80", "-o", str(out)])
+        with (
+            patch("mytools.network.portscanner.scan_targets", return_value=[f]),
+            patch("mytools.network.portscanner.write_output") as mock_write,
+        ):
+            assert run_once(args) == 0
+        assert mock_write.call_count == 1
+
+
+class TestMainValidate:
+    def test_validate_no_targets_raises(self):
+        from mytools.network.portscanner import main
+
+        args = argparse.Namespace(targets=[], target_list=None)
+
+        def _fake_loop(**kwargs):
+            kwargs["validate_fn"](args)
+            return 0
+
+        with (
+            patch(
+                "mytools.network.portscanner.argparse.ArgumentParser.parse_args",
+                return_value=args,
+            ),
+            patch("mytools.network.portscanner.run_main_loop", side_effect=_fake_loop),
+            pytest.raises(ValueError, match="pelo menos um alvo"),
+        ):
+            main()
+
+    def test_validate_with_targets_passes(self):
+        from mytools.network.portscanner import main
+
+        args = argparse.Namespace(targets=["127.0.0.1"], target_list=None)
+
+        def _fake_loop(**kwargs):
+            kwargs["validate_fn"](args)
+            return 0
+
+        with (
+            patch(
+                "mytools.network.portscanner.argparse.ArgumentParser.parse_args",
+                return_value=args,
+            ),
+            patch("mytools.network.portscanner.run_main_loop", side_effect=_fake_loop),
+        ):
+            assert main() == 0
+
+
+class TestMainGuard:
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-port"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.network.portscanner", run_name="__main__")
+        assert exc_info.value.code == 0

@@ -429,6 +429,51 @@ class TestRunOnce:
             run_once(args)
 
     @patch("mytools.dns.dnstransfer.run_xfr_scan")
+    def test_vulnerable_prints_records(self, mock_scan, capsys):
+        mock_scan.return_value = [
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=True,
+                record_count=25,
+                records=[f"record-{i}" for i in range(25)],
+                elapsed=0.5,
+                exploit="dig axfr example.com @ns1.example.com",
+                tool="dig",
+            ),
+        ]
+        args = build_parser().parse_args(["example.com"])
+        run_once(args)
+        out = capsys.readouterr().out
+        assert "Primeiros registros" in out
+        assert "record-0" in out
+        assert "record-24" not in out
+        assert "mais 5 registros" in out
+
+    @patch("mytools.dns.dnstransfer.run_xfr_scan")
+    def test_vulnerable_prints_records_without_more(self, mock_scan, capsys):
+        mock_scan.return_value = [
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=True,
+                record_count=3,
+                records=["record-0", "record-1", "record-2"],
+                elapsed=0.5,
+                exploit="dig axfr example.com @ns1.example.com",
+                tool="dig",
+            ),
+        ]
+        args = build_parser().parse_args(["example.com"])
+        run_once(args)
+        out = capsys.readouterr().out
+        assert "Primeiros registros" in out
+        assert "record-0" in out
+        assert "mais" not in out
+
+    @patch("mytools.dns.dnstransfer.run_xfr_scan")
     def test_quiet_mode(self, mock_scan, capsys):
         mock_scan.return_value = [
             XfrResult(
@@ -487,3 +532,55 @@ class TestDryRun:
             result = run_once(args)
             assert result == 0
             mock_xfr.assert_not_called()
+
+
+class TestMain:
+    def test_main_delegates_to_run_main_loop(self):
+        from mytools.dns.dnstransfer import main
+
+        with patch(
+            "mytools.dns.dnstransfer.run_main_loop", return_value=0
+        ) as mock_loop:
+            result = main()
+        assert result == 0
+        mock_loop.assert_called_once()
+        _, kwargs = mock_loop.call_args
+        assert "validate_fn" in kwargs
+
+    def test_main_validate_fn_raises_without_domain(self):
+        import argparse
+
+        from mytools.dns.dnstransfer import main
+
+        with patch(
+            "mytools.dns.dnstransfer.run_main_loop", return_value=0
+        ) as mock_loop:
+            main()
+        _, kwargs = mock_loop.call_args
+        validate_fn = kwargs["validate_fn"]
+        with pytest.raises(ValueError):
+            validate_fn(argparse.Namespace(domain=None))
+
+    def test_main_validate_fn_accepts_domain(self):
+        import argparse
+
+        from mytools.dns.dnstransfer import main
+
+        with patch(
+            "mytools.dns.dnstransfer.run_main_loop", return_value=0
+        ) as mock_loop:
+            main()
+        _, kwargs = mock_loop.call_args
+        validate_fn = kwargs["validate_fn"]
+        validate_fn(argparse.Namespace(domain="example.com"))
+
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-dnsxfer"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.dns.dnstransfer", run_name="__main__")
+        assert exc_info.value.code == 0

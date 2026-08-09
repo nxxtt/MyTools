@@ -1,6 +1,10 @@
 import argparse
+import asyncio
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.vcs.vcsleak import (
     ALL_PATHS,
@@ -8,10 +12,15 @@ from mytools.vcs.vcsleak import (
     HG_PATHS,
     SVN_PATHS,
     VCSLeak,
+    _async_run_once,
     _classify_path,
     _load_paths_from_args,
     _validate_content,
     build_parser,
+    main,
+    print_results,
+    run_once,
+    scan_vcs,
 )
 
 
@@ -155,6 +164,26 @@ class TestValidateContent:
     def test_unknown_path(self):
         content = b"some content"
         ok, _ = _validate_content("robots.txt", content)
+        assert ok is False
+
+    def test_git_refs_no_validator(self):
+        ok, _ = _validate_content(".git/refs/heads/main", b"anything")
+        assert ok is False
+
+    def test_svn_entries_no_match(self):
+        ok, _ = _validate_content(".svn/entries", b"garbage data")
+        assert ok is False
+
+    def test_svn_no_validator(self):
+        ok, _ = _validate_content(".svn/all-wcprops", b"x")
+        assert ok is False
+
+    def test_hg_manifest_no_match(self):
+        ok, _ = _validate_content(".hg/store/00manifest.i", b"garbage")
+        assert ok is False
+
+    def test_hg_no_validator(self):
+        ok, _ = _validate_content(".hg/branch", b"x")
         assert ok is False
 
     def test_git_description_default(self):
@@ -308,3 +337,380 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args(["--header", "X-Custom: yes", "http://x.com"])
         assert args.header == ["X-Custom: yes"]
+
+
+# ── scan_vcs (mock HTTP) ─────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_no_results():
+    with respx.mock:
+        respx.route(method="HEAD", url__startswith="http://x.com/").mock(
+            return_value=httpx.Response(404),
+        )
+        respx.route(method="GET", url__startswith="http://x.com/").mock(
+            return_value=httpx.Response(404),
+        )
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_finds_git_head():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200, content=b"ref: refs/heads/main\n"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".git/HEAD" for leak in leaks)
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_finds_svn_wc_db():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.svn/wc.db").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.svn/wc.db").mock(
+            return_value=httpx.Response(200, content=b"SQLite format 3" + b"\x00" * 50),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".svn/wc.db" for leak in leaks)
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_finds_hg_manifest():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.hg/store/00manifest.i").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.hg/store/00manifest.i").mock(
+            return_value=httpx.Response(
+                200, content=b"abc123def456abc123def456abc123def456abc1 644 path\n"
+            ),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".hg/store/00manifest.i" for leak in leaks)
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_head_405_then_get():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(405),
+        )
+        respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200, content=b"ref: refs/heads/main\n"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".git/HEAD" for leak in leaks)
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_head_fetch_error():
+    with respx.mock:
+        respx.route(method="HEAD", url__startswith="http://x.com/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.route(method="GET", url__startswith="http://x.com/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_get_fetch_error():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_get_non_200():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(404),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_oversized():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200, content=b"x" * (5 * 1024 * 1024 + 1)),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_invalid_content():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200),
+        )
+        respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200, content=b"not a ref"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+# ── print_results ─────────────────────────────────────────────────────────────
+
+
+class TestPrintResults:
+    def test_empty(self, capsys):
+        print_results([])
+        out = capsys.readouterr().out
+        assert "Nenhum" in out
+
+    def test_with_results(self, capsys):
+        leaks = [
+            VCSLeak(
+                vcs_type="git",
+                url="http://x.com/.git/HEAD",
+                path=".git/HEAD",
+                status=200,
+                detail="ref: refs/heads/main",
+                raw_size=20,
+            ),
+        ]
+        print_results(leaks)
+        out = capsys.readouterr().out
+        assert ".git/HEAD" in out
+
+    def test_with_exploit(self, capsys):
+        leak = VCSLeak(
+            vcs_type="git",
+            url="http://x.com/.git/HEAD",
+            path=".git/HEAD",
+            status=200,
+            detail="ref: refs/heads/main",
+            raw_size=20,
+            exploit="git clone http://x.com/.git",
+            tool="git",
+        )
+        print_results([leak])
+        out = capsys.readouterr().out
+        assert "Exploits" in out
+
+
+class TestAsyncRunOnce:
+    def _args(self):
+        args = build_parser().parse_args(["http://x.com"])
+        args.dry_run = False
+        args.json_output = False
+        args.output = None
+        args.output_dir = None
+        return args
+
+    def test_dry_run(self):
+        args = self._args()
+        args.dry_run = True
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=False),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_timeout_zero(self):
+        args = self._args()
+        args.timeout = 0
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=False),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_prints_results_when_not_quiet(self, capsys):
+        args = self._args()
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=False),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.vcs.vcsleak.scan_vcs",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_json_output(self, capsys):
+        args = self._args()
+        args.json_output = True
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=True),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.vcs.vcsleak.scan_vcs",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_output_dir(self, tmp_path):
+        args = self._args()
+        args.output_dir = str(tmp_path)
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=True),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.vcs.vcsleak.scan_vcs",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.vcs.vcsleak.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+    def test_output_file(self, tmp_path):
+        args = self._args()
+        args.output = str(tmp_path / "out.json")
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=True),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.vcs.vcsleak.scan_vcs",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.vcs.vcsleak.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+
+
+# ── run_once / main / __main__ guard ─────────────────────────────────────────
+
+
+class TestRunOnceAndMain:
+    def test_run_once(self):
+        args = argparse.Namespace()
+        with patch(
+            "mytools.vcs.vcsleak._async_run_once",
+            new_callable=AsyncMock,
+            return_value=0,
+        ):
+            assert run_once(args) == 0
+
+    def test_main(self):
+        with patch("mytools.vcs.vcsleak.run_main_loop", return_value=0) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-vcsleak"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.vcs.vcsleak", run_name="__main__")

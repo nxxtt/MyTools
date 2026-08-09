@@ -32,6 +32,16 @@ class TestLoadApk:
         with pytest.raises((ValueError, Exception, OSError)):
             _load_apk(str(p))
 
+    def test_import_error(self) -> None:
+        from mytools.mobile.apk_dex import _load_apk
+
+        with (
+            patch("mytools.mobile.apk_dex.Path.is_file", return_value=True),
+            patch.dict("sys.modules", {"androguard": None, "androguard.misc": None}),
+            pytest.raises(ImportError, match="androguard not installed"),
+        ):
+            _load_apk("test.apk")
+
 
 # ---------------------------------------------------------------------------
 # analyze_dex_layer
@@ -218,6 +228,18 @@ class TestDisassembleDalvikMock:
         result = disassemble_dalvik("test.apk")
         assert result["total_methods"] == 0
 
+    @patch("mytools.mobile.apk_dex._load_apk")
+    def test_instruction_error_skipped(self, mock_load: MagicMock) -> None:
+        mock_dex = _mock_dex()
+        for m in mock_dex.get_encoded_methods():
+            m.get_instructions.side_effect = RuntimeError("disasm failed")
+        mock_a = MagicMock()
+        mock_load.return_value = (mock_a, [mock_dex], MagicMock())
+
+        result = disassemble_dalvik("test.apk")
+        assert result["total_methods"] == 1
+        assert result["methods"] == []
+
 
 class TestDecompileJavaMock:
     @patch("mytools.mobile.apk_dex._load_apk")
@@ -272,6 +294,41 @@ class TestDecompileJavaMock:
         result = decompile_java("test.apk")
         assert result["total_empty"] == 1
         assert result["total_decompiled"] == 0
+
+    @patch("mytools.mobile.apk_dex._load_apk")
+    def test_get_source_error_skipped(self, mock_load: MagicMock) -> None:
+        mock_class = _mock_dex_class()
+        mock_class.get_source.side_effect = RuntimeError("decompile failed")
+        mock_dex = MagicMock()
+        mock_dex.get_classes.return_value = [mock_class]
+        mock_a = MagicMock()
+        mock_load.return_value = (mock_a, [mock_dex], MagicMock())
+
+        result = decompile_java("test.apk")
+        assert result["total_empty"] == 1
+        assert result["total_decompiled"] == 0
+
+    @patch("mytools.mobile.apk_dex._load_apk")
+    def test_method_count_from_source(self, mock_load: MagicMock) -> None:
+        source = (
+            "package com.test;\n"
+            "public class Foo {\n"
+            "    public void run() {}\n"
+            "    private int count() { return 1; }\n"
+            "    static void util() {}\n"
+            "    void plain() {}\n"
+            "}\n"
+        )
+        mock_class = _mock_dex_class(source=source)
+        mock_dex = MagicMock()
+        mock_dex.get_classes.return_value = [mock_class]
+        mock_a = MagicMock()
+        mock_load.return_value = (mock_a, [mock_dex], MagicMock())
+
+        result = decompile_java("test.apk")
+        assert result["total_decompiled"] == 1
+        assert result["classes"][0]["method_count"] == 4
+        assert result["classes"][0]["line_count"] == 8
 
 
 # ---------------------------------------------------------------------------

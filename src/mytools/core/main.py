@@ -337,9 +337,21 @@ def _load_tools() -> list[tuple[str, str, str]]:
     return sorted(tools, key=lambda t: (t[1], t[2]))
 
 
+def _find_pyproject() -> Path | None:
+    """Sobe a arvore procurando pyproject.toml."""
+    path = Path(__file__).resolve().parent
+    for _ in range(6):
+        if (path / "pyproject.toml").exists():
+            return path / "pyproject.toml"
+        path = path.parent
+    return None
+
+
 def _load_tools_from_pyproject() -> list[tuple[str, str, str]]:
     """Fallback: le [project.scripts] do pyproject.toml."""
-    pyproject = Path(__file__).resolve().parents[4] / "pyproject.toml"
+    pyproject = _find_pyproject()
+    if pyproject is None:
+        return []
     tools: list[tuple[str, str, str]] = []
     try:
         with pyproject.open("rb") as fh:

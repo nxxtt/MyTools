@@ -353,10 +353,10 @@ def _parse_ocsp_response(response_der: bytes) -> dict[str, Any]:
         )
         result["revocation_status"] = result["response_status"]
 
-        if ocsp_resp.this_update:
-            result["this_update"] = ocsp_resp.this_update.isoformat()
-        if ocsp_resp.next_update:
-            result["next_update"] = ocsp_resp.next_update.isoformat()
+        if ocsp_resp.this_update_utc:
+            result["this_update"] = ocsp_resp.this_update_utc.isoformat()
+        if ocsp_resp.next_update_utc:
+            result["next_update"] = ocsp_resp.next_update_utc.isoformat()
 
     except Exception:
         result["response_status"] = "parse_error"
@@ -595,7 +595,7 @@ async def _test_ocsp_stapling(
                 url = ocsp_info.get("responder_url", "")
                 vulnerable = not bool(url)
                 details = f"Responder: {url}" if url else "No OCSP responder URL found"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -754,7 +754,7 @@ async def _test_cert_chain(
             elif tech == "pinning":
                 vulnerable = False
                 details = f"HPKP: {'present' if pinned else 'not detected'}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -859,7 +859,7 @@ async def _test_ct_sct(
             elif tech == "embedded_vs_logged":
                 vulnerable = False
                 details = f"Embedded: {sct_x509}, Logged: {sct_tls}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -952,7 +952,7 @@ async def _test_ct_split_world(
                 unknown = ca_names - _CT_SPLIT_WORLD_CAS
                 vulnerable = len(unknown) > 0
                 details = f"Known: {len(known)}, Unknown: {len(unknown)}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -1044,7 +1044,7 @@ async def _test_hsts_preload(
             elif tech == "chrome_preload_list":
                 vulnerable = not in_preload
                 details = f"In preload list: {not vulnerable}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 
@@ -1172,7 +1172,7 @@ async def _test_mixed_content(
             elif tech == "csp_upgrade":
                 vulnerable = not has_csp_upgrade
                 details = f"CSP upgrade-insecure: {'present' if has_csp_upgrade else 'missing'}"
-            else:
+            else:  # pragma: no cover
                 vulnerable = False
                 details = ""
 

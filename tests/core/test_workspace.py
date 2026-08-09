@@ -242,6 +242,25 @@ class TestGroupAWorkspace:
 
 
 # ---------------------------------------------------------------------------
+# BaseScanner edge cases (no target, main entry point)
+# ---------------------------------------------------------------------------
+
+
+class TestBaseScannerEdgeCases:
+    def test_run_once_b_no_target(self, capsys):
+        scanner = _FakeScannerB()
+        args = _make_args(scanner, [])
+        code = scanner.run_once(args)
+        assert code == 1
+        assert "Especifique um alvo." in capsys.readouterr().out
+
+    def test_main_with_target(self, monkeypatch):
+        scanner = _FakeScannerB()
+        monkeypatch.setattr(sys, "argv", ["fake-b", "https://example.com"])
+        assert scanner.main() == 0
+
+
+# ---------------------------------------------------------------------------
 # run_main_loop injection (legacy modules)
 # ---------------------------------------------------------------------------
 

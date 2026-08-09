@@ -1,18 +1,26 @@
 import argparse
 import json
+import runpy
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+import respx
 
 from mytools.osint.ipasninfo import (
     BANNER_ART,
     DEFAULT_TIMEOUT,
     IpAsnInfo,
+    _load_ips_from_args,
     _parse_ipapi,
     _parse_ipapi_batch,
     _parse_ipwhois,
+    _print_results,
+    _query_batch,
+    _query_single,
     build_parser,
     lookup_ip_asn,
+    main,
     run_once,
 )
 
@@ -264,3 +272,267 @@ class TestRunOnce:
 class TestBannerArt:
     def test_not_empty(self):
         assert len(BANNER_ART) > 0
+
+
+# ── _query_single ────────────────────────────────────────────────────────────
+
+
+class TestQuerySingle:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_ipwhois_success(self):
+        respx.get(url__startswith="https://ipwho.is/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "ip": "8.8.8.8",
+                    "success": True,
+                    "connection": {"asn": 15169, "org": "Google LLC", "isp": "Google"},
+                },
+            ),
+        )
+        result = await _query_single("8.8.8.8", 5.0)
+        assert result is not None
+        assert result.asn == "AS15169"
+        assert result.source == "ipwhois"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_ipwhois_error_fallback(self):
+        respx.get(url__startswith="https://ipwho.is/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.get(url__startswith="http://ip-api.com/json/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "query": "8.8.8.8",
+                    "status": "success",
+                    "as": "AS15169 Google LLC",
+                },
+            ),
+        )
+        result = await _query_single("8.8.8.8", 5.0)
+        assert result is not None
+        assert result.source == "ipapi"
+        assert result.asn == "AS15169"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_ipwhois_non_200_fallback(self):
+        respx.get(url__startswith="https://ipwho.is/").mock(
+            return_value=httpx.Response(500),
+        )
+        respx.get(url__startswith="http://ip-api.com/json/").mock(
+            return_value=httpx.Response(
+                200, json={"query": "8.8.8.8", "status": "success"}
+            ),
+        )
+        result = await _query_single("8.8.8.8", 5.0)
+        assert result is not None
+        assert result.source == "ipapi"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_ipwhois_invalid_json_fallback(self):
+        respx.get(url__startswith="https://ipwho.is/").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        respx.get(url__startswith="http://ip-api.com/json/").mock(
+            return_value=httpx.Response(
+                200, json={"query": "8.8.8.8", "status": "success"}
+            ),
+        )
+        result = await _query_single("8.8.8.8", 5.0)
+        assert result is not None
+        assert result.source == "ipapi"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_both_fail(self):
+        respx.get(url__startswith="https://ipwho.is/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.get(url__startswith="http://ip-api.com/json/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        result = await _query_single("8.8.8.8", 5.0)
+        assert result is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_ipapi_non_200(self):
+        respx.get(url__startswith="https://ipwho.is/").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        respx.get(url__startswith="http://ip-api.com/json/").mock(
+            return_value=httpx.Response(500),
+        )
+        result = await _query_single("8.8.8.8", 5.0)
+        assert result is None
+
+
+# ── _query_batch ─────────────────────────────────────────────────────────────
+
+
+class TestQueryBatch:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_empty(self):
+        result = await _query_batch([], 5.0)
+        assert result == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_success(self):
+        respx.post(url__startswith="http://ip-api.com/batch").mock(
+            return_value=httpx.Response(
+                200,
+                json=[{"query": "8.8.8.8", "status": "success", "as": "AS15169"}],
+            ),
+        )
+        result = await _query_batch(["8.8.8.8", "1.1.1.1"], 5.0)
+        assert len(result) == 1
+        assert result[0].asn == "AS15169"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_request_error(self):
+        respx.post(url__startswith="http://ip-api.com/batch").mock(
+            side_effect=httpx.ConnectError("refused"),
+        )
+        result = await _query_batch(["8.8.8.8"], 5.0)
+        assert result == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_200(self):
+        respx.post(url__startswith="http://ip-api.com/batch").mock(
+            return_value=httpx.Response(500),
+        )
+        result = await _query_batch(["8.8.8.8"], 5.0)
+        assert result == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_rate_limit_sleep(self):
+        respx.post(url__startswith="http://ip-api.com/batch").mock(
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {"query": f"1.2.3.{i % 255}", "status": "success"} for i in range(2)
+                ],
+            ),
+        )
+        ips = [f"10.0.0.{i % 250}" for i in range(105)]
+        result = await _query_batch(ips, 5.0)
+        assert len(result) == 4
+
+
+# ── lookup_ip_asn batch path ─────────────────────────────────────────────────
+
+
+class TestLookupBatch:
+    def test_batch_returns(self):
+        info = IpAsnInfo(ip="8.8.8.8", asn="AS15169", source="ipapi")
+        with patch(
+            "mytools.osint.ipasninfo._query_batch",
+            new_callable=AsyncMock,
+            return_value=[info],
+        ):
+            result = lookup_ip_asn(
+                ["8.8.8.8", "1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4"]
+            )
+            assert len(result) == 1
+            assert result[0].ip == "8.8.8.8"
+
+
+# ── _print_results / _load_ips_from_args / run_once output / main ────────────
+
+
+class TestPrintResultsPriv:
+    def test_empty(self, capsys):
+        _print_results([])
+        out = capsys.readouterr().out
+        assert "Nenhuma informacao ASN" in out
+
+    def test_with_data(self, capsys):
+        results = [
+            IpAsnInfo(
+                ip="8.8.8.8",
+                asn="AS15169",
+                org="Google LLC",
+                isp="Google LLC",
+                country="United States",
+                country_code="US",
+                city="Mountain View",
+                is_hosting=True,
+                exploit="https://bgp.he.net/ip/8.8.8.8",
+                tool="bgp.he.net",
+            ),
+        ]
+        _print_results(results)
+        out = capsys.readouterr().out
+        assert "8.8.8.8" in out
+        assert "AS15169" in out
+
+
+class TestLoadIpsFromArgs:
+    def test_from_file(self, tmp_path):
+        ip_file = tmp_path / "ips.txt"
+        ip_file.write_text("8.8.8.8\n#comment\n1.1.1.1\n\n", encoding="utf-8")
+        args = argparse.Namespace(ips=[], ip_file=str(ip_file))
+        assert _load_ips_from_args(args) == ["8.8.8.8", "1.1.1.1"]
+
+    def test_from_args_and_file(self, tmp_path):
+        ip_file = tmp_path / "ips.txt"
+        ip_file.write_text("1.1.1.1\n", encoding="utf-8")
+        args = argparse.Namespace(ips=["8.8.8.8"], ip_file=str(ip_file))
+        assert _load_ips_from_args(args) == ["8.8.8.8", "1.1.1.1"]
+
+    def test_file_not_found(self, capsys):
+        args = argparse.Namespace(ips=[], ip_file="definitely_missing_12345.txt")
+        assert _load_ips_from_args(args) == []
+
+
+class TestRunOnceOutput:
+    def test_with_output(self, tmp_path):
+        parser = build_parser()
+        args = parser.parse_args(["8.8.8.8", "-o", str(tmp_path / "out.json")])
+        with (
+            patch("mytools.osint.ipasninfo.init_scanner"),
+            patch(
+                "mytools.osint.ipasninfo.lookup_ip_asn",
+                return_value=[IpAsnInfo(ip="8.8.8.8", asn="AS15169")],
+            ),
+            patch("mytools.osint.ipasninfo.write_output") as mock_write,
+        ):
+            result = run_once(args)
+        assert result == 0
+        mock_write.assert_called_once()
+
+
+class TestMain:
+    def test_main_with_ips(self):
+        with (
+            patch("sys.argv", ["mytools-ipasn", "8.8.8.8"]),
+            patch("mytools.osint.ipasninfo.run_once", return_value=0) as mock_run,
+        ):
+            assert main() == 0
+        mock_run.assert_called_once()
+
+    def test_main_interactive(self):
+        with (
+            patch("sys.argv", ["mytools-ipasn"]),
+            patch("mytools.osint.ipasninfo.run_main_loop", return_value=0) as mock_loop,
+        ):
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self):
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-ipasn", "8.8.8.8"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.osint.ipasninfo", run_name="__main__")

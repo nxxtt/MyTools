@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Security (DMARC/SPF/DKIM)."""
 
+import asyncio
+import runpy
 from unittest.mock import MagicMock, patch
 
+import dns.exception
+import dns.resolver
 import pytest
 
 from mytools.email.emailsecurity import (
@@ -10,10 +14,15 @@ from mytools.email.emailsecurity import (
     DmarcRecord,
     EmailSecurityResult,
     SpfRecord,
+    _async_run_once,
     _parse_dmarc,
     _parse_spf,
+    _query_txt,
+    banner,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_email_security,
 )
 
@@ -129,6 +138,60 @@ class TestParseDmarc:
         assert dmarc.sp == "malformed"
 
 
+class TestQueryTxt:
+    def test_returns_joined_strings(self) -> None:
+        class FakeRR:
+            strings = (b"v=spf1 ", b"~all")
+
+        resolver = MagicMock()
+        resolver.resolve.return_value = [FakeRR()]
+        assert _query_txt("test.com", resolver) == "v=spf1 ~all"
+
+    def test_str_strings(self) -> None:
+        class FakeRR:
+            strings = ("v=spf1 ", "~all")
+
+        resolver = MagicMock()
+        resolver.resolve.return_value = [FakeRR()]
+        assert _query_txt("test.com", resolver) == "v=spf1 ~all"
+
+    def test_multiple_records_first_wins(self) -> None:
+        class FakeRR1:
+            strings = (b"first",)
+
+        class FakeRR2:
+            strings = (b"second",)
+
+        resolver = MagicMock()
+        resolver.resolve.return_value = [FakeRR1(), FakeRR2()]
+        assert _query_txt("test.com", resolver) == "first"
+
+    def test_empty_answer(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.return_value = []
+        assert _query_txt("test.com", resolver) is None
+
+    def test_no_answer(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.side_effect = dns.resolver.NoAnswer
+        assert _query_txt("test.com", resolver) is None
+
+    def test_nxdomain(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.side_effect = dns.resolver.NXDOMAIN
+        assert _query_txt("test.com", resolver) is None
+
+    def test_timeout(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.side_effect = dns.exception.Timeout
+        assert _query_txt("test.com", resolver) == DNS_ERROR
+
+    def test_generic_dns_exception(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.side_effect = dns.exception.DNSException("boom")
+        assert _query_txt("test.com", resolver) == DNS_ERROR
+
+
 class TestParser:
     """Testes do build_parser."""
 
@@ -182,6 +245,71 @@ class TestPrintResults:
         print_results(result)
         out = capsys.readouterr().out
         assert "CRITICAL" in out
+
+    def test_good(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = EmailSecurityResult(
+            domain="good.com",
+            spf=SpfRecord("v=spf1 ~all", "spf1", [], True, "~", []),
+            dkim_selectors=["default"],
+            dmarc=DmarcRecord("v=DMARC1; p=reject", "reject", "reject", "", 100),
+            overall_status="good",
+            issues=[],
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "GOOD" in out
+
+    def test_missing(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = EmailSecurityResult(
+            domain="none.com",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="missing",
+            issues=[],
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "nenhum registro" in out.lower()
+
+    def test_spf_includes(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = EmailSecurityResult(
+            domain="inc.com",
+            spf=SpfRecord(
+                "v=spf1 include:_spf.google.com ~all",
+                "spf1",
+                [],
+                True,
+                "~",
+                ["_spf.google.com"],
+            ),
+            dkim_selectors=["default"],
+            dmarc=DmarcRecord("v=DMARC1; p=reject", "reject", "reject", "", 100),
+            overall_status="secure",
+            issues=[],
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "_spf.google.com" in out
+
+    def test_dmarc_rua(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = EmailSecurityResult(
+            domain="rua.com",
+            spf=SpfRecord("v=spf1 ~all", "spf1", [], True, "~", []),
+            dkim_selectors=["default"],
+            dmarc=DmarcRecord(
+                "v=DMARC1; p=reject; rua=mailto:d@example.com",
+                "reject",
+                "reject",
+                "mailto:d@example.com",
+                100,
+            ),
+            overall_status="secure",
+            issues=[],
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "mailto:d@example.com" in out
 
 
 class TestScanEmailSecurity:
@@ -249,3 +377,189 @@ class TestScanEmailSecurity:
         assert result.spf.has_all is True
         assert result.spf.all_qualifier == ""
         assert any("all sem qualificador" in i for i in result.issues)
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_spf_plus_all(self, mock_txt: MagicMock) -> None:
+        mock_txt.return_value = "v=spf1 +all"
+        result = scan_email_security("test.com")
+        assert result.spf is not None
+        assert result.spf.all_qualifier == "+"
+        assert any("SPF usa +all" in i for i in result.issues)
+        assert result.overall_status == "critical"
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_txt_not_spf(self, mock_txt: MagicMock) -> None:
+        mock_txt.return_value = "v=DKIM1; p=abc"
+        result = scan_email_security("test.com")
+        assert any("nao e SPF" in i for i in result.issues)
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_dmarc_none(self, mock_txt: MagicMock) -> None:
+        def side_effect(domain: str, resolver: object) -> str | None:
+            if "_dmarc" in domain:
+                return "v=DMARC1; p=none"
+            return "v=spf1 ~all"
+
+        mock_txt.side_effect = side_effect
+        result = scan_email_security("test.com")
+        assert result.dmarc is not None
+        assert result.dmarc.policy == "none"
+        assert any("DMARC p=none" in i for i in result.issues)
+        assert result.overall_status == "warning"
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_dmarc_pct_low(self, mock_txt: MagicMock) -> None:
+        def side_effect(domain: str, resolver: object) -> str | None:
+            if "_dmarc" in domain:
+                return "v=DMARC1; p=reject; pct=50"
+            return "v=spf1 ~all"
+
+        mock_txt.side_effect = side_effect
+        result = scan_email_security("test.com")
+        assert result.dmarc is not None
+        assert result.dmarc.pct == 50
+        assert any("pct=50" in i for i in result.issues)
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_status_good(self, mock_txt: MagicMock) -> None:
+        def side_effect(domain: str, resolver: object) -> str | None:
+            if "_dmarc" in domain:
+                return "v=DMARC1; p=reject"
+            if "_domainkey" in domain:
+                return None
+            return "v=spf1 ~all"
+
+        mock_txt.side_effect = side_effect
+        result = scan_email_security("test.com")
+        assert result.spf is not None
+        assert result.dmarc is not None
+        assert result.dkim_selectors == []
+        assert result.overall_status == "good"
+
+    @patch("mytools.email.emailsecurity._query_txt")
+    def test_status_missing(self, mock_txt: MagicMock) -> None:
+        def side_effect(domain: str, resolver: object) -> str | None:
+            if "_dmarc" in domain:
+                return "v=DMARC1; p=reject"
+            if "_domainkey" in domain:
+                return None
+            return None
+
+        mock_txt.side_effect = side_effect
+        result = scan_email_security("test.com")
+        assert result.spf is None
+        assert result.dmarc is not None
+        assert result.dkim_selectors == []
+        assert result.overall_status == "missing"
+
+
+class TestBanner:
+    def test_banner(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner()
+        captured = capsys.readouterr()
+        assert "email security" in captured.out
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["example.com"])
+        with (
+            patch(
+                "mytools.email.emailsecurity._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.email.emailsecurity.safe_asyncio_run",
+                new_callable=MagicMock,
+            ) as mock_safe,
+        ):
+            mock_safe.return_value = 0
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_domain(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["example.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results(self) -> None:
+        result = EmailSecurityResult(
+            domain="example.com",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="warning",
+            issues=[],
+        )
+        args = build_parser().parse_args(["example.com"])
+        with patch(
+            "mytools.email.emailsecurity.scan_email_security",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        result = EmailSecurityResult(
+            domain="example.com",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="warning",
+            issues=[],
+        )
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["example.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.email.emailsecurity.scan_email_security",
+                return_value=result,
+            ),
+            patch("mytools.email.emailsecurity.write_output") as mock_write,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_write.assert_called_once()
+
+    def test_quiet(self) -> None:
+        result = EmailSecurityResult(
+            domain="example.com",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="warning",
+            issues=[],
+        )
+        args = build_parser().parse_args(["example.com", "--quiet"])
+        with patch(
+            "mytools.email.emailsecurity.scan_email_security",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.email.emailsecurity.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-secemail", "example.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.email.emailsecurity", run_name="__main__")

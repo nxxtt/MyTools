@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Prototype Pollution."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -21,12 +22,14 @@ from mytools.web.prototypepollution import (
     PollResult,
     PrototypePollutionScanner,
     _check_poll_response,
+    _run_scan_core,
     _test_baseline,
     _test_blind,
     _test_bypass,
     _test_constructor,
     _test_detect,
     _test_dom,
+    _test_dom_client_side,
     _test_impact,
     _test_library,
     build_parser,
@@ -783,3 +786,291 @@ class TestIntegration:
 
         result = run_once(args)
         assert result == 0
+
+
+class TestPrintResultsExtras:
+    """Testes extras para print_results."""
+
+    def test_vulnerable_without_details(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        attempt = PollAttempt(
+            technique="proto_basic",
+            category="detect",
+            payload='{"__proto__":{"polluted":true}}',
+            param="data",
+            method="post_json",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=200,
+            status_changed=False,
+            size_changed=True,
+            vulnerable=True,
+            details="",
+            error="",
+        )
+        result = PollResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[attempt],
+            vulnerable_techniques=["proto_basic"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "VULNERABILIDADES DETECTADAS" in out
+
+    def test_dom_confirmed(self, capsys: pytest.CaptureFixture[str]) -> None:
+        attempt = PollAttempt(
+            technique="dom_client_side",
+            category="dom",
+            payload='{"__proto__":{"polluted":"PP"}}',
+            param="data",
+            method="get_url",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=True,
+            details="Object.prototype.polluted setado",
+            error="",
+            exploit="?__proto__[polluted]=value",
+            tool="playwright",
+            test_url="https://example.com/?__proto__[polluted]=PP",
+            dom_confirmed=True,
+        )
+        result = PollResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[attempt],
+            vulnerable_techniques=["dom_client_side"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "DOM:       confirmado via headless" in out
+
+    def test_blocked_payloads(self, capsys: pytest.CaptureFixture[str]) -> None:
+        attempt = PollAttempt(
+            technique="proto_basic",
+            category="detect",
+            payload='{"__proto__":{"polluted":true}}',
+            param="data",
+            method="post_json",
+            status_baseline=200,
+            status_test=403,
+            size_baseline=100,
+            size_test=100,
+            status_changed=True,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="403 Forbidden",
+        )
+        result = PollResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[attempt],
+            vulnerable_techniques=[],
+            blocked_techniques=["proto_basic"],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "payloads bloqueados (403/429)" in out
+
+    def test_connection_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        attempt = PollAttempt(
+            technique="proto_basic",
+            category="detect",
+            payload='{"__proto__":{"polluted":true}}',
+            param="data",
+            method="post_json",
+            status_baseline=200,
+            status_test=0,
+            size_baseline=100,
+            size_test=0,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="",
+            error="Connection refused",
+        )
+        result = PollResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[attempt],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "1 erros de conexao" in out
+
+
+class TestDomClientSide:
+    """Testes para _test_dom_client_side."""
+
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_confirmed(self, mock_eval: AsyncMock) -> None:
+        mock_eval.return_value = True
+        attempts = await _test_dom_client_side(
+            "https://example.com/", 10.0, None, 200, 100
+        )
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is True
+        assert attempts[0].dom_confirmed is True
+        assert attempts[0].test_url.startswith("https://example.com/")
+
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_not_confirmed(self, mock_eval: AsyncMock) -> None:
+        mock_eval.return_value = False
+        attempts = await _test_dom_client_side(
+            "https://example.com/", 10.0, None, 200, 100
+        )
+        assert len(attempts) == 3
+        assert all(not a.vulnerable for a in attempts)
+        assert all(a.error == "browser nao poluiu" for a in attempts)
+
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_error_handled(self, mock_eval: AsyncMock) -> None:
+        mock_eval.side_effect = RuntimeError("browser crash")
+        attempts = await _test_dom_client_side(
+            "https://example.com/", 10.0, None, 200, 100
+        )
+        assert len(attempts) == 3
+        assert all(not a.vulnerable for a in attempts)
+
+
+class TestRunScanCoreHeadless:
+    """Testes para o fluxo headless e categorias invalidas do _run_scan_core."""
+
+    @pytest.mark.asyncio
+    @patch("mytools.core.headless.browser_available", return_value=False)
+    async def test_browser_unavailable(self, mock_ba: MagicMock) -> None:
+        result = await _run_scan_core(
+            "https://example.com/", [], 10, None, headless=True
+        )
+        assert result == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    @patch("mytools.core.headless.browser_available", return_value=True)
+    @patch("mytools.core.headless.evaluate", new_callable=AsyncMock)
+    async def test_headless_dom_attempts(
+        self, mock_eval: AsyncMock, mock_ba: MagicMock
+    ) -> None:
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        mock_eval.return_value = False
+        result = await _run_scan_core(
+            "https://example.com/",
+            ["detect"],
+            10,
+            None,
+            headless=True,
+            proxy=None,
+        )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_category_continues(self) -> None:
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        result = await _run_scan_core("https://example.com/", ["bogus"], 10, None)
+        assert result == 0
+
+
+class TestScannerMethods:
+    """Testes para os metodos da classe PrototypePollutionScanner."""
+
+    def test_run_scan(self) -> None:
+        scanner = PrototypePollutionScanner()
+        with patch(
+            "mytools.web.prototypepollution._run_scan_core", new_callable=AsyncMock
+        ) as mock_core:
+            mock_core.return_value = 0
+            result = asyncio.run(
+                scanner.run_scan(
+                    target="https://test.com",
+                    categories=["detect"],
+                    timeout=10,
+                    output_file=None,
+                    headless=False,
+                    proxy=None,
+                )
+            )
+            assert result == 0
+            mock_core.assert_called_once()
+
+    def test_print_results(self) -> None:
+        scanner = PrototypePollutionScanner()
+        result = PollResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        with patch("mytools.web.prototypepollution.print_results") as mock_print:
+            scanner.print_results(result)
+            mock_print.assert_called_once_with(result)
+
+    def test_example(self) -> None:
+        assert "target.com" in PrototypePollutionScanner()._example()
+
+    def test_help(self) -> None:
+        help_text = PrototypePollutionScanner()._help()
+        assert "Uso" in help_text
+
+
+class TestBannerArt:
+    """Testes para banner_art."""
+
+    def test_runs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        vars(PrototypePollutionScanner)["banner_fn"]()
+        assert capsys.readouterr().out
+
+
+class TestMainGuard:
+    """Testes para o guard if __name__ == '__main__'."""
+
+    def test_guard_runs(self) -> None:
+        with (
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            import runpy
+
+            runpy.run_module("mytools.web.prototypepollution", run_name="__main__")

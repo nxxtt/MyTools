@@ -1,9 +1,11 @@
 """Testes do modulo subdomaintakeover."""
 
+import argparse
 import asyncio
 from dataclasses import asdict
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.subdomaintakeover import (
@@ -11,14 +13,17 @@ from mytools.web.subdomaintakeover import (
     TakeoverResult,
     _check_http_fingerprint,
     _enumerate_crtsh,
+    _enumerate_subdomains,
     _enumerate_wordlist,
     _get_services,
     _match_service,
+    _resolve_a,
     _resolve_cname,
     banner_art,
     build_parser,
     main,
     print_results,
+    run_once,
     run_scan,
 )
 
@@ -50,6 +55,14 @@ class TestServiceFingerprints:
     def test_has_github_pages(self) -> None:
         services = _get_services()
         assert "github_pages" in services
+
+    def test_services_non_dict(self) -> None:
+        with patch(
+            "mytools.web.subdomaintakeover._load_services",
+            return_value={"services": ["not", "a", "dict"]},
+        ):
+            services = _get_services()
+        assert services == {}
 
     def test_all_have_cname_suffix(self) -> None:
         services = _get_services()
@@ -176,6 +189,57 @@ class TestResolveCNAME:
             result = _resolve_cname("timeout.example.com")
             assert result is None
 
+    def test_with_cname(self) -> None:
+        with patch("mytools.web.subdomaintakeover.dns.resolver.Resolver") as mock_r:
+            mock_instance = MagicMock()
+            mock_r.return_value = mock_instance
+            rdata = MagicMock()
+            rdata.target = "target.example.com."
+            mock_instance.resolve.return_value = [rdata]
+            result = _resolve_cname("www.example.com")
+            assert result == "target.example.com"
+
+    def test_empty_answers(self) -> None:
+        with patch("mytools.web.subdomaintakeover.dns.resolver.Resolver") as mock_r:
+            mock_instance = MagicMock()
+            mock_r.return_value = mock_instance
+            mock_instance.resolve.return_value = []
+            result = _resolve_cname("www.example.com")
+            assert result is None
+
+    def test_dns_exception(self) -> None:
+        import dns.exception
+
+        with patch("mytools.web.subdomaintakeover.dns.resolver.Resolver") as mock_r:
+            mock_instance = MagicMock()
+            mock_r.return_value = mock_instance
+            mock_instance.resolve.side_effect = dns.exception.DNSException("boom")
+            result = _resolve_cname("www.example.com")
+            assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _resolve_a
+# ---------------------------------------------------------------------------
+
+
+class TestResolveA:
+    def test_returns_ips(self) -> None:
+        with patch("mytools.web.subdomaintakeover.dns.resolver.Resolver") as mock_r:
+            mock_instance = MagicMock()
+            mock_r.return_value = mock_instance
+            mock_instance.resolve.return_value = ["1.2.3.4", "5.6.7.8"]
+            ips = _resolve_a("www.example.com")
+            assert ips == ["1.2.3.4", "5.6.7.8"]
+
+    def test_error_returns_empty(self) -> None:
+        with patch("mytools.web.subdomaintakeover.dns.resolver.Resolver") as mock_r:
+            mock_instance = MagicMock()
+            mock_r.return_value = mock_instance
+            mock_instance.resolve.side_effect = __import__("dns").resolver.NXDOMAIN()
+            ips = _resolve_a("www.example.com")
+            assert ips == []
+
 
 # ---------------------------------------------------------------------------
 # _enumerate_crtsh
@@ -217,6 +281,45 @@ class TestEnumerateCrtsh:
         ):
             result = _enumerate_crtsh("example.com")
             assert result == []
+
+    def test_timeout_fallback(self) -> None:
+        with patch(
+            "mytools.web.subdomaintakeover.httpx.get",
+            side_effect=httpx.TimeoutException("timeout"),
+        ):
+            result = _enumerate_crtsh("example.com")
+            assert result == []
+
+    def test_http_status_error_fallback(self) -> None:
+        import httpx as _httpx
+
+        req = _httpx.Request("GET", "https://crt.sh/")
+        resp = _httpx.Response(500, request=req)
+        err = _httpx.HTTPStatusError("500", request=req, response=resp)
+        with patch("mytools.web.subdomaintakeover.httpx.get", side_effect=err):
+            result = _enumerate_crtsh("example.com")
+            assert result == []
+
+
+# ---------------------------------------------------------------------------
+# _enumerate_subdomains
+# ---------------------------------------------------------------------------
+
+
+class TestEnumerateSubdomains:
+    def test_merged_dedup(self) -> None:
+        with (
+            patch(
+                "mytools.web.subdomaintakeover._enumerate_wordlist",
+                return_value=["www.example.com", "api.example.com"],
+            ),
+            patch(
+                "mytools.web.subdomaintakeover._enumerate_crtsh",
+                return_value=["api.example.com", "dev.example.com"],
+            ),
+        ):
+            subs = _enumerate_subdomains("example.com")
+        assert set(subs) == {"www.example.com", "api.example.com", "dev.example.com"}
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +373,40 @@ class TestCheckHTTPFingerprint:
         async def run() -> tuple[int, bool, str]:
             client = MagicMock()
             client.get = AsyncMock(side_effect=Exception("connect error"))
+            client.__aenter__ = AsyncMock(return_value=client)
+            client.__aexit__ = AsyncMock(return_value=False)
+            async with client:
+                return await _check_http_fingerprint(
+                    client,
+                    "test.example.com",
+                    ["NoSuchBucket"],
+                )
+
+        status, match, _sig = asyncio.run(run())
+        assert status == 0
+        assert match is False
+
+    def test_timeout(self) -> None:
+        async def run() -> tuple[int, bool, str]:
+            client = MagicMock()
+            client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+            client.__aenter__ = AsyncMock(return_value=client)
+            client.__aexit__ = AsyncMock(return_value=False)
+            async with client:
+                return await _check_http_fingerprint(
+                    client,
+                    "test.example.com",
+                    ["NoSuchBucket"],
+                )
+
+        status, match, _sig = asyncio.run(run())
+        assert status == 0
+        assert match is False
+
+    def test_connect_error(self) -> None:
+        async def run() -> tuple[int, bool, str]:
+            client = MagicMock()
+            client.get = AsyncMock(side_effect=httpx.ConnectError("connect error"))
             client.__aenter__ = AsyncMock(return_value=client)
             client.__aexit__ = AsyncMock(return_value=False)
             async with client:
@@ -437,6 +574,28 @@ class TestPrintResults:
         assert "VULNERAVEIS" in out or "VULNERAVEL" in out
         assert "test.example.com" in out
 
+    def test_non_vuln(self, capsys: pytest.CaptureFixture[str]) -> None:
+        a = TakeoverAttempt(
+            subdomain="test.example.com",
+            cname_target="test.example.com.cdn.cloudflare.net",
+            service="cloudflare",
+            http_status=200,
+            http_match=False,
+            vulnerable=False,
+            details="CNAME -> test.example.com.cdn.cloudflare.net [cloudflare], HTTP 200",
+        )
+        r = TakeoverResult(
+            target="example.com",
+            subdomains_scanned=10,
+            dangling_cnames=0,
+            attempts=[a],
+            vulnerable_subdomains=[],
+            overall_status="secure",
+        )
+        print_results(r)
+        out = capsys.readouterr().out
+        assert "CNAMEs para servicos conhecidos" in out
+
 
 # ---------------------------------------------------------------------------
 # banner
@@ -586,3 +745,230 @@ class TestRunScan:
         result = asyncio.run(run())
         assert result.overall_status == "secure"
         assert result.dangling_cnames == 0
+
+    def test_no_services(self) -> None:
+        async def run() -> TakeoverResult:
+            with patch("mytools.web.subdomaintakeover._get_services", return_value={}):
+                return await run_scan(domain="example.com")
+
+        result = asyncio.run(run())
+        assert result.overall_status == "error"
+        assert result.subdomains_scanned == 0
+
+    def test_signatures_not_list(self) -> None:
+        async def run() -> TakeoverResult:
+            with (
+                patch(
+                    "mytools.web.subdomaintakeover._enumerate_subdomains",
+                    return_value=["test.example.com"],
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._resolve_cname",
+                    return_value="test.s3.amazonaws.com",
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._get_services",
+                    return_value={
+                        "s3": {
+                            "cname_suffix": ".s3.amazonaws.com",
+                            "http_signatures": "NoSuchBucket",
+                        },
+                    },
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._check_http_fingerprint",
+                    AsyncMock(return_value=(0, False, "")),
+                ),
+            ):
+                client = MagicMock()
+                client.aclose = AsyncMock()
+                client.__aenter__ = AsyncMock(return_value=client)
+                client.__aexit__ = AsyncMock(return_value=False)
+                with patch(
+                    "mytools.web.subdomaintakeover.create_async_client",
+                    return_value=client,
+                ):
+                    return await run_scan(domain="example.com")
+
+        result = asyncio.run(run())
+        assert result.overall_status == "secure"
+        assert result.subdomains_scanned == 1
+
+    def test_task_exception(self) -> None:
+        async def run() -> TakeoverResult:
+            with (
+                patch(
+                    "mytools.web.subdomaintakeover._enumerate_subdomains",
+                    return_value=["test.example.com"],
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._resolve_cname",
+                    side_effect=RuntimeError("boom"),
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._get_services",
+                    return_value={
+                        "s3": {
+                            "cname_suffix": ".s3.amazonaws.com",
+                            "http_signatures": [],
+                        },
+                    },
+                ),
+            ):
+                client = MagicMock()
+                client.aclose = AsyncMock()
+                client.__aenter__ = AsyncMock(return_value=client)
+                client.__aexit__ = AsyncMock(return_value=False)
+                with patch(
+                    "mytools.web.subdomaintakeover.create_async_client",
+                    return_value=client,
+                ):
+                    return await run_scan(domain="example.com")
+
+        result = asyncio.run(run())
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    def test_output_file(self, tmp_path) -> None:
+        async def run() -> TakeoverResult:
+            with (
+                patch(
+                    "mytools.web.subdomaintakeover._enumerate_subdomains",
+                    return_value=["test.example.com"],
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._resolve_cname",
+                    return_value="test.example.com.cdn.cloudflare.net",
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._get_services",
+                    return_value={
+                        "s3": {
+                            "cname_suffix": ".s3.amazonaws.com",
+                            "http_signatures": ["NoSuchBucket"],
+                        },
+                    },
+                ),
+                patch(
+                    "mytools.web.subdomaintakeover._check_http_fingerprint",
+                    AsyncMock(return_value=(0, False, "")),
+                ),
+            ):
+                client = MagicMock()
+                client.aclose = AsyncMock()
+                client.__aenter__ = AsyncMock(return_value=client)
+                client.__aexit__ = AsyncMock(return_value=False)
+                with patch(
+                    "mytools.web.subdomaintakeover.create_async_client",
+                    return_value=client,
+                ):
+                    return await run_scan(
+                        domain="example.com",
+                        output_file=str(tmp_path / "out.json"),
+                    )
+
+        result = asyncio.run(run())
+        assert result.overall_status == "secure"
+        out = tmp_path / "out.json"
+        assert out.exists()
+        assert '"target": "example.com"' in out.read_text()
+
+
+# ---------------------------------------------------------------------------
+# run_once
+# ---------------------------------------------------------------------------
+
+
+class TestRunOnce:
+    def _make_result(self, status: str = "secure") -> TakeoverResult:
+        return TakeoverResult(
+            target="example.com",
+            subdomains_scanned=1,
+            dangling_cnames=0,
+            attempts=[],
+            vulnerable_subdomains=[],
+            overall_status=status,
+        )
+
+    def test_run_once_print(self, base_ns: argparse.Namespace) -> None:
+        base_ns.domain = "example.com"
+        base_ns.timeout = 10
+        base_ns.concurrency = 5
+        base_ns.output = None
+        base_ns.json_output = False
+        base_ns.wordlist = None
+        with (
+            patch(
+                "mytools.web.subdomaintakeover.run_scan",
+                MagicMock(return_value=self._make_result()),
+            ) as mock_run,
+            patch(
+                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            result = run_once(base_ns)
+        assert result == 0
+        mock_run.assert_called_once()
+
+    def test_run_once_json_output(self, base_ns: argparse.Namespace) -> None:
+        base_ns.domain = "example.com"
+        base_ns.timeout = 10
+        base_ns.concurrency = 5
+        base_ns.output = "out.json"
+        base_ns.json_output = True
+        base_ns.wordlist = None
+        with (
+            patch(
+                "mytools.web.subdomaintakeover.run_scan",
+                MagicMock(return_value=self._make_result()),
+            ),
+            patch(
+                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+            patch("mytools.web.subdomaintakeover.print_json") as mock_print,
+            patch("mytools.web.subdomaintakeover.write_output") as mock_write,
+        ):
+            result = run_once(base_ns)
+        assert result == 0
+        mock_print.assert_called_once()
+        mock_write.assert_called_once()
+
+    def test_run_once_error(self, base_ns: argparse.Namespace) -> None:
+        base_ns.domain = "example.com"
+        base_ns.timeout = 10
+        base_ns.concurrency = 5
+        base_ns.output = None
+        base_ns.json_output = False
+        base_ns.wordlist = None
+        with (
+            patch(
+                "mytools.web.subdomaintakeover.run_scan",
+                MagicMock(return_value=self._make_result("error")),
+            ),
+            patch(
+                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            result = run_once(base_ns)
+        assert result == 1
+
+
+# ---------------------------------------------------------------------------
+# __main__ guard
+# ---------------------------------------------------------------------------
+
+
+class TestMainGuard:
+    def test_guard(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-subtakeover"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.subdomaintakeover", run_name="__main__")
+        assert exc_info.value.code == 0

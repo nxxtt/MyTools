@@ -1,3 +1,5 @@
+import re
+import runpy
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +16,7 @@ from mytools.web.techfingerprint import (
     _scan_url,
     build_parser,
     fingerprint,
+    main,
     run_once,
 )
 
@@ -70,6 +73,22 @@ class TestDetectHeaderVersions:
     def test_empty_blob(self):
         results = _detect_header_versions("", {})
         assert results == []
+
+    def test_duplicate_tech_dedup(self):
+        class _DupHeaderPatterns:
+            def items(self):
+                yield "Apache", [re.compile(r"Apache/([\d.]+)", re.IGNORECASE)]
+                yield "Apache", [re.compile(r"Apache/([\d.]+)", re.IGNORECASE)]
+
+        with patch(
+            "mytools.web.techfingerprint.HEADER_VERSION_PATTERNS",
+            _DupHeaderPatterns(),
+        ):
+            results = _detect_header_versions(
+                "Server: Apache/2.4.57", {"server": "Apache/2.4.57"}
+            )
+        assert len(results) == 1
+        assert results[0].name == "Apache"
 
 
 # _detect_meta_generators
@@ -155,6 +174,15 @@ class TestDetectScriptVersions:
         results = _detect_script_versions(body)
         assert results == []
 
+    def test_duplicate_script_dedup(self):
+        body = (
+            '<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>'
+            '<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>'
+        )
+        results = _detect_script_versions(body)
+        assert len(results) == 1
+        assert results[0].name == "jQuery"
+
 
 # _detect_css_versions
 
@@ -179,6 +207,15 @@ class TestDetectCssVersions:
         body = "<html><body>No CSS links</body></html>"
         results = _detect_css_versions(body)
         assert results == []
+
+    def test_duplicate_css_dedup(self):
+        body = (
+            '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />'
+            '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />'
+        )
+        results = _detect_css_versions(body)
+        assert len(results) == 1
+        assert results[0].name == "Bootstrap"
 
 
 # _detect_cookie_techs
@@ -325,6 +362,97 @@ class TestFingerprint:
         names = {r.name for r in results}
         assert len(names) >= 2
 
+    def test_dedup_replace_higher_confidence(self):
+        low = TechFingerprint(
+            name="TestTech",
+            version="",
+            source="cookie",
+            confidence="low",
+            evidence="x",
+        )
+        high = TechFingerprint(
+            name="TestTech",
+            version="1.0",
+            source="body",
+            confidence="high",
+            evidence="y",
+        )
+        with (
+            patch(
+                "mytools.web.techfingerprint._detect_header_versions",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_meta_generators",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_script_versions",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_css_versions",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_cookie_techs",
+                return_value=[low],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_body_techs",
+                return_value=[high],
+            ),
+        ):
+            results = fingerprint("https://test.com", {}, "", [])
+        assert len(results) == 1
+        assert results[0].confidence == "high"
+        assert results[0].version == "1.0"
+
+    def test_dedup_keeps_first_on_tie(self):
+        first = TechFingerprint(
+            name="TestTech",
+            version="1.0",
+            source="script",
+            confidence="high",
+            evidence="a",
+        )
+        second = TechFingerprint(
+            name="TestTech",
+            version="2.0",
+            source="body",
+            confidence="high",
+            evidence="b",
+        )
+        with (
+            patch(
+                "mytools.web.techfingerprint._detect_header_versions",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_meta_generators",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_script_versions",
+                return_value=[first],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_css_versions",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_cookie_techs",
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.techfingerprint._detect_body_techs",
+                return_value=[second],
+            ),
+        ):
+            results = fingerprint("https://test.com", {}, "", [])
+        assert len(results) == 1
+        assert results[0].version == "1.0"
+
 
 # _scan_url (async)
 
@@ -465,3 +593,81 @@ class TestRunOnce:
         args.urls = ["https://example.com"]
         result = run_once(args)
         assert result == 0
+
+    @patch("mytools.web.techfingerprint._scan_url")
+    def test_scan_empty_results(self, mock_scan):
+        mock_scan.return_value = []
+        args = build_parser().parse_args(["https://example.com"])
+        args.urls = ["https://example.com"]
+        result = run_once(args)
+        assert result == 0
+
+    @patch("mytools.web.techfingerprint._scan_url")
+    def test_url_list_loading(self, mock_scan, tmp_path):
+        url_file = tmp_path / "urls.txt"
+        url_file.write_text("https://example.com\n# comment\n\nhttps://test.com\n")
+        mock_scan.return_value = []
+        args = build_parser().parse_args(["-l", str(url_file)])
+        result = run_once(args)
+        assert result == 0
+        assert mock_scan.call_count == 2
+
+    def test_url_list_not_found(self):
+        args = build_parser().parse_args(["-l", "nonexistent.txt"])
+        args.url_list = "nonexistent.txt"
+        result = run_once(args)
+        assert result == 1
+
+    @patch("mytools.web.techfingerprint._scan_url")
+    def test_unexpected_exception(self, mock_scan):
+        mock_scan.side_effect = ValueError("boom")
+        args = build_parser().parse_args(["https://example.com"])
+        args.urls = ["https://example.com"]
+        result = run_once(args)
+        assert result == 0
+
+    @patch("mytools.web.techfingerprint._scan_url")
+    def test_write_output(self, mock_scan, tmp_path):
+        mock_scan.return_value = [
+            TechFingerprint(
+                name="Nginx",
+                version="1.25.4",
+                source="header",
+                confidence="high",
+                evidence="Server: nginx/1.25.4",
+                category="server",
+            ),
+        ]
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["https://example.com", "-o", str(out_file)])
+        args.urls = ["https://example.com"]
+        result = run_once(args)
+        assert result == 0
+        assert out_file.exists()
+
+
+# main
+
+
+class TestMain:
+    def test_main_with_url(self):
+        with (
+            patch("sys.argv", ["mytools-techfp", "https://example.com"]),
+            patch("mytools.web.techfingerprint.run_once", return_value=0),
+        ):
+            assert main() == 0
+
+    def test_main_no_url_uses_loop(self):
+        with (
+            patch("sys.argv", ["mytools-techfp"]),
+            patch("mytools.web.techfingerprint.run_main_loop", return_value=0),
+        ):
+            assert main() == 0
+
+    def test_main_entrypoint_guard(self):
+        with (
+            patch("sys.argv", ["mytools-techfp"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.techfingerprint", run_name="__main__")

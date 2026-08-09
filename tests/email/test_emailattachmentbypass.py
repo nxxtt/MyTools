@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Attachment Bypass."""
 
+import asyncio
+import runpy
 import smtplib
 from unittest.mock import MagicMock, patch
 
@@ -11,12 +13,16 @@ from mytools.email.emailattachmentbypass import (
     _CATEGORY_MAP,
     BypassAttempt,
     BypassResult,
+    _async_run_once,
     _build_attachment_email,
     _connect_smtp,
     _get_banner,
     _send_bypass_email,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
     scan_attachment_bypass,
 )
 
@@ -188,6 +194,22 @@ class TestConnectSmtp:
             _connect_smtp("bad.host", 587, 5.0)
 
     @patch("mytools.email.emailattachmentbypass.smtplib.SMTP")
+    def test_connect_smtpconnecterror(self, mock_smtp: MagicMock) -> None:
+        mock_smtp.side_effect = smtplib.SMTPConnectError(421, b"unavail")
+        with pytest.raises(ConnectionError, match="Falha ao conectar"):
+            _connect_smtp("bad.host", 587, 5.0)
+
+    @patch("mytools.email.emailattachmentbypass.smtplib.SMTP")
+    def test_starttls_error_suppressed(self, mock_smtp: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250-mail\n250-STARTTLS")
+        mock_server.starttls.side_effect = smtplib.SMTPException("no TLS")
+        mock_smtp.return_value = mock_server
+        server, tls = _connect_smtp("mail.test.com", 587, 10.0)
+        assert server is not None
+        assert tls is False
+
+    @patch("mytools.email.emailattachmentbypass.smtplib.SMTP")
     def test_starttls_attempted(self, mock_smtp: MagicMock) -> None:
         mock_server = MagicMock()
         mock_server.ehlo.return_value = (250, b"250-mail\n250-STARTTLS")
@@ -248,6 +270,22 @@ class TestSendBypassEmail:
         )
         assert accepted is False
         assert "550" in details
+
+    @patch("mytools.email.emailattachmentbypass.smtplib.SMTP")
+    def test_send_smtp_exception(self, mock_smtp: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.data.side_effect = smtplib.SMTPException("boom")
+        mock_smtp.return_value = mock_server
+        accepted, details = _send_bypass_email(
+            mock_server,
+            "a@b.com",
+            "c@d.com",
+            "test.php",
+            "image/jpeg",
+            b"content",
+        )
+        assert accepted is False
+        assert details == "boom"
 
 
 class TestScanAttachmentBypass:
@@ -375,6 +413,24 @@ class TestScanAttachmentBypass:
         assert isinstance(result.banner, str)
 
 
+class TestScanWarning:
+    @patch("mytools.email.emailattachmentbypass._connect_smtp")
+    def test_warning_no_attempts(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_conn.return_value = (mock_server, False)
+
+        with patch(
+            "mytools.email.emailattachmentbypass._ATTACH_BYPASS_PAYLOADS",
+            return_value={},
+        ):
+            result = scan_attachment_bypass("mail.test.com", 587)
+        assert result.overall_status == "warning"
+        assert any("inconclusivo" in i for i in result.issues)
+        assert result.attempts == []
+        assert result.exploit == ""
+
+
 class TestPrintResults:
     def test_print_vulnerable(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = BypassResult(
@@ -466,3 +522,124 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         assert "timeout" in captured.out
+
+
+class TestBanner:
+    def test_banner_art(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner_art()
+        captured = capsys.readouterr()
+        assert "attachment bypass" in captured.out
+
+
+class TestRunOnce:
+    def test_run_once(self) -> None:
+        args = build_parser().parse_args(["mail.test.com"])
+        with (
+            patch(
+                "mytools.email.emailattachmentbypass._async_run_once",
+                new_callable=MagicMock,
+                return_value=0,
+            ),
+            patch(
+                "mytools.email.emailattachmentbypass.safe_asyncio_run",
+                new_callable=MagicMock,
+            ) as mock_safe,
+        ):
+            mock_safe.return_value = 0
+            result = run_once(args)
+            assert result == 0
+        mock_safe.assert_called_once()
+
+
+class TestAsyncRunOnce:
+    def test_no_target(self) -> None:
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_dry_run(self) -> None:
+        args = build_parser().parse_args(["mail.test.com", "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_print_results(self) -> None:
+        result = BypassResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="warning",
+        )
+        args = build_parser().parse_args(["mail.test.com"])
+        with patch(
+            "mytools.email.emailattachmentbypass.scan_attachment_bypass",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+    def test_output_flag(self, tmp_path) -> None:
+        result = BypassResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="warning",
+        )
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["mail.test.com", "-o", str(out_file)])
+        with (
+            patch(
+                "mytools.email.emailattachmentbypass.scan_attachment_bypass",
+                return_value=result,
+            ),
+            patch("mytools.email.emailattachmentbypass.write_output") as mock_write,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_write.assert_called_once()
+
+    def test_quiet(self) -> None:
+        result = BypassResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="warning",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--quiet"])
+        with patch(
+            "mytools.email.emailattachmentbypass.scan_attachment_bypass",
+            return_value=result,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.email.emailattachmentbypass.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+    def test_main_guard(self) -> None:
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-attachbypass", "mail.test.com"]),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.email.emailattachmentbypass", run_name="__main__")

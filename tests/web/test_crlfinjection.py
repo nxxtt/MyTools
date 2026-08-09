@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de CRLF Injection."""
 
+import argparse
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.crlfinjection import (
@@ -23,7 +25,10 @@ from mytools.web.crlfinjection import (
     _test_split,
     build_parser,
     main,
+    print_crlf_art,
     print_results,
+    run_once,
+    run_scan,
 )
 
 
@@ -444,3 +449,368 @@ class TestMain:
             result = main()
             assert result == 1
             mock_loop.assert_called_once()
+
+
+# ─── Error Handling Detail Tests ─────────────────────────────────────────────
+
+
+class TestDetailErrors:
+    @pytest.mark.asyncio
+    async def test_header_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_header_crlf(
+            client, "https://example.com", (200, 100, b"ok")
+        )
+        assert any(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_path_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_path_crlf(
+            client, "https://example.com", (200, 100, b"ok")
+        )
+        assert any(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_split_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_split(client, "https://example.com", (200, 100, b"ok"))
+        assert any(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_bypass_error(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        attempts = await _test_bypass(client, "https://example.com", (200, 100, b"ok"))
+        assert any(a.error for a in attempts)
+
+
+# ─── Print Results Detail Tests ──────────────────────────────────────────────
+
+
+class TestPrintResultsDetail:
+    def _attempt(self, *, error: str = "", vulnerable: bool = True) -> CRLFAttempt:
+        return CRLFAttempt(
+            technique="crlf_header_q",
+            category="param",
+            url="https://example.com",
+            payload="\r\nX-Injected: test",
+            status_baseline=200,
+            status_test=302,
+            size_baseline=100,
+            size_test=100,
+            status_changed=True,
+            size_changed=False,
+            injected_headers=["x-injected"],
+            vulnerable=vulnerable,
+            details="detected",
+            error=error,
+            exploit="exploit-cmd",
+            tool="curl",
+        )
+
+    def test_vulnerable_with_attempt(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = CRLFResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[self._attempt()],
+            vulnerable_techniques=["crlf_header_q"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "crlf_header_q" in out
+
+    def test_prints_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = CRLFResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[self._attempt(error="connection failed")],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "Erros" in out
+        assert "connection failed" in out
+
+
+# ─── Print CRLF Art ──────────────────────────────────────────────────────────
+
+
+class TestPrintCRLFArt:
+    def test_print_art(self, capsys: pytest.CaptureFixture[str]) -> None:
+        print_crlf_art()
+        out = capsys.readouterr().out
+        assert "_____" in out
+
+
+# ─── run_scan Tests ──────────────────────────────────────────────────────────
+
+
+class TestRunScan:
+    def _attempt(self, *, vulnerable: bool = True) -> CRLFAttempt:
+        return CRLFAttempt(
+            technique="crlf_header_q",
+            category="param",
+            url="https://example.com",
+            payload="\r\nX-Injected: test",
+            status_baseline=200,
+            status_test=302,
+            size_baseline=100,
+            size_test=100,
+            status_changed=True,
+            size_changed=False,
+            injected_headers=["x-injected"],
+            vulnerable=vulnerable,
+            details="detected",
+            error="",
+        )
+
+    @pytest.mark.asyncio
+    async def test_all_categories_secure(self) -> None:
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.crlfinjection.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_param_crlf",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_header_crlf",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_path_crlf",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_split",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_bypass",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch("mytools.web.crlfinjection.print_results", mock_print),
+        ):
+            code = await run_scan("https://example.com", [], 10, 5, None, False)
+        assert code == 0
+        result = mock_print.call_args[0][0]
+        assert result.overall_status == "secure"
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_with_issues(self) -> None:
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.crlfinjection.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_param_crlf",
+                new_callable=AsyncMock,
+                return_value=[self._attempt()],
+            ),
+            patch("mytools.web.crlfinjection.print_results", mock_print),
+        ):
+            code = await run_scan("https://example.com", ["param"], 10, 5, None, False)
+        assert code == 1
+        result = mock_print.call_args[0][0]
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["crlf_header_q"]
+        assert any("VULN" in i for i in result.issues)
+        assert any("INJECTED" in i for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_blocked_attempt(self) -> None:
+        blocked_att = CRLFAttempt(
+            technique="crlf_header_q",
+            category="param",
+            url="https://example.com",
+            payload="\r\nX-Injected: test",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            injected_headers=[],
+            vulnerable=False,
+            details="no injection",
+            error="",
+        )
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.crlfinjection.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_param_crlf",
+                new_callable=AsyncMock,
+                return_value=[blocked_att],
+            ),
+            patch("mytools.web.crlfinjection.print_results", mock_print),
+        ):
+            code = await run_scan("https://example.com", ["param"], 10, 5, None, False)
+        assert code == 0
+        result = mock_print.call_args[0][0]
+        assert result.overall_status == "secure"
+        assert result.blocked_techniques == ["crlf_header_q"]
+
+    @pytest.mark.asyncio
+    async def test_baseline_failure(self) -> None:
+        with (
+            patch(
+                "mytools.web.crlfinjection.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(0, 0, b""),
+            ),
+        ):
+            code = await run_scan("https://example.com", [], 10, 5, None, False)
+        assert code == 1
+
+    @pytest.mark.asyncio
+    async def test_gather_exception_skipped(self) -> None:
+        with (
+            patch(
+                "mytools.web.crlfinjection.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_param_crlf",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
+            patch("mytools.web.crlfinjection.print_results"),
+        ):
+            code = await run_scan("https://example.com", ["param"], 10, 5, None, False)
+        assert code == 0
+
+    @pytest.mark.asyncio
+    async def test_invalid_category_skipped(self) -> None:
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.crlfinjection.create_async_client",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch("mytools.web.crlfinjection.print_results", mock_print),
+        ):
+            code = await run_scan(
+                "https://example.com", ["invalid"], 10, 5, None, False
+            )
+        assert code == 0
+        result = mock_print.call_args[0][0]
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_output_file(self) -> None:
+        client = AsyncMock()
+        client.get.return_value = MagicMock(status_code=200, content=b"ok", headers={})
+        with (
+            patch(
+                "mytools.web.crlfinjection.create_async_client",
+                return_value=client,
+            ),
+            patch(
+                "mytools.web.crlfinjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch("mytools.web.crlfinjection.print_results"),
+            patch("mytools.web.crlfinjection.write_output") as mock_write,
+        ):
+            await run_scan("https://example.com", ["param"], 10, 5, "out.json", False)
+        mock_write.assert_called_once()
+
+
+# ─── run_once Tests ──────────────────────────────────────────────────────────
+
+
+class TestRunOnce:
+    def _ns(self, **overrides: object) -> argparse.Namespace:
+        defaults = {
+            "url": "https://example.com",
+            "category": None,
+            "timeout": 10,
+            "concurrency": 5,
+            "output": None,
+            "verbose": False,
+        }
+        defaults.update(overrides)
+        return argparse.Namespace(**defaults)
+
+    @patch("mytools.web.crlfinjection.run_scan", return_value=0)
+    def test_default(self, mock_run: MagicMock) -> None:
+        assert run_once(self._ns()) == 0
+        assert mock_run.call_args[1]["categories"] == []
+        assert mock_run.call_args[1]["concurrency"] == 5
+
+    @patch("mytools.web.crlfinjection.run_scan", return_value=1)
+    def test_with_category(self, mock_run: MagicMock) -> None:
+        assert run_once(self._ns(category="param")) == 1
+        assert mock_run.call_args[1]["categories"] == ["param"]
+
+
+# ─── Main Guard ──────────────────────────────────────────────────────────────
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.crlfinjection", run_name="__main__")

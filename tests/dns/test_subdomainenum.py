@@ -4,8 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import dns.exception
 import dns.resolver
+import dns.rrset
+import httpx
 import pytest
 
+from mytools.core.utils import FetchError
 from mytools.dns.subdomainenum import (
     _PASSIVE_SOURCES,
     BANNER_ART,
@@ -19,6 +22,9 @@ from mytools.dns.subdomainenum import (
     _parse_shodan,
     _parse_urlscan,
     _parse_virustotal,
+    _passive_enumerate_async,
+    _prefetch_records,
+    _query_source,
     _resolve_subdomain,
     build_parser,
     enumerate_subdomains,
@@ -716,3 +722,338 @@ class TestRunOncePassive:
             result = run_once(args)
         assert result == 0
         assert any("Nenhuma consulta" in r.message for r in caplog.records)
+
+
+class TestPrefetchRecords:
+    def test_mx_and_cname(self):
+        mock_resolver = MagicMock()
+        mx_rrset = dns.rrset.from_text(
+            "example.com.", 3600, "IN", "MX", "10 mail.example.com."
+        )
+        cname_rrset = dns.rrset.from_text(
+            "example.com.", 3600, "IN", "CNAME", "cdn.example.com."
+        )
+        a_rrset = dns.rrset.from_text(
+            "mail.example.com.", 3600, "IN", "A", "1.2.3.4", "5.6.7.8"
+        )
+
+        def fake_resolve(qname, rdtype):
+            if rdtype == "MX":
+                return iter(mx_rrset)
+            if rdtype == "CNAME":
+                return iter(cname_rrset)
+            return iter(a_rrset)
+
+        mock_resolver.resolve.side_effect = fake_resolve
+        results = _prefetch_records("example.com", mock_resolver)
+        subdomains = {r.subdomain for r in results}
+        assert subdomains == {"mail.example.com", "cdn.example.com"}
+        mail = next(r for r in results if r.subdomain == "mail.example.com")
+        assert mail.ip_addresses == ["1.2.3.4", "5.6.7.8"]
+        assert mail.status == "resolved"
+
+    def test_skips_target_equal_domain(self):
+        mock_resolver = MagicMock()
+        mx_rrset = dns.rrset.from_text(
+            "example.com.", 3600, "IN", "MX", "10 example.com."
+        )
+
+        def fake_resolve(qname, rdtype):
+            if rdtype == "MX":
+                return iter(mx_rrset)
+            return iter([])
+
+        mock_resolver.resolve.side_effect = fake_resolve
+        results = _prefetch_records("example.com", mock_resolver)
+        assert results == []
+
+    def test_skips_duplicate_prefix(self):
+        mock_resolver = MagicMock()
+        mx_rrset = dns.rrset.from_text(
+            "example.com.",
+            3600,
+            "IN",
+            "MX",
+            "10 mail.example.com.",
+            "20 mail.example.com.",
+        )
+        a_rrset = dns.rrset.from_text("mail.example.com.", 3600, "IN", "A", "1.2.3.4")
+
+        def fake_resolve(qname, rdtype):
+            if rdtype == "MX":
+                return iter(mx_rrset)
+            return iter(a_rrset)
+
+        mock_resolver.resolve.side_effect = fake_resolve
+        results = _prefetch_records("example.com", mock_resolver)
+        assert len(results) == 1
+        assert results[0].subdomain == "mail.example.com"
+
+    def test_a_resolution_failure(self):
+        mock_resolver = MagicMock()
+        mx_rrset = dns.rrset.from_text(
+            "example.com.", 3600, "IN", "MX", "10 mail.example.com."
+        )
+
+        def fake_resolve(qname, rdtype):
+            if rdtype == "MX":
+                return iter(mx_rrset)
+            raise dns.exception.DNSException("boom")
+
+        mock_resolver.resolve.side_effect = fake_resolve
+        results = _prefetch_records("example.com", mock_resolver)
+        assert results == []
+
+    def test_resolve_failure(self):
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.side_effect = dns.resolver.NoAnswer()
+        results = _prefetch_records("example.com", mock_resolver)
+        assert results == []
+
+
+class TestParseUrlscanAdditional:
+    def test_invalid_json(self):
+        assert _parse_urlscan(b"not json", "example.com") == []
+
+    def test_filters_non_matching(self):
+        data = {"results": [{"page": {"domain": "www.other.com"}}, {"page": {}}]}
+        assert _parse_urlscan(json.dumps(data).encode(), "example.com") == []
+
+
+class TestParseVirustotalAdditional:
+    def test_invalid_json(self):
+        assert _parse_virustotal(b"not json", "example.com") == []
+
+    def test_filters_non_matching(self):
+        data = {"data": [{"id": "www.other.com"}]}
+        assert _parse_virustotal(json.dumps(data).encode(), "example.com") == []
+
+
+class TestParseSecuritytrailsAdditional:
+    def test_invalid_json(self):
+        assert _parse_securitytrails(b"not json", "example.com") == []
+
+
+class TestParseShodanAdditional:
+    def test_invalid_json(self):
+        assert _parse_shodan(b"not json", "example.com") == []
+
+    def test_skips_apostrophe_names(self):
+        data = {"data": [{"subdomain": ""}]}
+        assert _parse_shodan(json.dumps(data).encode(), "example.com") == []
+
+
+class TestQuerySource:
+    @pytest.mark.asyncio
+    async def test_success_crtsh(self):
+        mock_client = AsyncMock()
+        body = json.dumps([{"name_value": "www.example.com"}]).encode()
+        with (
+            patch(
+                "mytools.dns.subdomainenum.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.dns.subdomainenum.fetch", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_fetch.return_value = (200, {}, body, b"")
+            result = await _query_source("crtsh", "example.com", None, 5.0)
+        assert result == ["www.example.com"]
+        mock_client.aclose.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_api_key_header(self):
+        mock_client = AsyncMock()
+        body = json.dumps({"data": [{"id": "www.example.com"}]}).encode()
+        with (
+            patch(
+                "mytools.dns.subdomainenum.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.dns.subdomainenum.fetch", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_fetch.return_value = (200, {}, body, b"")
+            result = await _query_source("virustotal", "example.com", "KEY123", 5.0)
+        assert "www.example.com" in result
+
+    @pytest.mark.asyncio
+    async def test_no_api_key_no_header(self):
+        mock_client = AsyncMock()
+        body = json.dumps({"data": []}).encode()
+        with (
+            patch(
+                "mytools.dns.subdomainenum.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.dns.subdomainenum.fetch", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_fetch.return_value = (200, {}, body, b"")
+            result = await _query_source("virustotal", "example.com", None, 5.0)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_non_200(self):
+        mock_client = AsyncMock()
+        with (
+            patch(
+                "mytools.dns.subdomainenum.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.dns.subdomainenum.fetch", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_fetch.return_value = (404, {}, b"", b"")
+            result = await _query_source("crtsh", "example.com", None, 5.0)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_fetch_error(self):
+        mock_client = AsyncMock()
+        with (
+            patch(
+                "mytools.dns.subdomainenum.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.dns.subdomainenum.fetch", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_fetch.side_effect = FetchError(
+                "https://crt.sh", 1, ConnectionError("network down")
+            )
+            result = await _query_source("crtsh", "example.com", None, 5.0)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_httpx_error(self):
+        mock_client = AsyncMock()
+        with (
+            patch(
+                "mytools.dns.subdomainenum.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.dns.subdomainenum.fetch", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_fetch.side_effect = httpx.RequestError("boom")
+            result = await _query_source("crtsh", "example.com", None, 5.0)
+        assert result == []
+
+
+class TestPassiveEnumerateAsync:
+    @pytest.mark.asyncio
+    async def test_combines_and_sorts(self):
+        with patch(
+            "mytools.dns.subdomainenum._query_source", new_callable=AsyncMock
+        ) as mock_q:
+            mock_q.side_effect = [["www.example.com"], ["api.example.com"]]
+            result = await _passive_enumerate_async(
+                "example.com", ["crtsh", "otx"], {}, 5.0
+            )
+        assert result == ["api.example.com", "www.example.com"]
+
+    @pytest.mark.asyncio
+    async def test_deduplicates(self):
+        with patch(
+            "mytools.dns.subdomainenum._query_source", new_callable=AsyncMock
+        ) as mock_q:
+            mock_q.side_effect = [["www.example.com"], ["www.example.com"]]
+            result = await _passive_enumerate_async(
+                "example.com", ["crtsh", "otx"], {}, 5.0
+            )
+        assert result == ["www.example.com"]
+
+    @pytest.mark.asyncio
+    async def test_non_list_result_skipped(self):
+        with patch(
+            "mytools.dns.subdomainenum._query_source", new_callable=AsyncMock
+        ) as mock_q:
+            mock_q.side_effect = [None, ["api.example.com"]]
+            result = await _passive_enumerate_async(
+                "example.com", ["crtsh", "otx"], {}, 5.0
+            )
+        assert result == ["api.example.com"]
+
+
+class TestEnumerateSkipNames:
+    @patch("mytools.dns.subdomainenum._prefetch_records", return_value=[])
+    @patch("mytools.dns.subdomainenum._resolve_subdomain")
+    def test_skips_known_names(self, mock_resolve, mock_prefetch):
+        mock_resolve.return_value = SubdomainResult(
+            subdomain="mail.example.com", ip_addresses=["1.2.3.4"], status="resolved"
+        )
+        results = enumerate_subdomains(
+            "example.com",
+            ["www", "mail"],
+            threads=1,
+            skip_names={"www.example.com"},
+        )
+        assert [r.subdomain for r in results] == ["mail.example.com"]
+        mock_resolve.assert_called_once()
+        assert mock_resolve.call_args.args[0] == "mail"
+        assert mock_resolve.call_args.args[1] == "example.com"
+
+
+class TestRunOncePassiveActive:
+    @patch("mytools.dns.subdomainenum.run_enum_scan", return_value=[])
+    @patch(
+        "mytools.dns.subdomainenum.passive_enumeration",
+        return_value=[SubdomainResult(subdomain="www.example.com", status="passive")],
+    )
+    def test_passive_with_api_keys(self, mock_passive, mock_scan):
+        args = _make_args(
+            passive=True,
+            vt_api_key="vkey",
+            st_api_key="skey",
+            shodan_api_key="shkey",
+        )
+        assert run_once(args) == 0
+        mock_passive.assert_called_once()
+
+    @patch(
+        "mytools.dns.subdomainenum.passive_enumeration",
+        return_value=[SubdomainResult(subdomain="www.example.com", status="passive")],
+    )
+    def test_dry_run_with_passive(self, mock_passive):
+        args = _make_args(passive=True, dry_run=True)
+        assert run_once(args) == 0
+
+    @patch("mytools.dns.subdomainenum.print_json")
+    @patch("mytools.dns.subdomainenum.run_enum_scan", return_value=[])
+    def test_json_output(self, mock_scan, mock_json):
+        args = _make_args(json_output=True)
+        assert run_once(args) == 0
+        mock_json.assert_called_once()
+
+
+class TestMainAdditional:
+    @patch("mytools.dns.subdomainenum.run_main_loop")
+    def test_delegates_and_validates(self, mock_loop):
+        mock_loop.return_value = 0
+        assert main() == 0
+        mock_loop.assert_called_once()
+        validate_fn = mock_loop.call_args.kwargs.get("validate_fn")
+        assert validate_fn is not None
+        with pytest.raises(ValueError, match="dominio"):
+            validate_fn(_make_args(domain=None))
+        validate_fn(_make_args(domain="example.com"))
+
+
+class TestMainGuard:
+    def test_guard_runs(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-subdomainenum", "example.com"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.dns.subdomainenum", run_name="__main__")
+        assert exc_info.value.code == 0

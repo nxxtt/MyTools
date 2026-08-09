@@ -18,7 +18,9 @@ from mytools.network.dirscanner import (
     DEFAULT_STATUSES,
     Finding,
     _async_run_once,
+    _generate_case_variations,
     _generate_unicode_variations,
+    _run_single,
     _to_circled,
     _to_fullwidth,
     build_parser,
@@ -27,7 +29,10 @@ from mytools.network.dirscanner import (
     parse_extensions,
     parse_range,
     parse_statuses,
+    print_dir_table,
+    run_once,
     scan_path,
+    scan_target,
 )
 
 
@@ -134,6 +139,10 @@ class TestParseExtensions:
 
     def test_whitespace(self):
         assert parse_extensions(" php , txt ") == ["php", "txt"]
+
+    def test_empty_components_skipped(self):
+        assert parse_extensions("php,.,txt") == ["php", "txt"]
+        assert parse_extensions("php,,txt") == ["php", "txt"]
 
 
 class TestParseRange:
@@ -267,6 +276,55 @@ class TestLoadPaths:
         with pytest.raises(ValueError, match="arquivo nao encontrado"):
             load_paths("/nonexistent/wordlist.txt", [])
 
+    def test_absolute_urls_ignored(self, tmp_path, caplog):
+        wordlist = tmp_path / "w.txt"
+        wordlist.write_text("http://evil.com/x\nhttps://evil.com/y\nadmin\n")
+        with caplog.at_level("WARNING", logger="mytools.dirscanner"):
+            paths = load_paths(str(wordlist), [])
+        assert "admin" in paths
+        assert any("URL absoluta ignorada" in r.message for r in caplog.records)
+
+    def test_blank_lines_skipped(self, tmp_path):
+        wordlist = tmp_path / "w.txt"
+        wordlist.write_text("admin\n\n   \nlogin\n")
+        paths = load_paths(str(wordlist), [])
+        assert "admin" in paths
+        assert "login" in paths
+
+    def test_slash_only_lines_skipped(self, tmp_path):
+        wordlist = tmp_path / "w.txt"
+        wordlist.write_text("/\n///\nadmin\n")
+        paths = load_paths(str(wordlist), [])
+        assert "admin" in paths
+        assert "/" not in paths
+
+    def test_case_variation_with_extensions(self, tmp_path):
+        wordlist = tmp_path / "w.txt"
+        wordlist.write_text("admin\n")
+        paths = load_paths(str(wordlist), ["php", "bak"], case_variation=True)
+        assert "Admin.php" in paths
+        assert "ADMIN.bak" in paths
+
+    def test_case_variation_without_extensions(self, tmp_path):
+        wordlist = tmp_path / "w.txt"
+        wordlist.write_text("admin\n")
+        paths = load_paths(str(wordlist), [], case_variation=True)
+        assert "Admin" in paths
+        assert "ADMIN" in paths
+        assert not any(".php" in p for p in paths)
+
+    def test_empty_wordlist_raises(self, tmp_path):
+        wordlist = tmp_path / "w.txt"
+        wordlist.write_text("# comment only\n\n")
+        with pytest.raises(ValueError, match="nenhum path valido"):
+            load_paths(str(wordlist), [])
+
+    def test_urls_only_wordlist_raises(self, tmp_path):
+        wordlist = tmp_path / "w.txt"
+        wordlist.write_text("http://evil.com/x\n")
+        with pytest.raises(ValueError, match="nenhum path valido"):
+            load_paths(str(wordlist), [])
+
 
 class TestToCircled:
     def test_lowercase(self):
@@ -306,6 +364,29 @@ class TestToFullwidth:
 
     def test_special_chars(self):
         assert _to_fullwidth("a.b") == "ａ．ｂ"
+
+    def test_non_ascii_char_preserved(self):
+        assert _to_fullwidth("café") == "ｃａｆé"
+
+
+class TestGenerateCaseVariations:
+    def test_admin(self):
+        variations = _generate_case_variations("admin")
+        assert "Admin" in variations
+        assert "ADMIN" in variations
+        assert "admin" not in variations
+
+    def test_with_extension(self):
+        variations = _generate_case_variations("admin.php")
+        assert all(v.endswith(".php") for v in variations)
+
+    def test_deduplication(self):
+        variations = _generate_case_variations("Admin")
+        assert len(variations) == len(set(variations))
+
+    def test_uppercase_path(self):
+        variations = _generate_case_variations("ADMIN")
+        assert "ADMIN" not in variations
 
 
 class TestGenerateUnicodeVariations:
@@ -766,6 +847,289 @@ class TestMain:
         ):
             result = main()
             assert result == 1
+
+
+class TestScanTarget:
+    def _finding(self, url, path, status, size, words, title="", location=""):
+        return Finding(
+            url=url,
+            path=path,
+            status=status,
+            size=size,
+            words=words,
+            title=title,
+            location=location,
+        )
+
+    @pytest.mark.asyncio
+    async def test_scan_target_full(self):
+        client = AsyncMock()
+        client.headers = {}
+        f1 = self._finding(
+            "http://x.com/admin", "/admin", 200, 100, 5, "Admin", "http://x.com/"
+        )
+        f2 = self._finding("http://x.com/backup", "/backup", 403, 10, 0)
+        f3 = self._finding("http://x.com/spa", "/spa", 200, 100, 5, "SPA")
+        with (
+            patch(
+                "mytools.network.dirscanner.create_async_client", return_value=client
+            ),
+            patch(
+                "mytools.network.dirscanner.scan_path",
+                new=AsyncMock(side_effect=[f1, f2, f3]),
+            ),
+            patch("mytools.network.dirscanner.detect_spa_fallback", return_value=[0]),
+        ):
+            result = await scan_target(
+                base_url="http://x.com/",
+                paths=["admin", "backup", "spa"],
+                timeout=5.0,
+                concurrency=2,
+                statuses={200, 403},
+                user_agent="UA",
+                auth_headers={"Authorization": "Bearer x"},
+                extra_headers={"X-Test": "1"},
+                size_range=(0, 50),
+                words_range=None,
+                retries=2,
+            )
+        # f1 skipped by SPA, f3 filtered by size, f2 remains
+        assert result == [f2]
+
+    @pytest.mark.asyncio
+    async def test_scan_target_none_results_skipped(self):
+        client = AsyncMock()
+        f1 = self._finding("http://x.com/ok", "/ok", 200, 10, 1)
+        with (
+            patch(
+                "mytools.network.dirscanner.create_async_client", return_value=client
+            ),
+            patch(
+                "mytools.network.dirscanner.scan_path",
+                new=AsyncMock(side_effect=[None, f1]),
+            ),
+            patch("mytools.network.dirscanner.detect_spa_fallback", return_value=[]),
+        ):
+            result = await scan_target(
+                base_url="http://x.com/",
+                paths=["gone", "ok"],
+                timeout=5.0,
+                concurrency=1,
+                statuses={200},
+                user_agent="UA",
+                retries=1,
+            )
+        assert result == [f1]
+
+    @pytest.mark.asyncio
+    async def test_scan_target_no_spa(self):
+        client = AsyncMock()
+        f1 = self._finding(
+            "http://x.com/admin", "/admin", 200, 100, 5, "Admin", "http://x.com/loc"
+        )
+        with (
+            patch(
+                "mytools.network.dirscanner.create_async_client", return_value=client
+            ),
+            patch(
+                "mytools.network.dirscanner.scan_path",
+                new=AsyncMock(return_value=f1),
+            ),
+            patch("mytools.network.dirscanner.detect_spa_fallback", return_value=[]),
+        ):
+            result = await scan_target(
+                base_url="http://x.com/",
+                paths=["admin"],
+                timeout=5.0,
+                concurrency=1,
+                statuses={200},
+                user_agent="UA",
+                retries=1,
+            )
+        assert result == [f1]
+        client.aclose.assert_awaited_once()
+
+
+class TestPrintDirTable:
+    def test_empty_findings(self, capsys):
+        print_dir_table([])
+        assert "Nenhum diretorio" in capsys.readouterr().out
+
+    def test_with_findings(self, capsys):
+        f = Finding(
+            url="http://x.com/admin",
+            path="/admin",
+            status=200,
+            size=100,
+            words=5,
+            title="Admin",
+            location="http://x.com/login",
+        )
+        print_dir_table([f])
+        out = capsys.readouterr().out
+        assert "/admin" in out
+        assert "200" in out
+
+
+class TestRunSingle:
+    @pytest.mark.asyncio
+    async def test_json_output(self, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["--json", "http://example.com"])
+        finding = Finding(
+            url="http://example.com/admin",
+            path="/admin",
+            status=200,
+            size=100,
+            words=5,
+            title="",
+        )
+        with patch(
+            "mytools.network.dirscanner.scan_target",
+            new=AsyncMock(return_value=[finding]),
+        ):
+            result = await _run_single("http://example.com", args)
+        assert result == [finding]
+        data = json.loads(capsys.readouterr().out)
+        assert data[0]["path"] == "/admin"
+
+    @pytest.mark.asyncio
+    async def test_table_output_not_quiet(self, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["http://example.com"])
+        finding = Finding(
+            url="http://example.com/admin",
+            path="/admin",
+            status=200,
+            size=100,
+            words=5,
+            title="Admin",
+        )
+        with patch(
+            "mytools.network.dirscanner.scan_target",
+            new=AsyncMock(return_value=[finding]),
+        ):
+            result = await _run_single("http://example.com", args)
+        assert result == [finding]
+        assert "/admin" in capsys.readouterr().out
+
+    @pytest.mark.asyncio
+    async def test_quiet_no_output(self, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["--quiet", "http://example.com"])
+        finding = Finding(
+            url="http://example.com/admin",
+            path="/admin",
+            status=200,
+            size=100,
+            words=5,
+            title="",
+        )
+        with patch(
+            "mytools.network.dirscanner.scan_target",
+            new=AsyncMock(return_value=[finding]),
+        ):
+            result = await _run_single("http://example.com", args, quiet=True)
+        assert result == [finding]
+        assert capsys.readouterr().out == ""
+
+
+class TestAsyncRunOnceMore:
+    def test_concurrency_zero_raises(self):
+        parser = build_parser()
+        args = parser.parse_args(["http://example.com", "--concurrency", "0"])
+        with pytest.raises(ValueError, match="concorrencia"):
+            asyncio.run(_async_run_once(args))
+
+    @pytest.mark.asyncio
+    async def test_output_dir_writes(self, tmp_path):
+        parser = build_parser()
+        args = parser.parse_args(["http://example.com", "--output-dir", str(tmp_path)])
+        finding = Finding(
+            url="http://example.com/admin",
+            path="/admin",
+            status=200,
+            size=100,
+            words=5,
+            title="",
+        )
+        with (
+            patch(
+                "mytools.network.dirscanner._run_single",
+                new=AsyncMock(return_value=[finding]),
+            ),
+            patch("mytools.network.dirscanner.write_output") as mock_write,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        assert mock_write.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_output_file_writes(self, tmp_path):
+        out = tmp_path / "out.json"
+        parser = build_parser()
+        args = parser.parse_args(["http://example.com", "-o", str(out)])
+        finding = Finding(
+            url="http://example.com/admin",
+            path="/admin",
+            status=200,
+            size=100,
+            words=5,
+            title="",
+        )
+        with (
+            patch(
+                "mytools.network.dirscanner._run_single",
+                new=AsyncMock(return_value=[finding]),
+            ),
+            patch("mytools.network.dirscanner.write_output") as mock_write,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        assert mock_write.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_json_output_all(self, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["--json", "http://example.com"])
+        finding = Finding(
+            url="http://example.com/admin",
+            path="/admin",
+            status=200,
+            size=100,
+            words=5,
+            title="",
+        )
+        with patch(
+            "mytools.network.dirscanner._run_single",
+            new=AsyncMock(return_value=[finding]),
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        assert "admin" in capsys.readouterr().out
+
+
+class TestRunOnce:
+    def test_calls_safe_asyncio_run(self):
+        args = argparse.Namespace()
+        with patch(
+            "mytools.network.dirscanner._async_run_once",
+            new=AsyncMock(return_value=0),
+        ):
+            assert run_once(args) == 0
+
+
+class TestDirScannerMainGuard:
+    def test_main_guard(self):
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("sys.argv", ["mytools-dir"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.network.dirscanner", run_name="__main__")
+        assert exc_info.value.code == 0
 
 
 # ── Flags comuns (add_common_args) ───────────────────────────────────────────

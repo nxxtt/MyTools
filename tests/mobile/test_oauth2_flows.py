@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import time
+from unittest.mock import patch
+
+import httpx
+import jwt
 import pytest
+import respx
 
 from mytools.mobile.oauth2_flows import (
     _make_pkce_pair,
     _run_client_credentials,
+    _run_token_introspection,
     generate_pkce_flow,
     validate_jwt,
 )
@@ -76,6 +83,108 @@ class TestClientCredentials:
         )
         assert "error" in result
 
+    @respx.mock
+    def test_success_with_audience_and_scope(self) -> None:
+        respx.post("https://idp.test/token").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "access_token": "TOKENabcdefghijklmnopqrstuvwxyz",
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": "read write",
+                },
+            )
+        )
+        result = _run_client_credentials(
+            "https://idp.test",
+            "client",
+            "secret",
+            audience="api",
+            scope="read write",
+        )
+        assert result["status_code"] == 200
+        assert result["success"] is True
+        assert result["token_preview"] == "TOKENabcdefghijklmno..."
+        assert result["token_type"] == "Bearer"
+        assert result["expires_in"] == 3600
+        assert result["scope"] == "read write"
+
+    @respx.mock
+    def test_error_status(self) -> None:
+        respx.post("https://idp.test/token").mock(
+            return_value=httpx.Response(401, text="unauthorized")
+        )
+        result = _run_client_credentials("https://idp.test", "client", "secret")
+        assert result["success"] is False
+        assert result["error"] == "unauthorized"
+
+    def test_httpx_import_error(self) -> None:
+        with patch.dict("sys.modules", {"httpx": None}):
+            result = _run_client_credentials("https://idp.test", "c", "s")
+        assert "error" in result
+        assert result["flow"] == "client_credentials"
+
+
+class TestTokenIntrospection:
+    @respx.mock
+    def test_success(self) -> None:
+        respx.post("https://idp.test/introspect").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "active": True,
+                    "sub": "user123",
+                    "scope": "openid",
+                    "client_id": "client",
+                    "exp": 1234,
+                    "iat": 5678,
+                    "iss": "https://idp.test",
+                },
+            )
+        )
+        result = _run_token_introspection(
+            "https://idp.test", "some.token", client_id="client", client_secret="secret"
+        )
+        assert result["status_code"] == 200
+        assert result["active"] is True
+        assert result["sub"] == "user123"
+        assert result["scope"] == "openid"
+        assert result["client_id"] == "client"
+        assert result["exp"] == 1234
+        assert result["iat"] == 5678
+        assert result["iss"] == "https://idp.test"
+
+    @respx.mock
+    def test_success_without_client_id(self) -> None:
+        respx.post("https://idp.test/introspect").mock(
+            return_value=httpx.Response(200, json={"active": False})
+        )
+        result = _run_token_introspection("https://idp.test", "token")
+        assert result["active"] is False
+
+    @respx.mock
+    def test_error_status(self) -> None:
+        respx.post("https://idp.test/introspect").mock(
+            return_value=httpx.Response(400, text="bad token")
+        )
+        result = _run_token_introspection("https://idp.test", "token")
+        assert result["status_code"] == 400
+        assert result["error"] == "bad token"
+
+    def test_httpx_import_error(self) -> None:
+        with patch.dict("sys.modules", {"httpx": None}):
+            result = _run_token_introspection("https://idp.test", "token")
+        assert "error" in result
+
+    @respx.mock
+    def test_connection_error(self) -> None:
+        respx.post("https://idp.test/introspect").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        result = _run_token_introspection("https://idp.test", "token")
+        assert "error" in result
+
 
 class TestValidateJwt:
     def test_valid_jwt_structure(self) -> None:
@@ -107,3 +216,42 @@ class TestValidateJwt:
     def test_invalid_token(self) -> None:
         result = validate_jwt("not.a.jwt")
         assert result.get("valid_structure") is False or "error" in result
+
+    def test_expired_token(self) -> None:
+        token = jwt.encode(
+            {"sub": "123", "exp": int(time.time()) - 3600}, "secret", algorithm="HS256"
+        )
+        result = validate_jwt(token)
+        assert result["is_expired"] is True
+        assert any("EXPIRED" in w for w in result["warnings"])
+
+    def test_future_iat(self) -> None:
+        token = jwt.encode(
+            {"sub": "123", "iat": int(time.time()) + 3600}, "secret", algorithm="HS256"
+        )
+        result = validate_jwt(token)
+        assert any("FUTURE" in w for w in result["warnings"])
+
+    def test_pyjwt_import_error(self) -> None:
+        with patch.dict("sys.modules", {"jwt": None}):
+            result = validate_jwt("token")
+        assert "error" in result
+
+    def test_rs256_no_symmetric_warning(self) -> None:
+        import base64
+        import json
+
+        header = (
+            base64.urlsafe_b64encode(json.dumps({"alg": "RS256"}).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        payload = (
+            base64.urlsafe_b64encode(json.dumps({"sub": "123"}).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        token = f"{header}.{payload}."
+        result = validate_jwt(token)
+        assert result.get("valid_structure") is True
+        assert result["warnings"] == []

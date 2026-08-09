@@ -2,6 +2,7 @@
 """Testes unitarios do modulo de Null Byte Injection."""
 
 import argparse
+import runpy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,7 +23,26 @@ from mytools.web.nullbyteinject import (
     main,
     print_results,
     scan_null_byte,
+    scanner,
 )
+
+
+class _FakeClientCtx:
+    """Contexto fake para create_async_client, evitando rede nos testes."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"<html>OK</html>"
+        self.client = AsyncMock()
+        self.client.get.return_value = resp
+        self.client.post.return_value = resp
+
+    async def __aenter__(self) -> AsyncMock:
+        return self.client
+
+    async def __aexit__(self, *exc: object) -> bool:
+        return False
 
 
 class TestBuildBaselineUrl:
@@ -56,6 +76,19 @@ class TestBuildNullUrl:
         result = _build_null_url("https://example.com/page.html", "%00", "extension")
         assert "%00" in result
         assert ".html" in result
+
+    def test_no_scheme(self) -> None:
+        result = _build_null_url("example.com/page", "%00", "path")
+        assert result.startswith("http://")
+        assert "%00" in result
+
+    def test_invalid_position_returns_url(self) -> None:
+        url = "https://example.com/page"
+        assert _build_null_url(url, "%00", "invalid") == url
+
+    def test_extension_no_match(self) -> None:
+        result = _build_null_url("https://example.com/page", "%00", "extension")
+        assert result.endswith("page%00")
 
 
 class TestCategoryMap:
@@ -179,6 +212,20 @@ class TestTestNullInUrl:
         categories = {a.category for a in attempts}
         assert "url" in categories
 
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_null_in_url(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        assert len(attempts) > 0
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
+
 
 class TestTestNullInHeaders:
     """Testes para _test_null_in_headers."""
@@ -213,6 +260,19 @@ class TestTestNullInHeaders:
         assert "cookie_null" in techniques
         assert "auth_null" in techniques
         assert "referer_null" in techniques
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_null_in_headers(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        assert len(attempts) == 4
+        assert all(a.error for a in attempts)
 
 
 class TestTestNullInParams:
@@ -250,6 +310,43 @@ class TestTestNullInParams:
         assert "post_null" in techniques
         assert "json_null" in techniques
 
+    @pytest.mark.asyncio
+    async def test_get_request_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"<html>OK</html>"
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+        mock_client.post.return_value = mock_resp
+
+        attempts = await _test_null_in_params(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        get_attempts = [a for a in attempts if a.technique == "get_null"]
+        assert get_attempts
+        assert all(a.error for a in get_attempts)
+
+    @pytest.mark.asyncio
+    async def test_post_request_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"<html>OK</html>"
+        mock_client.get.return_value = mock_resp
+        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_null_in_params(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        post_attempts = [a for a in attempts if a.technique == "post_null"]
+        json_attempts = [a for a in attempts if a.technique == "json_null"]
+        assert all(a.error for a in post_attempts)
+        assert all(a.error for a in json_attempts)
+
 
 class TestTestPathTraversal:
     """Testes para _test_path_traversal."""
@@ -284,6 +381,19 @@ class TestTestPathTraversal:
         assert "file_bypass" in techniques
         assert "double_null" in techniques
 
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_path_traversal(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        assert len(attempts) > 0
+        assert all(a.error for a in attempts)
+
 
 class TestTestAuthBypass:
     """Testes para _test_auth_bypass."""
@@ -301,6 +411,19 @@ class TestTestAuthBypass:
         )
         assert len(attempts) == 3
         assert all(a.category == "auth" for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_request_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_auth_bypass(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
 
 
 class TestScanNullByte:
@@ -327,6 +450,104 @@ class TestScanNullByte:
     async def test_no_tls(self) -> None:
         result = await scan_null_byte("http://example.com", category="url")
         assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_no_scheme_adds_http(self) -> None:
+        with patch(
+            "mytools.web.nullbyteinject.create_async_client",
+            return_value=_FakeClientCtx(),
+        ):
+            result = await scan_null_byte("example.com", category="url")
+        assert result.target == "http://example.com"
+        assert isinstance(result, NullByteResult)
+
+    @pytest.mark.asyncio
+    async def test_full_scan_all_categories(self) -> None:
+        with patch(
+            "mytools.web.nullbyteinject.create_async_client",
+            return_value=_FakeClientCtx(),
+        ):
+            result = await scan_null_byte("https://example.com")
+        assert result.overall_status == "secure"
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_detected(self) -> None:
+        vuln = NullByteAttempt(
+            technique="null_url_path",
+            category="url",
+            url="https://example.com/test%00",
+            payload="%00",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=14,
+            size_test=200,
+            status_changed=True,
+            size_changed=True,
+            vulnerable=True,
+            details="Status 200->200",
+            error="",
+        )
+        with (
+            patch(
+                "mytools.web.nullbyteinject.create_async_client",
+                return_value=_FakeClientCtx(),
+            ),
+            patch(
+                "mytools.web.nullbyteinject._test_null_in_url",
+                AsyncMock(return_value=[vuln]),
+            ),
+        ):
+            result = await scan_null_byte("https://example.com")
+        assert result.overall_status == "vulnerable"
+        assert "null_url_path" in result.vulnerable_techniques
+        assert result.issues
+
+    @pytest.mark.asyncio
+    async def test_blocked_detected(self) -> None:
+        blocked_att = NullByteAttempt(
+            technique="null_url_path",
+            category="url",
+            url="https://example.com/test%00",
+            payload="%00",
+            status_baseline=200,
+            status_test=403,
+            size_baseline=14,
+            size_test=14,
+            status_changed=True,
+            size_changed=False,
+            vulnerable=False,
+            details="Status 200->403",
+            error="",
+        )
+        with (
+            patch(
+                "mytools.web.nullbyteinject.create_async_client",
+                return_value=_FakeClientCtx(),
+            ),
+            patch(
+                "mytools.web.nullbyteinject._test_null_in_url",
+                AsyncMock(return_value=[blocked_att]),
+            ),
+        ):
+            result = await scan_null_byte("https://example.com")
+        assert result.overall_status == "blocked"
+        assert "null_url_path" in result.blocked_techniques
+        assert result.issues
+
+    @pytest.mark.asyncio
+    async def test_task_exception_is_ignored(self) -> None:
+        with (
+            patch(
+                "mytools.web.nullbyteinject.create_async_client",
+                return_value=_FakeClientCtx(),
+            ),
+            patch(
+                "mytools.web.nullbyteinject._test_null_in_headers",
+                AsyncMock(side_effect=ValueError("boom")),
+            ),
+        ):
+            result = await scan_null_byte("https://example.com")
+        assert result.overall_status == "secure"
 
 
 class TestNullByteAttempt:
@@ -472,6 +693,54 @@ class TestPrintResults:
         captured = capsys.readouterr()
         assert "BLOQUEADO" in captured.out
 
+    def test_print_vulnerable_no_attempt_match(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = NullByteResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=["path_null"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "path_null" in captured.out
+
+
+class TestScannerMethods:
+    """Testes para os metodos de NullByteScanner."""
+
+    @pytest.mark.asyncio
+    async def test_run_scan(self) -> None:
+        with patch(
+            "mytools.web.nullbyteinject.create_async_client",
+            return_value=_FakeClientCtx(),
+        ):
+            result = await scanner.run_scan(url="https://example.com", category="url")
+        assert isinstance(result, NullByteResult)
+        assert result.target == "https://example.com"
+
+    def test_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = NullByteResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        scanner.print_results(result)
+        captured = capsys.readouterr()
+        assert "NULL BYTE" in captured.out
+
 
 class TestMain:
     """Testes para main()."""
@@ -483,3 +752,11 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+    def test_main_entrypoint_guard(self) -> None:
+        with (
+            patch("sys.argv", ["mytools-nullbyte"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.nullbyteinject", run_name="__main__")

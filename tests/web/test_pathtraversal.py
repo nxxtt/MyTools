@@ -2,6 +2,7 @@
 """Testes unitarios do modulo de Path Traversal via Encoding."""
 
 import argparse
+import runpy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,6 +11,7 @@ from mytools.web.pathtraversal import (
     _CATEGORY_MAP,
     PathTraversalAttempt,
     PathTraversalResult,
+    PathtraversalScanner,
     _test_baseline,
     _test_mixed_traversal,
     _test_param_traversal,
@@ -130,6 +132,20 @@ class TestTestPathTraversal:
         categories = {a.category for a in attempts}
         assert "path" in categories
 
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_path_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) > 0
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
+
 
 class TestTestParamTraversal:
     """Testes para _test_param_traversal."""
@@ -164,6 +180,20 @@ class TestTestParamTraversal:
         assert "param_encoded" in techniques
         assert "param_json" in techniques
 
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_param_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
+
 
 class TestTestSemicolonTraversal:
     """Testes para _test_semicolon_traversal."""
@@ -181,6 +211,20 @@ class TestTestSemicolonTraversal:
         )
         assert len(attempts) == 3
         assert all(a.category == "semicolon" for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_semicolon_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
 
 
 class TestTestMixedTraversal:
@@ -200,6 +244,20 @@ class TestTestMixedTraversal:
         assert len(attempts) == 3
         assert all(a.category == "mixed" for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_mixed_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
+
 
 class TestTestPlatformTraversal:
     """Testes para _test_platform_traversal."""
@@ -217,6 +275,20 @@ class TestTestPlatformTraversal:
         )
         assert len(attempts) == 6
         assert all(a.category == "platform" for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_request_error_records_error(self) -> None:
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_platform_traversal(
+            mock_client, "https://example.com", (200, 15, b"")
+        )
+        assert len(attempts) == 6
+        assert all(a.error for a in attempts)
+        assert all(a.status_test == 0 for a in attempts)
 
 
 class TestScanPathTraversal:
@@ -243,6 +315,183 @@ class TestScanPathTraversal:
     async def test_no_tls(self) -> None:
         result = await scan_path_traversal("http://example.com", category="path")
         assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_missing_scheme_prepends_http(self) -> None:
+        with (
+            patch(
+                "mytools.web.pathtraversal._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_path_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_param_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_semicolon_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_mixed_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_platform_traversal",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await scan_path_traversal("example.com")
+        assert result.target == "http://example.com"
+        assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_all_categories_executed(self) -> None:
+        with (
+            patch(
+                "mytools.web.pathtraversal._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_path_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_param_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_semicolon_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_mixed_traversal",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_platform_traversal",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await scan_path_traversal("https://example.com")
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_attempt_is_flagged(self) -> None:
+        attempt = PathTraversalAttempt(
+            technique="url_encoded",
+            category="path",
+            url="https://example.com/..%2f..%2f..%2fetc/passwd",
+            payload="..%2f..%2f..%2fetc/passwd",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=300,
+            status_changed=False,
+            size_changed=True,
+            vulnerable=True,
+            details="Mudanca detectada",
+            error="",
+            exploit="curl <TARGET>/../../etc/passwd",
+            tool="curl",
+        )
+        with (
+            patch(
+                "mytools.web.pathtraversal._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_path_traversal",
+                AsyncMock(return_value=[attempt]),
+            ),
+        ):
+            result = await scan_path_traversal("https://example.com", category="path")
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["url_encoded"]
+        assert any("vulneraveis" in i for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_blocked_attempt_is_flagged(self) -> None:
+        attempt = PathTraversalAttempt(
+            technique="url_encoded",
+            category="path",
+            url="https://example.com/..%2fetc/passwd",
+            payload="..%2fetc/passwd",
+            status_baseline=200,
+            status_test=403,
+            size_baseline=100,
+            size_test=100,
+            status_changed=True,
+            size_changed=False,
+            vulnerable=False,
+            details="Status 200->403",
+            error="",
+        )
+        with (
+            patch(
+                "mytools.web.pathtraversal._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_path_traversal",
+                AsyncMock(return_value=[attempt]),
+            ),
+        ):
+            result = await scan_path_traversal("https://example.com", category="path")
+        assert result.overall_status == "blocked"
+        assert result.blocked_techniques == ["url_encoded"]
+        assert any("bloqueadas" in i for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_safe_attempt_ignored(self) -> None:
+        attempt = PathTraversalAttempt(
+            technique="url_encoded",
+            category="path",
+            url="https://example.com/..%2fetc/passwd",
+            payload="..%2fetc/passwd",
+            status_baseline=200,
+            status_test=200,
+            size_baseline=100,
+            size_test=100,
+            status_changed=False,
+            size_changed=False,
+            vulnerable=False,
+            details="Sem mudanca",
+            error="",
+        )
+        with (
+            patch(
+                "mytools.web.pathtraversal._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_path_traversal",
+                AsyncMock(return_value=[attempt]),
+            ),
+        ):
+            result = await scan_path_traversal("https://example.com", category="path")
+        assert result.overall_status == "secure"
+        assert result.vulnerable_techniques == []
+        assert result.blocked_techniques == []
+
+    @pytest.mark.asyncio
+    async def test_exception_in_task(self) -> None:
+        with (
+            patch(
+                "mytools.web.pathtraversal._test_baseline",
+                AsyncMock(return_value=(200, 100, b"")),
+            ),
+            patch(
+                "mytools.web.pathtraversal._test_path_traversal",
+                AsyncMock(side_effect=RuntimeError("boom")),
+            ),
+        ):
+            result = await scan_path_traversal("https://example.com", category="path")
+        assert result.overall_status == "secure"
 
 
 class TestPathTraversalAttempt:
@@ -372,6 +621,96 @@ class TestPrintResults:
         captured = capsys.readouterr()
         assert "SECURE" in captured.out
 
+    def test_print_blocked(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = PathTraversalResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=["url_encoded"],
+            issues=["1 tecnicas bloqueadas"],
+            overall_status="blocked",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "BLOQUEADO" in captured.out
+
+    def test_print_vulnerable_without_attempt(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        result = PathTraversalResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=["url_encoded"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "url_encoded" in captured.out
+
+    def test_print_issues(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = PathTraversalResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=["observacao"],
+            overall_status="secure",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "observacao" in captured.out
+
+
+class TestScannerMethods:
+    """Testes para os metodos do scanner PathtraversalScanner."""
+
+    @pytest.mark.asyncio
+    async def test_run_scan(self) -> None:
+        scanner = PathtraversalScanner()
+        with patch("mytools.web.pathtraversal.scan_path_traversal") as mock_scan:
+            mock_scan.return_value = PathTraversalResult(
+                target="https://example.com",
+                baseline_status=200,
+                baseline_size=100,
+                tls=True,
+                attempts=[],
+                vulnerable_techniques=[],
+                blocked_techniques=[],
+                issues=[],
+                overall_status="secure",
+            )
+            result = await scanner.run_scan(url="https://example.com")
+        assert result.overall_status == "secure"
+        mock_scan.assert_called_once()
+
+    def test_scanner_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        scanner = PathtraversalScanner()
+        result = PathTraversalResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        scanner.print_results(result)
+        captured = capsys.readouterr()
+        assert "PATH TRAVERSAL" in captured.out
+
 
 class TestMain:
     """Testes para main()."""
@@ -383,3 +722,11 @@ class TestMain:
         ):
             result = main()
             assert result == 0
+
+    def test_main_entrypoint_guard(self) -> None:
+        with (
+            patch("sys.argv", ["mytools-ptraversal"]),
+            patch("builtins.input", side_effect=EOFError("exit")),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.pathtraversal", run_name="__main__")

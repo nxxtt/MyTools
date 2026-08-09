@@ -1,10 +1,14 @@
 import argparse
 import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+import runpy
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import respx
 
+from mytools.core.utils import RateLimiter
 from mytools.web.openapidiscovery import (
     DEFAULT_PATHS,
     ApiSpecInfo,
@@ -14,7 +18,13 @@ from mytools.web.openapidiscovery import (
     _parse_openapi_v2,
     _parse_openapi_v3,
     build_parser,
+    main,
     parse_spec,
+    print_api_endpoints,
+    print_api_summary,
+    probe_spec,
+    run_once,
+    scan_specs,
 )
 
 
@@ -140,6 +150,40 @@ class TestParseOpenapiV3:
         spec = {"paths": {"/x": "not a dict"}}
         _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)  # type: ignore[reportArgumentType]
         assert endpoints == []
+
+    def test_paths_not_dict(self):
+        _, _, _, _, endpoints, _ = _parse_openapi_v3({"paths": "oops"})  # type: ignore[reportArgumentType]
+        assert endpoints == []
+
+    def test_parameter_not_dict(self):
+        spec = {
+            "paths": {
+                "/x": {"get": {"parameters": [{"name": "page", "in": "query"}, "junk"]}}
+            }
+        }
+        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)  # type: ignore[reportArgumentType]
+        assert endpoints[0].parameters == ["page (query)"]
+
+    def test_parameter_without_name(self):
+        spec = {
+            "paths": {
+                "/x": {
+                    "get": {
+                        "parameters": [{"in": "query"}, {"name": "id", "in": "path"}]
+                    }
+                }
+            }
+        }
+        _, _, _, _, endpoints, _ = _parse_openapi_v3(spec)  # type: ignore[reportArgumentType]
+        assert endpoints[0].parameters == ["id (path)"]
+
+    def test_components_not_dict(self):
+        _, _, _, _, _, schemas = _parse_openapi_v3({"components": "oops"})  # type: ignore[reportArgumentType]
+        assert schemas == []
+
+    def test_schemas_not_dict(self):
+        _, _, _, _, _, schemas = _parse_openapi_v3({"components": {"schemas": "oops"}})  # type: ignore[reportArgumentType]
+        assert schemas == []
 
 
 class TestParseOpenapiV2:
@@ -437,3 +481,397 @@ class TestParseSpecEdgeCases:
         _, _, _, servers, _, _ = _parse_openapi_v2(spec)
         assert len(servers) == 1
         assert "https://" in servers[0]
+
+
+# ── Parse OpenAPI v2 extra branches ─────────────────────────────────────────
+
+
+class TestParseOpenapiV2Extra:
+    def test_non_dict_methods_and_parameters(self):
+        spec = {
+            "swagger": "2.0",
+            "info": {"title": "S2", "version": "2.0"},
+            "paths": {
+                "/x": "not a dict",
+                "/y": {"get": {"parameters": [{"name": "page", "in": "query"}]}},
+            },
+        }
+        _title, _version, _desc, _servers, endpoints, _schemas = _parse_openapi_v2(spec)
+        assert len(endpoints) == 1
+        assert endpoints[0].parameters == ["page (query)"]
+
+    def test_paths_not_dict(self):
+        _, _, _, _, endpoints, _ = _parse_openapi_v2({"paths": "oops"})  # type: ignore[reportArgumentType]
+        assert endpoints == []
+
+    def test_parameters_not_list(self):
+        spec = {"paths": {"/x": {"get": {"parameters": "oops"}}}}
+        _, _, _, _, endpoints, _ = _parse_openapi_v2(spec)  # type: ignore[reportArgumentType]
+        assert endpoints[0].parameters == []
+
+    def test_parameter_not_dict(self):
+        spec = {
+            "paths": {
+                "/x": {"get": {"parameters": [{"name": "page", "in": "query"}, "junk"]}}
+            }
+        }
+        _, _, _, _, endpoints, _ = _parse_openapi_v2(spec)  # type: ignore[reportArgumentType]
+        assert endpoints[0].parameters == ["page (query)"]
+
+    def test_parameter_without_name(self):
+        spec = {
+            "paths": {
+                "/x": {
+                    "get": {
+                        "parameters": [{"in": "query"}, {"name": "id", "in": "path"}]
+                    }
+                }
+            }
+        }
+        _, _, _, _, endpoints, _ = _parse_openapi_v2(spec)  # type: ignore[reportArgumentType]
+        assert endpoints[0].parameters == ["id (path)"]
+
+    def test_definitions_not_dict(self):
+        _, _, _, _, _, schemas = _parse_openapi_v2({"definitions": "oops"})  # type: ignore[reportArgumentType]
+        assert schemas == []
+
+
+# ── Parse Spec extra branches ────────────────────────────────────────────────
+
+
+class TestParseSpecExtra:
+    def test_json_fails_then_yaml_parses(self):
+        data = (
+            b"openapi: '3.0.0'\ninfo:\n  title: YAML API\n  version: '1.0'\npaths: {}"
+        )
+        result = parse_spec(data, "application/json")
+        assert result is not None
+        assert result.format == "yaml"
+        assert result.title == "YAML API"
+
+    def test_yaml_invalid(self):
+        assert parse_spec(b"key: [", "text/plain") is None
+
+    def test_unsupported_version(self):
+        data = json.dumps({"swagger": "1.2", "info": {}, "paths": {}}).encode()
+        assert parse_spec(data, "application/json") is None
+
+
+# ── probe_spec ───────────────────────────────────────────────────────────────
+
+
+class TestProbeSpec:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_found(self, async_client):
+        respx.get("http://x.com/openapi.json").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "openapi": "3.0.0",
+                    "info": {"title": "API", "version": "1.0"},
+                    "paths": {},
+                },
+                headers={"content-type": "application/json"},
+            )
+        )
+        spec = await probe_spec(
+            async_client, RateLimiter(0), "http://x.com", "openapi.json", 5.0, retries=1
+        )
+        assert spec is not None
+        assert spec.url == "http://x.com/openapi.json"
+        assert spec.status == 200
+        assert spec.title == "API"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_fetch_error_returns_none(self, async_client):
+        respx.get("http://x.com/openapi.json").mock(
+            side_effect=httpx.ConnectError("refused")
+        )
+        spec = await probe_spec(
+            async_client, RateLimiter(0), "http://x.com", "openapi.json", 5.0, retries=1
+        )
+        assert spec is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_bad_status_returns_none(self, async_client):
+        respx.get("http://x.com/openapi.json").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        spec = await probe_spec(
+            async_client, RateLimiter(0), "http://x.com", "openapi.json", 5.0, retries=1
+        )
+        assert spec is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_invalid_content_returns_none(self, async_client):
+        respx.get("http://x.com/openapi.json").mock(
+            return_value=httpx.Response(200, text="not a spec")
+        )
+        spec = await probe_spec(
+            async_client, RateLimiter(0), "http://x.com", "openapi.json", 5.0, retries=1
+        )
+        assert spec is None
+
+
+# ── scan_specs ───────────────────────────────────────────────────────────────
+
+
+class TestScanSpecs:
+    @pytest.mark.asyncio
+    async def test_returns_specs(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="json",
+            title="API",
+            version="1.0",
+            endpoints=[EndpointInfo(method="GET", path="/users")],
+            status=200,
+        )
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.openapidiscovery.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.openapidiscovery.probe_spec",
+                new_callable=AsyncMock,
+                return_value=spec,
+            ),
+        ):
+            result = await scan_specs("http://x.com", ["openapi.json"], 5.0, 2, "UA")
+        assert result == [spec]
+        out = capsys.readouterr().out
+        assert "Finalizado" in out
+
+    @pytest.mark.asyncio
+    async def test_skips_probes_when_found_event_set(self, capsys):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        event_mock = MagicMock()
+        event_mock.is_set.side_effect = [False, True, True, True]
+        with (
+            patch(
+                "mytools.web.openapidiscovery.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.openapidiscovery.probe_spec",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "mytools.web.openapidiscovery.asyncio.Event",
+                return_value=event_mock,
+            ),
+        ):
+            result = await scan_specs("http://x.com", ["a", "b", "c"], 5.0, 1, "UA")
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_probe_returns_none(self, capsys):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.openapidiscovery.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.openapidiscovery.probe_spec",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
+            result = await scan_specs("http://x.com", ["openapi.json"], 5.0, 1, "UA")
+        assert result == []
+        out = capsys.readouterr().out
+        assert "Finalizado" in out
+
+
+# ── print_api_summary / print_api_endpoints ──────────────────────────────────
+
+
+class TestPrintApiSummary:
+    def test_empty(self, capsys):
+        print_api_summary([])
+        assert "Nenhuma spec" in capsys.readouterr().out
+
+    def test_with_specs(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/o.json",
+            format="json",
+            title="T" * 50,
+            version="1.0",
+            endpoints=[EndpointInfo(method="GET", path="/a")],
+            schemas=["User"],
+            status=200,
+        )
+        print_api_summary([spec])
+        out = capsys.readouterr().out
+        assert "TITULO" in out
+
+
+class TestPrintApiEndpoints:
+    def test_empty(self, capsys):
+        spec = ApiSpecInfo(url="http://x.com/o.json", format="json", title="API")
+        print_api_endpoints(spec)
+        assert "Nenhum endpoint" in capsys.readouterr().out
+
+    def test_full(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/o.json",
+            format="json",
+            title="API",
+            version="1.0",
+            servers=["http://srv"],
+            endpoints=[
+                EndpointInfo(
+                    method="get",
+                    path="/users",
+                    summary="s" * 60,
+                    tags=["a", "b", "c", "d"],
+                )
+            ],
+            schemas=[f"schema{i}" for i in range(25)],
+            status=200,
+        )
+        print_api_endpoints(spec)
+        out = capsys.readouterr().out
+        assert "Endpoints:" in out
+        assert "Servidores:" in out
+        assert "+5 mais" in out
+
+    def test_few_schemas(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/o.json",
+            format="json",
+            title="API",
+            version="1.0",
+            servers=["http://srv"],
+            endpoints=[EndpointInfo(method="get", path="/users")],
+            schemas=["User", "Error"],
+            status=200,
+        )
+        print_api_endpoints(spec)
+        out = capsys.readouterr().out
+        assert "Endpoints:" in out
+        assert "Schemas: 2" in out
+
+
+# ── _async_run_once / run_once / main ────────────────────────────────────────
+
+
+class TestAsyncRunOnceExtra:
+    def test_dry_run(self, capsys):
+        args = build_parser().parse_args(["--dry-run", "http://x.com"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert "DRY-RUN" in capsys.readouterr().out
+
+    def test_json_output_dir(self, tmp_path):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="json",
+            title="API",
+            version="1.0",
+            status=200,
+        )
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        args = build_parser().parse_args(
+            ["--json", "--output-dir", str(out_dir), "-q", "http://x.com"]
+        )
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert (out_dir / "x.com.json").exists()
+
+    def test_show_endpoints(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="json",
+            title="API",
+            version="1.0",
+            endpoints=[EndpointInfo(method="GET", path="/users")],
+            status=200,
+        )
+        args = build_parser().parse_args(["--endpoints", "http://x.com"])
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Endpoints:" in out
+
+    def test_quiet_no_json(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="json",
+            title="API",
+            version="1.0",
+            status=200,
+        )
+        args = build_parser().parse_args(["--quiet", "http://x.com"])
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert capsys.readouterr().out == ""
+
+    def test_output_file(self, tmp_path):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="json",
+            title="API",
+            version="1.0",
+            status=200,
+        )
+        out = tmp_path / "out.json"
+        args = build_parser().parse_args(["-o", str(out), "http://x.com"])
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert out.exists()
+
+
+class TestRunOnce:
+    def test_run_once(self):
+        args = build_parser().parse_args(["http://x.com"])
+        with patch(
+            "mytools.web.openapidiscovery._async_run_once",
+            new=AsyncMock(return_value=0),
+        ):
+            assert run_once(args) == 0
+
+
+class TestMainEntry:
+    def test_main(self):
+        with patch("mytools.web.openapidiscovery.run_main_loop", return_value=0):
+            assert main() == 0
+
+    def test_main_guard(self):
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("mytools.web.openapidiscovery", run_name="__main__")
+        assert exc_info.value.code == 0

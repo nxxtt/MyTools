@@ -1,10 +1,12 @@
 import argparse
 import asyncio
 import json
+import runpy
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from mytools.core.utils import FetchError, RateLimiter
 from mytools.web.graphqlplayground import (
     DEFAULT_PATHS,
     INTROSPECTION_QUERY,
@@ -13,8 +15,19 @@ from mytools.web.graphqlplayground import (
     _load_paths_from_args,
     build_parser,
     detect_tool,
+    main,
     parse_introspection,
+    print_results,
+    print_schema_details,
+    probe_endpoint,
+    run_introspection,
+    run_once,
+    scan_graphql,
 )
+
+
+def _rate_limiter() -> RateLimiter:
+    return RateLimiter(0.0)
 
 
 class TestGraphqlEndpoint:
@@ -349,3 +362,492 @@ class TestJsonOutput:
         data, _ = decoder.raw_decode(capsys.readouterr().out)
         assert isinstance(data, list)
         assert data[0]["url"] == "http://x.com/graphql"
+
+
+# ── parse_introspection — branches restantes ────────────────────────────────
+
+
+class TestParseIntrospectionBranches:
+    def test_data_not_dict(self):
+        types, query, mutation, subscription = parse_introspection({"data": "junk"})
+        assert types == []
+        assert query == ""
+        assert mutation == ""
+        assert subscription == ""
+
+    def test_schema_not_dict(self):
+        types, _q, _m, _s = parse_introspection({"data": {"__schema": "junk"}})
+        assert types == []
+
+    def test_non_dict_type_entries(self):
+        data: dict[str, object] = {
+            "data": {
+                "__schema": {"types": ["junk", {"name": "Post", "kind": "OBJECT"}]}
+            }
+        }
+        types, _q, _m, _s = parse_introspection(data)
+        assert types == ["Post (OBJECT)"]
+
+    def test_non_dict_query_type(self):
+        data: dict[str, object] = {"data": {"__schema": {"queryType": "Query"}}}
+        _t, query, _m, _s = parse_introspection(data)
+        assert query == ""
+
+
+# ── run_introspection ───────────────────────────────────────────────────────
+
+
+class TestRunIntrospection:
+    @pytest.mark.asyncio
+    async def test_fetch_error(self):
+        client = AsyncMock()
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(side_effect=FetchError("u", 3, Exception("x"))),
+        ):
+            result = await run_introspection(
+                client, "http://x.com", 5.0, _rate_limiter()
+            )
+        assert result == ([], "", "", "")
+
+    @pytest.mark.asyncio
+    async def test_non_200(self):
+        client = AsyncMock()
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(500, {}, b"", {})),
+        ):
+            result = await run_introspection(
+                client, "http://x.com", 5.0, _rate_limiter()
+            )
+        assert result == ([], "", "", "")
+
+    @pytest.mark.asyncio
+    async def test_invalid_json(self):
+        client = AsyncMock()
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, {}, b"not json", {})),
+        ):
+            result = await run_introspection(
+                client, "http://x.com", 5.0, _rate_limiter()
+            )
+        assert result == ([], "", "", "")
+
+    @pytest.mark.asyncio
+    async def test_errors_in_data(self):
+        client = AsyncMock()
+        content = json.dumps({"errors": [{"message": "x"}]}).encode()
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, {}, content, {})),
+        ):
+            result = await run_introspection(
+                client, "http://x.com", 5.0, _rate_limiter()
+            )
+        assert result == ([], "", "", "")
+
+    @pytest.mark.asyncio
+    async def test_success(self):
+        client = AsyncMock()
+        content = json.dumps(
+            {
+                "data": {
+                    "__schema": {
+                        "queryType": {"name": "Query"},
+                        "types": [{"name": "User", "kind": "OBJECT"}],
+                    }
+                }
+            }
+        ).encode()
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, {}, content, {})),
+        ):
+            result = await run_introspection(
+                client, "http://x.com", 5.0, _rate_limiter()
+            )
+        assert result[0] == ["User (OBJECT)"]
+        assert result[1] == "Query"
+
+
+# ── probe_endpoint ──────────────────────────────────────────────────────────
+
+
+class TestProbeEndpoint:
+    @pytest.mark.asyncio
+    async def test_fetch_error_returns_none(self):
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(side_effect=FetchError("u", 3, Exception("x"))),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_non_ok_status(self):
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(404, {}, b"", {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_json_graphql_data(self):
+        content = json.dumps({"data": {"__typename": "Query"}}).encode()
+        headers = {"content-type": "application/json"}
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, content, {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is not None
+        assert result.tool == "graphql"
+
+    @pytest.mark.asyncio
+    async def test_json_graphql_errors(self):
+        content = json.dumps({"errors": [{"message": "x"}]}).encode()
+        headers = {"content-type": "application/json"}
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, content, {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is not None
+        assert result.tool == "graphql"
+
+    @pytest.mark.asyncio
+    async def test_json_invalid_returns_none(self):
+        headers = {"content-type": "application/json"}
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, b"not json", {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_json_without_graphql_keys_returns_none(self):
+        headers = {"content-type": "application/json"}
+        content = json.dumps({"foo": "bar"}).encode()
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, content, {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_other_content_type_falls_through(self):
+        headers = {"content-type": "application/octet-stream"}
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, b"binarydata", {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is not None
+        assert result.tool == "graphql"
+
+    @pytest.mark.asyncio
+    async def test_html_detects_tool(self):
+        headers = {"content-type": "text/html"}
+        body = b'<div id="graphiql"></div>'
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, body, {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is not None
+        assert result.tool == "graphiql"
+
+    @pytest.mark.asyncio
+    async def test_unknown_tool_non_gql_path(self):
+        headers = {"content-type": "text/html"}
+        body = b"<html>hello</html>"
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, body, {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "static", 5.0
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_unknown_tool_gql_path_fallback(self):
+        headers = {"content-type": "text/html"}
+        body = b"<html>hello</html>"
+        with patch(
+            "mytools.web.graphqlplayground.fetch",
+            new=AsyncMock(return_value=(200, headers, body, {})),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(), _rate_limiter(), "http://x.com/", "graphql", 5.0
+            )
+        assert result is not None
+        assert result.tool == "graphql"
+
+    @pytest.mark.asyncio
+    async def test_introspect_success(self):
+        headers = {"content-type": "text/html"}
+        body = b'<div id="graphiql"></div>'
+        with (
+            patch(
+                "mytools.web.graphqlplayground.fetch",
+                new=AsyncMock(return_value=(200, headers, body, {})),
+            ),
+            patch(
+                "mytools.web.graphqlplayground.run_introspection",
+                new=AsyncMock(return_value=(["User (OBJECT)"], "Query", "", "")),
+            ),
+        ):
+            result = await probe_endpoint(
+                AsyncMock(),
+                _rate_limiter(),
+                "http://x.com/",
+                "graphql",
+                5.0,
+                introspect=True,
+            )
+        assert result is not None
+        assert result.supports_introspection is True
+        assert result.schema_types == ["User (OBJECT)"]
+
+
+# ── scan_graphql ────────────────────────────────────────────────────────────
+
+
+class TestScanGraphql:
+    @pytest.mark.asyncio
+    async def test_found_endpoints(self, capsys):
+        client = AsyncMock()
+        ep = GraphqlEndpoint(
+            url="http://x.com/graphql",
+            tool="graphiql",
+            status=200,
+            supports_introspection=True,
+            schema_types=["User (OBJECT)"],
+        )
+        with (
+            patch(
+                "mytools.web.graphqlplayground.create_async_client", return_value=client
+            ),
+            patch(
+                "mytools.web.graphqlplayground.probe_endpoint",
+                new=AsyncMock(side_effect=[None, ep]),
+            ),
+        ):
+            endpoints = await scan_graphql(
+                base_url="http://x.com/",
+                paths=["static", "graphql"],
+                timeout=5.0,
+                concurrency=2,
+                user_agent="t",
+                introspect=True,
+            )
+        assert len(endpoints) == 1
+        assert endpoints[0].url == "http://x.com/graphql"
+        out = capsys.readouterr().out
+        assert "GRAPHIQL" in out
+
+    @pytest.mark.asyncio
+    async def test_endpoint_without_introspection(self, capsys):
+        client = AsyncMock()
+        ep = GraphqlEndpoint(url="http://x.com/graphql", tool="graphiql", status=200)
+        with (
+            patch(
+                "mytools.web.graphqlplayground.create_async_client", return_value=client
+            ),
+            patch(
+                "mytools.web.graphqlplayground.probe_endpoint",
+                new=AsyncMock(return_value=ep),
+            ),
+        ):
+            endpoints = await scan_graphql(
+                base_url="http://x.com/",
+                paths=["graphql"],
+                timeout=5.0,
+                concurrency=1,
+                user_agent="t",
+                introspect=True,
+            )
+        assert len(endpoints) == 1
+        assert endpoints[0].supports_introspection is False
+        out = capsys.readouterr().out
+        assert "GRAPHIQL" in out
+
+
+# ── print_results / print_schema_details ────────────────────────────────────
+
+
+class TestPrintResultsFull:
+    def test_empty(self, capsys):
+        print_results([])
+        assert "Nenhum" in capsys.readouterr().out
+
+    def test_with_endpoints(self, capsys):
+        eps = [
+            GraphqlEndpoint(
+                url="http://x.com/graphql",
+                tool="graphiql",
+                status=200,
+                supports_introspection=True,
+                schema_types=["User (OBJECT)"],
+            ),
+            GraphqlEndpoint(url="http://x.com/gql", tool="unknown", status=200),
+        ]
+        print_results(eps)
+        out = capsys.readouterr().out
+        assert "GRAPHIQL" in out
+        assert "UNKNOWN" in out
+
+
+class TestPrintSchemaDetails:
+    def test_no_introspection(self, capsys):
+        ep = GraphqlEndpoint(url="http://x.com/graphql", tool="graphql", status=200)
+        print_schema_details(ep)
+        assert capsys.readouterr().out == ""
+
+    def test_mutation_without_query_type(self, capsys):
+        ep = GraphqlEndpoint(
+            url="http://x.com/graphql",
+            tool="graphiql",
+            status=200,
+            supports_introspection=True,
+            schema_types=["User (OBJECT)"],
+            mutation_type="Mutation",
+        )
+        print_schema_details(ep)
+        out = capsys.readouterr().out
+        assert "Mutation:" in out
+
+    def test_full_details(self, capsys):
+        ep = GraphqlEndpoint(
+            url="http://x.com/graphql",
+            tool="graphiql",
+            status=200,
+            supports_introspection=True,
+            schema_types=[f"Type{i} (OBJECT)" for i in range(35)],
+            query_type="Query",
+            mutation_type="Mutation",
+            subscription_type="Subscription",
+        )
+        print_schema_details(ep)
+        out = capsys.readouterr().out
+        assert "Schema:" in out
+        assert "Query:" in out
+        assert "Mutation:" in out
+        assert "Subscription:" in out
+        assert "+5 mais" in out
+
+
+# ── _async_run_once — branches restantes ────────────────────────────────────
+
+
+class TestAsyncRunOnceBranches:
+    def test_dry_run(self, capsys):
+        args = build_parser().parse_args(["--dry-run", "http://x.com"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert "DRY-RUN" in capsys.readouterr().out
+
+    def test_output_file(self, tmp_path):
+        ep = GraphqlEndpoint(url="http://x.com/graphql", tool="graphiql", status=200)
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(["-o", str(out_file), "-q", "http://x.com"])
+        with patch(
+            "mytools.web.graphqlplayground.scan_graphql",
+            new=AsyncMock(return_value=[ep]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert out_file.exists()
+
+    def test_output_dir(self, tmp_path):
+        ep = GraphqlEndpoint(url="http://x.com/graphql", tool="graphiql", status=200)
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        args = build_parser().parse_args(
+            ["--output-dir", str(out_dir), "-q", "http://x.com"]
+        )
+        with patch(
+            "mytools.web.graphqlplayground.scan_graphql",
+            new=AsyncMock(return_value=[ep]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert (out_dir / "x.com.json").exists()
+
+    def test_no_schema_output(self, capsys):
+        ep = GraphqlEndpoint(url="http://x.com/graphql", tool="graphiql", status=200)
+        args = build_parser().parse_args(["http://x.com"])
+        with patch(
+            "mytools.web.graphqlplayground.scan_graphql",
+            new=AsyncMock(return_value=[ep]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "GRAPHIQL" in out
+
+    def test_show_schema(self, capsys):
+        ep = GraphqlEndpoint(
+            url="http://x.com/graphql",
+            tool="graphiql",
+            status=200,
+            supports_introspection=True,
+            schema_types=["User (OBJECT)"],
+            query_type="Query",
+        )
+        args = build_parser().parse_args(["--schema", "http://x.com"])
+        with patch(
+            "mytools.web.graphqlplayground.scan_graphql",
+            new=AsyncMock(return_value=[ep]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Schema:" in out
+
+
+# ── run_once / main / guard ─────────────────────────────────────────────────
+
+
+class TestRunOnce:
+    def test_run_once(self):
+        args = build_parser().parse_args(["http://x.com"])
+        with patch(
+            "mytools.web.graphqlplayground._async_run_once",
+            new=AsyncMock(return_value=0),
+        ):
+            assert run_once(args) == 0
+
+
+class TestMainEntry:
+    def test_main(self):
+        with patch("mytools.web.graphqlplayground.run_main_loop", return_value=0):
+            assert main() == 0
+
+    def test_main_guard(self):
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.graphqlplayground", run_name="__main__")

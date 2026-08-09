@@ -3,6 +3,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.bominjection import (
@@ -11,6 +12,7 @@ from mytools.web.bominjection import (
     _CATEGORY_MAP,
     _SENSITIVE_STRINGS,
     BomAttempt,
+    BominjectionScanner,
     BomResult,
     _bom_url,
     _test_baseline,
@@ -21,7 +23,51 @@ from mytools.web.bominjection import (
     build_parser,
     main,
     print_results,
+    scan_bom_injection,
 )
+
+
+def _attempt(
+    *,
+    technique: str = "bom_utf8_bom_path",
+    category: str = "url",
+    vulnerable: bool = False,
+    status_changed: bool = False,
+    error: str = "",
+    exploit: str = "",
+    tool: str = "curl",
+) -> BomAttempt:
+    return BomAttempt(
+        technique=technique,
+        category=category,
+        url="https://example.com",
+        payload="utf8_bom=\ufeff",
+        status_baseline=200,
+        status_test=200,
+        size_baseline=100,
+        size_test=100,
+        status_changed=status_changed,
+        size_changed=False,
+        vulnerable=vulnerable,
+        details="Sem mudanca",
+        error=error,
+        exploit=exploit,
+        tool=tool,
+    )
+
+
+def _result(status: str) -> BomResult:
+    return BomResult(
+        target="https://example.com",
+        baseline_status=200,
+        baseline_size=100,
+        tls=True,
+        attempts=[],
+        vulnerable_techniques=[],
+        blocked_techniques=[],
+        issues=[],
+        overall_status=status,
+    )
 
 
 class TestBomVariants:
@@ -262,6 +308,19 @@ class TestTestBomUrl:
         vulnerable = [a for a in attempts if a.vulnerable]
         assert len(vulnerable) > 0
 
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_bom_url(
+            client,
+            "https://example.com/admin",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 12
+        assert all(a.error for a in attempts)
+
 
 class TestTestBomHeaders:
     """Testes para _test_bom_headers."""
@@ -280,6 +339,19 @@ class TestTestBomHeaders:
             (200, 1000, b""),
         )
         assert len(attempts) == 3
+
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_bom_headers(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
 
 
 class TestTestBomBody:
@@ -300,6 +372,19 @@ class TestTestBomBody:
         )
         assert len(attempts) == 3
 
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_bom_body(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+
 
 class TestTestBomUpload:
     """Testes para _test_bom_upload."""
@@ -318,6 +403,19 @@ class TestTestBomUpload:
             (200, 1000, b""),
         )
         assert len(attempts) == 2
+
+    @pytest.mark.asyncio
+    async def test_error_handled(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+
+        attempts = await _test_bom_upload(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert len(attempts) == 2
+        assert all(a.error for a in attempts)
 
 
 @pytest.mark.smoke
@@ -379,6 +477,226 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         assert "VULNERAVEL" in captured.out
+
+    def test_vulnerable_attempts_and_blocked(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        vuln = _attempt(
+            vulnerable=True,
+            status_changed=True,
+            exploit="\\xef\\xbb\\xbf",
+        )
+        blocked = _attempt(technique="bom_query", category="url", status_changed=True)
+        result = BomResult(
+            target="https://example.com",
+            baseline_status=200,
+            baseline_size=100,
+            tls=True,
+            attempts=[vuln, blocked],
+            vulnerable_techniques=["bom_utf8_bom_path"],
+            blocked_techniques=["bom_query"],
+            issues=["1 tecnicas vulneraveis", "1 tecnicas bloqueadas"],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "bom_utf8_bom_path" in captured.out
+        assert "BLOQUEADO" in captured.out
+        assert "bom_query" in captured.out
+
+
+class TestScanBomInjection:
+    @pytest.mark.asyncio
+    async def test_secure_all_categories(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.bominjection.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.bominjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok"),
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_url",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_headers",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_body",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_upload",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await scan_bom_injection("https://example.com")
+        assert result.overall_status == "secure"
+        assert result.tls is True
+
+    @pytest.mark.asyncio
+    async def test_no_scheme(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.bominjection.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.bominjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok"),
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_url",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await scan_bom_injection("example.com", category="url")
+        assert result.target == "http://example.com"
+        assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_category(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        vuln = _attempt(vulnerable=True)
+        with (
+            patch(
+                "mytools.web.bominjection.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.bominjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok"),
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_url",
+                new_callable=AsyncMock,
+                return_value=[vuln, vuln, _attempt(technique="bom_query")],
+            ),
+        ):
+            result = await scan_bom_injection("https://example.com", category="url")
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["bom_utf8_bom_path"]
+
+    @pytest.mark.asyncio
+    async def test_blocked_category(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        blocked_att = _attempt(technique="bom_query", status_changed=True)
+        with (
+            patch(
+                "mytools.web.bominjection.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.bominjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok"),
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_url",
+                new_callable=AsyncMock,
+                return_value=[blocked_att],
+            ),
+        ):
+            result = await scan_bom_injection("https://example.com", category="url")
+        assert result.overall_status == "blocked"
+        assert result.blocked_techniques == ["bom_query"]
+
+    @pytest.mark.asyncio
+    async def test_unknown_category(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.bominjection.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.bominjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok"),
+            ),
+        ):
+            result = await scan_bom_injection("https://example.com", category="invalid")
+        assert result.overall_status == "error"
+        assert any("desconhecida" in i for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_gather_exception_is_skipped(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(
+                "mytools.web.bominjection.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.bominjection._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok"),
+            ),
+            patch(
+                "mytools.web.bominjection._test_bom_url",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            result = await scan_bom_injection("https://example.com", category="url")
+        assert result.overall_status == "secure"
+        assert result.attempts == []
+
+
+class TestScanner:
+    @pytest.mark.asyncio
+    async def test_run_scan(self) -> None:
+        with patch(
+            "mytools.web.bominjection.scan_bom_injection",
+            new_callable=AsyncMock,
+            return_value=_result("secure"),
+        ) as mock_scan:
+            result = await BominjectionScanner().run_scan(url="https://example.com")
+        assert result.overall_status == "secure"
+        mock_scan.assert_called_once()
+
+    def test_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        BominjectionScanner().print_results(_result("secure"))
+        captured = capsys.readouterr()
+        assert "BOM" in captured.out
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.bominjection", run_name="__main__")
 
 
 class TestMain:

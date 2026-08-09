@@ -3,6 +3,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from mytools.web.hostheaderinject import (
@@ -16,8 +17,12 @@ from mytools.web.hostheaderinject import (
     _test_password_reset,
     _test_reflected,
     _test_ssrf,
+    banner_art,
     build_parser,
+    main,
     print_results,
+    run_once,
+    run_scan,
 )
 
 
@@ -358,3 +363,523 @@ class TestRunOnce:
         result = run_once(args)
         assert result == 0
         mock_run.assert_called_once()
+
+
+# ─── Reflected Detail Tests ──────────────────────────────────────────────────
+
+
+class TestReflectedDetail:
+    @pytest.mark.asyncio
+    async def test_vulnerable_via_location(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 302
+        mock_resp.content = b"redirecting"
+        mock_resp.headers = {"location": "https://evil.attacker.com/login"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_reflected(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+        assert any("Location" in r.details for r in vuln)
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_via_headers(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"no host here"
+        mock_resp.headers = {"x-host": "evil.attacker.com"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_reflected(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+        assert any("headers" in r.details for r in vuln)
+
+    @pytest.mark.asyncio
+    async def test_not_vulnerable(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"clean page"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_reflected(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        assert all(not r.vulnerable for r in results)
+
+
+# ─── Password Reset Detail Tests ─────────────────────────────────────────────
+
+
+class TestPasswordResetDetail:
+    @pytest.mark.asyncio
+    async def test_vulnerable_via_location(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 302
+        mock_resp.content = b"redirecting"
+        mock_resp.headers = {"location": "https://evil.attacker.com/reset"}
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_password_reset(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+        assert any("redirect de reset" in r.details for r in vuln)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("fail"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_password_reset(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        assert all(r.error for r in results)
+
+    @pytest.mark.asyncio
+    async def test_not_vulnerable(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"reset done"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_password_reset(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        assert all(not r.vulnerable for r in results)
+
+
+# ─── SSRF Detail Tests ───────────────────────────────────────────────────────
+
+
+class TestSSRFDetail:
+    @pytest.mark.asyncio
+    async def test_not_vulnerable(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"plain page with no indicators"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_ssrf(mock_client, "https://test.com")
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_ssrf(mock_client, "https://test.com")
+        assert all(r.error for r in results)
+
+
+# ─── Cache Detail Tests ──────────────────────────────────────────────────────
+
+
+class TestCacheDetail:
+    def _client(self, headers: dict[str, str]) -> AsyncMock:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"cached page"
+        mock_resp.headers = headers
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        return mock_client
+
+    @pytest.mark.asyncio
+    async def test_via_hit(self) -> None:
+        mock_client = self._client(
+            {"via": "1.1 cache: HIT", "content-type": "text/html"}
+        )
+        results = await _test_cache(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+        assert any("Via" in r.details for r in vuln)
+
+    @pytest.mark.asyncio
+    async def test_age_positive(self) -> None:
+        mock_client = self._client({"age": "5", "content-type": "text/html"})
+        results = await _test_cache(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+        assert any("age=5" in r.details for r in vuln)
+
+    @pytest.mark.asyncio
+    async def test_not_vulnerable(self) -> None:
+        mock_client = self._client({"content-type": "text/html"})
+        results = await _test_cache(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        results = await _test_cache(
+            mock_client, "https://test.com", "evil.attacker.com"
+        )
+        assert all(r.error for r in results)
+
+
+# ─── Bypass Detail Tests ─────────────────────────────────────────────────────
+
+
+class TestBypassDetail:
+    @pytest.mark.asyncio
+    async def test_vulnerable_via_location(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 302
+        mock_resp.content = b"redirecting"
+        mock_resp.headers = {"location": "https://evil.attacker.com/path"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client, "https://test.com", "test.com", "evil.attacker.com"
+        )
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+        assert any("Location" in r.details for r in vuln)
+
+    @pytest.mark.asyncio
+    async def test_error_handling(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client, "https://test.com", "test.com", "evil.attacker.com"
+        )
+        assert all(r.error for r in results)
+
+    @pytest.mark.asyncio
+    async def test_not_vulnerable(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"clean page"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client, "https://test.com", "test.com", "evil.attacker.com"
+        )
+        assert all(not r.vulnerable for r in results)
+
+
+# ─── Print Results Detail Tests ──────────────────────────────────────────────
+
+
+class TestPrintResultsDetail:
+    def test_vulnerable_dedup(self, capsys: pytest.CaptureFixture[str]) -> None:
+        a1 = HostInjectAttempt(
+            technique="host_reflected",
+            category="reflected",
+            header_name="Host",
+            header_value="evil.com",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="d1",
+            error="",
+        )
+        a2 = HostInjectAttempt(
+            technique="host_reflected",
+            category="reflected",
+            header_name="Host",
+            header_value="evil.com",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="d2",
+            error="",
+        )
+        result = HostInjectResult(
+            target="https://test.com",
+            injected_host="evil.com",
+            tls=True,
+            attempts=[a1, a2],
+            vulnerable_techniques=["host_reflected"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert out.count("host_reflected") == 1
+
+    def test_vulnerable_no_details(self, capsys: pytest.CaptureFixture[str]) -> None:
+        a = HostInjectAttempt(
+            technique="host_reflected",
+            category="reflected",
+            header_name="Host",
+            header_value="evil.com",
+            status=200,
+            size=100,
+            vulnerable=True,
+            details="",
+            error="",
+        )
+        result = HostInjectResult(
+            target="https://test.com",
+            injected_host="evil.com",
+            tls=True,
+            attempts=[a],
+            vulnerable_techniques=["host_reflected"],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "Vulnerabilidades detectadas" in out
+
+
+# ─── run_scan Tests ──────────────────────────────────────────────────────────
+
+
+class TestRunScan:
+    def _client(self) -> AsyncMock:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        return mock_client
+
+    def _attempt(self, *, vulnerable: bool) -> HostInjectAttempt:
+        return HostInjectAttempt(
+            technique="host_reflected",
+            category="reflected",
+            header_name="Host",
+            header_value="evil.attacker.com",
+            status=200,
+            size=100,
+            vulnerable=vulnerable,
+            details="test",
+            error="",
+        )
+
+    @pytest.mark.asyncio
+    async def test_all_categories_unknown(self) -> None:
+        mock_client = self._client()
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.hostheaderinject.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_reflected",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_password_reset",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_ssrf",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_cache",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_bypass",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch("mytools.web.hostheaderinject.print_results", mock_print),
+        ):
+            code = await run_scan(
+                "https://test.com", "evil.attacker.com", [], 10.0, None
+            )
+        assert code == 0
+        result = mock_print.call_args[0][0]
+        assert result.overall_status == "unknown"
+        assert "Nenhum teste retornou resultado claro" in result.issues[0]
+
+    @pytest.mark.asyncio
+    async def test_safe_status(self) -> None:
+        mock_client = self._client()
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.hostheaderinject.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_reflected",
+                new_callable=AsyncMock,
+                return_value=[self._attempt(vulnerable=False)],
+            ),
+            patch("mytools.web.hostheaderinject.print_results", mock_print),
+        ):
+            code = await run_scan(
+                "https://test.com", "evil.attacker.com", ["reflected"], 10.0, None
+            )
+        assert code == 0
+        result = mock_print.call_args[0][0]
+        assert result.overall_status == "safe"
+        assert result.blocked_techniques == ["host_reflected"]
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_status(self) -> None:
+        mock_client = self._client()
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.hostheaderinject.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_reflected",
+                new_callable=AsyncMock,
+                return_value=[self._attempt(vulnerable=True)],
+            ),
+            patch("mytools.web.hostheaderinject.print_results", mock_print),
+        ):
+            code = await run_scan(
+                "http://test.com", "evil.attacker.com", ["reflected"], 10.0, None
+            )
+        assert code == 1
+        result = mock_print.call_args[0][0]
+        assert result.overall_status == "vulnerable"
+        assert result.tls is False
+
+    @pytest.mark.asyncio
+    async def test_output_file(self) -> None:
+        mock_client = self._client()
+        with (
+            patch(
+                "mytools.web.hostheaderinject.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.hostheaderinject._test_reflected",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch("mytools.web.hostheaderinject.print_results"),
+            patch("mytools.web.hostheaderinject.write_output") as mock_write,
+        ):
+            await run_scan(
+                "https://test.com", "evil.attacker.com", ["reflected"], 10.0, "out.json"
+            )
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invalid_category_skipped(self) -> None:
+        mock_client = self._client()
+        mock_print = MagicMock()
+        with (
+            patch(
+                "mytools.web.hostheaderinject.create_async_client",
+                return_value=mock_client,
+            ),
+            patch("mytools.web.hostheaderinject.print_results", mock_print),
+        ):
+            code = await run_scan(
+                "https://test.com", "evil.attacker.com", ["invalid"], 10.0, None
+            )
+        assert code == 0
+        result = mock_print.call_args[0][0]
+        assert result.attempts == []
+
+
+# ─── Run Once Detail Tests ───────────────────────────────────────────────────
+
+
+class TestRunOnceDetail:
+    def test_run_once_with_category(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com", "-c", "reflected"])
+        with patch("mytools.web.hostheaderinject.run_scan", return_value=0) as mock_run:
+            assert run_once(args) == 0
+        assert mock_run.call_args[1]["categories"] == ["reflected"]
+
+    def test_run_once_custom_inject_host(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            ["https://test.com", "--inject-host", "evil.com", "-c", "ssrf"]
+        )
+        with patch("mytools.web.hostheaderinject.run_scan", return_value=0) as mock_run:
+            assert run_once(args) == 0
+        assert mock_run.call_args[1]["injected_host"] == "evil.com"
+        assert mock_run.call_args[1]["categories"] == ["ssrf"]
+
+
+# ─── Banner / Main / Guard ───────────────────────────────────────────────────
+
+
+class TestBanner:
+    def test_banner(self, capsys: pytest.CaptureFixture[str]) -> None:
+        banner_art()
+        out = capsys.readouterr().out
+        assert "host header injection" in out
+
+
+class TestMain:
+    def test_main(self) -> None:
+        with patch(
+            "mytools.web.hostheaderinject.run_main_loop", return_value=0
+        ) as mock_loop:
+            assert main() == 0
+        mock_loop.assert_called_once()
+
+
+class TestMainGuard:
+    def test_guard_runs(self) -> None:
+        import runpy
+
+        with (
+            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit),
+        ):
+            runpy.run_module("mytools.web.hostheaderinject", run_name="__main__")
