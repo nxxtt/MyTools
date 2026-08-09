@@ -1,5 +1,6 @@
 import argparse
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -813,7 +814,10 @@ class TestQueryNvdCacheAndApiKey:
                 },
             )
         )
-        utils._nvd_cache["expired_kw|10"] = (0.0, [])
+        utils._nvd_cache["expired_kw|10"] = (
+            time.monotonic() - 1000.0,
+            [],
+        )
         results = await query_nvd("expired_kw")
         assert results[0]["id"] == "CVE-Z"
 
