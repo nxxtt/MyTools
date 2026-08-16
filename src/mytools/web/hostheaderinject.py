@@ -383,7 +383,7 @@ async def _test_cache(
 
                 details = "Cache HIT via Via header"
 
-            elif age and int(age) > 0:
+            elif age and age.isdigit() and int(age) > 0:
                 vulnerable = True
 
                 details = f"Cache com age={age}"
@@ -435,7 +435,7 @@ async def _test_bypass(
         ("xforwarded", "X-Forwarded-Host", injected_host),
         ("xhost", "X-Host", injected_host),
         ("forwarded_for", "Forwarded", f"host={injected_host}"),
-        ("proxy_host", "X-Real-IP", "127.0.0.1"),
+        ("proxy_host", "X-Real-IP", injected_host),
     ]
 
     for technique, header_name, header_value in bypass_tests:

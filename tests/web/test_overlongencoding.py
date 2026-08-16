@@ -363,6 +363,27 @@ class TestTestOverlongParams:
         )
         assert len(attempts) == 3
 
+    @pytest.mark.asyncio
+    async def test_json_payload_has_corrected_overlong_passwd(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"ok"
+        client.get = AsyncMock(return_value=resp)
+        client.post = AsyncMock(return_value=resp)
+
+        await _test_overlong_params(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+
+        assert client.post.called
+        call = client.post.call_args
+        data = call.kwargs["json"]["data"]
+        assert "..%e0%80%af%e0%80%afetc%e0%80%afpasswd" in data
+        assert "afe0%80%af" not in data
+
 
 class TestTestOverlongHeaders:
     """Testes para _test_overlong_headers."""

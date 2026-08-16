@@ -67,6 +67,24 @@ class TestDetectLeak:
         assert detected is False
         assert leak_type == "none"
 
+    def test_robots_user_agent_caps(self) -> None:
+        body = b"User-Agent: *\r\nDisallow: /admin"
+        detected, leak_type = _detect_leak(body)
+        assert detected is True
+        assert leak_type == "robots"
+
+    def test_robots_user_agent_lowercase(self) -> None:
+        body = b"user-agent: *\r\nAllow: /public"
+        detected, leak_type = _detect_leak(body)
+        assert detected is True
+        assert leak_type == "robots"
+
+    def test_passwd_case_insensitive(self) -> None:
+        body = b"<html>Root:X:0:0:Root:/Root:/Bin/Bash</html>"
+        detected, leak_type = _detect_leak(body)
+        assert detected is True
+        assert leak_type == "passwd"
+
 
 # ---------------------------------------------------------------------------
 # _find_lfi_params
@@ -301,6 +319,65 @@ class TestRFI:
         assert len(attempts) == len(lfidetect_module._RFI_PAYLOADS)
         assert all(a.error for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_self_referencing_no_httpbin(self) -> None:
+        """Payloads RFI nao devem depender de httpbin.org (outbound)."""
+        mock_client = AsyncMock()
+        mock_client.get.return_value = _mock_response()
+        attempts = await _test_rfi(
+            mock_client,
+            "https://target.com/?page=home",
+            ["page"],
+            (200, 100, b"<html></html>"),
+        )
+        assert attempts
+        assert not any("httpbin.org" in a.url for a in attempts)
+        assert not any("httpbin.org" in a.payload for a in attempts)
+        assert any("target.com" in a.url for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_robots_leak_detected(self) -> None:
+        """robots.txt refletido (User-agent:) e detectado como leak."""
+        mock_client = AsyncMock()
+        mock_client.get.return_value = _mock_response(
+            body=b"User-agent: *\r\nDisallow: /admin"
+        )
+        attempts = await _test_rfi(
+            mock_client,
+            "https://target.com/?page=home",
+            ["page"],
+            (200, 100, b"<html></html>"),
+        )
+        vuln = [a for a in attempts if a.vulnerable and a.body_leak_type == "robots"]
+        assert len(vuln) > 0
+
+    @pytest.mark.asyncio
+    async def test_verify_payload_self_referencing(self) -> None:
+        """Verificacao de segunda ordem tambem substitui httpbin pelo host."""
+        captured: dict[str, str] = {}
+
+        async def _verify(
+            _client: object, v_url: str, _indicators: object
+        ) -> tuple[bool, str]:
+            captured["v_url"] = v_url
+            return (True, "User-agent")
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = _mock_response(
+            body=b"User-Agent: *\r\nDisallow: /"
+        )
+        with patch("mytools.web.lfidetect.verify_positive", side_effect=_verify):
+            attempts = await _test_rfi(
+                mock_client,
+                "https://target.com/?page=home",
+                ["page"],
+                (200, 100, b"<html></html>"),
+            )
+        assert captured["v_url"]
+        assert "httpbin.org" not in captured["v_url"]
+        assert "target.com" in captured["v_url"]
+        assert any("2nd-order confirmed" in a.details for a in attempts)
+
 
 # ---------------------------------------------------------------------------
 # _make_lfi_url
@@ -316,6 +393,11 @@ class TestMakeLFIUrl:
     def test_encodes_payload(self) -> None:
         url = _make_lfi_url("https://target.com/", "file", "../../etc/passwd")
         assert "file=" in url
+
+    def test_ampersand_payload_is_encoded(self) -> None:
+        url = _make_lfi_url("https://target.com/?page=home", "file", "a&&b")
+        assert "a%26%26b" in url
+        assert "&&" not in url
 
 
 # ---------------------------------------------------------------------------

@@ -710,7 +710,7 @@ def run_once(args: argparse.Namespace) -> int:
     if getattr(args, "output", None):
         write_output(args.output, asdict(result))
 
-    return 0 if result.overall_status != "error" else 1
+    return 1 if result.overall_status != "secure" else 0
 
 
 # ---------------------------------------------------------------------------

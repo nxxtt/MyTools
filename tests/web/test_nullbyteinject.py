@@ -274,6 +274,34 @@ class TestTestNullInHeaders:
         assert len(attempts) == 4
         assert all(a.error for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_header_values_use_percent_null(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"<html>OK</html>"
+        mock_client.get.return_value = mock_resp
+
+        await _test_null_in_headers(mock_client, "https://example.com", (200, 14, b""))
+
+        assert mock_client.get.called
+        for call in mock_client.get.call_args_list:
+            headers = call.kwargs["headers"]
+            for value in headers.values():
+                assert "%00" in value
+                assert "\x00" not in value
+
+    @pytest.mark.asyncio
+    async def test_value_error_handled(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = ValueError("invalid header value")
+
+        attempts = await _test_null_in_headers(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        assert len(attempts) == 4
+        assert all(a.error for a in attempts)
+
 
 class TestTestNullInParams:
     """Testes para _test_null_in_params."""
@@ -418,6 +446,34 @@ class TestTestAuthBypass:
 
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        attempts = await _test_auth_bypass(
+            mock_client, "https://example.com", (200, 14, b"")
+        )
+        assert len(attempts) == 3
+        assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_auth_values_use_percent_null(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        mock_resp.content = b"Unauthorized"
+        mock_client.get.return_value = mock_resp
+
+        await _test_auth_bypass(mock_client, "https://example.com", (200, 14, b""))
+
+        assert mock_client.get.called
+        for call in mock_client.get.call_args_list:
+            headers = call.kwargs["headers"]
+            for value in headers.values():
+                assert "%00" in value
+                assert "\x00" not in value
+
+    @pytest.mark.asyncio
+    async def test_auth_value_error_handled(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = ValueError("invalid header value")
 
         attempts = await _test_auth_bypass(
             mock_client, "https://example.com", (200, 14, b"")

@@ -17,7 +17,6 @@ import respx
 
 from mytools.dns.dohscan import (
     _DOH_PROVIDERS,
-    _RDTYPE_MAP,
     DohProviderResult,
     DohRecord,
     DohScanResult,
@@ -131,18 +130,6 @@ class TestDohProviders:
             assert "url" in prov, f"{key} missing url"
             assert "method" in prov, f"{key} missing method"
             assert prov["method"] in ("GET", "POST"), f"{key} invalid method"
-
-
-class TestRdtypeMap:
-    def test_common_types(self) -> None:
-        assert "A" in _RDTYPE_MAP
-        assert "AAAA" in _RDTYPE_MAP
-        assert "MX" in _RDTYPE_MAP
-        assert "TXT" in _RDTYPE_MAP
-
-    def test_all_values_are_ints(self) -> None:
-        for k, v in _RDTYPE_MAP.items():
-            assert isinstance(v, int), f"{k} has non-int value"
 
 
 class TestBuildDnsQuery:
@@ -410,9 +397,10 @@ class TestDohQueryPost:
                 headers={"content-type": "application/dns-message"},
             )
         )
-        data, status, error = await _doh_query_post(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            data, status, error = await _doh_query_post(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert data == b"\x00\x01"
         assert status == 200
         assert error == ""
@@ -425,9 +413,10 @@ class TestDohQueryPost:
                 200, content=b"", headers={"content-type": "text/html"}
             )
         )
-        data, status, error = await _doh_query_post(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            data, status, error = await _doh_query_post(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert data == b""
         assert status == 200
         assert error.startswith("unexpected_content_type")
@@ -438,9 +427,10 @@ class TestDohQueryPost:
         respx.post("https://dns.google/dns-query").mock(
             side_effect=httpx.TimeoutException("slow")
         )
-        data, status, error = await _doh_query_post(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            data, status, error = await _doh_query_post(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert data == b""
         assert status == 0
         assert error == "timeout"
@@ -451,9 +441,10 @@ class TestDohQueryPost:
         respx.post("https://dns.google/dns-query").mock(
             side_effect=httpx.ConnectError("conn")
         )
-        _data, status, error = await _doh_query_post(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            _data, status, error = await _doh_query_post(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert status == 0
         assert error.startswith("connect_error")
 
@@ -463,9 +454,10 @@ class TestDohQueryPost:
         respx.post("https://dns.google/dns-query").mock(
             side_effect=RuntimeError("boom")
         )
-        _data, status, error = await _doh_query_post(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            _data, status, error = await _doh_query_post(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert status == 0
         assert "boom" in error
 
@@ -481,9 +473,10 @@ class TestDohQueryGet:
                 headers={"content-type": "application/dns-message"},
             )
         )
-        data, status, error = await _doh_query_get(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            data, status, error = await _doh_query_get(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert data == b"\x00\x01"
         assert status == 200
         assert error == ""
@@ -496,9 +489,10 @@ class TestDohQueryGet:
                 200, content=b"", headers={"content-type": "text/html"}
             )
         )
-        _data, _status, error = await _doh_query_get(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            _data, _status, error = await _doh_query_get(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert error.startswith("unexpected_content_type")
 
     @respx.mock
@@ -507,9 +501,10 @@ class TestDohQueryGet:
         respx.get(url__startswith="https://dns.google/dns-query").mock(
             side_effect=httpx.TimeoutException("slow")
         )
-        _data, status, error = await _doh_query_get(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            _data, status, error = await _doh_query_get(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert status == 0
         assert error == "timeout"
 
@@ -519,9 +514,10 @@ class TestDohQueryGet:
         respx.get(url__startswith="https://dns.google/dns-query").mock(
             side_effect=httpx.ConnectError("conn")
         )
-        _data, _status, error = await _doh_query_get(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            _data, _status, error = await _doh_query_get(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert error.startswith("connect_error")
 
     @respx.mock
@@ -530,9 +526,10 @@ class TestDohQueryGet:
         respx.get(url__startswith="https://dns.google/dns-query").mock(
             side_effect=RuntimeError("boom")
         )
-        _data, _status, error = await _doh_query_get(
-            "https://dns.google/dns-query", b"\x00\x01", 5.0
-        )
+        async with httpx.AsyncClient() as client:
+            _data, _status, error = await _doh_query_get(
+                client, "https://dns.google/dns-query", b"\x00\x01"
+            )
         assert "boom" in error
 
 
@@ -551,7 +548,7 @@ class TestTestProvider:
             "method": "GET",
         }
         result = await _test_provider(
-            "google", provider, b"\x00\x01", "example.com", "A", 5.0
+            MagicMock(), "google", provider, b"\x00\x01", "example.com", "A", 5.0
         )
         assert result.query_method == "GET"
         assert result.status_code == 200
@@ -575,7 +572,7 @@ class TestTestProvider:
             "method": "POST",
         }
         result = await _test_provider(
-            "custom", provider, b"\x00\x01", "example.com", "A", 5.0
+            MagicMock(), "custom", provider, b"\x00\x01", "example.com", "A", 5.0
         )
         assert result.query_method == "POST"
         assert result.records == []
@@ -702,6 +699,28 @@ class TestScanDoh:
         assert result.providers == []
         mock_provider.assert_not_awaited()
 
+    @patch("mytools.dns.dohscan._test_provider")
+    @patch("mytools.dns.dohscan._traditional_resolve")
+    @pytest.mark.asyncio
+    async def test_filtering_when_traditional_blocked(
+        self, mock_trad: MagicMock, mock_provider: MagicMock
+    ) -> None:
+        mock_trad.return_value = ([], 10.0, "timeout")
+        mock_provider.return_value = DohProviderResult(
+            provider="google",
+            provider_name="Google DNS",
+            url="https://dns.google/dns-query",
+            records=[DohRecord("example.com", "A", 300, "1.2.3.4")],
+            latency_ms=5.0,
+            status_code=200,
+            error="",
+            query_method="GET",
+        )
+        result = await scan_doh("example.com", providers=["google"])
+        assert result.overall_status == "filtering_detected"
+        assert result.filtering_detected is True
+        assert "traditional_dns_blocked_but_doh_resolves" in result.inconsistencies
+
 
 class TestPrintResultsAdditional:
     def test_trad_error(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -758,7 +777,7 @@ class TestRunScan:
         mock_scan.return_value = result
         out = await _run_scan(args)
         assert out == result
-        mock_scan.assert_awaited_once_with("example.com", "A", ["google"], 7.0)
+        mock_scan.assert_awaited_once_with("example.com", "A", ["google"], 7.0, True)
 
 
 class TestBanner:
@@ -802,13 +821,13 @@ class TestSafeRun:
     @patch("mytools.dns.dohscan.print_results")
     @patch("mytools.dns.dohscan.init_scanner", return_value=False)
     @patch("mytools.dns.dohscan._run_scan", new_callable=AsyncMock)
-    def test_error_returns_one(
+    def test_error_returns_zero(
         self, mock_scan: AsyncMock, mock_init: MagicMock, mock_print: MagicMock
     ) -> None:
         mock_scan.return_value = _make_doh_result(
             overall_status="error", doh_supported=False
         )
-        assert _safe_run(_make_safe_run_args()) == 1
+        assert _safe_run(_make_safe_run_args()) == 0
 
     @patch("mytools.dns.dohscan.write_output")
     @patch("mytools.dns.dohscan.print_results")
@@ -823,6 +842,39 @@ class TestSafeRun:
     ) -> None:
         mock_scan.return_value = _make_doh_result(overall_status="resolved")
         assert _safe_run(_make_safe_run_args(output="out.json")) == 0
+        mock_write.assert_called_once()
+
+    @patch("mytools.dns.dohscan.print_json")
+    @patch("mytools.dns.dohscan.print_results")
+    @patch("mytools.dns.dohscan.init_scanner", return_value=False)
+    @patch("mytools.dns.dohscan._run_scan", new_callable=AsyncMock)
+    def test_json_output(
+        self,
+        mock_scan: AsyncMock,
+        mock_init: MagicMock,
+        mock_print: MagicMock,
+        mock_json: MagicMock,
+    ) -> None:
+        mock_scan.return_value = _make_doh_result(overall_status="resolved")
+        assert _safe_run(_make_safe_run_args(json_output=True)) == 0
+        mock_json.assert_called_once()
+
+    @patch("mytools.dns.dohscan.ensure_output_dir")
+    @patch("mytools.dns.dohscan.write_output")
+    @patch("mytools.dns.dohscan.print_results")
+    @patch("mytools.dns.dohscan.init_scanner", return_value=False)
+    @patch("mytools.dns.dohscan._run_scan", new_callable=AsyncMock)
+    def test_output_dir(
+        self,
+        mock_scan: AsyncMock,
+        mock_init: MagicMock,
+        mock_print: MagicMock,
+        mock_write: MagicMock,
+        mock_ensure: MagicMock,
+    ) -> None:
+        mock_scan.return_value = _make_doh_result(overall_status="resolved")
+        assert _safe_run(_make_safe_run_args(output_dir="reports")) == 0
+        mock_ensure.assert_called_once_with("reports")
         mock_write.assert_called_once()
 
     @patch("mytools.dns.dohscan.print_results")

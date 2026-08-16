@@ -146,7 +146,7 @@ bypass_payloads:
       - override
   - - null_terminate
     - X-HTTP-Method-Override
-    - "DELETE\x00"
+    - "DELETE%00"
     - - method
       - override
   - - unicode_method

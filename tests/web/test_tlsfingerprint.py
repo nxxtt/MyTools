@@ -14,7 +14,11 @@ from mytools.web.tlsfingerprint import (
     _CATEGORY_DISPATCH,
     _CATEGORY_MAP,
     CHROME_PROFILE,
+    ECDHE_RSA_AES_128_CBC_SHA,
+    ECDHE_RSA_AES_128_CBC_SHA256,
     FIREFOX_PROFILE,
+    RSA_AES_128_GCM_SHA256,
+    RSA_AES_256_GCM_SHA384,
     TLSFingerprintAttempt,
     TLSFingerprintResult,
     _alpn_extension,
@@ -205,6 +209,49 @@ class TestExtensionBuilders:
         assert b"h2" in ext
 
 
+# ─── Cipher Constant Tests ───────────────────────────────────────────────────
+
+
+class TestCipherConstants:
+    def test_ecdh_cbc_suites_have_distinct_ids(self) -> None:
+        assert ECDHE_RSA_AES_128_CBC_SHA256 == 0xC027
+        assert ECDHE_RSA_AES_128_CBC_SHA == 0xC013
+
+    def test_ecdh_cbc_suites_do_not_collide_with_rsa_gcm(self) -> None:
+        assert ECDHE_RSA_AES_128_CBC_SHA256 != RSA_AES_128_GCM_SHA256
+        assert ECDHE_RSA_AES_128_CBC_SHA != RSA_AES_256_GCM_SHA384
+
+    def test_ecdh_cbc_suites_present_in_cipher_info(self) -> None:
+        from mytools.web.tlsfingerprint import _CIPHER_INFO
+
+        assert ECDHE_RSA_AES_128_CBC_SHA256 in _CIPHER_INFO
+        assert ECDHE_RSA_AES_128_CBC_SHA in _CIPHER_INFO
+        info = _CIPHER_INFO[ECDHE_RSA_AES_128_CBC_SHA256]
+        assert info[0] == "ECDHE_RSA_AES_128_CBC_SHA256"
+        assert info[0] != _CIPHER_INFO[RSA_AES_128_GCM_SHA256][0]
+
+
+def _parse_supported_versions(data: bytes) -> list[int]:
+    pos = 5 + 4
+    pos += 2 + 32 + 1 + 32
+    cipher_len = struct.unpack(">H", data[pos : pos + 2])[0]
+    pos += 2 + cipher_len
+    pos += 2  # compression (1 byte len + 1 byte method)
+    ext_len = struct.unpack(">H", data[pos : pos + 2])[0]
+    pos += 2
+    end = pos + ext_len
+    while pos + 4 <= end:
+        etype, elen = struct.unpack(">HH", data[pos : pos + 4])
+        pos += 4
+        if etype == 0x002B:
+            count = data[pos]
+            return list(
+                struct.unpack(f">{count // 2}H", data[pos + 1 : pos + 1 + count])
+            )
+        pos += elen
+    return []
+
+
 # ─── ClientHello Builder Tests ──────────────────────────────────────────────
 
 
@@ -226,6 +273,21 @@ class TestBuildClientHello:
         _data, meta = _build_client_hello("example.com", ciphers=[0x1301, 0x1302])
         assert 0x1301 in meta["ciphers"]
         assert 0x1302 in meta["ciphers"]
+
+    def test_tls12_no_duplicate_supported_version(self) -> None:
+        data, meta = _build_client_hello(
+            "example.com", ciphers=[0x1301], tls_version=0x0303
+        )
+        versions = _parse_supported_versions(data)
+        assert versions == [0x0303]
+        assert meta["tls_version"] == 0x0303
+
+    def test_tls13_offers_both_versions(self) -> None:
+        data, _meta = _build_client_hello(
+            "example.com", ciphers=[0x1301], tls_version=0x0304
+        )
+        versions = _parse_supported_versions(data)
+        assert versions == [0x0304, 0x0303]
 
     def test_from_profile(self) -> None:
         data, meta = _build_client_hello_from_profile("example.com", CHROME_PROFILE)
@@ -564,6 +626,45 @@ class TestJA3JA4Branches:
         }
         ja4 = _compute_ja4(meta)
         assert ja4.startswith("t12i")
+
+    def test_ja4_maps_http11_to_h1(self) -> None:
+        meta = {
+            "tls_version": 0x0304,
+            "sni": "example.com",
+            "ciphers": [0x1301],
+            "extensions": [0],
+            "alpn": ["http/1.1"],
+            "sig_algorithms": [],
+        }
+        ja4 = _compute_ja4(meta)
+        part_a = ja4.split("_")[0]
+        assert part_a == "t13d0101h1"
+
+    def test_ja4_maps_h2_to_h2(self) -> None:
+        meta = {
+            "tls_version": 0x0304,
+            "sni": "example.com",
+            "ciphers": [0x1301],
+            "extensions": [0],
+            "alpn": ["h2"],
+            "sig_algorithms": [],
+        }
+        ja4 = _compute_ja4(meta)
+        part_a = ja4.split("_")[0]
+        assert part_a == "t13d0101h2"
+
+    def test_ja4_maps_unknown_alpn_to_00(self) -> None:
+        meta = {
+            "tls_version": 0x0304,
+            "sni": "example.com",
+            "ciphers": [0x1301],
+            "extensions": [0],
+            "alpn": ["spdy/weird"],
+            "sig_algorithms": [],
+        }
+        ja4 = _compute_ja4(meta)
+        part_a = ja4.split("_")[0]
+        assert part_a == "t13d010100"
 
 
 # ─── URL Parser Branch Tests ─────────────────────────────────────────────────
@@ -986,6 +1087,37 @@ class TestTestKeyExchange:
         assert attempts[0].error != ""
 
 
+class TestKeyExchangeModernNotVulnerable:
+    @pytest.mark.asyncio
+    async def test_ecdhe_and_x25519_not_vulnerable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cert_info = {
+            "cipher": "ECDHE_RSA_AES_128_GCM_SHA256",
+            "version": "TLSv1.2",
+            "alpn": "h2",
+        }
+        monkeypatch.setattr(
+            "mytools.web.tlsfingerprint._get_cert_info",
+            lambda *a, **k: cert_info,
+        )
+        monkeypatch.setattr(
+            "mytools.web.tlsfingerprint._probe_cipher",
+            lambda *a, **k: (True, "TLSv1.2/ECDHE_RSA_AES_128_GCM_SHA256"),
+        )
+        attempts = await _test_key_exchange("example.com", 443, "/", 5.0, True, 0, 0)
+        by_tech = {a.technique: a for a in attempts}
+        assert by_tech["ecdhe_keyexchange"].vulnerable is False
+        assert by_tech["x25519_support"].vulnerable is False
+        assert by_tech["dhe_keyexchange"].vulnerable is False
+        assert by_tech["ecdhe_keyexchange"].exploit == ""
+        assert by_tech["x25519_support"].exploit == ""
+        assert by_tech["dhe_keyexchange"].exploit == ""
+        assert by_tech["ecdhe_keyexchange"].details
+        assert by_tech["x25519_support"].details
+        assert by_tech["dhe_keyexchange"].details
+
+
 class TestTestCipherAudit:
     @pytest.mark.asyncio
     async def test_happy(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1119,7 +1251,16 @@ class TestRunOnce:
     ) -> None:
         _scan_mocks(monkeypatch)
         args = argparse.Namespace(
-            url="https://example.com", categories=None, timeout=5.0, output=None
+            url="https://example.com",
+            categories=None,
+            timeout=5.0,
+            output=None,
+            verbose=0,
+            log_file=None,
+            quiet=False,
+            color=None,
+            theme=None,
+            severity_override=None,
         )
         rc = run_once(args)
         capsys.readouterr()
@@ -1134,11 +1275,36 @@ class TestRunOnce:
             lambda *a, **k: (True, "accepted"),
         )
         args = argparse.Namespace(
-            url="https://example.com", categories=None, timeout=5.0, output=None
+            url="https://example.com",
+            categories=None,
+            timeout=5.0,
+            output=None,
+            verbose=0,
+            log_file=None,
+            quiet=False,
+            color=None,
+            theme=None,
+            severity_override=None,
         )
         rc = run_once(args)
         capsys.readouterr()
         assert rc == 1
+
+    def test_calls_init_scanner(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _scan_mocks(monkeypatch)
+        calls: list[object] = []
+        monkeypatch.setattr(
+            "mytools.web.tlsfingerprint.init_scanner",
+            lambda *a, **k: calls.append(a),
+        )
+        args = argparse.Namespace(
+            url="https://example.com", categories=None, timeout=5.0, output=None
+        )
+        run_once(args)
+        capsys.readouterr()
+        assert len(calls) == 1
 
 
 # ─── __main__ Guard ──────────────────────────────────────────────────────────

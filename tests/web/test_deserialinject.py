@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Deserialization Injection."""
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -35,6 +37,12 @@ from mytools.web.deserialinject import (
     main,
     print_results,
 )
+
+
+def _read_json_output(path: str) -> dict:
+    """Le um arquivo JSON de saida (helper sincrono p/ testes async)."""
+
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 class TestCategoryMap:
@@ -831,6 +839,177 @@ class TestTestNodejs:
         assert all(r.error for r in results)
 
 
+class TestBinaryPayloads:
+    """Os payloads binarios devem ser bytes reais, nao escape-text."""
+
+    def test_java_magic_bytes_are_bytes(self) -> None:
+        java = {t: (p, i) for t, p, i in _JAVA_PAYLOADS}
+        for t in (
+            "java_magic_bytes",
+            "java_obj_stream",
+            "java_gadget_cc",
+            "java_gadget_spring",
+        ):
+            payload, indicators = java[t]
+            assert isinstance(payload, bytes)
+            assert payload[:2] == b"\xac\xed"
+            assert b"\xac\xed" in indicators
+
+    def test_java_jndi_stays_str(self) -> None:
+        java = {t: (p, i) for t, p, i in _JAVA_PAYLOADS}
+        assert isinstance(java["java_jndi"][0], str)
+
+    def test_python_binary_payloads_are_bytes(self) -> None:
+        py = {t: (p, i) for t, p, i in _PYTHON_PAYLOADS}
+        for t in ("python_pickle", "python_marshal", "python_shelve"):
+            assert isinstance(py[t][0], bytes)
+
+    def test_python_text_payloads_stay_str(self) -> None:
+        py = {t: (p, i) for t, p, i in _PYTHON_PAYLOADS}
+        for t in ("python_reduce", "python_yaml"):
+            assert isinstance(py[t][0], str)
+
+    def test_ruby_marshal_is_bytes(self) -> None:
+        ruby = {t: (p, i) for t, p, i in _RUBY_PAYLOADS}
+        assert isinstance(ruby["ruby_marshal"][0], bytes)
+        assert b"\x04\x08" in ruby["ruby_marshal"][1]
+
+
+class TestCheckDeserialResponseBytes:
+    """Indicadores de bytes devem ser casados contra o corpo cru."""
+
+    def test_bytes_indicator_in_raw_body(self) -> None:
+        assert _check_deserial_response(b"\xac\xed\x00\x05", 200, [b"\xac\xed", "java"])
+
+    def test_bytes_indicator_not_present(self) -> None:
+        assert not _check_deserial_response(b"java html page", 200, [b"\xac\xed"])
+
+    def test_mixed_str_and_bytes_indicators(self) -> None:
+        assert _check_deserial_response(
+            b"java serialization", 200, [b"\xac\xed", "serialization"]
+        )
+
+    def test_escape_text_does_not_match_bytes_indicator(self) -> None:
+        assert not _check_deserial_response(b"\\xac\\xed", 200, [b"\xac\xed"])
+
+
+class TestSendSites:
+    """Send sites enviam content bytes e fazem um request por payload."""
+
+    @pytest.mark.asyncio
+    async def test_java_sends_bytes_once_per_payload(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"java"
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_java(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) == len(_JAVA_PAYLOADS)
+        assert mock_client.post.call_count == len(_JAVA_PAYLOADS)
+        for call in mock_client.post.call_args_list:
+            assert isinstance(call.kwargs.get("content"), bytes)
+
+    @pytest.mark.asyncio
+    async def test_python_sends_bytes_once_per_payload(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"python"
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_python(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
+        assert len(results) == len(_PYTHON_PAYLOADS)
+        assert mock_client.post.call_count == len(_PYTHON_PAYLOADS)
+        for call in mock_client.post.call_args_list:
+            assert isinstance(call.kwargs.get("content"), bytes)
+
+    @pytest.mark.asyncio
+    async def test_ruby_sends_bytes_content_without_crash(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ruby"
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_ruby(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) == len(_RUBY_PAYLOADS)
+        assert mock_client.post.call_count == len(_RUBY_PAYLOADS)
+        for call in mock_client.post.call_args_list:
+            assert isinstance(call.kwargs.get("content"), bytes)
+
+    @pytest.mark.asyncio
+    async def test_dotnet_sends_once_per_payload(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"dotnet"
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_dotnet(
+            mock_client, "https://example.com", (200, 100, b"")
+        )
+        assert len(results) == len(_DOTNET_PAYLOADS)
+        assert mock_client.post.call_count == len(_DOTNET_PAYLOADS)
+
+
+class TestTimingAnomalyBaseline:
+    """timing_anomaly deve comparar com um baseline benigno."""
+
+    @pytest.mark.asyncio
+    async def test_vulnerable_when_slow_and_faster_than_baseline(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client.post.return_value = mock_resp
+
+        values = iter([0.0, 0.1, 0.2, 3.5] * 3)
+        with patch("mytools.web.deserialinject.time.monotonic", side_effect=values):
+            results = await _test_detect(
+                mock_client, "https://example.com", (200, 100, b"")
+            )
+        timing = [r for r in results if r.technique == "timing_anomaly"]
+        assert timing
+        assert all(r.vulnerable for r in timing)
+
+    @pytest.mark.asyncio
+    async def test_not_vulnerable_when_baseline_equally_slow(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client.post.return_value = mock_resp
+
+        values = iter([0.0, 3.0, 3.1, 5.5] * 3)
+        with patch("mytools.web.deserialinject.time.monotonic", side_effect=values):
+            results = await _test_detect(
+                mock_client, "https://example.com", (200, 100, b"")
+            )
+        timing = [r for r in results if r.technique == "timing_anomaly"]
+        assert timing
+        assert all(not r.vulnerable for r in timing)
+
+    @pytest.mark.asyncio
+    async def test_not_vulnerable_when_fast(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client.post.return_value = mock_resp
+
+        values = iter([0.0, 0.1, 0.2, 0.5] * 3)
+        with patch("mytools.web.deserialinject.time.monotonic", side_effect=values):
+            results = await _test_detect(
+                mock_client, "https://example.com", (200, 100, b"")
+            )
+        timing = [r for r in results if r.technique == "timing_anomaly"]
+        assert timing
+        assert all(not r.vulnerable for r in timing)
+
+
 class TestIntegration:
     """Testes de integracao com mocks."""
 
@@ -854,6 +1033,30 @@ class TestIntegration:
             verbose=False,
         )
         assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_json_output(self) -> None:
+        from mytools.web.deserialinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.deserialinject.print_json") as mock_print:
+            result = await run_scan(
+                target="https://example.com",
+                categories=["php"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+                json_output=True,
+            )
+        assert result == 0
+        mock_print.assert_called_once()
 
     @pytest.mark.asyncio
     @respx.mock
@@ -937,6 +1140,33 @@ class TestIntegration:
         )
         assert result == 0
 
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_with_output_binary_payload(self, tmp_path: object) -> None:
+        from mytools.web.deserialinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        output_file = str(tmp_path) + "/output_bin.json"  # type: ignore[operator]
+        result = await run_scan(
+            target="https://example.com",
+            categories=["java"],
+            timeout=10,
+            concurrency=5,
+            output_file=output_file,
+            verbose=False,
+        )
+        assert result == 0
+
+        data = _read_json_output(output_file)
+        assert len(data["attempts"]) == len(_JAVA_PAYLOADS)
+        assert all(isinstance(a["payload"], str) for a in data["attempts"])
+        assert any(a["payload"].startswith("aced") for a in data["attempts"])
+
     def test_run_once(self) -> None:
         args = MagicMock()
         args.url = "https://example.com"
@@ -945,6 +1175,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.deserialinject.run_scan",
@@ -965,6 +1197,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.deserialinject.run_scan",

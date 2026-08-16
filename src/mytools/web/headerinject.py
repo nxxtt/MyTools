@@ -97,18 +97,17 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 _MARKER = "HDRINJECT_TEST"
 
 
-async def _test_baseline(
-    client: httpx.AsyncClient, url: str
-) -> tuple[int, int, dict[str, str], bytes]:
-    """Envia request baseline para obter status, tamanho, headers e corpo."""
+def _url_with_param(url: str, param_name: str, param_value: str) -> str:
+    """Monta URL de teste mantendo query string existente (sem ``??``)."""
 
-    try:
-        resp = await client.get(url, follow_redirects=True)
+    base, _, query = url.partition("?")
 
-        return resp.status_code, len(resp.content), dict(resp.headers), resp.content
+    param = param_name if "=" in param_name else f"{param_name}={param_value}"
 
-    except httpx.RequestError:
-        return 0, 0, {}, b""
+    if query:
+        return f"{base}?{query}&{param}"
+
+    return f"{base}?{param}"
 
 
 async def _test_param_reflected(
@@ -118,8 +117,6 @@ async def _test_param_reflected(
     """Testa se parametros de URL sao refletidos em headers de resposta."""
 
     results: list[HeaderInjectAttempt] = []
-
-    _b_status, _b_size, _b_headers, _b_body = await _test_baseline(client, url)
 
     test_cases: list[tuple[str, str, str]] = [
         ("x_injected", "X-Injected", _MARKER),
@@ -131,7 +128,7 @@ async def _test_param_reflected(
 
     for technique, param_name, marker in test_cases:
         try:
-            url_with_param = f"{url}?{param_name}={marker}"
+            url_with_param = _url_with_param(url, param_name, marker)
 
             resp = await client.get(url_with_param, follow_redirects=True)
 
@@ -220,7 +217,7 @@ async def _test_header_overwrite(
 
     for technique, param_name, marker, header_check in overwrite_tests:
         try:
-            url_with_param = f"{url}?{param_name}={marker}"
+            url_with_param = _url_with_param(url, param_name, marker)
 
             resp = await client.get(url_with_param, follow_redirects=True)
 
@@ -291,7 +288,7 @@ async def _test_redirect_header(
 
     for technique, param_name, marker in redirect_tests:
         try:
-            url_with_param = f"{url}?{param_name}={marker}"
+            url_with_param = _url_with_param(url, param_name, marker)
 
             resp = await client.get(url_with_param, follow_redirects=False)
 
@@ -361,22 +358,29 @@ async def _test_cookie_inject(
 
     for technique, param_name, marker in cookie_tests:
         try:
-            url_with_param = f"{url}?{param_name}={marker}"
+            url_with_param = _url_with_param(url, param_name, marker)
 
             resp = await client.get(url_with_param, follow_redirects=True)
 
-            resp_headers = dict(resp.headers)
+            get_list = getattr(resp.headers, "get_list", None)
+
+            set_cookies = get_list("set-cookie") if get_list else []
+
+            if not set_cookies:
+                raw = resp.headers.get("set-cookie", "")
+
+                set_cookies = [raw] if raw else []
 
             vulnerable = False
 
             details = ""
 
-            set_cookies = resp_headers.get("set-cookie", "")
-
-            if _MARKER in set_cookies:
+            if any(_MARKER in sc for sc in set_cookies):
                 vulnerable = True
 
-                details = f"Set-Cookie injetado via URL param: {set_cookies[:120]}"
+                details = (
+                    f"Set-Cookie injetado via URL param: {', '.join(set_cookies)[:120]}"
+                )
 
             results.append(
                 HeaderInjectAttempt(
@@ -430,11 +434,7 @@ async def _test_bypass(
 
     for technique, param_name, marker in bypass_tests:
         try:
-            url_with_param = (
-                f"{url}?{param_name}={marker}"
-                if "=" not in param_name
-                else f"{url}?{param_name}"
-            )
+            url_with_param = _url_with_param(url, param_name, marker)
 
             resp = await client.get(url_with_param, follow_redirects=True)
 

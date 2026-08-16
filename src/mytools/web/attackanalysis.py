@@ -95,6 +95,7 @@ def build_graph(findings: list[dict[str, Any]], target: str) -> AttackGraph:
     nodes: list[AttackNode] = []
     edges: list[AttackEdge] = []
     severity_counts: dict[str, int] = {s: 0 for s in _SEVERITY_COLORS}
+    by_category: dict[str, list[str]] = {}
 
     for i, finding in enumerate(findings):
         severity = finding.get("severity", "info")
@@ -104,6 +105,7 @@ def build_graph(findings: list[dict[str, Any]], target: str) -> AttackGraph:
 
         node_id = f"vuln_{i}"
         severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        by_category.setdefault(category, []).append(node_id)
 
         nodes.append(
             AttackNode(
@@ -116,17 +118,16 @@ def build_graph(findings: list[dict[str, Any]], target: str) -> AttackGraph:
             )
         )
 
-        for j, other in enumerate(findings):
-            if i >= j:
-                continue
-            if other.get("category") == category:
-                edges.append(
-                    AttackEdge(
-                        source=f"vuln_{i}",
-                        target=f"vuln_{j}",
-                        relationship="same_category",
-                    )
-                )
+    for members in by_category.values():
+        edges.extend(
+            AttackEdge(
+                source=members[i],
+                target=members[j],
+                relationship="same_category",
+            )
+            for i in range(len(members))
+            for j in range(i + 1, len(members))
+        )
 
     return AttackGraph(
         nodes=nodes,
@@ -222,6 +223,42 @@ def _draw_graph(G: nx.DiGraph, graph: AttackGraph, output_path: str, fmt: str) -
     plt.close()
 
 
+_EXPLOIT_TOOLS: tuple[tuple[str, str], ...] = (
+    ("sqlmap", "sqlmap"),
+    ("sql", "sqlmap"),
+    ("xsstrike", "XSStrike"),
+    ("xss", "XSStrike"),
+    ("wfuzz", "wfuzz"),
+    ("ffuf", "ffuf"),
+    ("gobuster", "gobuster"),
+    ("nuclei", "nuclei"),
+    ("ysoserial", "ysoserial"),
+    ("metasploit", "msfconsole"),
+    ("nmap", "nmap"),
+    ("hydra", "hydra"),
+    ("jwt", "jwt_tool"),
+    ("ssti", "tplmap"),
+    ("ssrf", "ssrfmap"),
+    ("xxe", "xxe-injector"),
+    ("graphql", "graphql-playground"),
+    ("curl", "curl"),
+)
+
+_DEFAULT_EXPLOIT_TOOL = "curl"
+
+
+def _suggest_tool(finding: dict[str, Any], exploit: str) -> str:
+    """Sugere ferramenta para o exploit: preferencia ao 'tool' do finding."""
+    tool = finding.get("tool", "")
+    if tool:
+        return tool
+    exploit_lower = exploit.lower()
+    for keyword, tool_name in _EXPLOIT_TOOLS:
+        if keyword in exploit_lower:
+            return tool_name
+    return _DEFAULT_EXPLOIT_TOOL
+
+
 def suggest_exploits(findings: list[dict[str, Any]]) -> list[dict[str, str]]:
     """Consolida exploits de todos os findings."""
     exploits = []
@@ -233,6 +270,7 @@ def suggest_exploits(findings: list[dict[str, Any]]) -> list[dict[str, str]]:
                     "module": finding.get("item", "unknown"),
                     "severity": finding.get("severity", "info"),
                     "exploit": exploit,
+                    "tool": _suggest_tool(finding, exploit),
                 }
             )
     return exploits
@@ -267,7 +305,7 @@ def print_results(graph: AttackGraph, exploits: list[dict[str, str]]) -> None:
         for exp in exploits:
             print(color("    [-]", Cyber.RED), f"[{exp['severity']}] {exp['module']}")
             print(color("        ->", Cyber.YELLOW), exp["exploit"])
-            print_exploit_info(exp["exploit"], exp.get("tool", ""))
+            print_exploit_info(exp["exploit"], exp["tool"])
     else:
         print(color("[+]", Cyber.GREEN), "No exploits suggested")
     print()

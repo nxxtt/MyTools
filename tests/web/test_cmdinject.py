@@ -136,6 +136,11 @@ class TestMakeInjectURL:
         url = _make_inject_url("https://target.com/?cmd=ls&page=1", "cmd", "| id")
         assert "page=1" in url
 
+    def test_ampersand_payload_is_encoded(self) -> None:
+        url = _make_inject_url("https://target.com/?cmd=ls", "cmd", "&& id")
+        assert "cmd=%26%26+id" in url
+        assert "&&" not in url
+
 
 # ---------------------------------------------------------------------------
 # build_parser

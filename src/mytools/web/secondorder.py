@@ -92,6 +92,7 @@ async def verify_positive(
     client: httpx.AsyncClient,
     inject_url: str,
     indicators: list[bytes],
+    timeout: float = 10.0,
 ) -> tuple[bool, str]:
     """Faz GET na inject_url e verifica indicadores no body.
 
@@ -101,12 +102,13 @@ async def verify_positive(
         client: AsyncClient (reutiliza o do modulo)
         inject_url: URL completa com payload de verificacao ja embutido
         indicators: Lista de bytes que confirmam positivo
+        timeout: Timeout (segundos) para o request de verificacao
 
     Returns:
         (confirmed, matched_indicator)
     """
     try:
-        resp = await client.get(inject_url, follow_redirects=False, timeout=10.0)
+        resp = await client.get(inject_url, follow_redirects=False, timeout=timeout)
         return _check_indicators(resp.content, indicators)
     except httpx.RequestError:
         return False, ""

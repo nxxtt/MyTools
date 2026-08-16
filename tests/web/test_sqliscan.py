@@ -80,13 +80,18 @@ class TestDetectDbError:
 class TestBuildInjectUrl:
     def test_basic(self) -> None:
         url = _build_inject_url("http://test.com/?id=1", "id", "' OR 1=1--")
-        assert "' OR 1=1--" in url
         assert "id=" in url
+        assert "%27+OR+1%3D1--" in url
 
     def test_multiple_params(self) -> None:
         url = _build_inject_url("http://test.com/?id=1&q=test", "q", "payload")
         assert "payload" in url
         assert "id=1" in url
+
+    def test_ampersand_payload_is_encoded(self) -> None:
+        url = _build_inject_url("http://test.com/?id=1", "id", "a&&b")
+        assert "a%26%26b" in url
+        assert "&&" not in url
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +354,7 @@ class TestBooleanBlind:
                 call_count += 1
                 resp = MagicMock()
                 resp.status_code = 200
-                if "1=1" in url:
+                if "1%3D1" in url:
                     resp.content = b"<html>" + b"x" * 2000 + b"</html>"
                 else:
                     resp.content = b"<html>" + b"x" * 100 + b"</html>"
@@ -1030,7 +1035,7 @@ class TestRunScanFull:
         async def mock_get(url: str, **kwargs: object) -> MagicMock:
             resp = MagicMock()
             resp.status_code = 200
-            if "1=1" in url:
+            if "1%3D1" in url:
                 resp.content = b"<html>" + b"x" * 2000 + b"</html>"
             else:
                 resp.content = b"<html>" + b"x" * 100 + b"</html>"

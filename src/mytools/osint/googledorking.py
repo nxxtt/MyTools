@@ -19,7 +19,7 @@ import asyncio
 import logging
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from urllib.parse import quote_plus
 
 import httpx
@@ -186,6 +186,18 @@ CATEGORY_COLORS: dict[str, tuple[str, ...]] = {
     "subdomain": (Cyber.MAGENTA, Cyber.BOLD),
 }
 
+_STYLES: list[tuple[str, ...]] = [
+    (Cyber.GRAY,),
+    (Cyber.WHITE,),
+    (Cyber.CYAN,),
+    (Cyber.YELLOW,),
+]
+
+
+def _row_styles(_row: tuple[str, ...]) -> list[tuple[str, ...]]:
+    """Retorna estilos padroes das colunas da tabela de dorks."""
+    return _STYLES
+
 
 banner = create_banner(
     r"""
@@ -237,17 +249,18 @@ def generate_dorks(domain: str, categories: list[str] | None = None) -> list[Dor
     queries: list[DorkQuery] = []
 
     for cat in cats:
-        dorks = ALL_CATEGORIES.get(cat, [])
+        dorks = ALL_CATEGORIES.get(cat) or []
         for dork in dorks:
             full = _build_full_query(dork, domain)
+            google_url = _build_google_url(full)
             queries.append(
                 DorkQuery(
                     category=cat,
                     dork=dork,
                     full_query=full,
-                    google_url=_build_google_url(full),
+                    google_url=google_url,
                     ddg_url=_build_ddg_url(full),
-                    exploit=f"https://www.google.com/search?q={quote_plus(full)}",
+                    exploit=google_url,
                     tool="google",
                 )
             )
@@ -261,14 +274,15 @@ def add_custom_dorks(
     """Adiciona dorks customizadas a lista existente."""
     for dork in custom_dorks:
         full = _build_full_query(dork, domain)
+        google_url = _build_google_url(full)
         queries.append(
             DorkQuery(
                 category="custom",
                 dork=dork,
                 full_query=full,
-                google_url=_build_google_url(full),
+                google_url=google_url,
                 ddg_url=_build_ddg_url(full),
-                exploit=f"https://www.google.com/search?q={quote_plus(full)}",
+                exploit=google_url,
                 tool="google",
             )
         )
@@ -360,16 +374,7 @@ async def scan_dorks(
                 results = await search_ddg(
                     client, q.full_query, timeout, rate_limiter, max_results
                 )
-                new_q = DorkQuery(
-                    category=q.category,
-                    dork=q.dork,
-                    full_query=q.full_query,
-                    google_url=q.google_url,
-                    ddg_url=q.ddg_url,
-                    results=results,
-                    exploit=f"https://www.google.com/search?q={quote_plus(q.full_query)}",
-                    tool="google",
-                )
+                new_q = replace(q, results=results)
                 pbar.update(1)
                 return new_q
 
@@ -419,20 +424,12 @@ def print_results(queries: list[DorkQuery], quiet: bool = False) -> None:
                 )
             )
 
-        def _styles(_row: tuple[str, ...]) -> list[tuple[str, ...]]:
-            return [
-                (Cyber.GRAY,),
-                (Cyber.WHITE,),
-                (Cyber.CYAN,),
-                (Cyber.YELLOW,),
-            ]
-
         print_table(
             headers=hdrs,
             rows=rows,
             empty_message=f"Nenhuma dork de {label}.",
             alignments=["right", "left", "left", "right"],
-            row_styles_fn=_styles,
+            row_styles_fn=_row_styles,
         )
 
         if any(q.results for q in cat_queries):
@@ -512,7 +509,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if target_list:
         try:
             domains.extend(read_target_lines(target_list))
-        except FileNotFoundError:
+        except ValueError:
             logger.error("Arquivo nao encontrado: %s", target_list)
             return 1
 
@@ -520,6 +517,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         logger.error("Informe um dominio ou arquivo de dominios.")
         return 1
 
+    all_queries: list[DorkQuery] = []
     for domain in domains:
         queries = await scan_dorks(
             domain=domain,
@@ -533,13 +531,12 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             requests_per_second=args.delay,
         )
+        all_queries.extend(queries)
 
         if not queries:
             logger.warning("DuckDuckGo: 0 resultados — classes CSS podem ter mudado")
 
-        if getattr(args, "json_output", False):
-            print_json([asdict(q) for q in queries])
-        elif not quiet:
+        if not getattr(args, "json_output", False) and not quiet:
             print_results(queries, quiet=quiet)
 
         if getattr(args, "output_dir", None):
@@ -553,13 +550,16 @@ async def _async_run_once(args: argparse.Namespace) -> int:
                 quiet=quiet,
             )
 
-        if args.output:
-            write_output(
-                args.output,
-                [asdict(q) for q in queries],
-                ["category", "dork", "full_query", "google_url", "ddg_url", "results"],
-                quiet=quiet,
-            )
+    rows = [asdict(q) for q in all_queries]
+    if getattr(args, "json_output", False):
+        print_json(rows)
+    if args.output:
+        write_output(
+            args.output,
+            rows,
+            ["category", "dork", "full_query", "google_url", "ddg_url", "results"],
+            quiet=quiet,
+        )
     return 0
 
 

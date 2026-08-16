@@ -26,6 +26,7 @@ import argparse
 import json
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -180,14 +181,16 @@ async def _check_path(
     client: httpx.AsyncClient,
     base_url: str,
     path: str,
-) -> tuple[int, str]:
-    """Faz GET e retorna (status_code, body_text)."""
+) -> tuple[int, str, Mapping[str, str]]:
+    """Faz GET e retorna (status_code, body_text, headers)."""
     url = f"{base_url.rstrip('/')}{path}"
     try:
-        status, _headers, body_bytes, _raw = await fetch(client, url)
-        return status, body_bytes.decode("utf-8", errors="replace")
+        status, headers, body_bytes, _raw = await fetch(
+            client, url, timeout=DEFAULT_TIMEOUT
+        )
+        return status, body_bytes.decode("utf-8", errors="replace"), headers
     except FetchError:
-        return 0, ""
+        return 0, "", {}
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +207,7 @@ async def _detect_cms(
         detect_paths = sigs.get("detect_paths", [])
         hits = 0
         for path in detect_paths[:2]:
-            status, _ = await _check_path(client, base_url, path)
+            status, _, _ = await _check_path(client, base_url, path)
             if status in (200, 301, 302, 403):
                 hits += 1
         if hits >= 2:
@@ -223,21 +226,21 @@ async def _detect_wp_version(
 ) -> tuple[str, str]:
     """Detecta versao do WordPress. Retorna (version, evidence)."""
     # 1. readme.html
-    status, body = await _check_path(client, base_url, "/readme.html")
+    status, body, _ = await _check_path(client, base_url, "/readme.html")
     if status == 200:
         m = re.search(r"Version\s+([\d.]+)", body, re.IGNORECASE)
         if m:
             return m.group(1), f"readme.html: {m.group(0)}"
 
     # 2. generator meta tag
-    status, body = await _check_path(client, base_url, "/")
+    status, body, _ = await _check_path(client, base_url, "/")
     if status == 200:
         m = re.search(r'content="WordPress\s+([\d.]+)"', body, re.IGNORECASE)
         if m:
             return m.group(1), f"generator meta: {m.group(0)}"
 
     # 3. wp-includes/version.php
-    status, body = await _check_path(client, base_url, "/wp-includes/version.php")
+    status, body, _ = await _check_path(client, base_url, "/wp-includes/version.php")
     if status == 200:
         m = re.search(r"\$wp_version\s*=\s*['\"]([\d.]+)['\"]", body)
         if m:
@@ -255,7 +258,7 @@ async def _detect_wp_plugins(
     found: list[str] = []
     for plugin in plugin_list:
         path = f"/wp-content/plugins/{plugin}/readme.txt"
-        status, _ = await _check_path(client, base_url, path)
+        status, _, _ = await _check_path(client, base_url, path)
         if status == 200:
             found.append(plugin)
     return found
@@ -270,7 +273,7 @@ async def _detect_wp_themes(
     found: list[str] = []
     for theme in theme_list:
         path = f"/wp-content/themes/{theme}/style.css"
-        status, body = await _check_path(client, base_url, path)
+        status, body, _ = await _check_path(client, base_url, path)
         if status == 200 and "Theme Name:" in body:
             found.append(theme)
     return found
@@ -285,17 +288,19 @@ async def _detect_wp_users(
 
     # 1. /?author=1 → redirect reveals username
     for i in range(1, 4):
-        status, body = await _check_path(client, base_url, f"/?author={i}")
+        status, body, headers = await _check_path(client, base_url, f"/?author={i}")
         if status in (301, 302):
             m = re.search(r"/author/([^/\"'&]+)", body, re.IGNORECASE)
             if not m:
-                # Check Location header via fetch redirect handling
-                m = re.search(r"/author/([^/\"'&]+)", body)
+                # Username may only appear in the redirect's Location header
+                m = re.search(
+                    r"/author/([^/\"'&]+)", headers.get("location", ""), re.IGNORECASE
+                )
             if m:
                 users.append(m.group(1))
 
     # 2. WP REST API
-    status, body = await _check_path(client, base_url, "/wp-json/wp/v2/users")
+    status, body, _ = await _check_path(client, base_url, "/wp-json/wp/v2/users")
     if status == 200:
         try:
             data = json.loads(body)
@@ -324,7 +329,7 @@ async def _detect_joomla_info(
     version = ""
 
     # Version via language file
-    status, body = await _check_path(client, base_url, "/language/en-GB/en-GB.xml")
+    status, body, _ = await _check_path(client, base_url, "/language/en-GB/en-GB.xml")
     if status == 200:
         m = re.search(r"<version>([\d.]+)</version>", body)
         if m:
@@ -332,7 +337,7 @@ async def _detect_joomla_info(
 
     # Version via manifests
     if not version:
-        status, body = await _check_path(
+        status, body, _ = await _check_path(
             client, base_url, "/administrator/manifests/files/joomla.xml"
         )
         if status == 200:
@@ -344,7 +349,7 @@ async def _detect_joomla_info(
     extensions: list[str] = []
     for ext in extension_list:
         path = f"/administrator/components/com_{ext.replace('com_', '')}/"
-        status, _ = await _check_path(client, base_url, path)
+        status, _, _ = await _check_path(client, base_url, path)
         if status in (200, 301, 302, 403):
             extensions.append(ext)
 
@@ -678,8 +683,8 @@ def _async_run_once(args: argparse.Namespace) -> CmsResult:
 
 def run_once(args: argparse.Namespace) -> int:
     """Wrapper sincrono."""
-    _async_run_once(args)
-    return 0
+    result = _async_run_once(args)
+    return 1 if result.overall_status != "secure" else 0
 
 
 def main() -> int:

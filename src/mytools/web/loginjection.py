@@ -28,7 +28,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -465,13 +467,15 @@ async def run_scan(
     categories: list[str],
     timeout: float,
     output_file: str | None,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan de Log Injection."""
     logger.info("Log Injection scan para %s", target)
 
     tls = target.startswith("https://")
 
-    async with create_async_client(timeout=timeout) as client:
+    async with create_async_client(timeout=timeout, proxy=proxy) as client:
         all_attempts: list[LogInjectAttempt] = []
         test_categories = categories if categories else list(_CATEGORY_MAP.keys())
 
@@ -508,7 +512,10 @@ async def run_scan(
             else ("safe" if blocked_techs else "unknown"),
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
         logger.info(
             "Log Injection scan concluido: %d testes, %d vulneraveis",
             len(all_attempts),
@@ -564,6 +571,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan Log Injection a partir de argumentos parseados."""
+    init_scanner(args)
     logger.info("Log Injection scan iniciado para %s", args.url)
     categories: list[str] = []
     if getattr(args, "category", None) and args.category != "all":
@@ -574,6 +582,8 @@ def run_once(args: argparse.Namespace) -> int:
             categories=categories,
             timeout=getattr(args, "timeout", 10),
             output_file=getattr(args, "output", None),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

@@ -1085,7 +1085,7 @@ class TestRunOnce:
             password="password",
             delay=0.0,
         )
-        assert run_once(args) == 0
+        assert run_once(args) == 1
         captured = capsys.readouterr()
         assert "vulnerable" in captured.out
 

@@ -32,14 +32,18 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    ensure_output_dir,
     fetch,
     init_scanner,
     print_exploit_info,
+    print_json,
     print_table,
+    read_target_lines,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
+from mytools.data import load_payloads
 
 logger = logging.getLogger("mytools.socialengrecon")
 
@@ -81,8 +85,6 @@ _JOB_TITLE_KEYWORDS_DEFAULT: list[str] = [
 
 def _load_social_data() -> tuple[list[str], list[str]]:
     """Carrega team paths e job keywords de YAML com fallback."""
-    from mytools.data import load_payloads
-
     data = load_payloads(
         "osint",
         "team_paths",
@@ -180,7 +182,7 @@ async def _query_github(
         return []
 
     repo_names: list[str] = []
-    for repo in repos[:10]:
+    for repo in repos[:max_results]:
         if isinstance(repo, dict):
             name = repo.get("full_name", "")
             if name:
@@ -253,7 +255,7 @@ async def _query_github(
 
             position = ""
             if bio:
-                for sep in [" at ", " @ ", " @"]:
+                for sep in [" at ", " @"]:
                     if sep in bio.lower():
                         parts = bio.split(sep, 1)
                         if len(parts) > 1:
@@ -311,7 +313,7 @@ async def _query_hunter(
     except json.JSONDecodeError, ValueError:
         return []
 
-    emails_data = data.get("data", {}).get("emails", [])
+    emails_data = (data.get("data") or {}).get("emails", [])
     if not isinstance(emails_data, list):
         return []
 
@@ -370,10 +372,7 @@ async def _query_webpages(
         if status != 200:
             continue
 
-        try:
-            html = body.decode("utf-8", errors="replace")
-        except json.JSONDecodeError, ValueError:
-            continue
+        html = body.decode("utf-8", errors="replace")
 
         soup = BeautifulSoup(html, "html.parser")
 
@@ -414,7 +413,7 @@ async def _query_webpages(
 def _dedup_employees(employees: list[EmployeeInfo]) -> list[EmployeeInfo]:
     """Remove duplicatas por email (se disponivel) ou nome+dominio."""
     seen_emails: set[str] = set()
-    seen_names: set[tuple[str, str]] = set()
+    seen_names: set[str] = set()
     result: list[EmployeeInfo] = []
 
     for e in employees:
@@ -425,7 +424,7 @@ def _dedup_employees(employees: list[EmployeeInfo]) -> list[EmployeeInfo]:
             seen_emails.add(key)
             result.append(e)
         elif e.name:
-            key = (e.name.lower(), e.domain.lower())
+            key = f"{e.name.lower()} @ {e.domain.lower()}"
             if key in seen_names:
                 continue
             seen_names.add(key)
@@ -441,7 +440,6 @@ async def scan_employees(
     sources: list[str],
     api_keys: dict[str, str | None],
     timeout: float,
-    concurrency: int,
     user_agent: str,
     proxy: str | None = None,
     verify: bool = False,
@@ -458,28 +456,29 @@ async def scan_employees(
 
     all_employees: list[EmployeeInfo] = []
 
-    for source in sources:
-        if source == "github":
-            emps = await _query_github(
-                client, domain, timeout, rate_limiter, max_results
-            )
-            all_employees.extend(emps)
-            logger.info("GitHub: %d funcionarios encontrados", len(emps))
-        elif source == "hunter":
-            key = api_keys.get("hunter") or ""
-            emps = await _query_hunter(
-                client, domain, key, timeout, rate_limiter, max_results
-            )
-            all_employees.extend(emps)
-            logger.info("Hunter: %d funcionarios encontrados", len(emps))
-        elif source == "web":
-            emps = await _query_webpages(
-                client, domain, timeout, rate_limiter, max_results
-            )
-            all_employees.extend(emps)
-            logger.info("Web: %d funcionarios encontrados", len(emps))
-
-    await client.aclose()
+    try:
+        for source in sources:
+            if source == "github":
+                emps = await _query_github(
+                    client, domain, timeout, rate_limiter, max_results
+                )
+                all_employees.extend(emps)
+                logger.info("GitHub: %d funcionarios encontrados", len(emps))
+            elif source == "hunter":
+                key = api_keys.get("hunter") or ""
+                emps = await _query_hunter(
+                    client, domain, key, timeout, rate_limiter, max_results
+                )
+                all_employees.extend(emps)
+                logger.info("Hunter: %d funcionarios encontrados", len(emps))
+            elif source == "web":
+                emps = await _query_webpages(
+                    client, domain, timeout, rate_limiter, max_results
+                )
+                all_employees.extend(emps)
+                logger.info("Web: %d funcionarios encontrados", len(emps))
+    finally:
+        await client.aclose()
 
     all_employees = _dedup_employees(all_employees)
 
@@ -569,9 +568,25 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
     quiet = init_scanner(args)
 
+    domain = getattr(args, "domain", None)
+    target_list = getattr(args, "target_list", None)
+
+    if not domain and target_list:
+        try:
+            domains = read_target_lines(target_list, sort_dedup=True)
+        except ValueError as exc:
+            logger.error("%s", exc)
+            return 1
+    elif domain:
+        domains = [domain]
+    else:
+        logger.error("Informe um dominio ou use -l <arquivo>.")
+        return 1
+
     if getattr(args, "dry_run", False):
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
-        logger.info("Dominio: %s", args.domain)
+        for d in domains:
+            logger.info("Dominio: %s", d)
         return 0
 
     sources = args.sources or list(DEFAULT_SOURCES)
@@ -583,26 +598,52 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         if s == "hunter" and not api_keys.get(s):
             logger.warning("hunter requer API key (use --hunter-api-key)")
 
-    employees = await scan_employees(
-        domain=args.domain,
-        sources=sources,
-        api_keys=api_keys,
-        timeout=args.timeout,
-        concurrency=getattr(args, "concurrency", 5),
-        user_agent=args.user_agent,
-        proxy=args.proxy,
-        verify=getattr(args, "verify", False),
-        requests_per_second=args.delay,
-        max_results=getattr(args, "max_results", 50),
-    )
+    all_employees: list[EmployeeInfo] = []
+    for d in domains:
+        employees = await scan_employees(
+            domain=d,
+            sources=sources,
+            api_keys=api_keys,
+            timeout=args.timeout,
+            user_agent=args.user_agent,
+            proxy=args.proxy,
+            verify=getattr(args, "verify", False),
+            requests_per_second=args.delay,
+            max_results=getattr(args, "max_results", 50),
+        )
+        all_employees.extend(employees)
 
-    if not quiet:
-        print_results(employees)
+    all_employees = _dedup_employees(all_employees)
+
+    if getattr(args, "json_output", False):
+        print_json([asdict(e) for e in all_employees])
+    elif not quiet:
+        print_results(all_employees)
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        out_path = f"{output_dir}/social_eng.json"
+        write_output(
+            out_path,
+            [asdict(e) for e in all_employees],
+            [
+                "domain",
+                "name",
+                "email",
+                "position",
+                "seniority",
+                "department",
+                "source",
+                "profile_url",
+            ],
+            quiet=quiet,
+        )
 
     if args.output:
         write_output(
             args.output,
-            [asdict(e) for e in employees],
+            [asdict(e) for e in all_employees],
             [
                 "domain",
                 "name",

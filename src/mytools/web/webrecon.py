@@ -6,6 +6,7 @@ import logging
 import re
 import time
 from collections.abc import Mapping
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -451,7 +452,6 @@ def extract_versions(
         Lista de tuplas (nome, versao) ordenada por relevancia.
     """
     found: list[tuple[str, str]] = []
-    seen: set[str] = set()
     if lower_headers is None:
         lower_headers = {k.lower(): v for k, v in headers.items()}
     if header_blob is None:
@@ -460,8 +460,6 @@ def extract_versions(
         body_lower = body.lower()
 
     for tech_name, patterns in VERSION_PATTERNS.items():
-        if tech_name in seen:
-            continue  # pragma: no cover
         for pattern, source in patterns:
             blob = header_blob if source == "header" else body_lower
             match = pattern.search(blob)
@@ -469,7 +467,6 @@ def extract_versions(
                 version = match.group(1) if match.lastindex else ""
                 if version:
                     found.append((tech_name, version))
-                    seen.add(tech_name)
                 break
 
     return found
@@ -791,18 +788,26 @@ async def run_recon(
     nvd_api_key: str | None = None,
     deep: bool = False,
     crawl_limit: int = 10,
+    client: httpx.AsyncClient | None = None,
 ) -> ReconResult:
     """Executa reconhecimento completo da URL alvo e retorna o resultado.
 
     Tenta HTTPS primeiro, depois HTTP. Coleta headers, body, cookies raw,
     e executa todas as analises (fingerprinting, WAF, CVE, emails, WHOIS).
-    O cliente HTTP e fechado no finally para garantir limpeza.
+    Um unico cliente HTTP e reutilizado para todas as URLs candidatas;
+    se ``client`` for fornecido, ele e usado sem ser fechado (o chamador
+    gerencia o ciclo de vida).
     """
     started = time.monotonic()
     errors = []
-    async with create_async_client(
-        user_agent=user_agent, proxy=proxy, verify=verify
-    ) as client:
+    owns_client = client is None
+    client_ctx = (
+        create_async_client(user_agent=user_agent, proxy=proxy, verify=verify)
+        if owns_client
+        else nullcontext(client)
+    )
+    async with client_ctx as client:
+        assert client is not None
         await apply_session_auth_async(
             client,
             auth=auth,
@@ -935,7 +940,7 @@ def print_result(result: ReconResult) -> None:
     )
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
-        f"Status: {status_text(result.status)} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}",
+        f"Status: {result.status if result.status is not None else 'sem resposta'} | Tempo: {color(f'{result.elapsed:.2f}s', Cyber.YELLOW)}",
     )
 
     if result.redirect:
@@ -1134,9 +1139,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def _run_single(
-    url: str, args: argparse.Namespace, quiet: bool = False
+    url: str,
+    args: argparse.Namespace,
+    quiet: bool = False,
+    client: httpx.AsyncClient | None = None,
 ) -> ReconResult:
-    """Executa recon em uma unica URL."""
+    """Executa recon em uma unica URL, reutilizando o cliente quando fornecido."""
     result = await run_recon(
         url,
         args.timeout,
@@ -1151,6 +1159,7 @@ async def _run_single(
         nvd_api_key=getattr(args, "nvd_api_key", None),
         deep=getattr(args, "deep", False),
         crawl_limit=getattr(args, "crawl_limit", 10),
+        client=client,
     )
     if not quiet:
         print_result(result)
@@ -1196,9 +1205,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     async def _limited_single(u: str) -> tuple[str, ReconResult]:
         async with sem:
-            return u, await _run_single(u, args, quiet=quiet)
+            return u, await _run_single(u, args, quiet=quiet, client=client)
 
-    async with asyncio.TaskGroup() as tg:
+    async with (
+        (
+            create_async_client(
+                user_agent=getattr(args, "user_agent", None),
+                proxy=getattr(args, "proxy", None),
+                verify=getattr(args, "verify", False),
+            )
+        ) as client,
+        asyncio.TaskGroup() as tg,
+    ):
         futures = [tg.create_task(_limited_single(u)) for u in urls]
     url_results = [f.result() for f in futures]
 

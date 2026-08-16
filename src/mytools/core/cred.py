@@ -18,14 +18,17 @@ Em scanners, use o prefixo @ para referenciar credenciais salvas:
 import argparse
 import getpass
 import logging
+import re
 import sys
 from typing import Any
 
-from mytools.core.utils import run_interactive_shell
+from mytools.core.utils import run_interactive_shell, setup_logging
 
 logger = logging.getLogger("mytools.cred")
 
 _SERVICE_NAME = "mytools"
+_VALID_NAME_RE = re.compile(r"^[\w.-]+$")
+_RESERVED_NAMES = {"__registry__"}
 
 
 def _get_keyring() -> Any:
@@ -38,6 +41,15 @@ def _get_keyring() -> Any:
         return None
 
 
+def _valid_name(name: str) -> bool:
+    """Valida um nome de credencial (evita corromper o registro)."""
+    return (
+        bool(name)
+        and name not in _RESERVED_NAMES
+        and _VALID_NAME_RE.fullmatch(name) is not None
+    )
+
+
 def _list_credentials() -> list[str]:
     """Lista todas as credenciais salvas com prefixo mytools/.
 
@@ -47,7 +59,7 @@ def _list_credentials() -> list[str]:
     kr = _get_keyring()
     if kr is None:
         return []
-    registry = kr.get_password(_SERVICE_NAME, "__registry__")
+    registry = _keyring_get(kr, _SERVICE_NAME, "__registry__")
     if not registry:
         return []
     return sorted(registry.splitlines())
@@ -58,13 +70,42 @@ def _update_registry(name: str, add: bool = True) -> None:
     kr = _get_keyring()
     if kr is None:
         return
-    registry = kr.get_password(_SERVICE_NAME, "__registry__")
+    registry = _keyring_get(kr, _SERVICE_NAME, "__registry__")
     names = set(registry.splitlines()) if registry else set()
     if add:
         names.add(name)
     else:
         names.discard(name)
-    kr.set_password(_SERVICE_NAME, "__registry__", "\n".join(sorted(names)))
+    _keyring_set(kr, _SERVICE_NAME, "__registry__", "\n".join(sorted(names)))
+
+
+def _keyring_get(kr: Any, *args: str) -> str | None:
+    """Wrapper de get_password que trata erros do backend sem traceback."""
+    try:
+        return kr.get_password(*args)
+    except Exception as exc:  # keyring backend pode lancar erros variados
+        logger.error("Erro no keyring ao ler: %s", exc)
+        return None
+
+
+def _keyring_set(kr: Any, *args: str) -> bool:
+    """Wrapper de set_password que trata erros do backend sem traceback."""
+    try:
+        kr.set_password(*args)
+        return True
+    except Exception as exc:  # keyring backend pode lancar erros variados
+        logger.error("Erro no keyring ao gravar: %s", exc)
+        return False
+
+
+def _keyring_delete(kr: Any, *args: str) -> bool:
+    """Wrapper de delete_password que trata erros do backend sem traceback."""
+    try:
+        kr.delete_password(*args)
+        return True
+    except Exception as exc:  # keyring backend pode lancar erros variados
+        logger.error("Erro no keyring ao remover: %s", exc)
+        return False
 
 
 def set_credential(name: str, value: str | None = None) -> bool:
@@ -73,6 +114,13 @@ def set_credential(name: str, value: str | None = None) -> bool:
     Se value nao for fornecido, solicita interativamente (sem echo).
     Retorna True em caso de sucesso.
     """
+    if not _valid_name(name):
+        logger.error(
+            "Erro: nome de credencial invalido (apos: letras, digitos, "
+            "ponto, hifen e sublinhado; nao pode ser '%s').",
+            name,
+        )
+        return False
     kr = _get_keyring()
     if kr is None:
         logger.error("Erro: keyring nao disponivel. Instale com: pip install keyring")
@@ -82,7 +130,8 @@ def set_credential(name: str, value: str | None = None) -> bool:
     if not value:
         logger.error("Erro: valor vazio nao pode ser armazenado.")
         return False
-    kr.set_password(_SERVICE_NAME, name, value)
+    if not _keyring_set(kr, _SERVICE_NAME, name, value):
+        return False
     _update_registry(name, add=True)
     logger.info("Credencial '%s' armazenada com sucesso.", name)
     return True
@@ -93,20 +142,24 @@ def get_credential(name: str) -> str | None:
     kr = _get_keyring()
     if kr is None:
         return None
-    return kr.get_password(_SERVICE_NAME, name)
+    return _keyring_get(kr, _SERVICE_NAME, name)
 
 
 def delete_credential(name: str) -> bool:
     """Remove uma credencial do keyring. Retorna True em caso de sucesso."""
+    if not _valid_name(name):
+        logger.error("Erro: nome de credencial invalido.")
+        return False
     kr = _get_keyring()
     if kr is None:
         logger.error("Erro: keyring nao disponivel.")
         return False
-    existing = kr.get_password(_SERVICE_NAME, name)
+    existing = _keyring_get(kr, _SERVICE_NAME, name)
     if existing is None:
         logger.warning("Credencial '%s' nao encontrada.", name)
         return False
-    kr.delete_password(_SERVICE_NAME, name)
+    if not _keyring_delete(kr, _SERVICE_NAME, name):
+        return False
     _update_registry(name, add=False)
     logger.info("Credencial '%s' removida com sucesso.", name)
     return True
@@ -152,6 +205,11 @@ def run_once(args: argparse.Namespace) -> int:
     if command == "set":
         return 0 if set_credential(args.name) else 1
     if command == "get":
+        if _get_keyring() is None:
+            logger.error(
+                "Erro: keyring nao disponivel. Instale com: pip install keyring"
+            )
+            return 1
         value = get_credential(args.name)
         if value is None:
             logger.error("Credencial '%s' nao encontrada.", args.name)
@@ -173,6 +231,7 @@ def run_once(args: argparse.Namespace) -> int:
 def main() -> int:
     """Ponto de entrada CLI para mytools-cred."""
     parser = build_parser()
+    setup_logging()
 
     if len(sys.argv) <= 1:
         return run_interactive_shell(

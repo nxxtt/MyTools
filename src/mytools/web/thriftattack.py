@@ -402,17 +402,12 @@ async def _test_binary_protocol(
 
                     c.getData("test_field_type_confusion")
 
-                    vuln, det = True, "Type confusion: got response"
+                    vuln, det = False, "Type confusion: got response (server robust)"
 
                     c.close()
 
                 except TApplicationException as e:
-                    vuln = e.type in (
-                        TApplicationException.INVALID_MESSAGE_TYPE,
-                        TApplicationException.WRONG_METHOD_NAME,
-                    )
-
-                    det = f"Type confusion: {e.type}"
+                    vuln, det = False, f"Type confusion: {e.type} (server rejeitou)"
 
                 except Exception:
                     vuln, det = False, "Connection failed"
@@ -432,9 +427,7 @@ async def _test_binary_protocol(
 
                     elapsed = time.monotonic() - t0
 
-                    elapsed = time.monotonic() - t0
-
-                    vuln, det = elapsed > 2.0, f"Collection overflow: {elapsed:.2f}s"
+                    vuln, det = False, f"Collection overflow: {elapsed:.2f}s"
 
                     c.close()
 
@@ -464,7 +457,7 @@ async def _test_binary_protocol(
                         with contextlib.suppress(Exception):
                             c.getData(s)
 
-                    vuln, det = True, "String encoding abuse sent"
+                    vuln, det = False, "String encoding abuse sent (server robust)"
 
                     c.close()
 
@@ -482,12 +475,12 @@ async def _test_binary_protocol(
 
                     c.isAlive()
 
-                    vuln, det = True, "Boolean coercion: got response"
+                    vuln, det = False, "Boolean coercion: got response (server robust)"
 
                     c.close()
 
                 except TApplicationException as e:
-                    vuln, det = True, f"Boolean coercion: {e.type}"
+                    vuln, det = False, f"Boolean coercion: {e.type} (server rejeitou)"
 
                 except Exception:
                     vuln, det = False, "Connection failed"
@@ -630,14 +623,38 @@ async def run_scan(
 
     overall = "vulnerable" if vuln_techs else "secure"
 
+    services_found = len(
+        [
+            a
+            for a in all_attempts
+            if a.category == "method_enumeration"
+            and a.technique == "service_enumeration"
+            and a.vulnerable
+        ]
+    )
+
+    methods_found = len(
+        [
+            a
+            for a in all_attempts
+            if a.category == "method_enumeration"
+            and a.technique == "method_discovery"
+            and a.vulnerable
+        ]
+    )
+
+    protocol_detected = (
+        "binary" if any(not a.error for a in all_attempts) else "unknown"
+    )
+
     result = ThriftAttackResult(
         target=target,
         host=host,
         port=port,
         tls=tls,
-        services_found=0,
-        methods_found=0,
-        protocol_detected="binary",
+        services_found=services_found,
+        methods_found=methods_found,
+        protocol_detected=protocol_detected,
         attempts=all_attempts,
         vulnerable_techniques=vuln_techs,
         issues=issues,

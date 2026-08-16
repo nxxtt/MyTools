@@ -21,6 +21,7 @@ Exemplos:
 """
 
 import argparse
+import contextlib
 import json
 import logging
 import re
@@ -28,9 +29,11 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import cached_property
 from pathlib import Path
+from typing import Any
 
-from jinja2 import Template
+from jinja2 import Template, select_autoescape
 
 from mytools.core.utils import (
     __version__,
@@ -45,6 +48,13 @@ logger = logging.getLogger("mytools.report")
 # ---------------------------------------------------------------------------
 
 _SEVERITY_ORDER = ("critical", "high", "medium", "low", "info")
+
+_CVSS_BANDS = (
+    (9.0, "critical"),
+    (7.0, "high"),
+    (4.0, "medium"),
+    (0.1, "low"),
+)
 
 _SEVERITY_COLORS = {
     "critical": "#ff4444",
@@ -61,6 +71,19 @@ def _derive_severity(severity: object | None, vulnerable: bool = True) -> str:
         sev = severity.strip().lower()
         if sev in _SEVERITY_ORDER:
             return sev
+        if sev in ("warning", "warn"):
+            return "low"
+    elif isinstance(severity, (int, float)) and not isinstance(severity, bool):
+        try:
+            score = float(severity)
+        except TypeError, ValueError:
+            score = 0.0
+        for threshold, band in _CVSS_BANDS:
+            if score >= threshold:
+                return band
+        return "info"
+    if isinstance(severity, str):
+        logger.warning("Severidade desconhecida: %r", severity)
     return "high" if vulnerable else "info"
 
 
@@ -124,11 +147,11 @@ class HostReport:
     tool: str = ""
     scans: list[ScanResult] = field(default_factory=list)
 
-    @property
+    @cached_property
     def sorted_scans(self) -> list[ScanResult]:
         return sorted(self.scans, key=lambda s: s.timestamp)
 
-    @property
+    @cached_property
     def diff(self) -> DiffResult | None:
         """Diff entre os 2 scans mais recentes, se houver >= 2."""
         scans = self.sorted_scans
@@ -136,7 +159,7 @@ class HostReport:
             return None
         return _diff_scans(scans[-2], scans[-1])
 
-    @property
+    @cached_property
     def all_findings(self) -> list[Finding]:
         out: list[Finding] = []
         for scan in self.sorted_scans:
@@ -201,8 +224,16 @@ def _is_vulnerable_item(item: dict) -> bool:
     for key in ("vulnerable", "is_vulnerable", "found", "confirmed"):
         if isinstance(item.get(key), bool):
             return bool(item[key])
+    # Itens de inventario/recon (portas, IPs, estado) sem sinal explicito
+    # sao informacao, nao vulnerabilidade (ex.: saida do portscanner).
+    if any(k in item for k in ("port", "state", "ip")) and not any(
+        k in item for k in ("url", "path", "status", "technique", "evidence")
+    ):
+        return False
     status = item.get("status")
     if isinstance(status, int) and status > 0:
+        if 100 <= status < 300:
+            return False
         return status < 500 and status != 404
     return True
 
@@ -296,6 +327,28 @@ def _extract_findings(data: dict | list, tool: str = "") -> list[Finding]:
             ]
             return _findings_from_attempts(items, tool)
 
+    # Formato tech-fingerprint: {"https://host/": [ {tech}, ... ]} — informativo.
+    dict_of_lists = any(
+        isinstance(v, list) and v and all(isinstance(i, dict) for i in v)
+        for v in data.values()
+    )
+    if dict_of_lists:
+        items = [
+            {
+                "technique": str(
+                    t.get("name") or t.get("technology") or t.get("type") or "tech"
+                ),
+                "vulnerable": True,
+                "severity": "info",
+                "details": str(t.get("version") or ""),
+            }
+            for lst in data.values()
+            if isinstance(lst, list)
+            for t in lst
+            if isinstance(t, dict)
+        ]
+        return _findings_from_attempts(items, tool)
+
     return []
 
 
@@ -324,7 +377,7 @@ def _timestamp_from_path(path: Path) -> str:
 def _load_json(path: Path) -> dict | list | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         logger.warning("Ignorando arquivo invalido %s: %s", path, exc)
         return None
     return data if isinstance(data, (dict, list)) else None
@@ -553,8 +606,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
 def _render_html(
     title: str, reports: list[HostReport], tool: str = "", diff: bool = False
 ) -> str:
-    """Renderiza o relatorio HTML com jinja2."""
-    template = Template(_TEMPLATE)
+    """Renderiza o relatorio HTML com jinja2 (autoescape para evitar XSS)."""
+    template = Template(_TEMPLATE, autoescape=select_autoescape(["html"]))
     return template.render(
         title=title,
         generated_at=datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
@@ -573,10 +626,16 @@ def _render_html(
 def _process(
     files: list[str], directories: list[str], tool: str = ""
 ) -> list[HostReport]:
-    paths: list[Path] = [Path(f) for f in files if Path(f).is_file()]
+    paths: list[Path] = []
+    for f in files:
+        p = Path(f)
+        if p.is_file():
+            paths.append(p)
+        else:
+            logger.warning("Arquivo -f nao encontrado: %s", f)
     for directory in directories:
         paths.extend(_load_scan_files(directory))
-    return _group_by_host(paths, tool)
+    return _group_by_host(list(dict.fromkeys(paths)), tool)
 
 
 def _print_json(reports: list[HostReport], diff: bool) -> None:
@@ -615,6 +674,9 @@ def _print_json(reports: list[HostReport], diff: bool) -> None:
             for r in reports
         ]
     }
+    stdout: Any = sys.stdout
+    with contextlib.suppress(AttributeError, ValueError):
+        stdout.reconfigure(encoding="utf-8")
     json.dump(payload, sys.stdout, indent=2, ensure_ascii=False)
     print()
 

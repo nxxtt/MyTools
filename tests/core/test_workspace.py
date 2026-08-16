@@ -70,7 +70,7 @@ class TestWorkspacePath:
 
 @dataclass
 class _FakeResultB:
-    overall_status: str = "ok"
+    overall_status: str = "secure"
     target: str = ""
     findings: list[str] = field(default_factory=list)
 

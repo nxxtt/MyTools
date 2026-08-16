@@ -160,6 +160,16 @@ class TestParseManifestVersion:
         pat = r'"express":\s*"(\^?\d+\.\d+\.\d+)"'
         assert _parse_manifest_version(body, pat) == "4.19.2"
 
+    def test_extracts_caret_version_from_express_pattern(self) -> None:
+        express = _BACKEND_LIBS["express"]
+        pat = express["manifest_key_pattern"]
+        assert _parse_manifest_version('"express": "^4.18.2"', pat) == "4.18.2"
+
+    def test_extracts_tilde_version_from_express_pattern(self) -> None:
+        express = _BACKEND_LIBS["express"]
+        pat = express["manifest_key_pattern"]
+        assert _parse_manifest_version('"express": "~4.18.2"', pat) == "4.18.2"
+
     def test_no_version(self) -> None:
         body = '"express": "latest"'
         pat = r'"express":\s*"(\^?\d+\.\d+\.\d+)"'
@@ -220,9 +230,56 @@ class TestVersionInRange:
 class TestTrySourcemapVersion:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_success(self) -> None:
+    async def test_version_from_sources(self) -> None:
         respx.get("https://example.com/app.js.map").mock(
-            return_value=httpx.Response(200, json={"version": "1.2.3"})
+            return_value=httpx.Response(
+                200,
+                json={
+                    "version": 3,
+                    "sources": [
+                        "webpack:///node_modules/react-dom@18.2.0/cjs/react-dom.js"
+                    ],
+                },
+            )
+        )
+        async with httpx.AsyncClient() as client:
+            ver = await _try_sourcemap_version(client, "https://example.com", "/app.js")
+        assert ver == "18.2.0"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_spec_version_three_not_reported(self) -> None:
+        respx.get("https://example.com/app.js.map").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "version": 3,
+                    "sources": [
+                        "webpack:///app/src/index.js",
+                        "webpack:///app/src/utils.js",
+                    ],
+                },
+            )
+        )
+        async with httpx.AsyncClient() as client:
+            ver = await _try_sourcemap_version(client, "https://example.com", "/app.js")
+        assert ver == ""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_non_string_sources_are_skipped(self) -> None:
+        respx.get("https://example.com/app.js.map").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "version": 3,
+                    "sources": [
+                        {"name": "not-a-string"},
+                        123,
+                        "webpack:///lib/foo@1.2.3/index.js",
+                    ],
+                },
+            )
         )
         async with httpx.AsyncClient() as client:
             ver = await _try_sourcemap_version(client, "https://example.com", "/app.js")
@@ -989,6 +1046,20 @@ class TestRunOnce:
         )
         args = argparse.Namespace()
         assert run_once(args) == 0
+
+    def test_returns_one_when_vulnerable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        result = DepScanResult(
+            target="https://example.com",
+            attempts=[],
+            vulnerable_deps=["express"],
+            outdated_deps=[],
+            overall_status="vulnerable",
+        )
+        monkeypatch.setattr(
+            depscanner_module, "_async_run_once", MagicMock(return_value=result)
+        )
+        args = argparse.Namespace()
+        assert run_once(args) == 1
 
 
 class TestMain:

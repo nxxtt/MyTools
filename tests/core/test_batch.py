@@ -9,15 +9,16 @@ import pytest
 
 import mytools.core.batch as batch_mod
 from mytools.core.batch import (
+    ModuleJob,
     TargetResult,
     _build_base_ns,
+    _compat_flags,
     _detect_target_type,
     _find_project_root,
     _get_all_module_names,
     _get_parser_defaults,
     _get_registry,
-    _is_compatible,
-    _make_args,
+    _make_module_args,
     _print_report,
     _resolve_module,
     _sanitize_target,
@@ -143,46 +144,58 @@ class TestTargetTypeDetection:
 
 
 # ---------------------------------------------------------------------------
-# _is_compatible
+# _compat_flags
 # ---------------------------------------------------------------------------
 
 
-class TestIsCompatible:
+class TestCompatFlags:
     def test_url_module_with_url(self) -> None:
         parser = argparse.ArgumentParser()
         parser.add_argument("url")
-        assert _is_compatible("https://example.com", parser) is True
+        assert _compat_flags(parser) == (True, True)
 
     def test_domain_module_with_domain(self) -> None:
         parser = argparse.ArgumentParser()
         parser.add_argument("domain")
-        assert _is_compatible("example.com", parser) is True
+        assert _compat_flags(parser) == (False, True)
 
-    def test_url_module_with_domain(self) -> None:
+    def test_url_module_accepts_domain(self) -> None:
         parser = argparse.ArgumentParser()
         parser.add_argument("url")
-        assert _is_compatible("example.com", parser) is False
+        compat_url, compat_domain = _compat_flags(parser)
+        assert compat_url is True
+        assert compat_domain is True
 
     def test_module_with_target(self) -> None:
         parser = argparse.ArgumentParser()
         parser.add_argument("target")
-        assert _is_compatible("example.com", parser) is True
-        assert _is_compatible("https://example.com", parser) is True
+        assert _compat_flags(parser) == (True, True)
 
 
 # ---------------------------------------------------------------------------
-# _make_args
+# _make_module_args
 # ---------------------------------------------------------------------------
 
 
-class TestMakeArgs:
+class TestMakeModuleArgs:
     def test_combines(self) -> None:
-        base = argparse.Namespace(timeout=5.0, verbose=False)
+        parser = argparse.ArgumentParser()
+        parser.add_argument("url")
+        parser.add_argument("--timeout", type=float, default=7.5)
+        parser.add_argument("--verbose", action="store_true")
+        base = argparse.Namespace(timeout=5.0, output_dir="out")
         extra = {"url": "https://example.com", "timeout": 10.0}
-        result = _make_args(extra, base)
+        result = _make_module_args(parser, base, extra)
         assert result.url == "https://example.com"
         assert result.timeout == 10.0
-        assert result.verbose is False
+        assert result.output_dir == "out"
+
+    def test_module_default_wins_over_base_for_declared_dest(self) -> None:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--timeout", type=float, default=7.5)
+        base = argparse.Namespace(timeout=5.0)
+        result = _make_module_args(parser, base, {})
+        assert result.timeout == 7.5
 
 
 # ---------------------------------------------------------------------------
@@ -212,12 +225,17 @@ class TestProcessTarget:
         mock_parser = argparse.ArgumentParser()
         mock_parser.add_argument("target")
         mock_parser.add_argument("--timeout", type=float, default=5.0)
-        mock_build = MagicMock(return_value=mock_parser)
 
         base_ns = argparse.Namespace(timeout=5.0, verbose=False)
-        module_list = [("webrecon", mock_run, mock_build)]
+        job = ModuleJob(
+            name="webrecon",
+            run_fn=mock_run,
+            parser=mock_parser,
+            compat_url=True,
+            compat_domain=True,
+        )
 
-        result = process_target("example.com", module_list, base_ns, None, 5.0)
+        result = process_target("example.com", [job], base_ns, None, 5.0)
         assert result.target == "example.com"
         assert result.success == 1
         assert result.errors == 0
@@ -228,12 +246,17 @@ class TestProcessTarget:
         mock_parser = argparse.ArgumentParser()
         mock_parser.add_argument("target")
         mock_parser.add_argument("--timeout", type=float, default=5.0)
-        mock_build = MagicMock(return_value=mock_parser)
 
         base_ns = argparse.Namespace(timeout=5.0, verbose=False)
-        module_list = [("webrecon", mock_run, mock_build)]
+        job = ModuleJob(
+            name="webrecon",
+            run_fn=mock_run,
+            parser=mock_parser,
+            compat_url=True,
+            compat_domain=True,
+        )
 
-        result = process_target("example.com", module_list, base_ns, None, 5.0)
+        result = process_target("example.com", [job], base_ns, None, 5.0)
         assert result.errors == 1
         assert result.details["webrecon"] == -1
 
@@ -272,7 +295,7 @@ class TestPrintReport:
             ),
         ]
         code = _print_report(results, strict=False, fmt="json")
-        assert code == 0
+        assert code == 2
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert data["summary"]["vulnerabilities"] == 1
@@ -400,11 +423,13 @@ class TestBuildBaseNs:
             cookie="c",
             header=["X: 1"],
             dry_run=True,
+            parallel=1,
+            quiet=False,
         )
         ns = _build_base_ns(args, ["webrecon"])
         assert ns.output is None
         assert ns.output_dir == "out"
-        assert ns.quiet is True
+        assert ns.quiet is False
         assert ns.verbose is True
         assert ns.timeout == 3.0
         assert ns.user_agent.startswith("MyTools/")
@@ -412,6 +437,16 @@ class TestBuildBaseNs:
         assert ns.proxy is None
         assert ns.auth == "u:p"
         assert ns.dry_run is True
+
+    def test_quiet_forced_in_parallel(self) -> None:
+        args = argparse.Namespace(parallel=4, quiet=False)
+        ns = _build_base_ns(args, ["webrecon"])
+        assert ns.quiet is True
+
+    def test_quiet_follows_flag(self) -> None:
+        args = argparse.Namespace(parallel=1, quiet=True)
+        ns = _build_base_ns(args, ["webrecon"])
+        assert ns.quiet is True
 
 
 # ---------------------------------------------------------------------------
@@ -442,28 +477,39 @@ class TestProcessTargetEdges:
 
     def test_incompatible_skips(self) -> None:
         mock_run = MagicMock(return_value=0)
-        mock_parser = self._make_parser("url")
-        mock_build = MagicMock(return_value=mock_parser)
+        mock_parser = argparse.ArgumentParser()
+        mock_parser.add_argument("file")
+        mock_parser.add_argument("--timeout", type=float, default=5.0)
 
         base_ns = argparse.Namespace(timeout=5.0, verbose=False)
-        module_list = [("webrecon", mock_run, mock_build)]
+        job = ModuleJob(
+            name="webrecon",
+            run_fn=mock_run,
+            parser=mock_parser,
+            compat_url=False,
+            compat_domain=False,
+        )
 
-        result = process_target("example.com", module_list, base_ns, None, 5.0)
+        result = process_target("example.com", [job], base_ns, None, 5.0)
         assert mock_run.call_count == 0
         assert result.success == 0
 
     def test_vuln_code_and_output_dir(self, tmp_path: Path) -> None:
         mock_run = MagicMock(return_value=2)
         mock_parser = self._make_parser("target")
-        mock_build = MagicMock(return_value=mock_parser)
-
         base_ns = argparse.Namespace(timeout=5.0, verbose=False)
-        module_list = [("webrecon", mock_run, mock_build)]
+        job = ModuleJob(
+            name="webrecon",
+            run_fn=mock_run,
+            parser=mock_parser,
+            compat_url=True,
+            compat_domain=True,
+        )
         outdir = tmp_path / "out"
 
         result = process_target(
             "https://example.com/p",
-            module_list,
+            [job],
             base_ns,
             str(outdir),
             5.0,
@@ -624,6 +670,72 @@ class TestRunBatch:
         )
         monkeypatch.setattr(batch_mod, "_get_parser_defaults", lambda names: {})
         args = self._make_args(tmp_path, modules=["webrecon"], fmt="json")
+        assert run_batch(args) == 0
+
+    def test_module_error_code(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # run_once retorna -1 -> conta como erro (nao vuln) no process_target.
+        monkeypatch.setattr(
+            batch_mod,
+            "_get_registry",
+            lambda: {"webrecon": "mytools.web.webrecon"},
+        )
+        monkeypatch.setattr(
+            batch_mod,
+            "_resolve_module",
+            lambda name: self._make_module(-1),
+        )
+        monkeypatch.setattr(batch_mod, "_get_parser_defaults", lambda names: {})
+        args = self._make_args(tmp_path, modules=["webrecon"])
+        assert run_batch(args) == 1
+
+    def test_sequential_exception_target(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # process_target levantando excecao no caminho sequencial (_run_target).
+        monkeypatch.setattr(
+            batch_mod,
+            "_get_registry",
+            lambda: {"webrecon": "mytools.web.webrecon"},
+        )
+
+        def _raise(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("crashed")
+
+        monkeypatch.setattr(batch_mod, "process_target", _raise)
+        args = self._make_args(tmp_path, modules=["webrecon"])
+        assert run_batch(args) == 1
+
+    def test_parallel_window_full(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Mais targets que a janela (parallel*2) -> _fill sai pela condicao do while.
+        monkeypatch.setattr(
+            batch_mod,
+            "_get_registry",
+            lambda: {"webrecon": "mytools.web.webrecon"},
+        )
+        monkeypatch.setattr(
+            batch_mod,
+            "_resolve_module",
+            lambda name: self._make_module(0),
+        )
+        monkeypatch.setattr(batch_mod, "_get_parser_defaults", lambda names: {})
+        f = tmp_path / "many.txt"
+        f.write_text("\n".join(f"host{i}.com" for i in range(20)))
+        args = argparse.Namespace(
+            targets=str(f),
+            modules=["webrecon"],
+            skip=[],
+            parallel=3,
+            output_dir=None,
+            timeout=5.0,
+            strict=False,
+            fail_fast=False,
+            format="text",
+            dry_run=False,
+        )
         assert run_batch(args) == 0
 
 

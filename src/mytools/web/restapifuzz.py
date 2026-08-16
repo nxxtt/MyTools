@@ -301,7 +301,7 @@ async def _probe_openapi(
     return None
 
 
-def _get_endpoints(
+async def _get_endpoints(
     client: httpx.AsyncClient | None,
     base_url: str,
     user_endpoints: list[str] | None,
@@ -310,9 +310,7 @@ def _get_endpoints(
     if user_endpoints:
         return user_endpoints
     if client is not None:
-        detected = asyncio.get_event_loop().run_until_complete(
-            _probe_openapi(client, base_url),
-        )
+        detected = await _probe_openapi(client, base_url)
         if detected:
             return detected
     return list(_FALLBACK_ENDPOINTS_DEFAULT)
@@ -745,13 +743,18 @@ async def _test_version_enum(
     """Testa enumeracao de versoes da API."""
     attempts: list[RestFuzzAttempt] = []
     b_status, b_size, _b_ct = baseline
+    found = False
 
     prefixes = _get_str_list("version_prefixes", _VERSION_PREFIXES_DEFAULT)
     versions = _get_str_list("versions", _VERSIONS_DEFAULT)
     suffixes = _get_str_list("version_suffixes", _VERSION_SUFFIXES_DEFAULT)
 
     for prefix in prefixes:
+        if found:
+            break
         for version in versions:
+            if found:
+                break
             for suffix in suffixes:
                 versioned = f"{prefix}{version}{suffix}"
                 versioned_endpoint = f"{versioned}{endpoint}"
@@ -769,6 +772,8 @@ async def _test_version_enum(
                         if vulnerable
                         else f"Status {t_status}"
                     )
+                    if vulnerable:
+                        found = True
                     attempts.append(
                         RestFuzzAttempt(
                             technique=f"version_{prefix}{version}{suffix}",
@@ -1041,7 +1046,7 @@ async def run_scan(
         user_agent="MyTools/restfuzz",
         timeout=timeout,
     ) as client:
-        ep_list = _get_endpoints(client, base_url, endpoints)
+        ep_list = await _get_endpoints(client, base_url, endpoints)
 
         sem = asyncio.Semaphore(concurrency)
 
@@ -1084,12 +1089,14 @@ async def run_scan(
     vulnerable: list[str] = []
     issues: list[str] = []
 
-    seen: set[str] = set()
+    best: dict[str, RestFuzzAttempt] = {}
     for att in all_attempts:
-        if att.technique not in seen:
-            seen.add(att.technique)
-            if att.vulnerable:
-                vulnerable.append(att.technique)
+        if att.technique not in best or (
+            att.vulnerable and not best[att.technique].vulnerable
+        ):
+            best[att.technique] = att
+
+    vulnerable = [att.technique for att in best.values() if att.vulnerable]
 
     if vulnerable:
         issues.append(f"{len(vulnerable)} tecnicas vulneraveis encontradas")
@@ -1247,7 +1254,7 @@ def run_once(args: argparse.Namespace) -> int:
     if getattr(args, "output", None):
         write_output(args.output, asdict(result))
 
-    return 0 if result.overall_status != "error" else 1
+    return 1 if result.overall_status != "secure" else 0
 
 
 # ---------------------------------------------------------------------------

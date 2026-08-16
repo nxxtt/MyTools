@@ -29,6 +29,7 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
     print_json,
     run_main_loop,
@@ -471,12 +472,22 @@ def _check_nosqli_response(
     body: bytes,
     status: int,
     indicators: list[str],
+    baseline_body: bytes = b"",
 ) -> bool:
-    """Verifica se a resposta indica NoSQL injection bem-sucedido."""
+    """Verifica se a resposta indica NoSQL injection bem-sucedido.
+
+    Indicador conta apenas se presente no corpo do teste e ausente no
+    corpo baseline (baseline diff) — evita falsos positivos em paginas
+    normais que contem palavras genericas como "welcome" ou "token".
+    """
     text = body.decode("utf-8", errors="ignore").lower()
     if status == 0:
         return False
-    return any(indicator.lower() in text for indicator in indicators)
+    b_text = baseline_body.decode("utf-8", errors="ignore").lower()
+    return any(
+        indicator.lower() in text and indicator.lower() not in b_text
+        for indicator in indicators
+    )
 
 
 async def _test_detect(
@@ -486,7 +497,7 @@ async def _test_detect(
 ) -> list[NoSQLiAttempt]:
     """Testa NoSQL injection basico com payloads de deteccao."""
     attempts: list[NoSQLiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, ct, indicators in _DETECT_PAYLOADS:
         for method in ("json_post", "query"):
@@ -508,7 +519,9 @@ async def _test_detect(
                 t_status = resp.status_code
                 t_size = len(resp.content)
                 status_changed = t_status != b_status
-                vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
+                vulnerable = _check_nosqli_response(
+                    resp.content, t_status, indicators, baseline_body=b_body
+                )
 
                 attempts.append(
                     NoSQLiAttempt(
@@ -559,7 +572,7 @@ async def _test_mongodb(
 ) -> list[NoSQLiAttempt]:
     """Testa MongoDB NoSQL injection."""
     attempts: list[NoSQLiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, ct, indicators in _MONGODB_PAYLOADS:
         try:
@@ -572,7 +585,9 @@ async def _test_mongodb(
             t_status = resp.status_code
             t_size = len(resp.content)
             status_changed = t_status != b_status
-            vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
+            vulnerable = _check_nosqli_response(
+                resp.content, t_status, indicators, baseline_body=b_body
+            )
 
             attempts.append(
                 NoSQLiAttempt(
@@ -623,7 +638,7 @@ async def _test_redis(
 ) -> list[NoSQLiAttempt]:
     """Testa Redis injection via NoSQL vectors."""
     attempts: list[NoSQLiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, ct, indicators in _REDIS_PAYLOADS:
         try:
@@ -636,7 +651,9 @@ async def _test_redis(
             t_status = resp.status_code
             t_size = len(resp.content)
             status_changed = t_status != b_status
-            vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
+            vulnerable = _check_nosqli_response(
+                resp.content, t_status, indicators, baseline_body=b_body
+            )
 
             attempts.append(
                 NoSQLiAttempt(
@@ -687,7 +704,7 @@ async def _test_couchdb(
 ) -> list[NoSQLiAttempt]:
     """Testa CouchDB NoSQL injection."""
     attempts: list[NoSQLiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, ct, indicators in _COUCHDB_PAYLOADS:
         try:
@@ -700,7 +717,9 @@ async def _test_couchdb(
             t_status = resp.status_code
             t_size = len(resp.content)
             status_changed = t_status != b_status
-            vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
+            vulnerable = _check_nosqli_response(
+                resp.content, t_status, indicators, baseline_body=b_body
+            )
 
             attempts.append(
                 NoSQLiAttempt(
@@ -751,7 +770,7 @@ async def _test_bypass(
 ) -> list[NoSQLiAttempt]:
     """Testa bypass de filtragem NoSQL."""
     attempts: list[NoSQLiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, ct, indicators in _BYPASS_PAYLOADS:
         try:
@@ -764,7 +783,9 @@ async def _test_bypass(
             t_status = resp.status_code
             t_size = len(resp.content)
             status_changed = t_status != b_status
-            vulnerable = _check_nosqli_response(resp.content, t_status, indicators)
+            vulnerable = _check_nosqli_response(
+                resp.content, t_status, indicators, baseline_body=b_body
+            )
 
             attempts.append(
                 NoSQLiAttempt(
@@ -864,11 +885,12 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
     json_output: bool = False,
 ) -> int:
     """Executa o scan NoSQL Injection."""
     tls = target.startswith("https")
-    client = create_async_client(timeout=timeout)
+    client = create_async_client(timeout=timeout, proxy=proxy)
     try:
         if not json_output:
             print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
@@ -986,6 +1008,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan NoSQL Injection a partir de argumentos parseados."""
+    init_scanner(args)
     logger.info("NoSQLi scan iniciado para %s", args.url)
     categories: list[str] = []
     if getattr(args, "category", None):
@@ -998,6 +1021,7 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
             json_output=getattr(args, "json_output", False),
         ),
     )

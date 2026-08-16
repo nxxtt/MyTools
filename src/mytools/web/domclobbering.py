@@ -611,13 +611,14 @@ async def _test_named_access(
 
                 size_changed = abs(t_size - b_size) > 50
 
-                vulnerable = reflected or status_changed or size_changed
+                vulnerable = False
 
                 details = ""
 
                 if reflected:
                     details = (
-                        f"Payload refletido no HTML â€” window.{clob_name} clobberavel"
+                        f"Payload refletido no HTML — window.{clob_name} clobberavel "
+                        "(requer confirmacao headless)"
                     )
 
                 elif status_changed:
@@ -645,9 +646,6 @@ async def _test_named_access(
                         error="",
                     )
                 )
-
-                if vulnerable:
-                    break
 
             except Exception as e:
                 results.append(
@@ -733,12 +731,15 @@ async def _test_form_child(
 
                 size_changed = abs(t_size - b_size) > 50
 
-                vulnerable = reflected or status_changed or size_changed
+                vulnerable = False
 
                 details = ""
 
                 if reflected:
-                    details = f"Payload refletido â€” {clob_name}.{prop} clobberavel"
+                    details = (
+                        f"Payload refletido — {clob_name}.{prop} clobberavel "
+                        "(requer confirmacao headless)"
+                    )
 
                 elif status_changed:
                     details = f"Status mudou: {b_status} -> {t_status}"
@@ -765,9 +766,6 @@ async def _test_form_child(
                         error="",
                     )
                 )
-
-                if vulnerable:
-                    break
 
             except Exception as e:
                 results.append(
@@ -853,13 +851,14 @@ async def _test_impact_chains(
 
                 size_changed = abs(t_size - b_size) > 50
 
-                vulnerable = reflected or status_changed or size_changed
+                vulnerable = False
 
                 details = ""
 
                 if reflected:
                     details = (
-                        f"Payload refletido â€” {sink} clobberavel via {clob_name}"
+                        f"Payload refletido — {sink} clobberavel via {clob_name} "
+                        "(requer confirmacao headless)"
                     )
 
                 elif status_changed:
@@ -887,9 +886,6 @@ async def _test_impact_chains(
                         error="",
                     )
                 )
-
-                if vulnerable:
-                    break
 
             except Exception as e:
                 results.append(
@@ -1154,38 +1150,49 @@ async def _run_scan_core(
                 target, all_attempts, timeout=timeout, proxy=proxy
             )
 
-            if any(confirmed_map.values()):
-                confirmed_attempts: list[ClobberAttempt] = []
+            confirmed_attempts: list[ClobberAttempt] = []
 
-                for attempt in all_attempts:
-                    if not attempt.payload and not attempt.target_element:
-                        confirmed_attempts.append(attempt)
-
-                        continue
-
-                    name = _extract_clob_name(attempt)
-
-                    test_url = (
-                        target
-                        if attempt.category == "named_access"
-                        and attempt.technique == "passive_clobber_detected"
-                        else _inject_payload(target, f"_clob_{name}", attempt.payload)
-                    )
-
-                    if confirmed_map.get(test_url):
-                        attempt = replace(
-                            attempt,
-                            dom_confirmed=True,
-                            details=(
-                                attempt.details + " [confirmado via headless]"
-                            ).strip(),
-                        )
-
+            for attempt in all_attempts:
+                if not attempt.payload and not attempt.target_element:
                     confirmed_attempts.append(attempt)
 
-                all_attempts = confirmed_attempts
+                    continue
 
-                vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
+                name = _extract_clob_name(attempt)
+
+                test_url = (
+                    target
+                    if attempt.category == "named_access"
+                    and attempt.technique == "passive_clobber_detected"
+                    else _inject_payload(target, f"_clob_{name}", attempt.payload)
+                )
+
+                confirmed = bool(confirmed_map.get(test_url))
+
+                if confirmed:
+                    attempt = replace(
+                        attempt,
+                        vulnerable=True,
+                        dom_confirmed=True,
+                        details=(
+                            attempt.details + " [confirmado via headless]"
+                        ).strip(),
+                    )
+                else:
+                    attempt = replace(
+                        attempt,
+                        vulnerable=False,
+                        dom_confirmed=False,
+                        details=(
+                            attempt.details + " [nao confirmado via headless]"
+                        ).strip(),
+                    )
+
+                confirmed_attempts.append(attempt)
+
+            all_attempts = confirmed_attempts
+
+            vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
 
         blocked_techs = list(
             {a.technique for a in all_attempts if not a.vulnerable and not a.error}

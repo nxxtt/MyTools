@@ -14,7 +14,6 @@ from mytools.core.utils import RateLimiter
 from mytools.osint.emailbreachcheck import (
     EmailBreach,
     _async_run_once,
-    _classify_severity,
     _dedup_breaches,
     _load_emails,
     _query_email,
@@ -55,32 +54,6 @@ class TestEmailBreach:
         )
         assert b.pwn_count == 164000000
         assert b.source == "hibp"
-
-
-# ── _classify_severity ───────────────────────────────────────────────────────
-
-
-class TestClassifySeverity:
-    def test_low(self):
-        assert _classify_severity(1, "") == "low"
-
-    def test_medium(self):
-        assert _classify_severity(2, "") == "medium"
-
-    def test_high(self):
-        assert _classify_severity(5, "") == "high"
-
-    def test_critical_count(self):
-        assert _classify_severity(10, "") == "critical"
-
-    def test_critical_passwords(self):
-        assert _classify_severity(1, "passwords,emails") == "critical"
-
-    def test_critical_creditcards(self):
-        assert _classify_severity(1, "creditcards") == "critical"
-
-    def test_no_sensitive(self):
-        assert _classify_severity(1, "emails,usernames") == "low"
 
 
 # ── _dedup_breaches ──────────────────────────────────────────────────────────
@@ -297,6 +270,30 @@ async def test_hibp_breach_found():
         assert breaches[0].breach_name == "LinkedIn"
         assert breaches[0].pwn_count == 164000000
         assert breaches[0].source == "hibp"
+
+
+@pytest.mark.asyncio
+async def test_hibp_null_data_classes():
+    with respx.mock:
+        respx.route(method="GET", url__startswith="https://haveibeenpwned.com/").mock(
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {
+                        "Name": "LinkedIn",
+                        "BreachDate": "2012-05-05",
+                        "PwnCount": 164000000,
+                        "DataClasses": None,
+                    },
+                ],
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_hibp(client, "test@test.com", "fake-key", 5.0, rl)
+        await client.aclose()
+        assert len(breaches) == 1
+        assert breaches[0].data_classes == ""
 
 
 @pytest.mark.asyncio
@@ -633,6 +630,18 @@ class TestXposedornotEdges:
         await client.aclose()
         assert breaches == []
 
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_body_not_dict(self) -> None:
+        respx.route(method="GET", url__startswith="https://api.xposedornot.com/").mock(
+            return_value=httpx.Response(200, json=[]),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_xposedornot(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
+
 
 # ── Edge/error paths de _query_leakcheck ─────────────────────────────────────
 
@@ -695,6 +704,18 @@ class TestLeakcheckEdges:
         breaches = await _query_leakcheck(client, "test@test.com", 5.0, rl)
         await client.aclose()
         assert len(breaches) == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_body_not_dict(self) -> None:
+        respx.route(method="GET", url__startswith="https://leakcheck.io/").mock(
+            return_value=httpx.Response(200, json=[]),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        breaches = await _query_leakcheck(client, "test@test.com", 5.0, rl)
+        await client.aclose()
+        assert breaches == []
 
 
 # ── Edge/error paths de _query_hibp ──────────────────────────────────────────

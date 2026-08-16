@@ -268,6 +268,17 @@ class TestRunOnce:
                 run_once(args)
             mock_lookup.assert_called_once()
 
+    def test_batch_flag_passed_to_lookup(self):
+        args = self._make_args(batch=True)
+        with (
+            patch(
+                "mytools.osint.ipasninfo.lookup_ip_asn", return_value=[]
+            ) as mock_lookup,
+            patch("mytools.osint.ipasninfo.init_scanner"),
+        ):
+            run_once(args)
+        assert mock_lookup.call_args.kwargs["force_batch"] is True
+
 
 class TestBannerArt:
     def test_not_empty(self):
@@ -291,7 +302,9 @@ class TestQuerySingle:
                 },
             ),
         )
-        result = await _query_single("8.8.8.8", 5.0)
+        client = httpx.AsyncClient()
+        result = await _query_single(client, "8.8.8.8", 5.0)
+        await client.aclose()
         assert result is not None
         assert result.asn == "AS15169"
         assert result.source == "ipwhois"
@@ -312,7 +325,9 @@ class TestQuerySingle:
                 },
             ),
         )
-        result = await _query_single("8.8.8.8", 5.0)
+        client = httpx.AsyncClient()
+        result = await _query_single(client, "8.8.8.8", 5.0)
+        await client.aclose()
         assert result is not None
         assert result.source == "ipapi"
         assert result.asn == "AS15169"
@@ -328,7 +343,9 @@ class TestQuerySingle:
                 200, json={"query": "8.8.8.8", "status": "success"}
             ),
         )
-        result = await _query_single("8.8.8.8", 5.0)
+        client = httpx.AsyncClient()
+        result = await _query_single(client, "8.8.8.8", 5.0)
+        await client.aclose()
         assert result is not None
         assert result.source == "ipapi"
 
@@ -343,7 +360,9 @@ class TestQuerySingle:
                 200, json={"query": "8.8.8.8", "status": "success"}
             ),
         )
-        result = await _query_single("8.8.8.8", 5.0)
+        client = httpx.AsyncClient()
+        result = await _query_single(client, "8.8.8.8", 5.0)
+        await client.aclose()
         assert result is not None
         assert result.source == "ipapi"
 
@@ -356,7 +375,9 @@ class TestQuerySingle:
         respx.get(url__startswith="http://ip-api.com/json/").mock(
             side_effect=httpx.ConnectError("refused"),
         )
-        result = await _query_single("8.8.8.8", 5.0)
+        client = httpx.AsyncClient()
+        result = await _query_single(client, "8.8.8.8", 5.0)
+        await client.aclose()
         assert result is None
 
     @pytest.mark.asyncio
@@ -368,7 +389,9 @@ class TestQuerySingle:
         respx.get(url__startswith="http://ip-api.com/json/").mock(
             return_value=httpx.Response(500),
         )
-        result = await _query_single("8.8.8.8", 5.0)
+        client = httpx.AsyncClient()
+        result = await _query_single(client, "8.8.8.8", 5.0)
+        await client.aclose()
         assert result is None
 
 
@@ -490,6 +513,14 @@ class TestLoadIpsFromArgs:
         args = argparse.Namespace(ips=["8.8.8.8"], ip_file=str(ip_file))
         assert _load_ips_from_args(args) == ["8.8.8.8", "1.1.1.1"]
 
+    def test_dedup_duplicates(self, tmp_path):
+        ip_file = tmp_path / "ips.txt"
+        ip_file.write_text("8.8.8.8\n", encoding="utf-8")
+        args = argparse.Namespace(
+            ips=["8.8.8.8", "1.1.1.1", "1.1.1.1"], ip_file=str(ip_file)
+        )
+        assert _load_ips_from_args(args) == ["8.8.8.8", "1.1.1.1"]
+
     def test_file_not_found(self, capsys):
         args = argparse.Namespace(ips=[], ip_file="definitely_missing_12345.txt")
         assert _load_ips_from_args(args) == []
@@ -509,6 +540,24 @@ class TestRunOnceOutput:
         ):
             result = run_once(args)
         assert result == 0
+        mock_write.assert_called_once()
+
+    def test_with_output_dir(self, tmp_path):
+        parser = build_parser()
+        args = parser.parse_args(["8.8.8.8"])
+        args.output_dir = str(tmp_path)
+        with (
+            patch("mytools.osint.ipasninfo.init_scanner"),
+            patch(
+                "mytools.osint.ipasninfo.lookup_ip_asn",
+                return_value=[IpAsnInfo(ip="8.8.8.8", asn="AS15169")],
+            ),
+            patch("mytools.osint.ipasninfo.write_output") as mock_write,
+            patch("mytools.osint.ipasninfo.ensure_output_dir") as mock_ensure,
+        ):
+            result = run_once(args)
+        assert result == 0
+        mock_ensure.assert_called_once_with(str(tmp_path))
         mock_write.assert_called_once()
 
 

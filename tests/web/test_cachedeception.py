@@ -278,20 +278,32 @@ class TestDeceptionResult:
 class TestCheckDeceptionResponse:
     """Testes para _check_deception_response."""
 
-    def test_cache_hit_detected(self) -> None:
-        assert _check_deception_response(b"ok", 200, {"x-cache": "HIT"}, ["HIT"])
+    def test_cache_hit_and_indicator_in_body(self) -> None:
+        assert _check_deception_response(
+            b"admin panel", 200, {"x-cache": "HIT"}, ["admin"]
+        )
+
+    def test_cache_hit_without_indicator_not_detected(self) -> None:
+        assert not _check_deception_response(b"ok", 200, {"x-cache": "HIT"}, ["admin"])
+
+    def test_indicator_without_cache_hit_not_detected(self) -> None:
+        assert not _check_deception_response(
+            b"admin panel", 200, {"x-cache": "MISS"}, ["admin"]
+        )
+
+    def test_header_name_alone_not_detected(self) -> None:
+        assert not _check_deception_response(
+            b"generic page", 200, {"x-cache": "HIT"}, ["cache"]
+        )
 
     def test_not_detected(self) -> None:
         assert not _check_deception_response(b"error 404", 200, {}, ["admin"])
 
     def test_status_zero(self) -> None:
-        assert not _check_deception_response(b"ok", 0, {}, ["HIT"])
+        assert not _check_deception_response(b"ok", 0, {}, ["admin"])
 
     def test_case_insensitive(self) -> None:
         assert _check_deception_response(b"HIT", 200, {"x-cache": "HIT"}, ["hit"])
-
-    def test_header_match(self) -> None:
-        assert _check_deception_response(b"", 200, {"x-cache": "HIT"}, ["hit"])
 
     def test_empty_body(self) -> None:
         assert not _check_deception_response(b"", 200, {}, ["admin"])
@@ -688,7 +700,25 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @respx.mock
-    async def test_run_scan_vulnerable(self) -> None:
+    async def test_run_scan_cat_raises_exception(self) -> None:
+        from mytools.web.cachedeception import run_scan
+
+        async def _boom(*args: object, **kwargs: object) -> list:
+            raise RuntimeError("boom")
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable")
+        )
+        with patch("mytools.web.cachedeception._test_extension", new=_boom):
+            result = await run_scan(
+                target="https://example.com",
+                categories=["extension"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+            )
+        assert result == 0
         from mytools.web.cachedeception import run_scan
 
         call_count = 0

@@ -155,9 +155,12 @@ class TestCheckPath:
             return_value=httpx.Response(200, text="hello")
         )
         async with httpx.AsyncClient() as client:
-            status, body = await _check_path(client, "https://example.com", "/test")
+            status, body, headers = await _check_path(
+                client, "https://example.com", "/test"
+            )
             assert status == 200
             assert body == "hello"
+            assert headers["content-type"] == "text/plain; charset=utf-8"
 
     @respx.mock
     @pytest.mark.asyncio
@@ -169,9 +172,42 @@ class TestCheckPath:
             side_effect=_handler
         )
         async with httpx.AsyncClient() as client:
-            status, body = await _check_path(client, "https://example.com", "/missing")
+            status, body, headers = await _check_path(
+                client, "https://example.com", "/missing"
+            )
             assert status == 0
             assert body == ""
+            assert headers == {}
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_redirect_headers(self) -> None:
+        respx.get("https://example.com/test").mock(
+            return_value=httpx.Response(
+                301, headers={"location": "https://example.com/other"}
+            )
+        )
+        async with httpx.AsyncClient() as client:
+            status, _body, headers = await _check_path(
+                client, "https://example.com", "/test"
+            )
+            assert status == 301
+            assert headers.get("location") == "https://example.com/other"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_uses_default_timeout(self) -> None:
+        respx.get("https://example.com/test").mock(
+            return_value=httpx.Response(200, text="hello")
+        )
+        with patch(
+            "mytools.web.cmsfingerprint.fetch",
+            return_value=(200, {"location": ""}, b"hello", {}),
+        ) as mock_fetch:
+            async with httpx.AsyncClient() as client:
+                await _check_path(client, "https://example.com", "/test")
+            mock_fetch.assert_called_once()
+            assert mock_fetch.call_args.kwargs["timeout"] == 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +448,29 @@ class TestDetectWpUsers:
     async def test_finds_users_via_redirect(self) -> None:
         respx.get("https://example.com/?author=1").mock(
             return_value=httpx.Response(301, text="/author/admin")
+        )
+        respx.get("https://example.com/?author=2").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/?author=3").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        respx.get("https://example.com/wp-json/wp/v2/users").mock(
+            return_value=httpx.Response(404, text="")
+        )
+        async with httpx.AsyncClient() as client:
+            users = await _detect_wp_users(client, "https://example.com")
+            assert users == ["admin"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_finds_user_via_location_header_only(self) -> None:
+        respx.get("https://example.com/?author=1").mock(
+            return_value=httpx.Response(
+                301,
+                text="<!DOCTYPE html><html>redirecting...</html>",
+                headers={"location": "https://example.com/author/admin/"},
+            )
         )
         respx.get("https://example.com/?author=2").mock(
             return_value=httpx.Response(404, text="")
@@ -905,6 +964,20 @@ class TestRunOnce:
         result = run_once(MagicMock())
         assert result == 0
         mock_async.assert_called_once()
+
+    @patch("mytools.web.cmsfingerprint._async_run_once")
+    def test_run_once_vulnerable_returns_1(self, mock_async: MagicMock) -> None:
+        from mytools.web.cmsfingerprint import run_once
+
+        mock_async.return_value = CmsResult(
+            target="https://example.com",
+            cms_detected="wordpress",
+            version="6.0",
+            attempts=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        assert run_once(MagicMock()) == 1
 
 
 class TestMain:

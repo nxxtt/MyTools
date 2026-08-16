@@ -41,9 +41,11 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    ensure_output_dir,
     fetch,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -226,12 +228,18 @@ async def _query_darksearch(
         logger.debug("DarkSearch status %d", status)
         return mentions
 
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError, ValueError:
+        return mentions
+    if not isinstance(data, dict) or not data.get("data"):
+        return mentions
+
     now = datetime.now(UTC).isoformat()
 
     for item in data.get("data", [])[:max_results]:
-        title = item.get("title", "").strip()
-        snippet = item.get("description", "").strip()[:200]
+        title = (item.get("title") or "").strip()
+        snippet = (item.get("description") or "").strip()[:200]
         link = item.get("link", "")
         date_str = item.get("date", now)
         severity = _classify_severity(f"{title} {snippet}")
@@ -313,24 +321,31 @@ async def _query_intelx(
         return mentions
 
     now = datetime.now(UTC).isoformat()
-    records = json.loads(body2).get("records", [])
+    try:
+        body_data = json.loads(body2)
+    except json.JSONDecodeError, ValueError:
+        return mentions
+    records = body_data.get("records", [])
+    if not isinstance(records, list) or not records:
+        return mentions
 
     for rec in records[:max_results]:
-        title = rec.get("name", "(sem titulo)")
+        title = rec.get("name") or "(sem titulo)"
         selector = rec.get("selector_value", domain)
         bucket = rec.get("bucket", "")
         severity = _classify_severity(title)
+        result_url = f"https://intelx.io/{selector}"
 
         mentions.append(
             DarkWebMention(
                 source="intelx",
-                url=f"https://intelx.io/{selector}",
+                url=result_url,
                 title=title,
                 snippet=f"Bucket: {bucket}" if bucket else title,
                 date_seen=now,
                 domain=domain,
                 severity=severity,
-                exploit=f"https://intelx.io/{selector}",
+                exploit=result_url,
                 tool="intelx",
             )
         )
@@ -523,8 +538,21 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     all_mentions = _dedup_mentions(all_mentions)
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json([asdict(m) for m in all_mentions])
+    elif not quiet:
         print_results(all_mentions)
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        out_path = f"{output_dir}/darkweb.json"
+        write_output(
+            out_path,
+            [asdict(m) for m in all_mentions],
+            ["source", "url", "title", "snippet", "date_seen", "domain", "severity"],
+            quiet=quiet,
+        )
 
     if args.output:
         write_output(

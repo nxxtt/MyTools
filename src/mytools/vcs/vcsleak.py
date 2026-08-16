@@ -31,8 +31,10 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    ensure_output_dir,
     extract_hostname,
     fetch,
+    header_get,
     init_scanner,
     normalize_url,
     print_exploit_info,
@@ -244,10 +246,11 @@ async def _probe_path(
     """Sonda um unico path e retorna VCSLeak se encontrar leak confirmado."""
     base = base_url if base_url.endswith("/") else base_url + "/"
     full_url = urljoin(base, path)
+    vcs_type = _classify_path(path)
     await rate_limiter.wait()
 
     try:
-        head_status, _head_headers, _, _ = await fetch(
+        head_status, head_headers, _, _ = await fetch(
             client,
             full_url,
             timeout=timeout,
@@ -262,6 +265,14 @@ async def _probe_path(
         pass
     elif head_status not in STATUS_OK:
         return None
+    else:
+        cl = header_get(head_headers, "content-length")
+        if cl:
+            try:
+                if int(cl) > 5 * 1024 * 1024:
+                    return None
+            except ValueError:
+                pass
 
     await rate_limiter.wait()
     try:
@@ -287,7 +298,12 @@ async def _probe_path(
     if not is_leak:
         return None
 
-    vcs_type = _classify_path(path)
+    exploit_by_type = {
+        "git": f"git clone {base}",
+        "svn": f"svn checkout {base}",
+        "hg": f"hg clone {base}",
+    }
+    exploit = exploit_by_type.get(vcs_type, "")
     return VCSLeak(
         vcs_type=vcs_type,
         url=full_url,
@@ -295,8 +311,8 @@ async def _probe_path(
         status=status,
         detail=detail,
         raw_size=len(content),
-        exploit="git clone <TARGET>/.git",
-        tool="git",
+        exploit=exploit,
+        tool=vcs_type,
     )
 
 
@@ -488,12 +504,15 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         logger.error("Timeout deve ser maior que 0.")
         return 1
 
+    custom_paths = _load_paths_from_args(args)
+    output_dir = getattr(args, "output_dir", None)
+    ensure_output_dir(output_dir)
+
     all_leaks: list[VCSLeak] = []
     for url in urls:
         base_url = normalize_url(
             url, default_scheme="https", ensure_trailing_slash=True
         )
-        custom_paths = _load_paths_from_args(args)
 
         leaks = await scan_vcs(
             base_url=base_url,
@@ -511,16 +530,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             extra_headers=getattr(args, "header", None),
         )
 
-        if getattr(args, "json_output", False):
-            print_json([asdict(leak) for leak in leaks])
-        elif not quiet:
+        if not quiet and not getattr(args, "json_output", False):
             print_results(leaks)
 
         all_leaks.extend(leaks)
 
-        if getattr(args, "output_dir", None):
+        if output_dir:
             hostname = extract_hostname(url)
-            out_path = f"{args.output_dir}/{hostname}.json"
+            out_path = f"{output_dir}/{hostname}.json"
             write_output(
                 out_path,
                 [asdict(leak) for leak in leaks],
@@ -530,7 +547,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "json_output", False):
         print_json([asdict(leak) for leak in all_leaks])
-    elif args.output:
+    if args.output:
         write_output(
             args.output,
             [asdict(leak) for leak in all_leaks],

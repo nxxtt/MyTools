@@ -945,9 +945,18 @@ async def _test_shared_resource(
                 test_url,
                 timeout=timeout,
             )
-            # UUIDs que retornam 200 (não 404) são suspeitos
-            vuln = t_status == 200
-            details = f"UUID returned HTTP {t_status}" if vuln else ""
+            # UUIDs que retornam 200 com conteudo distinto do baseline sao suspeitos
+            vuln = bool(
+                t_status == 200
+                and t_body.strip()
+                and b_size > 0
+                and abs(len(t_body) - b_size) > 50
+            )
+            details = (
+                f"UUID returned HTTP {t_status} (size {len(t_body)} vs baseline {b_size})"
+                if vuln
+                else ""
+            )
             results.append(
                 _make_attempt(
                     technique="uuid_enumeration",

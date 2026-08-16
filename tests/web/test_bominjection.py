@@ -321,6 +321,26 @@ class TestTestBomUrl:
         assert len(attempts) == 12
         assert all(a.error for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_binary_variants_send_real_bom_bytes(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 404
+        resp.content = b"not found"
+        client.get = AsyncMock(return_value=resp)
+
+        await _test_bom_url(
+            client,
+            "https://example.com/admin",
+            (200, 1000, b""),
+        )
+
+        urls = [call.args[0] for call in client.get.call_args_list]
+        assert any("%ef%bb%bf" in u for u in urls)
+        assert any("%ff%fe" in u for u in urls)
+        assert any("%ff%fe%00%00" in u for u in urls)
+        assert any("%00%00%fe%ff" in u for u in urls)
+
 
 class TestTestBomHeaders:
     """Testes para _test_bom_headers."""
@@ -339,6 +359,33 @@ class TestTestBomHeaders:
             (200, 1000, b""),
         )
         assert len(attempts) == 3
+
+    @pytest.mark.asyncio
+    async def test_size_changed_uses_threshold(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"x" * 1030
+        client.get = AsyncMock(return_value=resp)
+
+        attempts = await _test_bom_headers(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert all(not a.size_changed for a in attempts)
+
+        resp2 = MagicMock()
+        resp2.status_code = 200
+        resp2.content = b"x" * 1100
+        client.get = AsyncMock(return_value=resp2)
+
+        attempts = await _test_bom_headers(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert all(a.size_changed for a in attempts)
 
     @pytest.mark.asyncio
     async def test_error_handled(self) -> None:

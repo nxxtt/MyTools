@@ -163,11 +163,11 @@ class TestResolveNsToIp:
 
 
 class TestTryZoneTransfer:
+    @patch("mytools.dns.dnstransfer.dns.zone.Zone")
     @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr")
-    def test_successful_transfer(self, mock_axfr):
-        mock_zone = MagicMock()
+    def test_successful_transfer(self, mock_axfr, mock_zone_cls):
+        mock_zone = mock_zone_cls.return_value
         mock_zone.nodes = {}
-        mock_axfr.return_value = mock_zone
 
         result = try_zone_transfer(
             "example.com", "ns1.example.com", "1.2.3.4", timeout=5
@@ -175,13 +175,16 @@ class TestTryZoneTransfer:
         assert result.zone_transferred is True
         assert result.record_count == 0
         assert result.elapsed >= 0
+        mock_axfr.assert_called_once()
+        assert mock_axfr.call_args.args[1] is mock_zone
 
+    @patch("mytools.dns.dnstransfer.dns.zone.Zone")
     @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr")
-    def test_successful_transfer_with_records(self, mock_axfr):
+    def test_successful_transfer_with_records(self, mock_axfr, mock_zone_cls):
         import dns.rdata
         import dns.rdataset
 
-        mock_zone = MagicMock()
+        mock_zone = mock_zone_cls.return_value
         mock_node = MagicMock()
 
         mock_rdataset = MagicMock()
@@ -192,7 +195,6 @@ class TestTryZoneTransfer:
 
         mock_node.rdatasets = [mock_rdataset]
         mock_zone.nodes = {dns.name.from_text("example.com."): mock_node}  # type: ignore[reportAttributeAccessIssue]
-        mock_axfr.return_value = mock_zone
 
         result = try_zone_transfer(
             "example.com", "ns1.example.com", "1.2.3.4", timeout=5
@@ -200,13 +202,16 @@ class TestTryZoneTransfer:
         assert result.zone_transferred is True
         assert result.record_count >= 1
 
-    @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr", return_value=None)
-    def test_empty_zone_returns_not_transferred(self, mock_axfr):
-        result = try_zone_transfer(
-            "example.com", "ns1.example.com", "1.2.3.4", timeout=5
-        )
-        assert result.zone_transferred is False
-        assert "vazia" in result.error
+    @patch("mytools.dns.dnstransfer.dns.zone.Zone")
+    @patch("mytools.dns.dnstransfer.dns.query.inbound_xfr")
+    def test_passes_zone_as_transaction_manager(self, mock_axfr, mock_zone_cls):
+        mock_zone = mock_zone_cls.return_value
+        mock_zone.nodes = {}
+
+        try_zone_transfer("example.com", "ns1.example.com", "1.2.3.4", timeout=5)
+        zone_arg = mock_axfr.call_args.args[1]
+        assert zone_arg is mock_zone
+        assert not isinstance(zone_arg, str)
 
     @patch(
         "mytools.dns.dnstransfer.dns.query.inbound_xfr",
@@ -487,6 +492,40 @@ class TestRunOnce:
         run_once(args)
         captured = capsys.readouterr()
         assert captured.out == ""
+
+    @patch("mytools.dns.dnstransfer.print_json")
+    @patch("mytools.dns.dnstransfer.run_xfr_scan")
+    def test_json_output(self, mock_scan, mock_json):
+        mock_scan.return_value = [
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=False,
+            ),
+        ]
+        base = build_parser().parse_args(["example.com"])
+        base.json_output = True
+        run_once(base)
+        mock_json.assert_called_once()
+
+    @patch("mytools.dns.dnstransfer.ensure_output_dir")
+    @patch("mytools.dns.dnstransfer.write_output")
+    @patch("mytools.dns.dnstransfer.run_xfr_scan")
+    def test_output_dir(self, mock_scan, mock_write, mock_ensure):
+        mock_scan.return_value = [
+            XfrResult(
+                domain="example.com",
+                nameserver="ns1.example.com",
+                ns_ip="1.2.3.4",
+                zone_transferred=False,
+            ),
+        ]
+        base = build_parser().parse_args(["example.com"])
+        base.output_dir = "reports"
+        run_once(base)
+        mock_ensure.assert_called_once_with("reports")
+        mock_write.assert_called_once()
 
 
 class TestBannerAndConstants:

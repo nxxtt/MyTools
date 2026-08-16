@@ -154,6 +154,22 @@ class GraphqlEndpoint:
     exploit: str = ""
 
 
+_EXPLOIT_DESCRIPTIONS: dict[str, str] = {
+    "graphiql": "GraphiQL IDE exposto — envie introspection query e explore o schema",
+    "playground": "GraphQL Playground IDE exposto — tente introspection e queries sensiveis",
+    "altair": "Altair IDE exposto — execute introspection query para mapear o schema",
+    "voyager": "Voyager schema visualizador exposto — schema totalmente publico",
+    "apollo-sandbox": "Apollo Sandbox exposto — introspection habilitada",
+    "graphql": "GraphQL endpoint detectado — execute introspection e brute-force de queries",
+    "unknown": "GraphQL endpoint (tool nao identificada) — teste introspection manual",
+}
+
+
+def _exploit_for_tool(tool: str) -> str:
+    """Retorna uma descricao de exploit adequada a ferramenta detectada."""
+    return _EXPLOIT_DESCRIPTIONS.get(tool, "")
+
+
 def detect_tool(body: str, headers: Mapping[str, str]) -> str:
     """Identifica a ferramenta GraphQL pelo conteudo HTML e headers."""
     content_type = header_get(headers, "content-type").lower()
@@ -226,6 +242,7 @@ async def run_introspection(
             timeout=timeout,
             method="POST",
             content=INTROSPECTION_QUERY.encode(),
+            headers={"Content-Type": "application/json"},
             max_retries=retries,
             rate_limiter=rate_limiter,
         )
@@ -291,6 +308,7 @@ async def probe_endpoint(
                     tool="graphql",
                     status=status,
                     raw_size=len(content),
+                    exploit=_exploit_for_tool("graphql"),
                 )
         except ValueError:
             pass
@@ -329,6 +347,7 @@ async def probe_endpoint(
         mutation_type=mutation_type,
         subscription_type=subscription_type,
         raw_size=len(content),
+        exploit=_exploit_for_tool(tool),
     )
 
 
@@ -554,6 +573,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 0
 
     all_endpoints: list[GraphqlEndpoint] = []
+    single_target = len(urls) == 1
     for url in urls:
         base_url = normalize_url(
             url, default_scheme="https", ensure_trailing_slash=True
@@ -568,13 +588,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             user_agent=args.user_agent,
             proxy=args.proxy,
             verify=getattr(args, "verify", False),
-            requests_per_second=args.delay,
+            requests_per_second=1.0 / args.delay if args.delay else 0.0,
             retries=args.retries,
             introspect=args.introspect,
         )
 
         if getattr(args, "json_output", False):
-            print_json([asdict(e) for e in endpoints])
+            if not quiet and not single_target:
+                print_json([asdict(e) for e in endpoints])
         elif not quiet:
             print_results(endpoints)
             if args.show_schema:
@@ -604,7 +625,8 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             )
 
     if getattr(args, "json_output", False):
-        print_json([asdict(e) for e in all_endpoints])
+        if not quiet:
+            print_json([asdict(e) for e in all_endpoints])
     elif args.output:
         write_output(
             args.output,

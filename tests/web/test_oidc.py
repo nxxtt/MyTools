@@ -234,7 +234,7 @@ class TestDiscoveryCategory:
         assert by_tech["jwks_uri_fetch"].vulnerable is True
         assert by_tech["issuer_mismatch"].vulnerable is False
         assert by_tech["registration_endpoint"].vulnerable is True
-        assert by_tech["scopes_supported"].vulnerable is True
+        assert by_tech["scopes_supported"].vulnerable is False
 
     @pytest.mark.asyncio
     async def test_well_known_error_all_missing(self) -> None:
@@ -306,6 +306,30 @@ class TestDiscoveryCategory:
         )
         by_tech = {a.technique: a for a in attempts}
         assert by_tech["registration_endpoint"].error
+
+    @pytest.mark.asyncio
+    async def test_registration_405_is_not_vulnerable(self) -> None:
+        wk: dict[str, object] = {
+            "registration_endpoint": "https://example.com/register"
+        }
+        client = AsyncMock()
+        client.get = AsyncMock(
+            side_effect=[
+                _resp(200, json.dumps(wk)),
+                _resp(405, "method not allowed"),
+            ]
+        )
+        attempts = await _test_discovery_category(
+            client,
+            "https://example.com",
+            "https://example.com/.well-known/openid-configuration",
+            wk,
+            5.0,
+            200,
+            100,
+        )
+        by_tech = {a.technique: a for a in attempts}
+        assert by_tech["registration_endpoint"].vulnerable is False
 
     @pytest.mark.asyncio
     async def test_issuer_mismatch(self) -> None:

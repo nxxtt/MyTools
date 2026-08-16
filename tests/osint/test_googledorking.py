@@ -556,7 +556,7 @@ class TestAsyncRunOnce:
         args = build_parser().parse_args(["-l", "missing.txt"])
         with patch(
             "mytools.osint.googledorking.read_target_lines",
-            side_effect=FileNotFoundError,
+            side_effect=ValueError("arquivo nao encontrado"),
         ):
             result = asyncio.run(_async_run_once(args))
         assert result == 1
@@ -606,6 +606,42 @@ class TestAsyncRunOnce:
             result = asyncio.run(_async_run_once(args))
         assert result == 0
         mock_write.assert_called_once()
+
+    def test_list_file_json_single_aggregate(self, tmp_path) -> None:
+        q1 = DorkQuery(
+            category="filetype",
+            dork="filetype:pdf",
+            full_query="site:ex.com filetype:pdf",
+            google_url="https://google.com/",
+            ddg_url="https://ddg.co/",
+        )
+        q2 = DorkQuery(
+            category="filetype",
+            dork="filetype:pdf",
+            full_query="site:ex.org filetype:pdf",
+            google_url="https://google.com/",
+            ddg_url="https://ddg.co/",
+        )
+        target_list = tmp_path / "domains.txt"
+        target_list.write_text("ex.com\nex.org\n", encoding="utf-8")
+        out_file = tmp_path / "out.json"
+        args = build_parser().parse_args(
+            ["-l", str(target_list), "--json", "-o", str(out_file)]
+        )
+        with (
+            patch(
+                "mytools.osint.googledorking.scan_dorks",
+                new=AsyncMock(side_effect=[[q1], [q2]]),
+            ),
+            patch("mytools.osint.googledorking.print_json") as mock_json,
+            patch("mytools.osint.googledorking.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_json.assert_called_once()
+        assert len(mock_json.call_args.args[0]) == 2
+        mock_write.assert_called_once()
+        assert len(mock_write.call_args.args[1]) == 2
 
 
 class TestMain:

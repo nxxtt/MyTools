@@ -25,22 +25,28 @@ import argparse
 import logging
 import random
 import string
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import dns.exception
 import dns.flags
+import dns.message
 import dns.name
 import dns.query
 import dns.rdatatype
 import dns.resolver
+import dns.rrset
 
 from mytools.core.utils import (
     Cyber,
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -99,6 +105,19 @@ class NsecResult:
 
 def _parse_nsec_types(nsec_rdata: object) -> list[str]:
     """Extrai tipos de registros do bitmap NSEC."""
+    windows = getattr(nsec_rdata, "windows", None)
+    if windows is not None:
+        decoded: list[str] = []
+        try:
+            for window, bitmap in windows:
+                decoded.extend(
+                    dns.rdatatype.to_text(window * 256 + bit)
+                    for bit in range(len(bitmap) * 8)
+                    if bitmap[bit // 8] & (1 << (7 - (bit % 8)))
+                )
+            return decoded
+        except Exception:
+            pass
     types = []
     try:
         window_str = str(nsec_rdata)
@@ -124,45 +143,84 @@ def _random_label(length: int = 12) -> str:
     return "".join(random.choices(string.ascii_lowercase, k=length))
 
 
-def _query_nsec(
-    domain: str, nameserver: str, timeout: float
+def _exc_response(
+    exc: dns.resolver.NXDOMAIN, query_name: str
+) -> dns.message.Message | None:
+    """Retorna a resposta DNS de uma excecao NXDOMAIN (ou None)."""
+    try:
+        return exc.response(dns.name.from_text(query_name))
+    except Exception:
+        try:
+            return exc.response()  # type: ignore[call-arg]
+        except Exception:
+            return None
+
+
+def _iter_nsec_rrs(rrsets: list[dns.rrset.RRset] | None, rdtype: int) -> Iterator[Any]:
+    """Yield os registros NSEC/NSEC3 presentes na secao authority."""
+    for rrset in rrsets or []:
+        if rrset.rdtype == rdtype:
+            yield from rrset
+
+
+def _query_nsec_fallback(
+    resolver: dns.resolver.Resolver, query_name: str
 ) -> tuple[str, str, list[str], bool]:
-    """Consulta NSEC para um nome e retorna (name, next_name, types, is_nsec3)."""
-    random_name = f"{_random_label()}.{domain}"
+    """Ultimo recurso: requery do mesmo nome (proveniente da implementacao antiga)."""
+    try:
+        answer = resolver.resolve(query_name, "NSEC")
+        for rr in answer:
+            return (query_name, str(rr.next), _parse_nsec_types(rr), False)
+    except dns.resolver.NoAnswer:
+        pass
+    except Exception:
+        return ("", "", [], False)
+    try:
+        answer = resolver.resolve(query_name, "NSEC3")
+        for rr in answer:
+            return (query_name, str(rr.next_hashed), ["NSEC3"], True)
+    except Exception:
+        pass
+    return ("", "", [], False)
+
+
+def _query_nsec(
+    domain: str,
+    nameserver: str,
+    timeout: float,
+    query_name: str | None = None,
+) -> tuple[str, str, list[str], bool]:
+    """Consulta NSEC para um nome e retorna (name, next_name, types, is_nsec3).
+
+    Se query_name for None, gera um nome aleatorio no dominio. Em respostas
+    NXDOMAIN o NSEC e lido da secao AUTHORITY da propria resposta — nunca
+    requery do mesmo nome (que sempre retorna NXDOMAIN de novo).
+    """
+    if query_name is None:
+        query_name = f"{_random_label()}.{domain}"
+
     resolver = dns.resolver.Resolver()
     resolver.nameservers = [nameserver]
     resolver.timeout = timeout
     resolver.lifetime = timeout
 
     try:
-        answer = resolver.resolve(random_name, "NSEC")
+        answer = resolver.resolve(query_name, "NSEC")
         for rr in answer:
-            next_name = str(rr.next)
-            record_types = _parse_nsec_types(rr)
-            return (random_name, next_name, record_types, False)
+            return (query_name, str(rr.next), _parse_nsec_types(rr), False)
+    except dns.resolver.NXDOMAIN as exc:
+        response = _exc_response(exc, query_name)
+        if response is not None:
+            for rr in _iter_nsec_rrs(response.authority, dns.rdatatype.NSEC):
+                return (query_name, str(rr.next), _parse_nsec_types(rr), False)
+            for rr in _iter_nsec_rrs(response.authority, dns.rdatatype.NSEC3):
+                return (query_name, str(rr.next_hashed), ["NSEC3"], True)
+        return _query_nsec_fallback(resolver, query_name)
     except dns.resolver.NoAnswer:
         try:
-            answer = resolver.resolve(random_name, "NSEC3")
+            answer = resolver.resolve(query_name, "NSEC3")
             for rr in answer:
-                next_name = str(rr.next_hashed)
-                return (random_name, next_name, ["NSEC3"], True)
-        except Exception:
-            pass
-    except dns.resolver.NXDOMAIN:
-        try:
-            answer = resolver.resolve(random_name, "NSEC")
-            for rr in answer:
-                next_name = str(rr.next)
-                record_types = _parse_nsec_types(rr)
-                return (random_name, next_name, record_types, False)
-        except dns.resolver.NoAnswer:
-            try:
-                answer = resolver.resolve(random_name, "NSEC3")
-                for rr in answer:
-                    next_name = str(rr.next_hashed)
-                    return (random_name, next_name, ["NSEC3"], True)
-            except Exception:
-                pass
+                return (query_name, str(rr.next_hashed), ["NSEC3"], True)
         except Exception:
             pass
     except dns.exception.Timeout:
@@ -179,16 +237,17 @@ def scan_nsec(
     max_hops: int = DEFAULT_MAX_HOPS,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> NsecResult:
-    """Executa a enumeracao NSEC walking."""
+    """Executa a enumeracao NSEC walking, encadeando pela cadeia NSEC."""
     entries: list[NsecEntry] = []
     names_found: list[str] = []
     has_nsec3 = False
     hops = 0
-
-    start_name = None
+    current_name: str | None = None
 
     while hops < max_hops:
-        name, next_name, types, is_nsec3 = _query_nsec(domain, nameserver, timeout)
+        name, next_name, types, is_nsec3 = _query_nsec(
+            domain, nameserver, timeout, query_name=current_name
+        )
 
         if is_nsec3:
             has_nsec3 = True
@@ -197,19 +256,16 @@ def scan_nsec(
         if not next_name:
             break
 
-        if start_name is None:  # pragma: no cover -- first iteration always None
-            start_name = next_name
+        key = next_name.lower()
+        if key in names_found:
+            break
 
+        names_found.append(key)
         entries.append(NsecEntry(name=name, next_name=next_name, record_types=types))
-
-        if next_name not in names_found:  # pragma: no cover -- names_found starts empty
-            names_found.append(next_name)
-
         hops += 1
+        current_name = next_name
 
-        if (  # pragma: no cover -- first hop always breaks (next_name == start_name)
-            next_name.lower() == domain.lower() or next_name.lower() == start_name
-        ):
+        if key == domain.lower():
             break
 
     return NsecResult(
@@ -344,6 +400,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not quiet:
         print_results(result)
 
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
+
     if args.output:
         write_output(
             args.output,
@@ -358,7 +417,26 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             ],
             quiet=quiet,
         )
-    return 0
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(result)],
+            [
+                "domain",
+                "total_names",
+                "has_nsec3",
+                "zone_enumerated",
+                "max_hops",
+                "hops_used",
+            ],
+            quiet=quiet,
+        )
+
+    # Zona enumeravel via NSEC e uma exposicao de informacao.
+    return 1 if result.zone_enumerated else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

@@ -31,8 +31,10 @@ import random
 import re
 import shlex
 import sys
+import threading
 import time
 import tomllib
+from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -137,40 +139,53 @@ def _load_security_headers() -> list[str]:
 SECURITY_HEADERS = _load_security_headers()
 
 
+_logging_lock = threading.Lock()
+_logging_config: tuple[bool, str | None] | None = None
+
+
 def setup_logging(verbose: bool = False, log_file: str | None = None) -> None:
     """Configura logging para o MyTools.
 
     Args:
         verbose: Se True, mostra mensagens DEBUG no terminal.
         log_file: Se fornecido, salva logs neste arquivo (sempre em modo verbose).
+
+    Thread-safe: reconfigura os handlers apenas quando a configuracao muda,
+    evitando handlers duplicados quando varios scanners rodam em paralelo.
     """
+    global _logging_config
     level = logging.DEBUG if verbose else logging.WARNING
     if log_file and not verbose:
         level = logging.INFO
 
-    log = logging.getLogger("mytools")
-    log.setLevel(level)
-    log.handlers.clear()
+    config = (verbose, log_file)
+    with _logging_lock:
+        log = logging.getLogger("mytools")
+        if _logging_config != config:
+            log.setLevel(level)
+            log.handlers.clear()
 
-    terminal = logging.StreamHandler(sys.stderr)
-    terminal.setLevel(level)
-    terminal.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"
-        )
-    )
-    log.addHandler(terminal)
-
-    if log_file:
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
+            terminal = logging.StreamHandler(sys.stderr)
+            terminal.setLevel(level)
+            terminal.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                    datefmt="%H:%M:%S",
+                )
             )
-        )
-        log.addHandler(file_handler)
+            log.addHandler(terminal)
+
+            if log_file:
+                file_handler = logging.FileHandler(log_file, encoding="utf-8")
+                file_handler.setLevel(logging.DEBUG)
+                file_handler.setFormatter(
+                    logging.Formatter(
+                        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S",
+                    )
+                )
+                log.addHandler(file_handler)
+            _logging_config = config
 
 
 _USE_COLOR: bool = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
@@ -187,7 +202,6 @@ def init_scanner(args: argparse.Namespace) -> bool:
 
     Retorna True se o modo quiet esta ativo.
     """
-    global _stealth_ctx
     setup_logging(verbose=args.verbose, log_file=args.log_file)
     quiet = getattr(args, "quiet", False)
     if getattr(args, "color", None) is not None:
@@ -201,7 +215,7 @@ def init_scanner(args: argparse.Namespace) -> bool:
             if "=" in pair:
                 sev, cname = pair.split("=", 1)
                 override_severity(sev.strip(), cname.strip())
-    _stealth_ctx = StealthContext.from_args(args)
+    _stealth_local.ctx = StealthContext.from_args(args)
     return quiet
 
 
@@ -256,7 +270,7 @@ def run_main_loop(
         if target:
             args.output = str(workspace_path(output_dir, target))
             ensure_output_dir(str(Path(args.output).parent))
-    if quiet and not args.output:
+    if quiet and not args.output and not getattr(args, "json_output", False):
         print(color("Erro: modo quiet requer -o/--output", Cyber.RED), file=sys.stderr)
         return 1
 
@@ -523,12 +537,81 @@ class StealthContext:
         return cls(**fields)
 
 
-_stealth_ctx: StealthContext | None = None
+#: Estado stealth por thread — cada worker do batch (-p) tem o proprio.
+_stealth_local = threading.local()
 
 
 def get_stealth_ctx() -> StealthContext | None:
-    """Retorna o StealthContext global (para testes)."""
-    return _stealth_ctx
+    """Retorna o StealthContext da thread atual (para testes)."""
+    return getattr(_stealth_local, "ctx", None)
+
+
+def reset_stealth_ctx() -> None:
+    """Zera o contexto stealth da thread atual (para testes/isolamento)."""
+    _stealth_local.ctx = None
+
+
+class _CurlCffiResponse:
+    """Wrapper httpx-compativel sobre uma resposta curl-cffi.
+
+    curl-cffi devolve headers como CaseInsensitiveDict (sem `multi_items()`),
+    que quebra _extract_raw_headers() e header_get(). Este wrapper normaliza
+    `.headers` para httpx.Headers e delega o restante para a resposta original.
+    """
+
+    __slots__ = ("_resp",)
+
+    def __init__(self, resp: Any) -> None:
+        object.__setattr__(self, "_resp", resp)
+
+    @property
+    def headers(self) -> httpx.Headers:
+        raw = self._resp.headers
+        return httpx.Headers(dict(raw.items()) if raw is not None else {})
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._resp, name)
+
+
+class _CurlCffiClient:
+    """Adapter httpx-compativel sobre curl_cffi.AsyncSession.
+
+    O curl-cffi usa `allow_redirects` (nao `follow_redirects`) e `close()`
+    (nao `aclose()`). Como o resto do codigo usa a API do httpx, este adapter
+    traduz os nomes e normaliza as respostas. Mantem `headers` espelhado na
+    sessao subjacente.
+    """
+
+    def __init__(self, session: Any) -> None:
+        self._session = session
+
+    @property
+    def headers(self) -> Any:
+        return self._session.headers
+
+    async def request(self, method: str, url: str, **kwargs: Any) -> _CurlCffiResponse:
+        allow = kwargs.pop("follow_redirects", False)
+        kwargs.setdefault("allow_redirects", allow)
+        resp = await self._session.request(method, url, **kwargs)
+        return _CurlCffiResponse(resp)
+
+    async def get(self, url: str, **kwargs: Any) -> _CurlCffiResponse:
+        return await self.request("GET", url, **kwargs)
+
+    async def post(self, url: str, **kwargs: Any) -> _CurlCffiResponse:
+        return await self.request("POST", url, **kwargs)
+
+    async def put(self, url: str, **kwargs: Any) -> _CurlCffiResponse:
+        return await self.request("PUT", url, **kwargs)
+
+    async def options(self, url: str, **kwargs: Any) -> _CurlCffiResponse:
+        return await self.request("OPTIONS", url, **kwargs)
+
+    async def head(self, url: str, **kwargs: Any) -> _CurlCffiResponse:
+        return await self.request("HEAD", url, **kwargs)
+
+    async def aclose(self) -> None:
+        await self._session.close()
 
 
 def create_async_client(
@@ -558,7 +641,7 @@ def create_async_client(
             effective_ua = random_user_agent()
         if ctx.tor:
             tor = TorManager()
-            effective_proxy = tor._proxy_url
+            effective_proxy = tor.proxy_url
             logger.debug("stealth: tor proxy=%s", effective_proxy)
 
     headers = {"User-Agent": effective_ua}
@@ -573,8 +656,9 @@ def create_async_client(
                 timeout=timeout,
                 proxy=effective_proxy,
             )
-            session.headers.update(headers)
-            return session
+            client = _CurlCffiClient(session)
+            client.headers.update(headers)
+            return client
         except ImportError:
             logger.debug("curl-cffi nao instalado, usando httpx padrao")
         except Exception as error:
@@ -597,11 +681,13 @@ def _extract_raw_headers(response: httpx.Response) -> dict[str, list[str]]:
     return raw
 
 
-_fetch_cache: dict[
+_fetch_cache: OrderedDict[
     tuple[Any, ...],
     tuple[float, tuple[int, Mapping[str, str], bytes, dict[str, list[str]]]],
-] = {}
+] = OrderedDict()
 _FETCH_CACHE_TTL = 60.0
+#: Limite de entradas do cache — evita crescimento sem limite em scans longos.
+_FETCH_CACHE_MAX = 5000
 
 
 async def fetch(
@@ -626,14 +712,25 @@ async def fetch(
     raw_headers e um dict mapeando nomes de headers (lowercase) para listas de
     todos os valores, preservando headers duplicados como Set-Cookie.
     """
-    cache_key = (method, url, frozenset((headers or {}).items()), content)
+    ctx = get_stealth_ctx()
+    # A chave inclui id(client) e o contexto stealth: impede que uma resposta
+    # obtida via Tor/proxy/impersonate seja servida a um cliente direto e
+    # vice-versa (evita vazamento de IP).
+    cache_key = (
+        method,
+        url,
+        frozenset((headers or {}).items()),
+        content,
+        id(client),
+        ctx,
+    )
     now = time.monotonic()
     cached = _fetch_cache.get(cache_key)
     if cached is not None and now - cached[0] < _FETCH_CACHE_TTL:
+        _fetch_cache.move_to_end(cache_key)
         logger.debug("cache hit %s %s", method, url)
         return cached[1]
     last_error: httpx.RequestError = httpx.RequestError("unknown error")
-    ctx = get_stealth_ctx()
     for attempt in range(max_retries):
         effective_url = url
         effective_headers = dict(headers) if headers else None
@@ -697,6 +794,8 @@ async def fetch(
                 _extract_raw_headers(response),
             )
             _fetch_cache[cache_key] = (time.monotonic(), result)
+            while len(_fetch_cache) > _FETCH_CACHE_MAX:
+                _fetch_cache.popitem(last=False)
             return result
         except httpx.RequestError as error:
             logger.debug("error %s: %s", url, error)
@@ -768,6 +867,10 @@ def parse_int_range(
                 start, end = int(start_raw), int(end_raw)
                 if start > end:
                     start, end = end, start
+                if end - start + 1 > _MAX_RANGE_ITEMS:
+                    raise argparse.ArgumentTypeError(
+                        f"{error_label} range grande demais: {part!r}"
+                    )
                 result.update(range(start, end + 1))
             else:
                 result.add(int(part))
@@ -775,6 +878,11 @@ def parse_int_range(
             raise argparse.ArgumentTypeError(
                 f"{error_label} invalido: {part!r}"
             ) from None
+
+    if len(result) > _MAX_RANGE_ITEMS:
+        raise argparse.ArgumentTypeError(
+            f"{error_label}s em excesso (max {_MAX_RANGE_ITEMS})"
+        )
 
     invalid = [v for v in result if v < min_val or v > max_val]
     if invalid:
@@ -784,6 +892,10 @@ def parse_int_range(
     if not result:
         raise argparse.ArgumentTypeError(f"informe pelo menos um {error_label}")
     return sorted(result)
+
+
+#: Limite de itens expandidos por parse_int_range (evita estouro de memoria).
+_MAX_RANGE_ITEMS = 65536
 
 
 def extract_title(text: str) -> str:
@@ -833,6 +945,9 @@ def print_table(
         alignments: Alinhamento por coluna ('left' ou 'right').
         row_styles_fn: Funcao que recebe uma row e retorna estilos por coluna.
     """
+    stdout: Any = sys.stdout
+    with contextlib.suppress(AttributeError, ValueError):
+        stdout.reconfigure(encoding="utf-8")
     if not rows:
         print(color(empty_message, Cyber.RED))
         return
@@ -901,6 +1016,9 @@ def write_output(
 
 def print_json(data: Any) -> None:
     """Imprime dados como JSON formatado no stdout (para piping com jq/grep)."""
+    stdout: Any = sys.stdout
+    with contextlib.suppress(AttributeError, ValueError):
+        stdout.reconfigure(encoding="utf-8")
     json.dump(data, sys.stdout, indent=2, ensure_ascii=False, default=str)
     sys.stdout.write("\n")
 
@@ -1226,14 +1344,14 @@ def add_stealth_args(
             "--fragment",
             type=int,
             default=0,
-            help="Fragmenta headers HTTP em chunks (evasao L7, raw socket). Valor: tamanho do chunk.",
+            help="Fragmenta headers HTTP em chunks (evasao L7, raw socket; nao integrado). Valor: tamanho do chunk.",
         )
     if "fragment-tcp" in compat:
         parser.add_argument(
             "--fragment-tcp",
             type=int,
             default=0,
-            help="Fragmenta payload TCP em chunks (evasao L4, raw socket). Valor: tamanho do chunk.",
+            help="Fragmenta payload TCP em chunks (evasao L4, raw socket; nao integrado). Valor: tamanho do chunk.",
         )
     if "tor" in compat:
         parser.add_argument(
@@ -1250,13 +1368,13 @@ def add_stealth_args(
             "--pad-headers",
             type=int,
             default=0,
-            help="Adiciona headers padding (minimo total). Valor: count minimo.",
+            help="Adiciona headers padding (minimo total; nao integrado). Valor: count minimo.",
         )
     if "src-port-random" in compat:
         parser.add_argument(
             "--src-port-random",
             action="store_true",
-            help="Randomiza porta de origem TCP (raw socket).",
+            help="Randomiza porta de origem TCP (raw socket; nao integrado).",
         )
     if "rate-limit" in compat:
         parser.add_argument(
@@ -1433,13 +1551,13 @@ def resolve_target_urls(args: argparse.Namespace) -> list[str]:
     urls: list[str] = []
     target_list = getattr(args, "target_list", None)
     if target_list:
-        urls = read_target_lines(target_list)
+        urls.extend(read_target_lines(target_list))
     url = getattr(args, "url", None)
     if url:
         urls.append(url)
     if not urls:
         raise ValueError("informe uma URL alvo ou use -l/--list")
-    return urls
+    return list(dict.fromkeys(urls))
 
 
 def workspace_timestamp() -> str:

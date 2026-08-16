@@ -292,7 +292,7 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
     (
         "null_terminate",
         "X-HTTP-Method-Override",
-        "DELETE\x00",
+        "DELETE%00",
         ["method", "override"],
     ),
     (
@@ -813,7 +813,7 @@ async def _test_bypass(
                     )
                 )
 
-            except httpx.RequestError as e:
+            except Exception as e:
                 results.append(
                     OverrideAttempt(
                         technique=technique,

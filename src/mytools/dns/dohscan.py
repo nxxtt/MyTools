@@ -33,22 +33,16 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
 
 logger = logging.getLogger("mytools.dohscan")
-
-_BANNER_LINES: str = (
-    "  ____   ___  ____  _____    _    _   _\n"
-    " |  _ \\ / _ \\|  _ \\| ____|  / \\  | \\ | |\n"
-    " | | | | | | | | | |  _|   / _ \\ |  \\| |\n"
-    " | |_| | |_| | |_| | |___ / ___ \\| |\\  |\n"
-    " |____/ \\___/|____/|_____/_/   \\_\\_| \\_|\n"
-)
 
 _DOH_PROVIDERS: dict[str, dict[str, Any]] = {
     "google": {
@@ -71,18 +65,6 @@ _DOH_PROVIDERS: dict[str, dict[str, Any]] = {
         "url": "https://dns.adguard.com/dns-query",
         "method": "GET",
     },
-}
-
-_RDTYPE_MAP: dict[str, int] = {
-    "A": dns.rdatatype.A,
-    "AAAA": dns.rdatatype.AAAA,
-    "MX": dns.rdatatype.MX,
-    "NS": dns.rdatatype.NS,
-    "TXT": dns.rdatatype.TXT,
-    "CNAME": dns.rdatatype.CNAME,
-    "SOA": dns.rdatatype.SOA,
-    "SRV": dns.rdatatype.SRV,
-    "CAA": dns.rdatatype.CAA,
 }
 
 
@@ -181,28 +163,25 @@ def _traditional_resolve(
 
 
 async def _doh_query_post(
+    client: httpx.AsyncClient,
     url: str,
     wire_query: bytes,
-    timeout: float,
 ) -> tuple[bytes, int, str]:
     headers = {
         "Content-Type": "application/dns-message",
         "Accept": "application/dns-message",
     }
     try:
-        async with httpx.AsyncClient(
-            http2=True, timeout=timeout, verify=True
-        ) as client:
-            resp = await client.post(url, content=wire_query, headers=headers)
-            if resp.status_code == 200 and resp.headers.get(
-                "content-type", ""
-            ).startswith("application/dns-message"):
-                return resp.content, resp.status_code, ""
-            return (
-                b"",
-                resp.status_code,
-                f"unexpected_content_type: {resp.headers.get('content-type', 'none')}",
-            )
+        resp = await client.post(url, content=wire_query, headers=headers)
+        if resp.status_code == 200 and resp.headers.get("content-type", "").startswith(
+            "application/dns-message"
+        ):
+            return resp.content, resp.status_code, ""
+        return (
+            b"",
+            resp.status_code,
+            f"unexpected_content_type: {resp.headers.get('content-type', 'none')}",
+        )
     except httpx.TimeoutException:
         return b"", 0, "timeout"
     except httpx.ConnectError as e:
@@ -212,27 +191,24 @@ async def _doh_query_post(
 
 
 async def _doh_query_get(
+    client: httpx.AsyncClient,
     url: str,
     wire_query: bytes,
-    timeout: float,
 ) -> tuple[bytes, int, str]:
     b64 = base64.urlsafe_b64encode(wire_query).rstrip(b"=").decode("ascii")
     full_url = f"{url}?dns={b64}"
     headers = {"Accept": "application/dns-message"}
     try:
-        async with httpx.AsyncClient(
-            http2=True, timeout=timeout, verify=True
-        ) as client:
-            resp = await client.get(full_url, headers=headers)
-            if resp.status_code == 200 and resp.headers.get(
-                "content-type", ""
-            ).startswith("application/dns-message"):
-                return resp.content, resp.status_code, ""
-            return (
-                b"",
-                resp.status_code,
-                f"unexpected_content_type: {resp.headers.get('content-type', 'none')}",
-            )
+        resp = await client.get(full_url, headers=headers)
+        if resp.status_code == 200 and resp.headers.get("content-type", "").startswith(
+            "application/dns-message"
+        ):
+            return resp.content, resp.status_code, ""
+        return (
+            b"",
+            resp.status_code,
+            f"unexpected_content_type: {resp.headers.get('content-type', 'none')}",
+        )
     except httpx.TimeoutException:
         return b"", 0, "timeout"
     except httpx.ConnectError as e:
@@ -263,6 +239,7 @@ def _compare_records(
 
 
 async def _test_provider(
+    client: httpx.AsyncClient,
     provider_key: str,
     provider: dict[str, Any],
     wire_query: bytes,
@@ -272,11 +249,9 @@ async def _test_provider(
 ) -> DohProviderResult:
     start = time.monotonic()
     if provider["method"] == "POST":
-        data, status, error = await _doh_query_post(
-            provider["url"], wire_query, timeout
-        )
+        data, status, error = await _doh_query_post(client, provider["url"], wire_query)
     else:
-        data, status, error = await _doh_query_get(provider["url"], wire_query, timeout)
+        data, status, error = await _doh_query_get(client, provider["url"], wire_query)
     elapsed = (time.monotonic() - start) * 1000
     records = _parse_dns_response(data) if data else []
     return DohProviderResult(
@@ -296,6 +271,7 @@ async def scan_doh(
     rdtype: str = "A",
     providers: list[str] | None = None,
     timeout: float = 5.0,
+    verify: bool = True,
 ) -> DohScanResult:
     selected = providers or list(_DOH_PROVIDERS.keys())
     wire_query = _build_dns_query(domain, rdtype)
@@ -303,14 +279,18 @@ async def scan_doh(
         domain, rdtype, timeout
     )
     provider_results: list[DohProviderResult] = []
-    for pk in selected:
-        prov = _DOH_PROVIDERS.get(pk)
-        if prov is None:
-            continue
-        result = await _test_provider(pk, prov, wire_query, domain, rdtype, timeout)
-        provider_results.append(result)
+    async with httpx.AsyncClient(http2=True, timeout=timeout, verify=verify) as client:
+        for pk in selected:
+            prov = _DOH_PROVIDERS.get(pk)
+            if prov is None:
+                continue
+            result = await _test_provider(
+                client, pk, prov, wire_query, domain, rdtype, timeout
+            )
+            provider_results.append(result)
     all_filtering = False
     all_inconsistencies: list[str] = []
+    trad_blocked = not trad_records
     for pr in provider_results:
         if pr.records and trad_records:
             filt, incons = _compare_records(pr.records, trad_records)
@@ -321,6 +301,10 @@ async def scan_doh(
     doh_supported = len(successful) > 0
     if trad_error == "nxdomain":
         overall = "nxdomain"
+    elif trad_blocked and doh_supported:
+        all_filtering = True
+        all_inconsistencies.append("traditional_dns_blocked_but_doh_resolves")
+        overall = "filtering_detected"
     elif not doh_supported and trad_records:
         overall = "no_doh_support"
     elif all_filtering:
@@ -416,7 +400,8 @@ async def _run_scan(args: argparse.Namespace) -> DohScanResult:
     rdtype = str(getattr(args, "type", "A"))
     providers = getattr(args, "providers", None)
     timeout = float(getattr(args, "timeout", 5.0))
-    return await scan_doh(domain, rdtype, providers, timeout)
+    verify = bool(getattr(args, "verify", True))
+    return await scan_doh(domain, rdtype, providers, timeout, verify)
 
 
 def banner() -> None:
@@ -445,13 +430,21 @@ def main() -> int:
 
 
 def _safe_run(args: argparse.Namespace) -> int:
-    result = safe_asyncio_run(_run_scan(args))
     quiet = init_scanner(args)
+    result = safe_asyncio_run(_run_scan(args))
     if not quiet:
         print_results(result)
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
     if getattr(args, "output", None):
-        write_output(args.output, [asdict(result)])
-    return 0 if result.overall_status in ("resolved", "nxdomain") else 1
+        write_output(args.output, [asdict(result)], quiet=quiet)
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{result.domain}.json", [asdict(result)], quiet=quiet
+        )
+    return 0
 
 
 if __name__ == "__main__":

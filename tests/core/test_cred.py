@@ -320,6 +320,13 @@ class TestRunOnceCommands:
             assert run_once(Namespace(command="get", name="missing")) == 1
         assert any("nao encontrada" in r.message for r in caplog.records)
 
+    @patch("mytools.core.cred._get_keyring")
+    def test_run_once_get_keyring_unavailable(self, mock_kr, caplog):
+        mock_kr.return_value = None
+        with caplog.at_level("ERROR", logger="mytools.cred"):
+            assert run_once(Namespace(command="get", name="token")) == 1
+        assert any("keyring nao disponivel" in r.message for r in caplog.records)
+
 
 class TestMainShell:
     def test_main_no_args_enters_shell(self):
@@ -355,3 +362,53 @@ class TestMainGuard:
         monkeypatch.setattr("mytools.core.utils.run_interactive_shell", _raise)
         with patch("sys.argv", ["mytools-cred"]), pytest.raises(SystemExit):
             runpy.run_module("mytools.core.cred", run_name="__main__")
+
+
+class TestNameValidation:
+    @patch("mytools.core.cred._get_keyring")
+    def test_set_rejects_reserved_registry(self, mock_kr):
+        mock_kr.return_value = MagicMock()
+        assert set_credential("__registry__", "x") is False
+        mock_kr.return_value.set_password.assert_not_called()
+
+    @patch("mytools.core.cred._get_keyring")
+    def test_set_rejects_name_with_newline(self, mock_kr):
+        mock_kr.return_value = MagicMock()
+        assert set_credential("a\nb", "x") is False
+        mock_kr.return_value.set_password.assert_not_called()
+
+    @patch("mytools.core.cred._get_keyring")
+    def test_set_rejects_invalid_chars(self, mock_kr):
+        mock_kr.return_value = MagicMock()
+        assert set_credential("nome invalido!", "x") is False
+
+    @patch("mytools.core.cred._get_keyring")
+    def test_delete_rejects_reserved_registry(self, mock_kr):
+        mock_kr.return_value = MagicMock()
+        assert delete_credential("__registry__") is False
+
+
+class TestKeyringBackendErrors:
+    @patch("mytools.core.cred._get_keyring")
+    def test_get_swallows_backend_error(self, mock_kr):
+        kr = MagicMock()
+        kr.get_password.side_effect = RuntimeError("backend bloqueado")
+        mock_kr.return_value = kr
+        assert get_credential("tok") is None
+
+    @patch("mytools.core.cred._get_keyring")
+    @patch("mytools.core.cred._update_registry")
+    def test_set_swallows_backend_error(self, mock_reg, mock_kr):
+        kr = MagicMock()
+        kr.set_password.side_effect = RuntimeError("lock")
+        mock_kr.return_value = kr
+        assert set_credential("tok", "v") is False
+        mock_reg.assert_not_called()
+
+    @patch("mytools.core.cred._get_keyring")
+    def test_delete_swallows_backend_error(self, mock_kr):
+        kr = MagicMock()
+        kr.get_password.return_value = "v"
+        kr.delete_password.side_effect = RuntimeError("lock")
+        mock_kr.return_value = kr
+        assert delete_credential("tok") is False

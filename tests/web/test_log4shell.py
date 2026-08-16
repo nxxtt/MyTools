@@ -164,12 +164,27 @@ class TestBaseline:
 class TestJndiBasic:
     @pytest.mark.asyncio
     async def test_vulnerable_jndi(self) -> None:
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"log4j error JNDI lookup failed"
-        mock_resp.headers = {"content-type": "text/html"}
+        baseline_resp = MagicMock()
+        baseline_resp.status_code = 200
+        baseline_resp.content = b"just a plain page"
+        baseline_resp.headers = {"content-type": "text/html"}
+
+        test_resp = MagicMock()
+        test_resp.status_code = 200
+        test_resp.content = b"log4j error JNDI lookup failed"
+        test_resp.headers = {"content-type": "text/html"}
+
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.get = AsyncMock(
+            side_effect=[
+                baseline_resp,
+                test_resp,
+                test_resp,
+                test_resp,
+                test_resp,
+                test_resp,
+            ]
+        )
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
@@ -177,6 +192,39 @@ class TestJndiBasic:
         assert len(results) == 5
         vuln = [r for r in results if r.vulnerable]
         assert len(vuln) > 0
+
+    @pytest.mark.asyncio
+    async def test_keyword_present_in_baseline_not_counted(self) -> None:
+        """Termos log4j/jndi ja presentes no baseline nao viram evidencia."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"log4j documentation page with jndi lookup"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_jndi_basic(mock_client, "https://test.com")
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_baseline_passed_avoids_redundant_request(self) -> None:
+        """Baseline computado no caller nao gera request extra."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_jndi_basic(
+            mock_client, "https://test.com", (200, 2, {}, b"ok")
+        )
+        assert len(results) == 5
+        assert mock_client.get.await_count == 5
 
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
@@ -238,6 +286,49 @@ class TestJndiObfuscated:
 
         results = await _test_jndi_obfuscated(mock_client, "https://test.com")
         assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_envvar_payloads_embed_token(self) -> None:
+        """ldap_envvar/ldap_proplookup precisam conter o token para deteccao."""
+
+        async def _reflect(_url: str, **kwargs: object) -> MagicMock:
+            payload = str(kwargs["headers"]["User-Agent"])  # type: ignore[index]
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.content = payload.encode()
+            resp.headers = {"content-type": "text/html"}
+            return resp
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=_reflect)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_jndi_obfuscated(mock_client, "https://test.com")
+        assert len(results) == 5
+        for r in results:
+            assert _get_token() in r.payload, f"{r.technique} nao embute o token"
+            assert r.vulnerable, f"{r.technique} nao foi detectado por reflexao"
+
+    @pytest.mark.asyncio
+    async def test_reflected_payload_detected(self) -> None:
+        """Qualquer payload ofuscado refletido (com token) e vulneravel."""
+
+        async def _reflect(_url: str, **kwargs: object) -> MagicMock:
+            payload = str(kwargs["headers"]["User-Agent"])  # type: ignore[index]
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.content = payload.encode()
+            resp.headers = {"content-type": "text/html"}
+            return resp
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=_reflect)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_jndi_obfuscated(mock_client, "https://test.com")
+        assert all(r.vulnerable for r in results)
 
 
 # ─── Test Header Injection ───────────────────────────────────────────────────
@@ -525,6 +616,33 @@ class TestRunOnce:
                 == ["jndi_basic"]
             )
 
+    def test_run_once_forwards_proxy(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            ["https://test.com", "--proxy", "http://127.0.0.1:8080"]
+        )
+        with patch(
+            "mytools.web.log4shell.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            run_once(args)
+        assert (
+            mock_scan.await_args.kwargs["proxy"]  # type: ignore[union-attr]
+            == "http://127.0.0.1:8080"
+        )
+
+    def test_run_once_forwards_json_output(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["https://test.com", "--json"])
+        with patch(
+            "mytools.web.log4shell.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            run_once(args)
+        assert mock_scan.await_args.kwargs["json_output"]  # type: ignore[union-attr]
+
 
 # ─── Banner Art ──────────────────────────────────────────────────────────────
 class TestBannerArt:
@@ -574,6 +692,23 @@ class TestRunScan:
             output_file=None,
         )
         assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_json_output(self) -> None:
+        respx.route(method="GET", url__startswith="https://test.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.log4shell.print_json") as mock_print:
+            result = await run_scan(
+                target="https://test.com",
+                categories=["jndi_basic"],
+                timeout=10,
+                output_file=None,
+                json_output=True,
+            )
+        assert result == 0
+        mock_print.assert_called_once()
 
 
 # ─── Main Guard ──────────────────────────────────────────────────────────────

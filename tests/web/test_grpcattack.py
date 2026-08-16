@@ -390,6 +390,98 @@ class TestDiscoverReflection:
             result = await _discover_reflection("host", 50051, False, 5.0)
         assert result["available"] is False
         assert result["services"] == []
+        fake_channel.close.assert_awaited_once()
+
+
+class TestExhaustionEvidence:
+    @pytest.mark.asyncio
+    async def test_server_streaming_healthy_server_not_vulnerable(self) -> None:
+        refl: dict[str, Any] = {"services": [], "files": []}
+        with patch("mytools.web.grpcattack._try_call", return_value=(True, "ok")):
+            results = await _test_server_streaming(
+                "host", 50051, "", 5.0, False, "grpc://target.com:50051", refl
+            )
+        assert len(results) == 4
+        assert all(a.vulnerable is False for a in results)
+
+    @pytest.mark.asyncio
+    async def test_server_streaming_resource_exhausted_is_vulnerable(self) -> None:
+        refl: dict[str, Any] = {"services": [], "files": []}
+        with patch(
+            "mytools.web.grpcattack._try_call",
+            return_value=(False, "RESOURCE_EXHAUSTED"),
+        ):
+            results = await _test_server_streaming(
+                "host", 50051, "", 5.0, False, "grpc://target.com:50051", refl
+            )
+        assert len(results) == 4
+        assert results[0].vulnerable is True
+        assert "evidence=" in results[0].details
+
+    @pytest.mark.asyncio
+    async def test_client_streaming_healthy_not_vulnerable(self) -> None:
+        refl: dict[str, Any] = {"services": [], "files": []}
+        with patch("mytools.web.grpcattack._try_call", return_value=(True, "ok")):
+            results = await _test_client_streaming(
+                "host", 50051, "", 5.0, False, "grpc://target.com:50051", refl
+            )
+        assert all(a.vulnerable is False for a in results)
+
+    @pytest.mark.asyncio
+    async def test_client_streaming_resource_exhausted_is_vulnerable(self) -> None:
+        refl: dict[str, Any] = {"services": [], "files": []}
+        with patch(
+            "mytools.web.grpcattack._try_call",
+            return_value=(False, "RESOURCE_EXHAUSTED"),
+        ):
+            results = await _test_client_streaming(
+                "host", 50051, "", 5.0, False, "grpc://target.com:50051", refl
+            )
+        assert len(results) == 3
+        assert results[0].vulnerable is True
+        assert "evidence=" in results[0].details
+        assert results[2].vulnerable is True
+        assert "evidence=" in results[2].details
+
+    @pytest.mark.asyncio
+    async def test_bidirectional_resource_exhausted_is_vulnerable(self) -> None:
+        refl: dict[str, Any] = {"services": [], "files": []}
+        with patch(
+            "mytools.web.grpcattack._try_call",
+            return_value=(False, "RESOURCE_EXHAUSTED"),
+        ):
+            results = await _test_bidirectional(
+                "host", 50051, "", 5.0, False, "grpc://target.com:50051", refl
+            )
+        assert len(results) == 3
+        assert results[0].vulnerable is True
+        assert "evidence=" in results[0].details
+        assert results[1].vulnerable is True
+        assert "evidence=" in results[1].details
+
+    @pytest.mark.asyncio
+    async def test_protobuf_acceptance_is_not_vulnerable(self) -> None:
+        refl: dict[str, Any] = {"services": [], "files": []}
+        with patch("mytools.web.grpcattack._try_call", return_value=(True, "ok")):
+            results = await _test_protobuf(
+                "host", 50051, "", 5.0, False, "grpc://target.com:50051", refl
+            )
+        assert all(a.vulnerable is False for a in results)
+
+    @pytest.mark.asyncio
+    async def test_grpc_web_200_without_acao_not_vulnerable(self) -> None:
+        refl: dict[str, Any] = {"services": [], "files": []}
+        fake = AsyncMock()
+        fake.options = AsyncMock(return_value=httpx.Response(200))
+        fake.post = AsyncMock(return_value=httpx.Response(200))
+        with patch("mytools.web.grpcattack.httpx.AsyncClient", return_value=fake):
+            results = await _test_grpc_web(
+                "host", 50051, "", 5.0, False, "grpc://target.com:50051", refl
+            )
+        os_ = [a for a in results if a.technique == "web_origin_spoof"]
+        pr = [a for a in results if a.technique == "web_proxy_abuse"]
+        assert os_ and os_[0].vulnerable is False
+        assert pr and pr[0].vulnerable is False
 
 
 class TestTryCall:

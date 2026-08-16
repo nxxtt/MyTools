@@ -252,12 +252,16 @@ def _make_attempt(
     )
 
 
+_K8S_PUBLIC_PATHS = frozenset({"/version", "/healthz", "/readyz", "/livez"})
+
+
 async def _test_api_enumeration(
     url: str,
     timeout: float,
     client: httpx.AsyncClient,
 ) -> K8sAttackAttempt:
     accessible_paths: list[str] = []
+    public_paths: list[str] = []
     api_versions: list[str] = []
     last_code = 0
 
@@ -268,12 +272,13 @@ async def _test_api_enumeration(
                 resp = await client.get(full_url, headers=auth_headers)
                 last_code = resp.status_code
                 if resp.status_code == 200:
+                    if endpoint_info["path"] in _K8S_PUBLIC_PATHS:
+                        public_paths.append(endpoint_info["path"])
+                        continue
                     accessible_paths.append(endpoint_info["path"])
                     ver = _extract_api_version(resp.text)
                     if ver:
                         api_versions.append(ver)
-                    if _detect_k8s(resp.text, dict(resp.headers)):
-                        pass
                 elif resp.status_code in (401, 403):
                     accessible_paths.append(f"{endpoint_info['path']} (auth_required)")
             except Exception:
@@ -286,6 +291,8 @@ async def _test_api_enumeration(
         if unique_paths
         else "No accessible paths"
     )
+    if public_paths:
+        details += f" (public endpoints only: {len(set(public_paths))})"
     if api_versions:
         unique_versions = list(set(api_versions))
         details += f" (versions: {', '.join(unique_versions[:3])})"

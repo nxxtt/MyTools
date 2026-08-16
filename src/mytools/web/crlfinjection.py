@@ -130,6 +130,11 @@ def _load_split_payloads() -> list[tuple[str, str]]:
 _SPLIT_PAYLOADS = _load_split_payloads()
 
 
+def _header_safe(value: str) -> str:
+    """Percent-encode CR/LF para valores de header (httpx rejeita bytes raw)."""
+    return value.replace("\r", "%0d").replace("\n", "%0a")
+
+
 _ENCODED_PAYLOADS_DEFAULT: list[tuple[str, str]] = [
     ("percent_0d0a", "%0d%0aX-Injected: test"),
     ("percent_0a", "%0aX-Injected: test"),
@@ -420,7 +425,7 @@ async def _test_header_crlf(
             try:
                 resp = await client.get(
                     base_url,
-                    headers={header: f"test{payload}"},
+                    headers={header: f"test{_header_safe(payload)}"},
                     follow_redirects=False,
                 )
 
@@ -575,7 +580,7 @@ async def _test_split(
         try:
             resp = await client.get(
                 base_url,
-                headers={"User-Agent": f"test{split_payload}"},
+                headers={"User-Agent": f"test{_header_safe(split_payload)}"},
                 follow_redirects=False,
             )
 
@@ -649,7 +654,7 @@ async def _test_bypass(
             try:
                 resp = await client.get(
                     base_url,
-                    headers={header: f"test{payload}"},
+                    headers={header: f"test{_header_safe(payload)}"},
                     follow_redirects=False,
                 )
 
@@ -816,23 +821,29 @@ async def run_scan(
 
     all_attempts: list[CRLFAttempt] = []
 
+    sem = asyncio.Semaphore(concurrency)
+
+    async def _limited(coro: Awaitable[list[CRLFAttempt]]) -> list[CRLFAttempt]:
+        async with sem:
+            return await coro
+
     tasks: list[Awaitable[list[CRLFAttempt]]] = []
 
     for cat in run_categories:
         if cat == "param":
-            tasks.append(_test_param_crlf(client, target, baseline))
+            tasks.append(_limited(_test_param_crlf(client, target, baseline)))
 
         elif cat == "header":
-            tasks.append(_test_header_crlf(client, target, baseline))
+            tasks.append(_limited(_test_header_crlf(client, target, baseline)))
 
         elif cat == "path":
-            tasks.append(_test_path_crlf(client, target, baseline))
+            tasks.append(_limited(_test_path_crlf(client, target, baseline)))
 
         elif cat == "split":
-            tasks.append(_test_split(client, target, baseline))
+            tasks.append(_limited(_test_split(client, target, baseline)))
 
         elif cat == "bypass":
-            tasks.append(_test_bypass(client, target, baseline))
+            tasks.append(_limited(_test_bypass(client, target, baseline)))
 
     if tasks:
         results_list = await asyncio.gather(*tasks, return_exceptions=True)

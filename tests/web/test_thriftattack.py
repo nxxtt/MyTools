@@ -476,7 +476,7 @@ class TestBinaryProtocolBranches:
         with patch("mytools.web.thriftattack.make_client", return_value=client):
             results = await _test_binary_protocol("target.com", 9090, 0.1, False)
         ftc = results[0]
-        assert ftc.vulnerable is True
+        assert ftc.vulnerable is False
         assert "Type confusion" in ftc.details
 
     @pytest.mark.asyncio
@@ -519,7 +519,7 @@ class TestBinaryProtocolBranches:
         with patch("mytools.web.thriftattack.make_client", return_value=client):
             results = await _test_binary_protocol("target.com", 9090, 0.1, False)
         bc = results[3]
-        assert bc.vulnerable is True
+        assert bc.vulnerable is False
         assert "Boolean coercion" in bc.details
 
     @pytest.mark.asyncio
@@ -531,6 +531,17 @@ class TestBinaryProtocolBranches:
         bc = results[3]
         assert bc.vulnerable is False
         assert bc.details == "Connection failed"
+
+    @pytest.mark.asyncio
+    async def test_healthy_server_binary_protocol_not_vulnerable(self) -> None:
+        client = MagicMock()
+        with patch("mytools.web.thriftattack.make_client", return_value=client):
+            results = await _test_binary_protocol("target.com", 9090, 0.1, False)
+        assert len(results) == 4
+        assert all(not a.vulnerable for a in results)
+        assert "server robust" in results[0].details
+        assert "server robust" in results[2].details
+        assert "server robust" in results[3].details
 
     @pytest.mark.asyncio
     async def test_unknown_tech_else(self) -> None:
@@ -600,6 +611,26 @@ class TestRunScan:
         assert result.port == 9090
         assert result.protocol_detected == "binary"
         assert (tmp_path / "out.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_result_fields_computed_from_attempts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def tester(*args: Any, **kwargs: Any) -> list[ThriftAttackAttempt]:
+            return [
+                _attempt("service_enumeration", "method_enumeration", vuln=True),
+                _attempt("method_discovery", "method_enumeration", vuln=True),
+            ]
+
+        dispatch: dict[str, Any] = {"method_enumeration": tester}
+        monkeypatch.setattr(thriftattack_module, "_CATEGORY_DISPATCH", dispatch)
+        monkeypatch.setattr(thriftattack_module, "print_results", lambda r: None)
+        result = await run_scan(
+            "thrift://target.com:9090", ["method_enumeration"], 5.0, None
+        )
+        assert result.services_found == 1
+        assert result.methods_found == 1
+        assert result.protocol_detected == "binary"
 
     @pytest.mark.asyncio
     async def test_error_and_secure_default_categories(

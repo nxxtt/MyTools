@@ -18,6 +18,7 @@ from mytools.core.report import (
     _load_json,
     _load_scan_files,
     _normalize,
+    _process,
     _render_html,
     build_parser,
     main,
@@ -84,6 +85,24 @@ class TestDeriveSeverity:
     def test_unknown_severity_high_by_default(self):
         assert _derive_severity("mystery") == "high"
 
+    def test_warning_maps_to_low(self):
+        assert _derive_severity("warning") == "low"
+
+    def test_numeric_cvss_bands(self):
+        assert _derive_severity(9.8) == "critical"
+        assert _derive_severity(7.5) == "high"
+        assert _derive_severity(5.0) == "medium"
+        assert _derive_severity(2.0) == "low"
+        assert _derive_severity(0.0) == "info"
+
+    def test_numeric_float_subclass_raises(self):
+        # float(subclasse) chama __float__; se levantar ValueError, score=0.0.
+        class BadFloat(float):
+            def __float__(self):
+                raise ValueError("no float")
+
+        assert _derive_severity(BadFloat(9.0)) == "info"
+
     def test_unknown_severity_info_when_not_vulnerable(self):
         assert _derive_severity("mystery", vulnerable=False) == "info"
 
@@ -144,7 +163,8 @@ class TestExtractFindings:
             {"url": "http://x.com/admin", "status": 403},
         ]
         findings = _extract_findings(data)
-        assert len(findings) == 2
+        assert len(findings) == 1
+        assert findings[0].fingerprint == "url:http://x.com/admin"
         assert findings[0].severity == "high"
 
     def test_empty(self):
@@ -190,7 +210,7 @@ class TestNormalize:
 
     def test_legacy_list(self):
         path = Path("out/example.com/2026-08-01T10-00-00.json")
-        scan = _normalize(path, [{"url": "http://x/.env", "status": 200}])
+        scan = _normalize(path, [{"url": "http://x/.env", "status": 403}])
         assert scan.host == "example.com"
         assert scan.count == 1
 
@@ -495,13 +515,22 @@ class TestIsVulnerableItem:
         assert _is_vulnerable_item({"confirmed": False}) is False
 
     def test_status_int(self):
-        assert _is_vulnerable_item({"status": 200}) is True
+        assert _is_vulnerable_item({"status": 200}) is False
         assert _is_vulnerable_item({"status": 500}) is False
         assert _is_vulnerable_item({"status": 404}) is False
+        assert _is_vulnerable_item({"status": 302}) is True
+        assert _is_vulnerable_item({"status": 400}) is True
 
     def test_default_true(self):
         assert _is_vulnerable_item({}) is True
         assert _is_vulnerable_item({"status": "x"}) is True
+
+    def test_recon_inventory_item_is_not_vulnerable(self):
+        assert _is_vulnerable_item({"host": "x", "port": 80, "state": "open"}) is False
+        assert _is_vulnerable_item({"ip": "1.2.3.4", "state": "up"}) is False
+
+    def test_recon_item_with_http_signal_is_still_checked(self):
+        assert _is_vulnerable_item({"url": "http://x/a", "port": 80}) is True
 
 
 class TestFindingsFromLegacy:
@@ -510,11 +539,12 @@ class TestFindingsFromLegacy:
             [
                 {"url": "http://x/a", "status": 500},
                 {"url": "http://x/b", "status": 200},
+                {"url": "http://x/c", "status": 403},
             ],
             "legacy",
         )
         assert len(out) == 1
-        assert out[0].title == "http://x/b [200]"
+        assert out[0].title == "http://x/c [403]"
 
 
 class TestExtractFindingsEdges:
@@ -522,7 +552,7 @@ class TestExtractFindingsEdges:
         assert _extract_findings(["a", 1]) == []
 
     def test_iterable_without_technique_uses_legacy(self):
-        data = {"results": [{"url": "http://x/a", "status": 200}]}
+        data = {"results": [{"url": "http://x/a", "status": 403}]}
         findings = _extract_findings(data, "tool")
         assert len(findings) == 1
         assert findings[0].fingerprint == "url:http://x/a"
@@ -544,6 +574,19 @@ class TestExtractFindingsEdges:
         data = {"blocked_techniques": ["waf"]}
         findings = _extract_findings(data, "tool")
         assert len(findings) == 0
+
+    def test_tech_fingerprint_dict_of_lists(self):
+        data = {
+            "https://host/": [
+                {"name": "nginx", "version": "1.20"},
+                {"name": "php", "version": "8.1"},
+            ]
+        }
+        findings = _extract_findings(data, "techfp")
+        assert len(findings) == 2
+        assert findings[0].title == "nginx"
+        assert findings[0].severity == "info"
+        assert findings[0].tool == "techfp"
 
 
 class TestHostFromPath:
@@ -573,6 +616,19 @@ class TestLoadJson:
         p = tmp_path / "ok.json"
         p.write_text('{"a": 1}', encoding="utf-8")
         assert _load_json(p) == {"a": 1}
+
+    def test_invalid_utf8_skipped(self, tmp_path: Path):
+        p = tmp_path / "bad_utf8.json"
+        p.write_bytes(b'\xff\xfe\x00{"a": 1}')
+        assert _load_json(p) is None
+
+
+class TestProcess:
+    def test_missing_file_warns(self, caplog):
+        with caplog.at_level("WARNING", logger="mytools.report"):
+            result = _process(["missing-report.json"], [])
+        assert result == []
+        assert any("nao encontrado" in r.message for r in caplog.records)
 
 
 class TestLoadScanFilesEdges:

@@ -145,14 +145,15 @@ class BaseScanner(ABC):
             return 1
         result = safe_asyncio_run(self.run_scan(**kwargs))
         self.print_results(result)
+        payload = asdict(result)
         output_path = getattr(args, "output", None)
         if output_path:
-            write_output(output_path, asdict(result))
+            write_output(output_path, payload)
         output_dir = getattr(args, "output_dir", None)
         if output_dir:
             ws = workspace_path(output_dir, self._get_target(args) or "")
             ensure_output_dir(str(ws.parent))
-            write_output(str(ws), asdict(result), quiet=True)
+            write_output(str(ws), payload, quiet=True)
         return self._get_return_code(result)
 
     # ------------------------------------------------------------------
@@ -178,8 +179,14 @@ class BaseScanner(ABC):
         return [cat] if cat and cat != "all" else []
 
     def _get_return_code(self, result: object) -> int:
-        """Codigo de saida baseado em overall_status. Sobrescrever se necessario."""
-        return 0 if getattr(result, "overall_status", "error") != "error" else 1
+        """Codigo de saida: 0 somente se o scan reportou 'secure'.
+
+        Qualquer outro status (vuln, erro, unsigned, etc) retorna 1.
+        Convencao do repo: modules retornam 1 quando ha falhas/vulns e
+        0 quando tudo esta seguro. Sobrescrever se necessario.
+        """
+        status = getattr(result, "overall_status", "error")
+        return 1 if status != "secure" else 0
 
     # ------------------------------------------------------------------
     # main()
@@ -193,7 +200,7 @@ class BaseScanner(ABC):
             run_fn=self.run_once,
             has_target=lambda a: bool(self._get_target(a)),
             prompt=self.prompt,
-            description=f"{self.description.split('--')[0].strip()} interativo.",
+            description=f"{self.description.strip()} interativo.",
             example=self._example(),
             contextual_help=self._help(),
         )

@@ -324,7 +324,7 @@ async def _test_discovery_category(
 
             body = resp.text
 
-            vulnerable = resp.status_code in (200, 201, 405)
+            vulnerable = resp.status_code in (200, 201)
 
             results.append(
                 OIDCAttempt(
@@ -399,12 +399,12 @@ async def _test_discovery_category(
                     size_test=0,
                     status_changed=False,
                     size_changed=False,
-                    vulnerable=len(dangerous) > 0,
-                    details=f"scopes perigosos: {', '.join(dangerous)}"
+                    vulnerable=False,
+                    details=f"scopes perigosos (capabilidade, nao exposicao): {', '.join(dangerous)}"
                     if dangerous
                     else f"{len(scopes)} scopes suportados",
                     error="",
-                    exploit="nonce_replay_payload" if len(dangerous) > 0 else "",
+                    exploit="",
                     tool="curl",
                 )
             )

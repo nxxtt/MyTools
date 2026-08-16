@@ -15,6 +15,7 @@ e manipulation de trafego DNS em ambientes corporativos.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import socket
 import ssl
@@ -34,22 +35,16 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
 
 logger = logging.getLogger("mytools.dotscan")
-
-_BANNER_LINES: str = (
-    "  _____ ____   ____     _    _   _\n"
-    " |_   _/ ___| |  _ \\   / \\  | \\ | |\n"
-    "   | || |  _  | | | | / _ \\ |  \\| |\n"
-    "   | || |_| | | |_| |/ ___ \\| |\\  |\n"
-    "   |_| \\____| |____//_/   \\_\\_| \\_|\n"
-)
 
 _DOT_RESOLVERS: dict[str, dict[str, Any]] = {
     "google": {
@@ -67,18 +62,6 @@ _DOT_RESOLVERS: dict[str, dict[str, Any]] = {
         "host": "dns.quad9.net",
         "port": 853,
     },
-}
-
-_RDTYPE_MAP: dict[str, int] = {
-    "A": dns.rdatatype.A,
-    "AAAA": dns.rdatatype.AAAA,
-    "MX": dns.rdatatype.MX,
-    "NS": dns.rdatatype.NS,
-    "TXT": dns.rdatatype.TXT,
-    "CNAME": dns.rdatatype.CNAME,
-    "SOA": dns.rdatatype.SOA,
-    "SRV": dns.rdatatype.SRV,
-    "CAA": dns.rdatatype.CAA,
 }
 
 
@@ -226,6 +209,7 @@ def _dot_query(
     port: int,
     wire_query: bytes,
     timeout: float,
+    verify: bool = True,
 ) -> tuple[bytes, DotTlsInfo, str]:
     tls_info = DotTlsInfo(
         issuer="",
@@ -237,8 +221,14 @@ def _dot_query(
         version="",
     )
     try:
-        ctx = ssl.create_default_context()
-        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        if verify:
+            ctx = ssl.create_default_context()
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        else:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         with (
             socket.create_connection((host, port), timeout=timeout) as sock,
             ctx.wrap_socket(sock, server_hostname=host) as ssock,
@@ -301,11 +291,12 @@ async def scan_dot(
     rdtype: str = "A",
     resolvers: list[str] | None = None,
     timeout: float = 5.0,
+    verify: bool = True,
 ) -> DotScanResult:
     selected = resolvers or list(_DOT_RESOLVERS.keys())
     wire_query = _build_dns_query(domain, rdtype)
-    trad_records, trad_latency, trad_error = _traditional_resolve(
-        domain, rdtype, timeout
+    trad_records, trad_latency, trad_error = await asyncio.to_thread(
+        _traditional_resolve, domain, rdtype, timeout
     )
     resolver_results: list[DotResolverResult] = []
     for rk in selected:
@@ -313,8 +304,8 @@ async def scan_dot(
         if prov is None:
             continue
         start = time.monotonic()
-        data, tls_info, error = _dot_query(
-            prov["host"], prov["port"], wire_query, timeout
+        data, tls_info, error = await asyncio.to_thread(
+            _dot_query, prov["host"], prov["port"], wire_query, timeout, verify
         )
         elapsed = (time.monotonic() - start) * 1000
         records = _parse_dns_response(data) if data else []
@@ -332,6 +323,7 @@ async def scan_dot(
         )
     all_filtering = False
     all_inconsistencies: list[str] = []
+    trad_blocked = not trad_records
     for rr in resolver_results:
         if rr.records and trad_records:
             filt, incons = _compare_records(rr.records, trad_records)
@@ -342,6 +334,10 @@ async def scan_dot(
     dot_supported = len(successful) > 0
     if trad_error == "nxdomain":
         overall = "nxdomain"
+    elif trad_blocked and dot_supported:
+        all_filtering = True
+        all_inconsistencies.append("traditional_dns_blocked_but_dot_resolves")
+        overall = "filtering_detected"
     elif not dot_supported and trad_records:
         overall = "no_dot_support"
     elif all_filtering:
@@ -437,7 +433,8 @@ async def _run_scan(args: argparse.Namespace) -> DotScanResult:
     rdtype = str(getattr(args, "type", "A"))
     resolvers = getattr(args, "resolvers", None)
     timeout = float(getattr(args, "timeout", 5.0))
-    return await scan_dot(domain, rdtype, resolvers, timeout)
+    verify = bool(getattr(args, "verify", True))
+    return await scan_dot(domain, rdtype, resolvers, timeout, verify)
 
 
 def banner() -> None:
@@ -466,13 +463,21 @@ def main() -> int:
 
 
 def _safe_run(args: argparse.Namespace) -> int:
-    result = safe_asyncio_run(_run_scan(args))
     quiet = init_scanner(args)
+    result = safe_asyncio_run(_run_scan(args))
     if not quiet:
         print_results(result)
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
     if getattr(args, "output", None):
-        write_output(args.output, [asdict(result)])
-    return 0 if result.overall_status in ("resolved", "nxdomain") else 1
+        write_output(args.output, [asdict(result)], quiet=quiet)
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{result.domain}.json", [asdict(result)], quiet=quiet
+        )
+    return 0
 
 
 if __name__ == "__main__":

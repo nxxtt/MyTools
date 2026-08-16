@@ -31,7 +31,7 @@ import re
 import time
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
@@ -322,7 +322,7 @@ def _build_inject_url(base_url: str, param: str, payload: str) -> str:
     parsed = urlparse(base_url)
     qs = parse_qs(parsed.query, keep_blank_values=True)
     qs[param] = [payload]
-    new_query = "&".join(f"{k}={v[0]}" for k, v in qs.items())
+    new_query = urlencode(qs, doseq=True)
     return urlunparse(parsed._replace(query=new_query))
 
 
@@ -461,7 +461,7 @@ async def _test_error(
                 continue
 
             status, size, _ = result
-            db = _detect_db_error(baseline[2]) if False else ""
+            db = ""
             body = b""
             inject_url = _build_inject_url(url, param, payload)
             try:

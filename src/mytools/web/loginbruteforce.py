@@ -32,6 +32,7 @@ import asyncio
 import logging
 import sys
 import time
+from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
@@ -804,41 +805,53 @@ async def run_scan(
         lockout_found = False
         weak_credentials: list[str] = []
 
+        sem = asyncio.Semaphore(max(1, concurrency))
+
+        async def _limited(
+            coro: Awaitable[list[BruteForceAttempt]], into: list[BruteForceAttempt]
+        ) -> None:
+            async with sem:
+                into.extend(await coro)
+
+        rl_attempts: list[BruteForceAttempt] = []
+        lo_attempts: list[BruteForceAttempt] = []
+        cr_attempts: list[BruteForceAttempt] = []
+        sp_attempts: list[BruteForceAttempt] = []
+        tasks: list[Awaitable[None]] = []
+
         if category in ("all", "rate_limit"):
             logger.info("Testando rate limiting...")
-            rl_attempts = await _test_rate_limit(
-                client,
-                login_url,
-                username,
-                password,
-                field_map,
-                count=15,
-                delay=delay,
+            tasks.append(
+                _limited(
+                    _test_rate_limit(
+                        client,
+                        login_url,
+                        username,
+                        password,
+                        field_map,
+                        count=15,
+                        delay=delay,
+                    ),
+                    rl_attempts,
+                )
             )
-            all_attempts.extend(rl_attempts)
-            if any(a.rate_limit_detected for a in rl_attempts):
-                rate_limit_found = True
-                issues.append("Rate limiting detectado (bom)")
-            else:
-                issues.append("Rate limiting NAO detectado (ruim)")
 
         if category in ("all", "lockout"):
             logger.info("Testando account lockout...")
-            lo_attempts = await _test_lockout(
-                client,
-                login_url,
-                username,
-                "wrongpassword",
-                field_map,
-                count=8,
-                delay=delay,
+            tasks.append(
+                _limited(
+                    _test_lockout(
+                        client,
+                        login_url,
+                        username,
+                        "wrongpassword",
+                        field_map,
+                        count=8,
+                        delay=delay,
+                    ),
+                    lo_attempts,
+                )
             )
-            all_attempts.extend(lo_attempts)
-            if any(a.lockout_detected for a in lo_attempts):
-                lockout_found = True
-                issues.append("Account lockout detectado (bom)")
-            else:
-                issues.append("Account lockout NAO detectado (ruim)")
 
         if category == "credential":
             print(
@@ -851,17 +864,18 @@ async def run_scan(
             logger.info("Testando credenciais comuns...")
             usernames = _get_usernames()[:5]
             passwords = _get_passwords()[:5]
-            cr_attempts = await _test_credentials(
-                client,
-                login_url,
-                usernames,
-                passwords,
-                field_map,
-                delay=delay,
-            )
-            all_attempts.extend(cr_attempts)
-            weak_credentials.extend(
-                f"{a.username}:{a.payload}" for a in cr_attempts if a.login_success
+            tasks.append(
+                _limited(
+                    _test_credentials(
+                        client,
+                        login_url,
+                        usernames,
+                        passwords,
+                        field_map,
+                        delay=delay,
+                    ),
+                    cr_attempts,
+                )
             )
 
         if category == "spray":
@@ -875,18 +889,43 @@ async def run_scan(
             logger.info("Testando password spray...")
             usernames = _get_usernames()[:10]
             spray_password = password if password != "password" else "password"
-            sp_attempts = await _test_password_spray(
-                client,
-                login_url,
-                usernames,
-                spray_password,
-                field_map,
-                delay=delay,
+            tasks.append(
+                _limited(
+                    _test_password_spray(
+                        client,
+                        login_url,
+                        usernames,
+                        spray_password,
+                        field_map,
+                        delay=delay,
+                    ),
+                    sp_attempts,
+                )
             )
-            all_attempts.extend(sp_attempts)
-            weak_credentials.extend(
-                f"{a.username}:{a.payload}" for a in sp_attempts if a.login_success
-            )
+
+        await asyncio.gather(*tasks)
+
+        all_attempts.extend(rl_attempts)
+        all_attempts.extend(lo_attempts)
+        all_attempts.extend(cr_attempts)
+        all_attempts.extend(sp_attempts)
+        weak_credentials = [
+            f"{a.username}:{a.payload}" for a in all_attempts if a.login_success
+        ]
+
+        if category in ("all", "rate_limit"):
+            if any(a.rate_limit_detected for a in rl_attempts):
+                rate_limit_found = True
+                issues.append("Rate limiting detectado (bom)")
+            else:
+                issues.append("Rate limiting NAO detectado (ruim)")
+
+        if category in ("all", "lockout"):
+            if any(a.lockout_detected for a in lo_attempts):
+                lockout_found = True
+                issues.append("Account lockout detectado (bom)")
+            else:
+                issues.append("Account lockout NAO detectado (ruim)")
 
         has_vulnerable = any(a.vulnerable for a in all_attempts)
         overall = "vulnerable" if has_vulnerable else "secure"
@@ -1048,7 +1087,7 @@ def run_once(args: argparse.Namespace) -> int:
     if getattr(args, "output", None):
         write_output(args.output, asdict(result))
 
-    return 0 if result.overall_status != "error" else 1
+    return 1 if result.overall_status != "secure" else 0
 
 
 # ---------------------------------------------------------------------------

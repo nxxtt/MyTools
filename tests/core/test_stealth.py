@@ -220,72 +220,41 @@ class TestTorManager:
 
     @pytest.mark.asyncio
     async def test_new_circuit_success(self, monkeypatch):
-        class _FakeSock:
-            def __init__(self, *args):
-                self.responses = [b"250 OK", b"250 OK"]
-
-            def settimeout(self, t):
-                pass
-
-            def connect(self, addr):
-                pass
-
-            def send(self, data):
-                return len(data)
-
-            def recv(self, size):
-                return self.responses.pop(0)
-
-            def close(self):
-                pass
-
-        fake_socket = MagicMock()
-        fake_socket.AF_INET = 1
-        fake_socket.SOCK_STREAM = 2
-        fake_socket.socket.return_value = _FakeSock()
-        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+        reader = AsyncMock()
+        reader.read.side_effect = [b"250 OK\r\n", b"250 OK\r\n"]
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        monkeypatch.setattr(
+            "mytools.core.stealth.asyncio.open_connection",
+            AsyncMock(return_value=(reader, writer)),
+        )
 
         tor = TorManager()
         monkeypatch.setattr(tor, "get_ip", AsyncMock(return_value="9.9.9.9"))
-        assert await tor.new_circuit() == "9.9.9.9"
+        assert await tor.new_circuit(new_circuit_wait=0) == "9.9.9.9"
+        writer.write.assert_called()
+        writer.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_new_circuit_exception(self, monkeypatch):
-        fake_socket = MagicMock()
-        fake_socket.AF_INET = 1
-        fake_socket.SOCK_STREAM = 2
-        fake_socket.socket.side_effect = OSError("conexao recusada")
-        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+        monkeypatch.setattr(
+            "mytools.core.stealth.asyncio.open_connection",
+            AsyncMock(side_effect=OSError("conexao recusada")),
+        )
 
         tor = TorManager()
         assert await tor.new_circuit() is None
 
     @pytest.mark.asyncio
     async def test_new_circuit_no_auth_response(self, monkeypatch):
-        class _FakeSock:
-            def __init__(self, *args):
-                pass
-
-            def settimeout(self, t):
-                pass
-
-            def connect(self, addr):
-                pass
-
-            def send(self, data):
-                return len(data)
-
-            def recv(self, size):
-                return b"500 ERROR"
-
-            def close(self):
-                pass
-
-        fake_socket = MagicMock()
-        fake_socket.AF_INET = 1
-        fake_socket.SOCK_STREAM = 2
-        fake_socket.socket.return_value = _FakeSock()
-        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+        reader = AsyncMock()
+        reader.read.return_value = b"500 ERROR\r\n"
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        monkeypatch.setattr(
+            "mytools.core.stealth.asyncio.open_connection",
+            AsyncMock(return_value=(reader, writer)),
+        )
 
         tor = TorManager()
         monkeypatch.setattr(tor, "get_ip", AsyncMock(return_value="9.9.9.9"))
@@ -293,34 +262,142 @@ class TestTorManager:
 
     @pytest.mark.asyncio
     async def test_new_circuit_nym_response_rejected(self, monkeypatch):
-        class _FakeSock:
-            def __init__(self, *args):
-                self.responses = [b"250 OK", b"500 ERROR"]
-
-            def settimeout(self, t):
-                pass
-
-            def connect(self, addr):
-                pass
-
-            def send(self, data):
-                return len(data)
-
-            def recv(self, size):
-                return self.responses.pop(0)
-
-            def close(self):
-                pass
-
-        fake_socket = MagicMock()
-        fake_socket.AF_INET = 1
-        fake_socket.SOCK_STREAM = 2
-        fake_socket.socket.return_value = _FakeSock()
-        monkeypatch.setitem(sys.modules, "socket", fake_socket)
+        reader = AsyncMock()
+        reader.read.side_effect = [b"250 OK\r\n", b"500 ERROR\r\n"]
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        monkeypatch.setattr(
+            "mytools.core.stealth.asyncio.open_connection",
+            AsyncMock(return_value=(reader, writer)),
+        )
 
         tor = TorManager()
         monkeypatch.setattr(tor, "get_ip", AsyncMock(return_value="9.9.9.9"))
         assert await tor.new_circuit() is None
+
+    @pytest.mark.asyncio
+    async def test_new_circuit_uses_auth_cookie(self, monkeypatch, tmp_path):
+        cookie_file = tmp_path / "control.authcookie"
+        cookie_file.write_bytes(b"X" * 32)
+
+        reader = AsyncMock()
+        reader.read.side_effect = [b"250 OK\r\n", b"250 OK\r\n"]
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        monkeypatch.setattr(
+            "mytools.core.stealth.asyncio.open_connection",
+            AsyncMock(return_value=(reader, writer)),
+        )
+
+        tor = TorManager(control_auth_cookie=str(cookie_file))
+        monkeypatch.setattr(tor, "get_ip", AsyncMock(return_value="9.9.9.9"))
+        assert await tor.new_circuit(new_circuit_wait=0) == "9.9.9.9"
+        expected = b"AUTHENTICATE " + (b"X" * 32).hex().encode() + b"\r\n"
+        writer.write.assert_any_call(expected)
+
+    @pytest.mark.asyncio
+    async def test_get_ip_recreates_closed_client(self, monkeypatch):
+        # Cliente existente porem fechado -> transport/client sao recriados.
+        fake_mod = MagicMock()
+        fake_mod.AsyncProxyTransport = MagicMock()
+        monkeypatch.setitem(sys.modules, "httpx_socks", fake_mod)
+
+        tor = TorManager()
+        tor._tor_client = MagicMock(is_closed=True)
+
+        new_client = MagicMock()
+        new_client.is_closed = False
+        new_client.get = AsyncMock(
+            return_value=MagicMock(json=MagicMock(return_value={"ip": "5.5.5.5"}))
+        )
+        monkeypatch.setattr(
+            "mytools.core.stealth.httpx.AsyncClient",
+            MagicMock(return_value=new_client),
+        )
+
+        assert await tor.get_ip() == "5.5.5.5"
+        assert tor._tor_client is new_client
+
+    @pytest.mark.asyncio
+    async def test_get_ip_reuses_open_client(self, monkeypatch):
+        # Cliente aberto e reutilizado (nao recria transport).
+        fake_mod = MagicMock()
+        monkeypatch.setitem(sys.modules, "httpx_socks", fake_mod)
+
+        client = MagicMock()
+        client.is_closed = False
+        client.get = AsyncMock(
+            return_value=MagicMock(json=MagicMock(return_value={"ip": "7.7.7.7"}))
+        )
+        monkeypatch.setattr(
+            "mytools.core.stealth.httpx.AsyncClient",
+            MagicMock(return_value=MagicMock()),
+        )
+
+        tor = TorManager()
+        tor._tor_client = client
+        assert await tor.get_ip() == "7.7.7.7"
+        assert tor._tor_client is client
+
+    def test_find_auth_cookie_missing_all(self, tmp_path):
+        tor = TorManager(control_auth_cookie=str(tmp_path / "missing.authcookie"))
+        assert tor._find_auth_cookie() is None
+
+    def test_find_auth_cookie_empty_first_candidate_skips(self, tmp_path):
+        empty = tmp_path / "empty.authcookie"
+        empty.write_bytes(b"")
+        tor = TorManager(control_auth_cookie=str(empty))
+        assert tor._find_auth_cookie() is None
+
+    @pytest.mark.asyncio
+    async def test_read_status_loop_exhausts(self):
+        # Chunks sem '\r\n' -> loop acumula ate as 8 leituras e sai por completo.
+        reader = AsyncMock()
+        reader.read.return_value = b"250 OK"
+        assert await TorManager._read_status(reader) is True
+
+    @pytest.mark.asyncio
+    async def test_read_status_empty_chunk_breaks(self):
+        reader = AsyncMock()
+        reader.read.return_value = b""
+        assert await TorManager._read_status(reader) is False
+
+    @pytest.mark.asyncio
+    async def test_read_status_exception_returns_false(self):
+        reader = AsyncMock()
+        reader.read.side_effect = RuntimeError("io")
+        assert await TorManager._read_status(reader) is False
+
+    @pytest.mark.asyncio
+    async def test_tor_control_exchange_drain_error(self, monkeypatch):
+        reader = AsyncMock()
+        reader.read.side_effect = [b"250 OK\r\n"]
+        writer = MagicMock()
+        writer.drain = AsyncMock(side_effect=RuntimeError("write failed"))
+        monkeypatch.setattr(
+            "mytools.core.stealth.asyncio.open_connection",
+            AsyncMock(return_value=(reader, writer)),
+        )
+
+        tor = TorManager()
+        assert await tor._tor_control_exchange() is False
+
+    @pytest.mark.asyncio
+    async def test_new_circuit_get_ip_raises(self, monkeypatch):
+        reader = AsyncMock()
+        reader.read.side_effect = [b"250 OK\r\n", b"250 OK\r\n"]
+        writer = MagicMock()
+        writer.drain = AsyncMock()
+        monkeypatch.setattr(
+            "mytools.core.stealth.asyncio.open_connection",
+            AsyncMock(return_value=(reader, writer)),
+        )
+
+        tor = TorManager()
+        monkeypatch.setattr(
+            tor, "get_ip", AsyncMock(side_effect=RuntimeError("boom"))
+        )
+        assert await tor.new_circuit(new_circuit_wait=0) is None
 
 
 class TestApplyJitter:
@@ -364,6 +441,16 @@ class TestFragmentHttpHeaders:
         result = fragment_http_headers({}, chunk_size=10)
         assert result == [b""]
 
+    def test_zero_chunk_size(self):
+        headers = {"Host": "example.com"}
+        result = fragment_http_headers(headers, chunk_size=0)
+        assert b"".join(result) == b"Host: example.com\r\n"
+
+    def test_negative_chunk_size(self):
+        headers = {"Host": "example.com"}
+        result = fragment_http_headers(headers, chunk_size=-3)
+        assert b"".join(result) == b"Host: example.com\r\n"
+
 
 class TestFragmentTcpRequest:
     def test_small_data_single_chunk(self):
@@ -381,6 +468,11 @@ class TestFragmentTcpRequest:
         data = b"12345"
         result = fragment_tcp_request(data, fragment_size=5)
         assert result == [b"12345"]
+
+    def test_zero_fragment_size(self):
+        data = b"hello"
+        result = fragment_tcp_request(data, fragment_size=0)
+        assert b"".join(result) == data
 
 
 class TestWafEncodeUrl:
@@ -425,6 +517,13 @@ class TestWafEncodeUrl:
         result = waf_encode_url("https://example.com/a.b")
         assert "%25" in result  # %2e -> %252e
 
+    def test_non_ascii_letters_are_percent_encoded(self, monkeypatch):
+        # Forca a variacao de caixa (randbelow(3)==0) para garantir que o
+        # caminho bugado (char cru nao-ascii) nao ocorra.
+        monkeypatch.setattr(stealth_mod.secrets, "randbelow", lambda n: 0)
+        result = waf_encode_url("https://example.com/ção")
+        assert not any(c.isalpha() and ord(c) > 127 for c in result)
+
 
 class TestWafEncodeHeaders:
     def test_preserves_values(self):
@@ -446,12 +545,23 @@ class TestWafEncodeHeaders:
         result = waf_encode_headers(headers)
         assert len(result) == 3
 
+    def test_case_collision_keeps_both(self):
+        headers = {"X-Foo": "a", "x-foo": "b"}
+        result = waf_encode_headers(headers)
+        assert set(result.values()) == {"a", "b"}
+
 
 class TestPadHeaders:
     def test_already_has_enough(self):
         headers = {f"H{i}": str(i) for i in range(15)}
         result = pad_headers(headers, target_count=10)
         assert len(result) >= 10
+
+    def test_no_infinite_loop_when_target_exceeds_available(self):
+        headers = {"Host": "example.com"}
+        result = pad_headers(headers, target_count=10_000)
+        assert "Host" in result
+        assert len(result) < 10_000
 
     def test_adds_padding(self):
         headers = {"Host": "example.com"}
@@ -474,6 +584,10 @@ class TestRandomizeSourcePort:
     def test_varies(self):
         ports = {randomize_source_port() for _ in range(50)}
         assert len(ports) > 1
+
+    def test_upper_bound_reachable(self, monkeypatch):
+        monkeypatch.setattr(stealth_mod.secrets, "randbelow", lambda n: n - 1)
+        assert randomize_source_port() == 65535
 
 
 def test_random_user_agent_returns_known_agent():

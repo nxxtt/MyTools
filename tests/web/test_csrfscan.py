@@ -460,6 +460,30 @@ class TestCookieAnalysis:
         assert len(attempts) == 1
         assert attempts[0].vulnerable is False
 
+    def test_csrf_cookie_samesite_none_is_not_protection(self) -> None:
+        async def run_samesite_none() -> list[CSRFAttempt]:
+            from unittest.mock import AsyncMock, MagicMock
+
+            class FakeHeaders:
+                def get_list(self, key: str) -> list[str]:
+                    return ["csrftoken=xyz; SameSite=None; Secure"]
+
+            client = MagicMock()
+            resp = MagicMock()
+            resp.headers = FakeHeaders()
+            client.get = AsyncMock(return_value=resp)
+            client.__aenter__ = AsyncMock(return_value=client)
+            client.__aexit__ = AsyncMock(return_value=False)
+            async with client:
+                return await _test_cookie_analysis(
+                    client, "http://test.com", {"csrftoken": "xyz"}
+                )
+
+        attempts = asyncio.run(run_samesite_none())
+        assert len(attempts) == 1
+        assert attempts[0].vulnerable is True
+        assert "invalido para CSRF" in attempts[0].details
+
     def test_set_cookie_not_matching_name(self) -> None:
         async def run() -> list[CSRFAttempt]:
             from unittest.mock import AsyncMock, MagicMock
@@ -836,8 +860,30 @@ class TestRunOnce:
             ),
         ):
             result = run_once(base_ns)
-        assert result == 0
+        assert result == 1
         mock_run.assert_called_once()
+
+    def test_run_once_secure_returns_zero(self, base_ns: argparse.Namespace) -> None:
+        from unittest.mock import MagicMock, patch
+
+        base_ns.url = "http://test.com"
+        base_ns.category = "all"
+        base_ns.timeout = 10.0
+        base_ns.concurrency = 5
+        base_ns.output = None
+        base_ns.json_output = False
+        with (
+            patch(
+                "mytools.web.csrfscan.run_scan",
+                MagicMock(return_value=self._make_result("secure")),
+            ),
+            patch(
+                "mytools.web.csrfscan.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            result = run_once(base_ns)
+        assert result == 0
 
     def test_run_once_json_output(self, base_ns: argparse.Namespace) -> None:
         from unittest.mock import MagicMock, patch
@@ -861,7 +907,7 @@ class TestRunOnce:
             patch("mytools.web.csrfscan.write_output") as mock_write,
         ):
             result = run_once(base_ns)
-        assert result == 0
+        assert result == 1
         mock_print.assert_called_once()
         mock_write.assert_called_once()
 

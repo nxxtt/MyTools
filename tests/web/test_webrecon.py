@@ -1530,6 +1530,36 @@ class TestRunRecon:
             result = await run_recon("https://example.com", 5.0, "TestAgent/1.0")
         assert result.whois_data == w
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_reuses_provided_client(self, async_client):
+        respx.get(url__regex=r"^https://example\.com/?$").mock(
+            return_value=httpx.Response(
+                200,
+                text="<html><title>Reused</title></html>",
+                headers={"Content-Type": "text/html"},
+            )
+        )
+        respx.get(url__regex=r"^https://example\.com/robots\.txt$").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get(url__regex=r"^https://example\.com/sitemap\.xml$").mock(
+            return_value=httpx.Response(404)
+        )
+        with (
+            patch("mytools.web.webrecon._run_whois_sync", return_value=None),
+            patch("mytools.web.webrecon.create_async_client") as mock_create,
+        ):
+            result = await run_recon(
+                "https://example.com",
+                5.0,
+                "TestAgent/1.0",
+                client=async_client,
+            )
+        assert result.status == 200
+        assert result.title == "Reused"
+        mock_create.assert_not_called()
+
 
 class TestPrintResult:
     def test_full_result(self, capsys):
@@ -1749,13 +1779,40 @@ class TestAsyncRunOnceExtra:
             patch(
                 "mytools.web.webrecon._run_single",
                 new_callable=AsyncMock,
-                side_effect=lambda u, args, quiet: result,
+                side_effect=lambda u, args, quiet, client=None: result,
             ),
             patch("mytools.web.webrecon.write_output") as mock_write,
         ):
             code = await _async_run_once(args)
         assert code == 0
         assert mock_write.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_one_client_shared_across_urls(self, tmp_path):
+        result = _make_recon_result()
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        seen_clients: set[int] = set()
+
+        def fake_run_single(u, args, quiet, client=None):
+            seen_clients.add(id(client))
+            return result
+
+        with (
+            patch(
+                "mytools.web.webrecon.resolve_target_urls",
+                return_value=["https://a.com", "https://b.com"],
+            ),
+            patch(
+                "mytools.web.webrecon._run_single",
+                new_callable=AsyncMock,
+                side_effect=fake_run_single,
+            ),
+            patch("mytools.web.webrecon.write_output"),
+        ):
+            code = await _async_run_once(args)
+        assert code == 0
+        assert len(seen_clients) == 1
 
     @pytest.mark.asyncio
     async def test_run_single_output_file(self, tmp_path):
@@ -1771,7 +1828,7 @@ class TestAsyncRunOnceExtra:
             patch(
                 "mytools.web.webrecon._run_single",
                 new_callable=AsyncMock,
-                side_effect=lambda u, args, quiet: result,
+                side_effect=lambda u, args, quiet, client=None: result,
             ),
             patch("mytools.web.webrecon.write_output") as mock_write,
         ):
@@ -1794,7 +1851,7 @@ class TestAsyncRunOnceExtra:
             patch(
                 "mytools.web.webrecon._run_single",
                 new_callable=AsyncMock,
-                side_effect=lambda u, args, quiet: result,
+                side_effect=lambda u, args, quiet, client=None: result,
             ),
             patch("mytools.web.webrecon.write_output") as mock_write,
         ):

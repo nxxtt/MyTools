@@ -29,9 +29,7 @@ import contextlib
 import logging
 import statistics
 import time
-from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
-from typing import Any
 
 import dns.exception
 import dns.name
@@ -562,7 +560,7 @@ async def _test_timing(
 
     results: list[TimingAttempt] = []
 
-    async with create_async_client(url, timeout=timeout) as client:
+    async with create_async_client(timeout=timeout) as client:
         try:
             login_url = f"{url}/login" if not url.endswith("/login") else url
 
@@ -675,13 +673,6 @@ async def _test_timing(
         )
 
     return results
-
-
-_CATEGORY_DISPATCH: dict[
-    str, Callable[..., Coroutine[Any, Any, list[TimingAttempt]]]
-] = {
-    "timing": _test_timing,
-}
 
 
 def print_results(result: TimingResult) -> None:

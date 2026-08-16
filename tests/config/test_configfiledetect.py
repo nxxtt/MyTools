@@ -104,6 +104,14 @@ class TestIsSensitive:
     def test_wp_config(self):
         assert _is_sensitive("wp-config.php") is True
 
+    def test_full_path_credentials(self):
+        assert _is_sensitive("aws/credentials") is True
+        assert _is_sensitive(".aws/credentials") is True
+
+    def test_full_path_config_yaml(self):
+        assert _is_sensitive("config/database.yml") is True
+        assert _is_sensitive("config/secrets.yml") is True
+
     def test_not_sensitive(self):
         assert _is_sensitive("config.json") is False
         assert _is_sensitive("robots.txt") is False
@@ -436,6 +444,35 @@ class TestJsonOutput:
         data, _ = decoder.raw_decode(captured)
         assert isinstance(data, list)
         assert data[0]["path"] == ".env"
+        assert json.loads(captured) == data
+
+    def test_json_with_output_writes_file(self, tmp_path, capsys):
+        leak = ConfigLeak(category="env", url="http://x.com/.env", path=".env")
+        out = tmp_path / "out.json"
+        args = build_parser().parse_args(
+            ["--json", "-q", "-o", str(out), "http://x.com"]
+        )
+        with patch(
+            "mytools.config.configfiledetect.scan_configs",
+            new=AsyncMock(return_value=[leak]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert out.exists()
+        assert json.loads(out.read_text()) == [
+            {
+                "category": "env",
+                "url": "http://x.com/.env",
+                "path": ".env",
+                "status": 0,
+                "detail": "",
+                "raw_size": 0,
+                "exploit": "",
+                "tool": "",
+            }
+        ]
+        captured = capsys.readouterr().out
+        assert json.loads(captured) == json.loads(out.read_text())
 
 
 # ── scan_configs (mock HTTP) ─────────────────────────────────────────────────

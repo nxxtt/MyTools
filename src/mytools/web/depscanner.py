@@ -109,7 +109,7 @@ _BACKEND_LIBS_DEFAULT: dict[str, Any] = {
         "cookies": ["connect.sid"],
         "error_patterns": ["at Layer.handle", "at Router.handle"],
         "manifest_paths": ["/package.json"],
-        "manifest_key_pattern": r'"express":\s*"(\\^?\d+\.\d+\.\d+)"',
+        "manifest_key_pattern": r'"express":\s*"([~^]?\d+\.\d+\.\d+)"',
         "latest_known": "4.21.0",
         "cves": [
             {
@@ -189,12 +189,21 @@ def _parse_manifest_version(body: str, pattern: str) -> str:
     return ""
 
 
+_SOURCEMAP_VERSION_RE = re.compile(
+    r"(?<![0-9.])[vV]?(\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?"
+)
+
+
 async def _try_sourcemap_version(
     client: httpx.AsyncClient,
     base_url: str,
     script_src: str,
 ) -> str:
-    """Tenta extrair versao de sourcemap. Retorna '' se falhar."""
+    """Tenta extrair versao de sourcemap. Retorna '' se nao encontrar.
+
+    O campo top-level "version" de um sourcemap e sempre 3 (spec), entao a
+    versao real e procurada nos entries de "sources" (paths de origem).
+    """
     src = script_src.rstrip("/")
     map_url = f"{base_url.rstrip('/')}{src}.map"
     try:
@@ -202,7 +211,12 @@ async def _try_sourcemap_version(
         if status != 200:
             return ""
         data = json.loads(body_bytes)
-        return str(data.get("version", ""))
+        for source in data.get("sources", []) or []:
+            if isinstance(source, str):
+                m = _SOURCEMAP_VERSION_RE.search(source)
+                if m:
+                    return m.group(1)
+        return ""
     except json.JSONDecodeError, Exception:
         return ""
 
@@ -727,8 +741,8 @@ def _async_run_once(args: argparse.Namespace) -> DepScanResult:
 
 def run_once(args: argparse.Namespace) -> int:
     """Wrapper sincrono."""
-    _async_run_once(args)
-    return 0
+    result = _async_run_once(args)
+    return 1 if result.overall_status != "secure" else 0
 
 
 def main() -> int:

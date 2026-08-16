@@ -193,17 +193,6 @@ class SmuggleResult:
     overall_status: str
 
 
-# ─── Category Testers ────────────────────────────────────────────────────────
-
-_CATEGORY_TESTERS: dict[str, list[str]] = {}
-
-
-def _register_category(name: str) -> list[str]:
-    """Registra técnica de teste."""
-    _CATEGORY_TESTERS[name] = _CATEGORY_MAP.get(name, [])
-    return _CATEGORY_MAP.get(name, [])
-
-
 # ─── Payload Builders ────────────────────────────────────────────────────────
 
 
@@ -445,6 +434,7 @@ async def _test_cl_te(
     tls: bool,
     b_status: int,
     b_size: int,
+    b_elapsed: float = 0.0,
 ) -> list[SmuggleAttempt]:
     """Testa CL.TE smuggling."""
     results: list[SmuggleAttempt] = []
@@ -455,6 +445,8 @@ async def _test_cl_te(
         ("clte_mismatch", "clte_mismatch"),
     ]
 
+    baseline_response: bytes | None = None
+
     for technique, _label in techniques:
         try:
             request = _build_clte_payload("POST", path, host)
@@ -463,13 +455,17 @@ async def _test_cl_te(
                 t0 = time.monotonic()
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
-                resp_differs = _check_response_differs(b"", response)
+                if baseline_response is None:
+                    baseline_response = response
+                    resp_differs = False
+                else:
+                    resp_differs = _check_response_differs(baseline_response, response)
                 vuln, details = _check_smuggled_response(response, "X-Smuggled: CLTE")
 
-                # Se não detectou pelo header, verifica timing
-                if not vuln and elapsed > 2.0:
+                # Se não detectou pelo header, verifica timing contra baseline
+                if not vuln and (elapsed - b_elapsed) >= 1.0:
                     vuln = True
-                    details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+                    details = f"Slow response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(
                     SmuggleAttempt(
@@ -529,6 +525,7 @@ async def _test_te_cl(
     tls: bool,
     b_status: int,
     b_size: int,
+    b_elapsed: float = 0.0,
 ) -> list[SmuggleAttempt]:
     """Testa TE.CL smuggling."""
     results: list[SmuggleAttempt] = []
@@ -539,6 +536,8 @@ async def _test_te_cl(
         ("tecl_mismatch", "tecl_mismatch"),
     ]
 
+    baseline_response: bytes | None = None
+
     for technique, _label in techniques:
         try:
             request = _build_tecl_payload("POST", path, host)
@@ -547,12 +546,16 @@ async def _test_te_cl(
                 t0 = time.monotonic()
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
-                resp_differs = _check_response_differs(b"", response)
+                if baseline_response is None:
+                    baseline_response = response
+                    resp_differs = False
+                else:
+                    resp_differs = _check_response_differs(baseline_response, response)
                 vuln, details = _check_smuggled_response(response, "X-Smuggled: TECL")
 
-                if not vuln and elapsed > 2.0:
+                if not vuln and (elapsed - b_elapsed) >= 1.0:
                     vuln = True
-                    details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+                    details = f"Slow response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(
                     SmuggleAttempt(
@@ -612,6 +615,7 @@ async def _test_te_te(
     tls: bool,
     b_status: int,
     b_size: int,
+    b_elapsed: float = 0.0,
 ) -> list[SmuggleAttempt]:
     """Testa TE.TE smuggling (obfuscação)."""
     results: list[SmuggleAttempt] = []
@@ -622,6 +626,8 @@ async def _test_te_te(
         ("tete_whitespace", "tete_whitespace", _build_tete_whitespace),
     ]
 
+    baseline_response: bytes | None = None
+
     for technique, _label, builder in techniques:
         try:
             request = builder("POST", path, host)
@@ -630,13 +636,17 @@ async def _test_te_te(
                 t0 = time.monotonic()
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
-                resp_differs = _check_response_differs(b"", response)
+                if baseline_response is None:
+                    baseline_response = response
+                    resp_differs = False
+                else:
+                    resp_differs = _check_response_differs(baseline_response, response)
                 smuggled_marker = f"X-Smuggled: {_label.upper()}"
                 vuln, details = _check_smuggled_response(response, smuggled_marker)
 
-                if not vuln and elapsed > 2.0:
+                if not vuln and (elapsed - b_elapsed) >= 1.0:
                     vuln = True
-                    details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+                    details = f"Slow response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(
                     SmuggleAttempt(
@@ -696,6 +706,7 @@ async def _test_chunked_cl(
     tls: bool,
     b_status: int,
     b_size: int,
+    b_elapsed: float = 0.0,
 ) -> list[SmuggleAttempt]:
     """Testa Chunked+CL smuggling."""
     results: list[SmuggleAttempt] = []
@@ -705,6 +716,8 @@ async def _test_chunked_cl(
         ("chunked_cl_overlap", "chunked_cl_overlap"),
     ]
 
+    baseline_response: bytes | None = None
+
     for technique, _label in techniques:
         try:
             request = _build_chunked_cl_payload("POST", path, host)
@@ -713,14 +726,18 @@ async def _test_chunked_cl(
                 t0 = time.monotonic()
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
-                resp_differs = _check_response_differs(b"", response)
+                if baseline_response is None:
+                    baseline_response = response
+                    resp_differs = False
+                else:
+                    resp_differs = _check_response_differs(baseline_response, response)
                 vuln, details = _check_smuggled_response(
                     response, "X-Smuggled: CHUNKED_CL"
                 )
 
-                if not vuln and elapsed > 2.0:
+                if not vuln and (elapsed - b_elapsed) >= 1.0:
                     vuln = True
-                    details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+                    details = f"Slow response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(
                     SmuggleAttempt(
@@ -780,6 +797,7 @@ async def _test_pipeline(
     tls: bool,
     b_status: int,
     b_size: int,
+    b_elapsed: float = 0.0,
 ) -> list[SmuggleAttempt]:
     """Testa HTTP pipelining desync."""
     results: list[SmuggleAttempt] = []
@@ -789,6 +807,8 @@ async def _test_pipeline(
         ("pipeline_chained", "pipeline_chained"),
     ]
 
+    baseline_response: bytes | None = None
+
     for technique, _label in techniques:
         try:
             request = _build_pipeline_payload(host, path)
@@ -797,7 +817,11 @@ async def _test_pipeline(
                 t0 = time.monotonic()
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
-                resp_differs = _check_response_differs(b"", response)
+                if baseline_response is None:
+                    baseline_response = response
+                    resp_differs = False
+                else:
+                    resp_differs = _check_response_differs(baseline_response, response)
                 vuln, details = _check_smuggled_response(
                     response, "X-Smuggled: PIPELINE"
                 )
@@ -808,8 +832,10 @@ async def _test_pipeline(
                     vuln = True
                     details = f"Received {response_count} HTTP responses — pipeline desync possible"
 
-                if not vuln and elapsed > 2.0:
-                    details = f"Slow response ({elapsed:.1f}s)"
+                if not vuln and (elapsed - b_elapsed) >= 1.0:
+                    details = (
+                        f"Slow response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s)"
+                    )
 
                 results.append(
                     SmuggleAttempt(
@@ -868,9 +894,10 @@ def _create_h2_smuggle_connection(
     host: str,
     port: int,
     timeout: float,
+    tls: bool = False,
 ) -> tuple[socket.socket, h2.connection.H2Connection]:
-    """Cria conexão TLS + H2Connection para testes de smuggling h2c."""
-    sock = _create_connection(host, port, timeout, tls=True)
+    """Cria conexão (TLS se `tls`) + H2Connection para testes de smuggling h2c."""
+    sock = _create_connection(host, port, timeout, tls)
     config = h2.config.H2Configuration(client_side=True, header_encoding="utf-8")
     conn = h2.connection.H2Connection(config=config)
     conn.initiate_connection()
@@ -927,6 +954,7 @@ async def _test_cl0(
     tls: bool,
     b_status: int,
     b_size: int,
+    b_elapsed: float = 0.0,
 ) -> list[SmuggleAttempt]:
     """Testa CL.0 smuggling (Content-Length: 0 confusion)."""
     results: list[SmuggleAttempt] = []
@@ -937,6 +965,8 @@ async def _test_cl0(
         ("cl0_overlap", "cl0_overlap"),
     ]
 
+    baseline_response: bytes | None = None
+
     for technique, _label in techniques:
         try:
             request = _build_cl0_payload("POST", path, host)
@@ -945,12 +975,16 @@ async def _test_cl0(
                 t0 = time.monotonic()
                 _status, response = _send_raw(sock, request, timeout)
                 elapsed = time.monotonic() - t0
-                resp_differs = _check_response_differs(b"", response)
+                if baseline_response is None:
+                    baseline_response = response
+                    resp_differs = False
+                else:
+                    resp_differs = _check_response_differs(baseline_response, response)
                 vuln, details = _check_smuggled_response(response, "X-Smuggled: CL0")
 
-                if not vuln and elapsed > 2.0:
+                if not vuln and (elapsed - b_elapsed) >= 1.0:
                     vuln = True
-                    details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+                    details = f"Slow response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s) suggests back-end processed smuggled request"
 
                 results.append(
                     SmuggleAttempt(
@@ -1013,6 +1047,7 @@ async def _test_h2c(
     tls: bool,
     b_status: int,
     b_size: int,
+    b_elapsed: float = 0.0,
 ) -> list[SmuggleAttempt]:
     """Testa h2c smuggling (HTTP/2 cleartext upgrade)."""
     results: list[SmuggleAttempt] = []
@@ -1028,9 +1063,9 @@ async def _test_h2c(
             resp_differs = _check_response_differs(b"", response)
             vuln, details = _check_smuggled_response(response, "X-Smuggled: H2C")
 
-            if not vuln and elapsed > 2.0:
+            if not vuln and (elapsed - b_elapsed) >= 1.0:
                 vuln = True
-                details = f"Slow response ({elapsed:.1f}s) suggests back-end processed smuggled request"
+                details = f"Slow response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s) suggests back-end processed smuggled request"
 
             results.append(
                 SmuggleAttempt(
@@ -1081,7 +1116,7 @@ async def _test_h2c(
 
     # --- h2c_direct: H2 prior knowledge (via h2 library) ---
     try:
-        sock, conn = _create_h2_smuggle_connection(host, port, timeout)
+        sock, conn = _create_h2_smuggle_connection(host, port, timeout, tls)
         try:
             _drain_h2_settings(sock, conn, timeout)
             stream_id = conn.get_next_available_stream_id()
@@ -1117,9 +1152,9 @@ async def _test_h2c(
             smuggled_header = "X-Smuggled: H2C_DIRECT"
             vuln, details = _check_smuggled_response(response_data, smuggled_header)
 
-            if not vuln and elapsed > 2.0:
+            if not vuln and (elapsed - b_elapsed) >= 1.0:
                 vuln = True
-                details = f"Slow H2 response ({elapsed:.1f}s) suggests processing"
+                details = f"Slow H2 response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s) suggests processing"
 
             results.append(
                 SmuggleAttempt(
@@ -1170,7 +1205,7 @@ async def _test_h2c(
 
     # --- h2c_downgrade: H2 → H1 downgrade (HTTP/1.1 UA string on H2) ---
     try:
-        sock, conn = _create_h2_smuggle_connection(host, port, timeout)
+        sock, conn = _create_h2_smuggle_connection(host, port, timeout, tls)
         try:
             _drain_h2_settings(sock, conn, timeout)
             stream_id = conn.get_next_available_stream_id()
@@ -1216,8 +1251,10 @@ async def _test_h2c(
                 else "Server rejected or did not process HTTP/1.1 UA on H2"
             )
 
-            if not vuln and elapsed > 2.0:
-                details = f"Slow H2 response ({elapsed:.1f}s)"
+            if not vuln and (elapsed - b_elapsed) >= 1.0:
+                details = (
+                    f"Slow H2 response ({elapsed:.1f}s vs baseline {b_elapsed:.1f}s)"
+                )
 
             results.append(
                 SmuggleAttempt(
@@ -1350,11 +1387,14 @@ async def run_scan(
     host, path, port, tls = _parse_url(target)
 
     # Baseline via raw socket
+    b_elapsed = 0.0
     try:
         baseline_request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\n").encode()
         sock = _create_connection(host, port, timeout, tls)
         try:
+            t0 = time.monotonic()
             b_status, b_response = _send_raw(sock, baseline_request, timeout)
+            b_elapsed = time.monotonic() - t0
             b_size = len(b_response)
         finally:
             sock.close()
@@ -1370,7 +1410,7 @@ async def run_scan(
         tester = _CATEGORY_DISPATCH.get(cat)
         if tester is None:
             continue
-        raw = await tester(host, port, path, timeout, tls, b_status, b_size)
+        raw = await tester(host, port, path, timeout, tls, b_status, b_size, b_elapsed)
         all_attempts.extend(raw)
 
     # Classifica resultados

@@ -488,6 +488,30 @@ class TestQueryGithubGistsEdges:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_non_list_body(self) -> None:
+        respx.get(url__startswith="https://api.github.com/gists/public").mock(
+            return_value=httpx.Response(200, json={"items": []}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_dict_gist(self) -> None:
+        respx.get(url__startswith="https://api.github.com/gists/public").mock(
+            return_value=httpx.Response(200, json=["not-a-dict"]),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_gists(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_raw_fetch_error(self) -> None:
         gist_list = [
             {
@@ -748,6 +772,42 @@ class TestQueryGitlabEdges:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_invalid_json(self) -> None:
+        respx.get(url__startswith="https://gitlab.com/api/v4/snippets/public").mock(
+            return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_list_body(self) -> None:
+        respx.get(url__startswith="https://gitlab.com/api/v4/snippets/public").mock(
+            return_value=httpx.Response(200, json={"snippets": []}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_dict_snippet(self) -> None:
+        respx.get(url__startswith="https://gitlab.com/api/v4/snippets/public").mock(
+            return_value=httpx.Response(200, json=["not-a-dict"]),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_gitlab_snippets(client, "example.com", 5.0, rl)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_raw_fetch_error(self) -> None:
         snippets = [
             {
@@ -867,6 +927,30 @@ class TestQueryGithubCodeEdges:
     async def test_invalid_json(self) -> None:
         respx.get(url__startswith="https://api.github.com/search/code").mock(
             return_value=httpx.Response(200, text="<not json>"),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_non_dict_body(self) -> None:
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(200, json=["not-a-dict"]),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        leaks = await _query_github_code(client, "example.com", 5.0, rl, "ghp_test", 5)
+        await client.aclose()
+        assert leaks == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_items_not_list(self) -> None:
+        respx.get(url__startswith="https://api.github.com/search/code").mock(
+            return_value=httpx.Response(200, json={"items": "nope"}),
         )
         client = httpx.AsyncClient()
         rl = RateLimiter(0)
@@ -1060,6 +1144,40 @@ class TestAsyncRunOnce:
         assert result == 0
         mock_print.assert_not_called()
         mock_write.assert_called_once()
+
+    def test_json_output(self) -> None:
+        args = build_parser().parse_args(["example.com", "--json"])
+        with (
+            patch(
+                "mytools.osint.pasteleak.scan_leaks",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.pasteleak.print_json") as mock_json,
+            patch("mytools.osint.pasteleak.print_results") as mock_print,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_json.assert_called_once()
+        mock_print.assert_not_called()
+
+    def test_output_dir(self, tmp_path) -> None:
+        out_dir = tmp_path / "results"
+        args = build_parser().parse_args(["example.com", "--output-dir", str(out_dir)])
+        with (
+            patch(
+                "mytools.osint.pasteleak.scan_leaks",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("mytools.osint.pasteleak.ensure_output_dir") as mock_ensure,
+            patch("mytools.osint.pasteleak.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_ensure.assert_called_once_with(str(out_dir))
+        mock_write.assert_called_once()
+        assert mock_write.call_args.args[0].replace("\\", "/") == (
+            f"{str(out_dir).replace(chr(92), '/')}/pasteleak.json"
+        )
 
 
 class TestMain:

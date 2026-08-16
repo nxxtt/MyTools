@@ -467,6 +467,8 @@ class TestRunOnce:
                 categories=["user_agent"],
                 timeout=5.0,
                 output_file=None,
+                proxy=None,
+                json_output=False,
             )
 
 
@@ -520,6 +522,23 @@ class TestRunScan:
             output_file=None,
         )
         assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_run_scan_json_output(self) -> None:
+        respx.route(method="GET", url__startswith="https://test.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.loginjection.print_json") as mock_print:
+            result = await run_scan(
+                target="https://test.com",
+                categories=["user_agent"],
+                timeout=10,
+                output_file=None,
+                json_output=True,
+            )
+        assert result == 0
+        mock_print.assert_called_once()
 
 
 # ─── Main Guard ──────────────────────────────────────────────────────────────

@@ -444,7 +444,7 @@ async def run_scan(
         )
 
     logger.info("Enumerando subdominios de %s...", domain)
-    subdomains = _enumerate_subdomains(domain, wordlist)
+    subdomains = await asyncio.to_thread(_enumerate_subdomains, domain, wordlist)
     logger.info("Encontrados %d subdominios para %s", len(subdomains), domain)
 
     if not subdomains:
@@ -457,95 +457,94 @@ async def run_scan(
             overall_status="secure",
         )
 
-    client = create_async_client(timeout=timeout)
-    semaphore = asyncio.Semaphore(concurrency)
-    attempts: list[TakeoverAttempt] = []
+    async with create_async_client(timeout=timeout) as client:
+        semaphore = asyncio.Semaphore(concurrency)
+        attempts: list[TakeoverAttempt] = []
 
-    async def _check_one(sub: str) -> TakeoverAttempt | None:
-        async with semaphore:
-            cname = _resolve_cname(sub, timeout=min(timeout, 5.0))
-            if not cname:
-                return None
+        async def _check_one(sub: str) -> TakeoverAttempt | None:
+            async with semaphore:
+                cname = await asyncio.to_thread(_resolve_cname, sub, min(timeout, 5.0))
+                if not cname:
+                    return None
 
-            match = _match_service(cname, services)
-            if not match:
-                logger.debug("CNAME %s -> %s (servico desconhecido)", sub, cname)
-                return None
+                match = _match_service(cname, services)
+                if not match:
+                    logger.debug("CNAME %s -> %s (servico desconhecido)", sub, cname)
+                    return None
 
-            svc_name, _suffix = match
-            signatures = services[svc_name].get("http_signatures", [])
-            if not isinstance(signatures, list):
-                signatures = []
+                svc_name, _suffix = match
+                signatures = services[svc_name].get("http_signatures", [])
+                if not isinstance(signatures, list):
+                    signatures = []
 
-            http_status, http_match, matched_sig = await _check_http_fingerprint(
-                client,
-                sub,
-                signatures,
-            )
+                http_status, http_match, matched_sig = await _check_http_fingerprint(
+                    client,
+                    sub,
+                    signatures,
+                )
 
-            vulnerable = http_match
-            details = (
-                f"CNAME -> {cname} [{svc_name}], HTTP {http_status}, match: '{matched_sig}'"
-                if http_match
-                else f"CNAME -> {cname} [{svc_name}], HTTP {http_status}, sem match"
-            )
+                vulnerable = http_match
+                details = (
+                    f"CNAME -> {cname} [{svc_name}], HTTP {http_status}, match: '{matched_sig}'"
+                    if http_match
+                    else f"CNAME -> {cname} [{svc_name}], HTTP {http_status}, sem match"
+                )
 
-            logger.info(
-                "%s %s -> %s [%s] HTTP %d %s",
-                "VULN" if vulnerable else "OK",
-                sub,
-                cname,
-                svc_name,
-                http_status,
-                f"match='{matched_sig}'" if http_match else "",
-            )
+                logger.info(
+                    "%s %s -> %s [%s] HTTP %d %s",
+                    "VULN" if vulnerable else "OK",
+                    sub,
+                    cname,
+                    svc_name,
+                    http_status,
+                    f"match='{matched_sig}'" if http_match else "",
+                )
 
-            return TakeoverAttempt(
-                subdomain=sub,
-                cname_target=cname,
-                service=svc_name,
-                http_status=http_status,
-                http_match=http_match,
-                vulnerable=vulnerable,
-                details=details,
-            )
+                return TakeoverAttempt(
+                    subdomain=sub,
+                    cname_target=cname,
+                    service=svc_name,
+                    http_status=http_status,
+                    http_match=http_match,
+                    vulnerable=vulnerable,
+                    details=details,
+                )
 
-    tasks = [_check_one(sub) for sub in subdomains]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+        tasks = [_check_one(sub) for sub in subdomains]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    dangling_count = 0
-    vuln_subs: list[str] = []
-    for r in results:
-        if isinstance(r, TakeoverAttempt):
-            attempts.append(r)
-            if r.vulnerable:
-                dangling_count += 1
-                vuln_subs.append(r.subdomain)
-        elif isinstance(r, Exception):
-            logger.debug("Excecao em task: %s", r)
+        dangling_count = 0
+        vuln_subs: list[str] = []
+        for r in results:
+            if isinstance(r, TakeoverAttempt):
+                attempts.append(r)
+                if r.vulnerable:
+                    dangling_count += 1
+                    vuln_subs.append(r.subdomain)
+            elif isinstance(r, Exception):
+                logger.debug("Excecao em task: %s", r)
 
-    overall = "vulnerable" if vuln_subs else "secure"
+        overall = "vulnerable" if vuln_subs else "secure"
 
-    result = TakeoverResult(
-        target=domain,
-        subdomains_scanned=len(subdomains),
-        dangling_cnames=dangling_count,
-        attempts=attempts,
-        vulnerable_subdomains=vuln_subs,
-        overall_status=overall,
-    )
+        result = TakeoverResult(
+            target=domain,
+            subdomains_scanned=len(subdomains),
+            dangling_cnames=dangling_count,
+            attempts=attempts,
+            vulnerable_subdomains=vuln_subs,
+            overall_status=overall,
+        )
 
-    if output_file:
-        write_output(output_file, asdict(result))
+        if output_file:
+            write_output(output_file, asdict(result))
 
-    logger.info(
-        "Subdomain takeover scan concluido: %d subdominios, %d dangling, %d vulneraveis",
-        len(subdomains),
-        dangling_count,
-        len(vuln_subs),
-    )
+        logger.info(
+            "Subdomain takeover scan concluido: %d subdominios, %d dangling, %d vulneraveis",
+            len(subdomains),
+            dangling_count,
+            len(vuln_subs),
+        )
 
-    await client.aclose()
     return result
 
 
@@ -661,10 +660,7 @@ def run_once(args: argparse.Namespace) -> int:
     else:
         print_results(result)
 
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result))
-
-    return 0 if result.overall_status != "error" else 1
+    return 1 if result.overall_status != "secure" else 0
 
 
 def main() -> int:

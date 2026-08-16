@@ -355,7 +355,10 @@ async def _test_category(
             body_str = "&".join(f"{k}={v}" for k, v in body_dict.items())
 
             resp = await client.post(
-                target, content=body_str.encode(), follow_redirects=True
+                target,
+                content=body_str.encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                follow_redirects=True,
             )
 
             body = resp.text

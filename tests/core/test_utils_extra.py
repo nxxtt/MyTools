@@ -1,4 +1,5 @@
 import argparse
+import re
 import sys
 import time
 from pathlib import Path
@@ -341,7 +342,7 @@ class TestCreateAsyncClientStealth:
 
     def test_tor(self, monkeypatch):
         ctx = MagicMock(impersonate=None, user_agent_rotate=False, tor=True)
-        fake_tor = MagicMock(_proxy_url="socks5://127.0.0.1:9050")
+        fake_tor = MagicMock(proxy_url="socks5://127.0.0.1:9050")
         monkeypatch.setattr(utils, "get_stealth_ctx", lambda: ctx)
         import mytools.core.stealth as stealth_mod
 
@@ -404,6 +405,134 @@ class TestCreateAsyncClientStealth:
         asyncio.run(client.aclose())
 
 
+class TestCurlCffiAdapter:
+    """O ramo curl-cffi de create_async_client deve ser compativel com httpx.
+
+    curl-cffi usa allow_redirects (nao follow_redirects) e close() (nao aclose()).
+    O adapter traduz os nomes e normaliza headers para httpx.Headers.
+    """
+
+    def test_maps_follow_redirects_and_aclose(self, monkeypatch):
+        ctx = MagicMock(impersonate="chrome", user_agent_rotate=False, tor=False)
+        monkeypatch.setattr(utils, "get_stealth_ctx", lambda: ctx)
+        captured: dict = {}
+
+        class FakeResponse:
+            def __init__(self):
+                self.status_code = 200
+                self.content = b"ok"
+                self.text = "ok"
+                self.headers = {"set-cookie": "a=1"}
+
+        class FakeSession:
+            def __init__(self, **kwargs):
+                captured["init"] = kwargs
+                self.headers = {}
+
+            async def request(self, method, url, **kwargs):
+                captured["request"] = (method, url, kwargs)
+                return FakeResponse()
+
+            async def close(self):
+                captured["closed"] = True
+
+        monkeypatch.setattr("curl_cffi.requests.AsyncSession", FakeSession)
+
+        import asyncio
+
+        client = create_async_client(
+            user_agent="UA", proxy="http://p:8080", impersonate="chrome"
+        )
+        resp = asyncio.run(
+            client.get("http://x/", follow_redirects=True, headers={"a": "b"})
+        )
+        asyncio.run(client.aclose())
+
+        req_kwargs = captured["request"][2]
+        assert req_kwargs["allow_redirects"] is True
+        assert "follow_redirects" not in req_kwargs
+        assert isinstance(resp.headers, httpx.Headers)
+        assert resp.headers["set-cookie"] == "a=1"
+        assert resp.status_code == 200
+        assert resp.content == b"ok"
+        assert captured["closed"] is True
+
+    def test_headers_normalized_for_multi_items(self, monkeypatch):
+        ctx = MagicMock(impersonate="chrome", user_agent_rotate=False, tor=False)
+        monkeypatch.setattr(utils, "get_stealth_ctx", lambda: ctx)
+
+        class FakeResponse:
+            def __init__(self):
+                self.status_code = 200
+                self.content = b""
+                self.text = ""
+                self.headers = {"set-cookie": "a=1", "server": "nginx"}
+
+        class FakeSession:
+            def __init__(self, **kwargs):
+                self.headers = {}
+
+            async def request(self, method, url, **kwargs):
+                return FakeResponse()
+
+        monkeypatch.setattr("curl_cffi.requests.AsyncSession", FakeSession)
+
+        import asyncio
+
+        client = create_async_client(impersonate="chrome")
+        resp = asyncio.run(client.get("http://x/"))
+        assert isinstance(resp.headers, httpx.Headers)
+        assert list(resp.headers.multi_items()) == [
+            ("set-cookie", "a=1"),
+            ("server", "nginx"),
+        ]
+
+
+def test_verb_wrappers_delegate(monkeypatch):
+        ctx = MagicMock(impersonate="chrome", user_agent_rotate=False, tor=False)
+        monkeypatch.setattr(utils, "get_stealth_ctx", lambda: ctx)
+        calls: list[tuple[str, str, dict]] = []
+
+        class FakeResponse:
+            def __init__(self):
+                self.status_code = 200
+                self.content = b""
+                self.text = ""
+                self.headers = {"server": "nginx"}
+
+        class FakeSession:
+            def __init__(self, **kwargs):
+                self.headers = {}
+
+            async def request(self, method, url, **kwargs):
+                calls.append((method, url, kwargs))
+                return FakeResponse()
+
+        monkeypatch.setattr("curl_cffi.requests.AsyncSession", FakeSession)
+
+        import asyncio
+
+        client = create_async_client(impersonate="chrome")
+        for verb in ("post", "put", "options", "head"):
+            method = getattr(client, verb)
+            resp = asyncio.run(
+                method("http://x/", follow_redirects=True, data=b"d")
+            )
+            assert isinstance(resp, utils._CurlCffiResponse)
+        methods = [c[0] for c in calls]
+        assert methods == ["POST", "PUT", "OPTIONS", "HEAD"]
+        for _, _, kwargs in calls:
+            assert kwargs["allow_redirects"] is True
+            assert "follow_redirects" not in kwargs
+
+
+class TestResetStealthCtx:
+    def test_clears_global_ctx(self):
+        utils._stealth_local.ctx = utils.StealthContext(impersonate="chrome")
+        utils.reset_stealth_ctx()
+        assert utils.get_stealth_ctx() is None
+
+
 class TestFetchCacheHit:
     @respx.mock
     @pytest.mark.asyncio
@@ -416,6 +545,46 @@ class TestFetchCacheHit:
         r2 = await fetch(client, "http://example.com/cache")
         assert r1 == r2
         await client.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_cache_isolated_by_client(self):
+        # Respostas de clientes diferentes (ex.: Tor vs direto) nao se misturam.
+        calls: list[bytes] = []
+
+        def _handler(request):
+            calls.append(request.content)
+            return httpx.Response(200, content=b"ok")
+
+        respx.get("http://example.com/iso").mock(side_effect=_handler)
+        client_a = create_async_client()
+        client_b = create_async_client()
+        await fetch(client_a, "http://example.com/iso")
+        await fetch(client_b, "http://example.com/iso")
+        await fetch(client_b, "http://example.com/iso")
+        # Dois clients distintos => 2 fetches reais; 3o (mesmo client) e cache hit.
+        assert len(calls) == 2
+        await client_a.aclose()
+        await client_b.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_cache_capped(self):
+        utils._fetch_cache.clear()
+        monkeypatch = pytest.MonkeyPatch()
+        monkeypatch.setattr(utils, "_FETCH_CACHE_MAX", 5)
+
+        def _handler(request):
+            return httpx.Response(200, content=b"ok")
+
+        respx.get(re.compile(r"http://example.com/\d+")).mock(side_effect=_handler)
+        client = create_async_client()
+        for i in range(20):
+            await fetch(client, f"http://example.com/{i}")
+        assert len(utils._fetch_cache) <= utils._FETCH_CACHE_MAX
+        await client.aclose()
+        monkeypatch.undo()
+        utils._fetch_cache.clear()
 
 
 class TestFetchStealthBranches:

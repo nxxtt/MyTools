@@ -50,6 +50,7 @@ import socket
 import ssl
 import struct
 import time
+import zlib
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -388,6 +389,7 @@ def _build_ws_frame(
     opcode: int,
     payload: bytes,
     mask: bool = True,
+    rsv1: bool = False,
 ) -> bytes:
     """Constroi frame WebSocket raw."""
 
@@ -395,7 +397,9 @@ def _build_ws_frame(
 
     FIN = 0x80
 
-    frame.append(FIN | (opcode & 0x0F))
+    RSV1 = 0x40 if rsv1 else 0x00
+
+    frame.append(FIN | RSV1 | (opcode & 0x0F))
 
     mask_bit = 0x80 if mask else 0x00
 
@@ -437,11 +441,12 @@ def _send_ws_frame(
     opcode: int,
     payload: bytes = b"",
     mask: bool = True,
+    rsv1: bool = False,
 ) -> bool:
     """Envia frame WebSocket. Retorna True se enviou com sucesso."""
 
     try:
-        frame = _build_ws_frame(opcode, payload, mask)
+        frame = _build_ws_frame(opcode, payload, mask, rsv1)
 
         sock.sendall(frame)
 
@@ -792,11 +797,7 @@ async def _test_ws_scanner(
 
                     status = 101
 
-                    vulnerable = technique in (
-                        "cswh_hijack",
-                        "missing_auth",
-                        "info_disclosure",
-                    )
+                    vulnerable = False
 
                     sock.close()
 
@@ -1066,9 +1067,26 @@ async def _test_ws_message_inject(
                 response = _recv_ws_frame(sock, timeout)
 
                 if response:
-                    resp_opcode, _resp_payload = response
+                    resp_opcode, resp_payload = response
 
-                    vulnerable = resp_opcode == WS_OPCODE_TEXT
+                    clean_payload = bytes(b for b in payload if b >= 0x20)[:32]
+
+                    clean_resp = bytes(b for b in resp_payload if b >= 0x20)
+
+                    fragments = (b"first", b"second", b"final")
+
+                    echoed = (
+                        (
+                            technique == "fragmented_overlap"
+                            and resp_payload in fragments
+                        )
+                        or any(
+                            frag in clean_resp for frag in fragments if frag in payload
+                        )
+                        or (bool(clean_payload) and clean_payload in clean_resp)
+                    )
+
+                    vulnerable = resp_opcode == WS_OPCODE_TEXT and echoed
 
                     details = f"Opcode resposta: 0x{resp_opcode:X}"
 
@@ -1213,7 +1231,7 @@ async def _test_ws_dos(
                 if response:
                     resp_opcode, _resp_payload = response
 
-                    vulnerable = resp_opcode in (WS_OPCODE_CLOSE, WS_OPCODE_PONG)
+                    vulnerable = False
 
                     details = f"Opcode resposta: 0x{resp_opcode:X}"
 
@@ -1349,7 +1367,7 @@ async def _test_ws_compression_bomb(
         ),
     ]
 
-    for technique, desc, headers, _payload in techniques:
+    for technique, desc, headers, payload in techniques:
         try:
             sock = _create_connection(host, port, timeout, tls)
 
@@ -1366,9 +1384,31 @@ async def _test_ws_compression_bomb(
 
                 upgraded = status == 101
 
-                vulnerable = upgraded and has_deflate
+                vulnerable = False
 
                 details = f"Status: {status}, deflate: {has_deflate}"
+
+                if upgraded and has_deflate:
+                    try:
+                        compressed = zlib.compress(payload, 9)
+
+                        if _send_ws_frame(
+                            sock, WS_OPCODE_TEXT, compressed, mask=True, rsv1=True
+                        ):
+                            resp = _recv_ws_frame(sock, min(timeout, 3.0))
+
+                            if resp is None:
+                                vulnerable = True
+
+                                details += ", sem resposta apos bomb (crash/timeout)"
+                        else:
+                            vulnerable = True
+
+                            details += ", conexao encerrada apos bomb"
+                    except OSError:
+                        vulnerable = True
+
+                        details += ", conexao encerrada apos bomb"
 
                 results.append(
                     WSAttackAttempt(
@@ -1421,6 +1461,8 @@ async def _test_ws_payload_fuzz(
     """Testa payload fuzzing em WebSocket (reflection + timing)."""
 
     results: list[WSAttackAttempt] = []
+
+    baseline_elapsed = 0.0
 
     for (
         technique,
@@ -1498,6 +1540,24 @@ async def _test_ws_payload_fuzz(
                 sock.close()
 
         # --- Timing-based detection ---
+        if timing_payloads and baseline_elapsed == 0.0:
+            conn = _ws_handshake(host, port, path, timeout, tls)
+
+            if conn:
+                sock, _key = conn
+
+                try:
+                    t0 = time.monotonic()
+
+                    _send_ws_frame(sock, WS_OPCODE_TEXT, b"ping", mask=True)
+
+                    _recv_ws_frame(sock, timeout)
+
+                    baseline_elapsed = time.monotonic() - t0
+
+                finally:
+                    sock.close()
+
         for payload_str in timing_payloads:
             conn = _ws_handshake(host, port, path, timeout, tls)
             if not conn:
@@ -1509,7 +1569,7 @@ async def _test_ws_payload_fuzz(
                 _recv_ws_frame(sock, timeout)
                 elapsed = time.monotonic() - t0
 
-                if elapsed >= timing_threshold:
+                if elapsed >= timing_threshold and elapsed >= baseline_elapsed + 1.0:
                     results.append(
                         WSAttackAttempt(
                             technique=f"{technique}_timing",

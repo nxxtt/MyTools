@@ -4,7 +4,7 @@
 
 Suite de ferramentas de auditoria e reconhecimento web/network para ambientes de laboratório e alvos autorizados.
 
-> **Qualidade:** 8548 testes passando · 100% de cobertura de código (statements + branches) · `ruff check`/`ruff format` limpos · `basedpyright` com 0 erros.
+> **Qualidade:** 8987 testes passando · 100% de cobertura de código (statements + branches) · `ruff check`/`ruff format` limpos · `basedpyright` com 0 erros.
 
 > **AVISO:** Este projeto é destinado exclusivamente para fins educacionais e de teste em ambientes autorizados. O uso irresponsável pode ser ilegal. Use com responsabilidade.
 
@@ -172,7 +172,7 @@ Isso instala os comandos CLI:
 > **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
 
 ### Execução direta (sem instalar)
-Todos os 114 módulos podem ser executados via `python -m`:
+Todos os 113 módulos podem ser executados via `python -m`:
 ```bash
 python -m mytools.core.main                  # Painel unificado
 python -m mytools.web.attackaudit --help     # Ajuda individual
@@ -185,7 +185,7 @@ python -m mytools.mobile.mobile_audit --help # Mobile API Testing
 # Build
 docker build -t mytools .
 
-# Subcomando direto (114 comandos disponíveis)
+# Subcomando direto (113 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -1348,13 +1348,13 @@ mytools-cred del my-api-key
 ```
 
 ### 109. Batch Scanner (`mytools-batch`)
-Executa múltiplos módulos contra múltiplos alvos a partir de um arquivo de configuração YAML. Gera relatório consolidado com resumo de findings por severidade.
+Executa múltiplos módulos contra múltiplos alvos a partir de um arquivo de alvos. Gera relatório consolidado com resumo de findings por severidade.
 
 ```bash
 mytools-batch targets.txt
-mytools-batch targets.txt --module mytools-port --module mytools-dns
-mytools-batch targets.txt --severity high --output report.json
-mytools-batch targets.txt --parallel 5
+mytools-batch targets.txt port dir
+mytools-batch targets.txt recon audit --parallel 5
+mytools-batch targets.txt all --output-dir results/ --format json
 ```
 
 ### 110. REST API Fuzzer (`mytools-restfuzz`)
@@ -1961,6 +1961,10 @@ src/mytools/                    # Pacote principal
     cred.py                     # Gerenciador de credenciais (keyring)
     main.py                     # Menu interativo central
     reconall.py                 # Orquestrador: executa todos os módulos
+    base.py                     # BaseScanner: parser base, run_scan, exit codes
+    batch.py                    # Execução em lote (mytools-batch)
+    report.py                   # Relatórios HTML (mytools-report)
+    headless.py                 # Headless browser (Playwright) helpers
   network/                      # Rede e portas
     portscanner.py              # Scanner de portas TCP
     dirscanner.py               # Scanner de diretórios HTTP
@@ -2031,6 +2035,17 @@ src/mytools/                    # Pacote principal
     dockerattack.py              # Docker Security Testing
     infraattack.py               # Cloud Infrastructure Security Testing
     iotattack.py                 # IoT & Industrial Protocol Testing
+    sqliscan.py                 # SQL Injection Scanner
+    cmdinject.py                # Command Injection Scanner
+    csrfscan.py                 # CSRF Scanner
+    lfidetect.py                # LFI/RFI Scanner
+    loginbruteforce.py          # Login Brute Force / Credential Testing
+    cloudbucketenum.py          # Cloud Bucket Enumeration (S3/GCP/Azure)
+    subdomaintakeover.py        # Subdomain Takeover Detection
+    restapifuzz.py              # REST API Fuzzer (auth bypass, content-type, HATEOAS)
+    cmsfingerprint.py           # CMS Fingerprinting (WordPress, Joomla, Drupal)
+    depscanner.py               # Dependency Scanner (libs + CVE + outdated)
+    secondorder.py              # Second-Order Injection Detection
   dns/                          # DNS e resolução
     dnstransfer.py              # DNS Zone Transfer
     subdomainenum.py            # Enumeração de subdomínios
@@ -2118,6 +2133,27 @@ src/mytools/                    # Pacote principal
     web/prototypepollution.yaml
     web/xssvectors.yaml
     web/xxedetect.yaml
+    web/cloud_bucket_enum.yaml
+    web/cmdinject.yaml
+    web/cms_fingerprint.yaml
+    web/dependency_scan.yaml
+    web/lfi_rfi.yaml
+    web/login_bruteforce.yaml
+    web/rest_api_fuzz.yaml
+    web/sqli.yaml
+    web/subdomain_takeover.yaml
+    web/deserialinject_java_gadget_cc.bin   # Payloads binários (desserialização)
+    web/deserialinject_java_gadget_spring.bin
+    web/deserialinject_java_magic_bytes.bin
+    web/deserialinject_java_obj_stream.bin
+    web/deserialinject_magic_java.bin
+    web/deserialinject_magic_marshal.bin
+    web/deserialinject_magic_pickle.bin
+    web/deserialinject_magic_ruby.bin
+    web/deserialinject_python_marshal.bin
+    web/deserialinject_python_pickle.bin
+    web/deserialinject_python_shelve.bin
+    web/deserialinject_ruby_marshal.bin
 
   mobile/                       # Mobile API Testing (Android/iOS)
     __init__.py                 # Package marker
@@ -2133,7 +2169,7 @@ src/mytools/                    # Pacote principal
     oauth2_flows.py             # OAuth2 PKCE, Client Credentials, JWT validation
     mobile_audit.py             # BaseScanner CLI: run_scan + colored output
 
-tests/                          # Testes unitários (8548 testes, 100% de cobertura)
+tests/                          # Testes unitários (8987 testes, 100% de cobertura)
   core/                         # test_utils, test_cred, test_reconall
   network/                      # test_portscanner, test_dirscanner
   web/                          # test_webrecon, test_attackaudit, ...
@@ -2156,7 +2192,7 @@ pyproject.toml                  # Configuração do projeto
 
 ### Rodar testes
 ```bash
-uv run pytest tests/                                  # Suite completa (8548 testes, xdist)
+uv run pytest tests/                                  # Suite completa (8987 testes, xdist)
 uv run pytest tests/ -m smoke                        # Testes rápidos
 uv run pytest tests/ -m integration                  # Testes de integração (HTTP real)
 uv run pytest tests/ -m "not real_sleep"             # Excluir testes com sleep real
@@ -2186,7 +2222,7 @@ uv lock                  # Atualizar o lockfile
 
 ### Runtime
 - `httpx>=0.28.1` — HTTP client async com sessions, proxy, retry
-- `h2>=4.4.0` — Protocolo HTTP/2 puro Python (frames, HPACK, SETTINGS, RST_STREAM)
+- `h2>=4.4.1` — Protocolo HTTP/2 puro Python (frames, HPACK, SETTINGS, RST_STREAM)
 - `beautifulsoup4>=4.15.0` — Parser HTML avançado
 - `python-whois>=0.9.6` — Consulta WHOIS
 - `dnspython>=2.8.0` — Resolução DNS, zone transfer e enumeração de subdomínios
@@ -2200,9 +2236,9 @@ uv lock                  # Atualizar o lockfile
 - `grpcio>=1.83.0` — gRPC client/server (HTTP/2, protobuf)
 - `grpcio-reflection>=1.83.0` — gRPC server reflection (introspecção de services)
 - `protobuf>=7.35.1` — Protocol Buffers (serialização gRPC)
-- `thriftpy2>=0.6.0` — Thrift protocol (RPC, deserialization)
-- `curl-cffi>=0.15.0` — TLS fingerprint impersonation (Chrome, Firefox, Safari, Edge)
-- `httpx-socks[asyncio]>=0.11.0` — Tor SOCKS5 proxy (async)
+- `thriftpy2>=0.7.0` — Thrift protocol (RPC, deserialization)
+- `curl-cffi>=0.16.0` — TLS fingerprint impersonation (Chrome, Firefox, Safari, Edge)
+- `httpx-socks[asyncio]>=0.13.1` — Tor SOCKS5 proxy (async)
 - `androguard>=4.1.4` — Análise de APK (metadata, DEX, decompilação)
 - `lief>=1.0.0` — Parsing de Mach-O (IPA, rpaths, imports/exports)
 - `tqdm>=4.70.0` — Barras de progresso nos scanners
@@ -2213,9 +2249,10 @@ uv lock                  # Atualizar o lockfile
 - `pytest>=9.1.1` — Framework de testes
 - `pytest-asyncio>=1.4.0` — Testes async
 - `pytest-cov>=7.1.0` — Cobertura de código (Codecov)
+- `pytest-xdist>=3.8.0` — Execução paralela de testes
 - `respx>=0.23.1` — Mock de httpx para testes
-- `ruff>=0.16.1` — Linter/formatter
-- `basedpyright>=1.39.9` — Type checker
+- `ruff>=0.16.3` — Linter/formatter
+- `basedpyright>=1.39.10` — Type checker
 
 ---
 

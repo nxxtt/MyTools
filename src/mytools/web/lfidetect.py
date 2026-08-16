@@ -33,7 +33,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
@@ -61,18 +61,23 @@ logger = logging.getLogger("mytools.lfidetect")
 _CONTENT_SIGNATURES: dict[str, list[bytes]] = {
     "passwd": [b"root:x:0:0:", b"root:0:0:", b"daemon:x:", b"nobody:x:"],
     "php_source": [b"<?php", b"<?=", b"<?\n", b"<?php "],
-    "base64": [b"PD9waH", b"PCFETFO", b"UEsDB"],  # <?php, <!DOCTYPE, PK
-    "windows": [b"[fonts]", b"[extensions]", b"[Desktop]"],
-    "proc": [b"PATH=", b"HOME=", b"SHELL=", b"USER="],
-    "shadow": [b"root:$", b"root:!", b"daemon:"],
+    "base64": [b"pd9wah", b"pcfetfo", b"uesdb"],  # <?php, <!DOCTYPE, PK (lower)
+    "windows": [b"[fonts]", b"[extensions]", b"[desktop]"],
+    "proc": [b"path=", b"home=", b"shell=", b"user="],
+    "robots": [b"user-agent:"],
 }
 
 
 def _detect_leak(body: bytes) -> tuple[bool, str]:
-    """Verifica se body contem assinatura de arquivo do sistema."""
+    """Verifica se body contem assinatura de arquivo do sistema.
+
+    As assinaturas sao comparadas em lowercase para que markers como
+    ``User-agent:`` (robots.txt/RFI) sejam detectados case-insensitively.
+    """
+    lowered = body.lower()
     for leak_type, signatures in _CONTENT_SIGNATURES.items():
         for sig in signatures:
-            if sig in body:
+            if sig in lowered:
                 return True, leak_type
     return False, "none"
 
@@ -251,7 +256,7 @@ def _make_lfi_url(base_url: str, param: str, payload: str) -> str:
     parsed = urlparse(base_url)
     params = parse_qs(parsed.query, keep_blank_values=True)
     params[param] = [payload]
-    new_query = "&".join(f"{k}={v[0]}" for k, v in params.items())
+    new_query = urlencode(params, doseq=True)
     return urlunparse(parsed._replace(query=new_query))
 
 
@@ -373,8 +378,13 @@ async def _test_rfi(
     attempts: list[LFIAttempt] = []
     b_status, b_size, _b_body = baseline
 
+    host = urlparse(url).netloc
+
     for param in params:
         for technique, payload in _RFI_PAYLOADS:
+            # Remove dependencia externa (httpbin.org): injeta URL auto-referente
+            # para o proprio alvo, evitando chamadas outbound a terceiros.
+            payload = payload.replace("httpbin.org", host)
             test_url = _make_lfi_url(url, param, payload)
             try:
                 resp = await client.get(test_url, follow_redirects=False)
@@ -399,6 +409,7 @@ async def _test_rfi(
                     verify = get_verify_payload("lfidetect", "rfi")
                     if verify:
                         v_payload, v_indicators = verify
+                        v_payload = v_payload.replace("httpbin.org", host)
                         v_url = _make_lfi_url(url, param, v_payload)
                         confirmed, v_found = await verify_positive(
                             client, v_url, v_indicators

@@ -498,6 +498,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 0
 
     all_maps: list[SourceMapInfo] = []
+    single_target = len(urls) == 1
     for url in urls:
         base_url = normalize_url(
             url, default_scheme="https", ensure_trailing_slash=True
@@ -513,12 +514,13 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             custom_paths=custom_paths or None,
             proxy=args.proxy,
             verify=getattr(args, "verify", False),
-            requests_per_second=args.delay,
+            requests_per_second=1.0 / args.delay if args.delay else 0.0,
             retries=args.retries,
         )
 
         if getattr(args, "json_output", False):
-            print_json([asdict(m) for m in maps])
+            if not quiet and not single_target:
+                print_json([asdict(m) for m in maps])
         elif not quiet:
             print_results(maps)
             if args.show_sources:
@@ -545,7 +547,8 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             )
 
     if getattr(args, "json_output", False):
-        print_json([asdict(m) for m in all_maps])
+        if not quiet:
+            print_json([asdict(m) for m in all_maps])
     elif args.output:
         write_output(
             args.output,

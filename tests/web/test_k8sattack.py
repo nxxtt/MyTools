@@ -419,6 +419,22 @@ class TestRunScan:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_public_endpoints_only_not_vulnerable(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            path = request.url.path
+            if path in ("/version", "/healthz", "/readyz", "/livez"):
+                return httpx.Response(200, text='{"gitVersion":"v1.28.3"}')
+            return httpx.Response(404, text="not found")
+
+        respx.route(method="GET", url__startswith="https://target.com:6443").mock(
+            side_effect=handler
+        )
+        result = await run_scan("https://target.com:6443", ["kubernetes"], 0.1, None)
+        assert result.overall_status == "secure"
+        assert "api_enumeration" not in result.vulnerable_techniques
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_tester_raises_inside_kubernetes(self) -> None:
         async def boom(*args: object, **kwargs: object) -> None:
             raise RuntimeError("boom")

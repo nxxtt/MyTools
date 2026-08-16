@@ -241,8 +241,9 @@ async def _test_bom_url(
     b_status, b_size, _ = baseline
 
     for bom_name, bom_char in _BOM_VARIANTS.items():
+        bom_url_char = "".join(f"%{b:02x}" for b in _BOM_BYTES[bom_name])
         for position in ["path", "query"]:
-            test_url = _bom_url(url, bom_name, bom_char, position)
+            test_url = _bom_url(url, bom_name, bom_url_char, position)
 
             technique = f"bom_{bom_name}_{position}"
 
@@ -349,7 +350,7 @@ async def _test_bom_headers(
                     size_baseline=b_size,
                     size_test=t_size,
                     status_changed=status_changed,
-                    size_changed=(t_size != b_size),
+                    size_changed=abs(t_size - b_size) > 50,
                     vulnerable=vulnerable,
                     details=f"Status {b_status}->{t_status}"
                     if status_changed
@@ -529,7 +530,7 @@ async def _test_bom_upload(
                     if status_changed
                     else "Sem mudanca",
                     error="",
-                    exploit="\\xef\\xbb\\bf" if vulnerable else "",
+                    exploit="\\xef\\xbb\\xbf" if vulnerable else "",
                     tool="curl",
                 )
             )

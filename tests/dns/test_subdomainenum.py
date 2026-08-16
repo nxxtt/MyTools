@@ -441,6 +441,54 @@ class TestRunOnce:
         args = _make_args(output=None)
         assert run_once(args) == 0
 
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    @patch("mytools.dns.subdomainenum.run_enum_scan")
+    def test_passive_no_api_keys(self, mock_scan, mock_passive):
+        mock_scan.return_value = []
+        mock_passive.return_value = []
+        args = _make_args(passive=True)
+        assert run_once(args) == 0
+        mock_passive.assert_called_once()
+        sources = mock_passive.call_args.args[1]
+        assert "virustotal" not in sources
+        assert "securitytrails" not in sources
+        assert "shodan" not in sources
+
+    @patch("mytools.dns.subdomainenum.passive_enumeration")
+    @patch("mytools.dns.subdomainenum.run_enum_scan")
+    def test_passive_with_all_api_keys(self, mock_scan, mock_passive):
+        mock_scan.return_value = []
+        mock_passive.return_value = []
+        args = _make_args(
+            passive=True,
+            vt_api_key="vt",
+            st_api_key="st",
+            shodan_api_key="sh",
+        )
+        assert run_once(args) == 0
+        sources, api_keys = mock_passive.call_args.args[1], mock_passive.call_args.args[2]
+        assert "virustotal" in sources
+        assert "securitytrails" in sources
+        assert "shodan" in sources
+        assert api_keys == {
+            "virustotal": "vt",
+            "securitytrails": "st",
+            "shodan": "sh",
+        }
+
+    @patch("mytools.dns.subdomainenum.run_enum_scan")
+    @patch("mytools.dns.subdomainenum.ensure_output_dir")
+    @patch("mytools.dns.subdomainenum.write_output")
+    def test_output_dir(self, mock_write, mock_ensure, mock_scan):
+        mock_scan.return_value = [
+            SubdomainResult(
+                subdomain="www.example.com", ip_addresses=["1.2.3.4"], status="resolved"
+            )
+        ]
+        args = _make_args(output_dir="reports")
+        run_once(args)
+        mock_ensure.assert_called_once_with("reports")
+
 
 class TestMain:
     def test_no_domain_shells_interactive(self):

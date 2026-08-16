@@ -146,19 +146,51 @@ class TestGenerateCallback:
 # ─── Check XSS Response ─────────────────────────────────────────────────────
 class TestCheckXSSResponse:
     def test_script_in_response(self) -> None:
-        assert _check_xss_response(b"<script>alert(1)</script>", 200) is True
+        assert _check_xss_response(b"<script>alert(1)</script>", 200, b"") is True
 
     def test_onerror_in_response(self) -> None:
-        assert _check_xss_response(b'<img src=x onerror="alert(1)">', 200) is True
+        assert _check_xss_response(b'<img src=x onerror="alert(1)">', 200, b"") is True
 
     def test_no_xss_indicators(self) -> None:
-        assert _check_xss_response(b"hello world", 200) is False
+        assert _check_xss_response(b"hello world", 200, b"") is False
 
     def test_0_status(self) -> None:
-        assert _check_xss_response(b"", 0) is False
+        assert _check_xss_response(b"", 0, b"") is False
 
     def test_empty_body(self) -> None:
-        assert _check_xss_response(b"", 200) is False
+        assert _check_xss_response(b"", 200, b"") is False
+
+    def test_indicator_present_in_baseline_not_flagged(self) -> None:
+        baseline = b"<html><script src='/app.js'></script></html>"
+        body = b"<html><script src='/app.js'></script>no xss here</html>"
+        assert _check_xss_response(body, 200, baseline) is False
+
+    def test_indicator_only_in_test_body_is_flagged(self) -> None:
+        baseline = b"<html><p>welcome</p></html>"
+        body = b'<html><img src=x onerror="fetch(1)"></html>'
+        assert _check_xss_response(body, 200, baseline) is True
+
+    def test_baseline_only_script_not_flagged(self) -> None:
+        baseline = b"<script>var x = 1;</script>"
+        body = b"<script>var x = 1;</script>no injection"
+        assert _check_xss_response(body, 200, baseline) is False
+
+    def test_token_reflected_is_flagged(self) -> None:
+        token = "abc12345"
+        baseline = b"<html>normal page</html>"
+        body = f'<html><script>fetch("/xss-callback/{token}")</script></html>'.encode()
+        assert _check_xss_response(body, 200, baseline, token) is True
+
+    def test_token_in_baseline_not_flagged(self) -> None:
+        token = "abc12345"
+        baseline = f'<html><a href="/xss-callback/{token}">link</a></html>'.encode()
+        body = f'<html><a href="/xss-callback/{token}">link</a>ok</html>'.encode()
+        assert _check_xss_response(body, 200, baseline, token) is False
+
+    def test_baseline_with_script_test_same_not_flagged(self) -> None:
+        baseline = b"<script>config 2 test</script>"
+        body = b"<script>config 2 test</script>extra"
+        assert _check_xss_response(body, 200, baseline) is False
 
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
@@ -594,6 +626,66 @@ class TestNotReflected:
         assert len(results) == 20
         assert all(r.vulnerable for r in results)
 
+    @pytest.mark.asyncio
+    async def test_input_baseline_contains_script_not_flagged(self) -> None:
+        baseline = b"<html><script>var tracking = true;</script></html>"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = baseline
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_input(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, baseline),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_header_baseline_contains_fetch_not_flagged(self) -> None:
+        baseline = b"<html><script>fetch('/api/data');</script></html>"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = baseline
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_header(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, baseline),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_event_baseline_contains_onload_not_flagged(self) -> None:
+        baseline = b'<html><body onload="init()"><img onerror="clean()"></body></html>'
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = baseline
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_event(
+            mock_client,
+            "https://test.com",
+            "https://hook.example.com",
+            (200, 100, baseline),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+
 
 # ─── Error Handling (except httpx.RequestError) ──────────────────────────────
 class TestErrorHandlingExtra:
@@ -725,12 +817,15 @@ class TestRunScan:
 
     @pytest.mark.asyncio
     async def test_vulnerable_all_categories(self) -> None:
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"<script>echo</script>"
+        baseline_resp = MagicMock()
+        baseline_resp.status_code = 200
+        baseline_resp.content = b"welcome"
+        test_resp = MagicMock()
+        test_resp.status_code = 200
+        test_resp.content = b"<script>echo</script>"
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.get = AsyncMock(side_effect=[baseline_resp] + [test_resp] * 500)
+        mock_client.post = AsyncMock(return_value=test_resp)
         cm = self._mock_cm(mock_client)
 
         from mytools.web.blindxss import run_scan
@@ -769,6 +864,36 @@ class TestRunScan:
             )
         assert result == 0
         mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_json_output(self) -> None:
+        baseline_resp = MagicMock()
+        baseline_resp.status_code = 200
+        baseline_resp.content = b"welcome"
+        test_resp = MagicMock()
+        test_resp.status_code = 200
+        test_resp.content = b"<script>echo</script>"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[baseline_resp] + [test_resp] * 500)
+        mock_client.post = AsyncMock(return_value=test_resp)
+        cm = self._mock_cm(mock_client)
+
+        from mytools.web.blindxss import run_scan
+
+        with (
+            patch("mytools.web.blindxss.create_async_client", cm),
+            patch("mytools.web.blindxss.print_json") as mock_print,
+        ):
+            result = await run_scan(
+                target="https://test.com",
+                webhook_url="https://hook.example.com",
+                categories=[],
+                timeout=10.0,
+                output_file=None,
+                json_output=True,
+            )
+        assert result == 1
+        mock_print.assert_called_once()
 
 
 # ─── Banner Art ──────────────────────────────────────────────────────────────

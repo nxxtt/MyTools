@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import struct
 import time
@@ -169,11 +170,13 @@ async def _discover_reflection(
                 result["files"].append(file_name)
             except Exception:
                 result["services"].append({"name": svc_name, "methods": []})
-        await channel.close()
     except grpc.aio.AioRpcError:
         pass
     except Exception:
         pass
+    finally:
+        with contextlib.suppress(Exception):
+            await channel.close()  # type: ignore[possibly-undefined]
     return result
 
 
@@ -212,20 +215,29 @@ def _make_attempt(
     )
 
 
+# Codigos de erro gRPC que evidenciam que o servidor ficou sobrecarregado ou
+# falhou sob carga (successo individual de Health/Check e comportamento normal).
+_EXHAUSTION_CODES = frozenset(
+    {"RESOURCE_EXHAUSTED", "DEADLINE_EXCEEDED", "DATA_LOSS", "INTERNAL"}
+)
+
+
 async def _try_call(
     target: str, tls: bool, method: str, payload: bytes, timeout: float
 ) -> tuple[bool, str]:
+    channel = _create_channel(target, tls)
     try:
-        channel = _create_channel(target, tls)
         await asyncio.wait_for(channel.channel_ready(), timeout=timeout)
         stub = channel.unary_unary(method)
         await stub(payload)
-        await channel.close()
         return True, "ok"
     except grpc.aio.AioRpcError as e:
         return e.code() == grpc.StatusCode.OK, e.code().name
     except Exception:
         return False, "connection_failed"
+    finally:
+        with contextlib.suppress(Exception):
+            await channel.close()
 
 
 async def _test_reflection(
@@ -320,13 +332,11 @@ async def _test_server_streaming(
         ("stream_hijack", "Stream hijack", b"\x08\x01"),
     ]:
         try:
-            vuln, det = await _try_call(
-                target, tls, "/grpc.health.v1.Health/Check", payload, timeout
-            )
             if tech == "stream_flood":
                 sent = 0
+                evidence: set[str] = set()
                 for _i in range(10):
-                    ok, _ = await _try_call(
+                    ok, code = await _try_call(
                         target,
                         tls,
                         "/grpc.health.v1.Health/Check",
@@ -335,7 +345,18 @@ async def _test_server_streaming(
                     )
                     if ok:
                         sent += 1
-                vuln, det = sent > 5, f"Stream flood: {sent}/10 succeeded"
+                    elif code in _EXHAUSTION_CODES:
+                        evidence.add(code)
+                vuln = bool(evidence)
+                det = f"Stream flood: {sent}/10 succeeded" + (
+                    f", evidence={sorted(evidence)}" if evidence else ""
+                )
+            else:
+                ok, code = await _try_call(
+                    target, tls, "/grpc.health.v1.Health/Check", payload, timeout
+                )
+                vuln = not ok and code in _EXHAUSTION_CODES
+                det = f"{desc}: {code}"
             results.append(
                 _make_attempt(
                     tech, "server_streaming", desc, vuln, det, "", endpoint, refl
@@ -375,19 +396,25 @@ async def _test_client_streaming(
         ("stream_consume", "Stream consume", b"\x08" * 100),
     ]:
         try:
+            evidence: set[str] = set()
             if tech == "upload_flood":
                 sent = 0
                 for _i in range(20):
-                    ok, _ = await _try_call(
+                    ok, code = await _try_call(
                         target, tls, "/grpc.health.v1.Health/Check", payload, timeout
                     )
                     if ok:
                         sent += 1
-                vuln, det = sent > 10, f"Uploaded {sent}/20"
+                    elif code in _EXHAUSTION_CODES:
+                        evidence.add(code)
+                vuln = bool(evidence)
+                det = f"Uploaded {sent}/20" + (
+                    f", evidence={sorted(evidence)}" if evidence else ""
+                )
             elif tech == "stream_consume":
                 consumed = 0
                 for i in range(15):
-                    ok, _ = await _try_call(
+                    ok, code = await _try_call(
                         target,
                         tls,
                         "/grpc.health.v1.Health/Check",
@@ -396,11 +423,18 @@ async def _test_client_streaming(
                     )
                     if ok:
                         consumed += 1
-                vuln, det = consumed > 10, f"Consumed {consumed}/15"
+                    elif code in _EXHAUSTION_CODES:
+                        evidence.add(code)
+                vuln = bool(evidence)
+                det = f"Consumed {consumed}/15" + (
+                    f", evidence={sorted(evidence)}" if evidence else ""
+                )
             else:
-                vuln, det = await _try_call(
+                ok, code = await _try_call(
                     target, tls, "/grpc.health.v1.Health/Check", payload, timeout
                 )
+                vuln = not ok and code in _EXHAUSTION_CODES
+                det = code
             results.append(
                 _make_attempt(
                     tech, "client_streaming", desc, vuln, det, "", endpoint, refl
@@ -440,10 +474,11 @@ async def _test_bidirectional(
         ("bidi_hang", "Bidi hang"),
     ]:
         try:
+            evidence: set[str] = set()
             if tech == "bidi_flood":
                 sent = 0
                 for i in range(25):
-                    ok, _ = await _try_call(
+                    ok, code = await _try_call(
                         target,
                         tls,
                         "/grpc.health.v1.Health/Check",
@@ -452,11 +487,16 @@ async def _test_bidirectional(
                     )
                     if ok:
                         sent += 1
-                vuln, det = sent > 15, f"Bidi flood: {sent}/25"
+                    elif code in _EXHAUSTION_CODES:
+                        evidence.add(code)
+                vuln = bool(evidence)
+                det = f"Bidi flood: {sent}/25" + (
+                    f", evidence={sorted(evidence)}" if evidence else ""
+                )
             elif tech == "bidi_resource_exhaustion":
                 conc = 0
                 for _i in range(10):
-                    ok, _ = await _try_call(
+                    ok, code = await _try_call(
                         target,
                         tls,
                         "/grpc.health.v1.Health/Check",
@@ -465,14 +505,20 @@ async def _test_bidirectional(
                     )
                     if ok:
                         conc += 1
-                vuln, det = conc > 5, f"Concurrent: {conc}/10"
+                    elif code in _EXHAUSTION_CODES:
+                        evidence.add(code)
+                vuln = bool(evidence)
+                det = f"Concurrent: {conc}/10" + (
+                    f", evidence={sorted(evidence)}" if evidence else ""
+                )
             else:
                 t0 = time.monotonic()
-                vuln, _ = await _try_call(
+                ok, code = await _try_call(
                     target, tls, "/grpc.health.v1.Health/Check", b"\x00", timeout
                 )
                 elapsed = time.monotonic() - t0
-                vuln, det = elapsed > 2.0, f"Bidi hang: {elapsed:.2f}s"
+                vuln = not ok and code in _EXHAUSTION_CODES
+                det = f"Bidi hang: {elapsed:.2f}s ({code})"
             results.append(
                 _make_attempt(
                     tech, "bidirectional", desc, vuln, det, "", endpoint, refl
@@ -555,9 +601,10 @@ async def _test_grpc_web(
                             "Origin": "https://internal.company.com",
                         },
                     )
+                    acao = resp.headers.get("access-control-allow-origin", "")
                     vuln, det = (
-                        resp.status_code == 200,
-                        f"Origin spoof: {resp.status_code}",
+                        acao in ("*", "https://internal.company.com"),
+                        f"Origin spoof: {resp.status_code}, ACAO: {acao or 'not set'}",
                     )
                 else:
                     resp = await client.post(
@@ -568,7 +615,11 @@ async def _test_grpc_web(
                             "X-Forwarded-For": "127.0.0.1",
                         },
                     )
-                    vuln, det = resp.status_code == 200, f"Proxy: {resp.status_code}"
+                    acao = resp.headers.get("access-control-allow-origin", "")
+                    vuln, det = (
+                        acao == "*",
+                        f"Proxy: {resp.status_code}, ACAO: {acao or 'not set'}",
+                    )
             results.append(
                 _make_attempt(tech, "grpc_web", desc, vuln, det, "", endpoint, refl)
             )
@@ -607,11 +658,12 @@ async def _test_protobuf(
         ("enum_overflow", "Enum overflow"),
     ]:
         try:
-            vuln, det = await _try_call(
+            ok, code = await _try_call(
                 target, tls, "/grpc.health.v1.Health/Check", payloads[tech], timeout
             )
+            vuln = not ok and code in _EXHAUSTION_CODES
             results.append(
-                _make_attempt(tech, "protobuf", desc, vuln, det, "", endpoint, refl)
+                _make_attempt(tech, "protobuf", desc, vuln, code, "", endpoint, refl)
             )
         except Exception as exc:
             results.append(

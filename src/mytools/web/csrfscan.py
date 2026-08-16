@@ -261,10 +261,8 @@ async def _test_form_detection(
 
             exploit = ""
             if vulnerable:
-                exploit = (
-                    f"curl -X {form.method} {form_url}"
-                    + " -d '&'.join(f'{k}={v}' for k,v in form.fields.items())"
-                )
+                post_data = "&".join(f"{k}={v}" for k, v in form.fields.items())
+                exploit = f"curl -X {form.method} {form_url} -d '{post_data}'"
 
             attempts.append(
                 CSRFAttempt(
@@ -320,7 +318,15 @@ async def _test_cookie_analysis(
                         details_parts.append("Secure ausente")
 
                     if has_samesite:
-                        vulnerable = False
+                        same_site_val = (
+                            header_lower.split("samesite=")[-1].split(";")[0].strip()
+                        )
+                        if same_site_val not in ("lax", "strict"):
+                            details_parts.append(
+                                f"SameSite={same_site_val or '?'} invalido para CSRF"
+                            )
+                        else:
+                            vulnerable = False
 
             details = (
                 f"Cookie '{cookie_name}': {', '.join(details_parts)}"
@@ -439,7 +445,7 @@ async def _test_token_analysis(
             token_value = form.fields.get(form.csrf_field_name, "")
             entropy = analyze_token(token_value) if token_value else "no_value"
 
-            vulnerable = entropy in ("low_entropy", "sequential", "low_entropy")
+            vulnerable = entropy in ("low_entropy", "sequential", "low_charset")
 
             details = (
                 f"Token '{form.csrf_field_name}' = '{token_value[:20]}...' ({entropy})"
@@ -711,7 +717,7 @@ def run_once(args: argparse.Namespace) -> int:
     if getattr(args, "output", None):
         write_output(args.output, asdict(result))
 
-    return 0 if result.overall_status != "error" else 1
+    return 1 if result.overall_status != "secure" else 0
 
 
 # ---------------------------------------------------------------------------

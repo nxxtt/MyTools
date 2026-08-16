@@ -12,12 +12,12 @@ from mytools.web.headerinject import (
     _MARKER,
     HeaderInjectAttempt,
     HeaderInjectResult,
-    _test_baseline,
     _test_bypass,
     _test_cookie_inject,
     _test_header_overwrite,
     _test_param_reflected,
     _test_redirect_header,
+    _url_with_param,
     banner_art,
     build_parser,
     main,
@@ -51,6 +51,32 @@ class TestCategoryMap:
 class TestMarker:
     def test_marker_value(self) -> None:
         assert _MARKER == "HDRINJECT_TEST"
+
+
+# ─── URL With Param ──────────────────────────────────────────────────────────
+class TestUrlWithParam:
+    def test_plain_url_gets_query(self) -> None:
+        assert (
+            _url_with_param("https://test.com/path", "X-Injected", "v")
+            == "https://test.com/path?X-Injected=v"
+        )
+
+    def test_url_with_query_uses_ampersand(self) -> None:
+        assert (
+            _url_with_param("https://test.com/path?a=1", "X-Injected", "v")
+            == "https://test.com/path?a=1&X-Injected=v"
+        )
+
+    def test_no_double_question_mark(self) -> None:
+        url = _url_with_param("https://test.com/path?a=1&b=2", "X-Injected", "v")
+        assert "??" not in url
+        assert url.count("?") == 1
+
+    def test_param_name_with_equals_no_value(self) -> None:
+        assert (
+            _url_with_param("https://test.com/path", "x=1", "ignored")
+            == "https://test.com/path?x=1"
+        )
 
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
@@ -102,44 +128,6 @@ class TestHeaderInjectResult:
             r.target = "other"  # type: ignore[misc]
 
 
-# ─── Test Baseline ───────────────────────────────────────────────────────────
-class TestBaseline:
-    @pytest.mark.asyncio
-    async def test_baseline_success(self) -> None:
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"ok"
-        mock_resp.headers = {"content-type": "text/html"}
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        status, size, _headers, body = await _test_baseline(
-            mock_client, "https://test.com"
-        )
-        assert status == 200
-        assert size == 2
-        assert body == b"ok"
-
-    @pytest.mark.asyncio
-    async def test_baseline_error(self) -> None:
-        import httpx
-
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        status, size, headers, body = await _test_baseline(
-            mock_client, "https://test.com"
-        )
-        assert status == 0
-        assert size == 0
-        assert headers == {}
-        assert body == b""
-
-
 # ─── Test Param Reflected ────────────────────────────────────────────────────
 class TestParamReflected:
     @pytest.mark.asyncio
@@ -170,6 +158,55 @@ class TestParamReflected:
         results = await _test_param_reflected(mock_client, "https://test.com")
         assert len(results) == 5
         assert all(r.error for r in results)
+
+    @pytest.mark.asyncio
+    async def test_no_double_question_mark_when_url_has_query(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        await _test_param_reflected(mock_client, "https://test.com/page?id=1")
+
+        for call in mock_client.get.call_args_list:
+            sent = call.args[0]
+            assert "??" not in sent, f"URL malformada: {sent}"
+            assert sent.count("?") == 1
+
+
+# ─── Regression: no double '?' across all categories ────────────────────────
+class TestNoDoubleQuery:
+    @pytest.mark.asyncio
+    async def test_all_categories_no_double_question_mark(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_resp.headers = httpx.Headers({"content-type": "text/html"})
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        target = "https://test.com/page?id=1"
+        runners = [
+            _test_param_reflected,
+            _test_header_overwrite,
+            _test_redirect_header,
+            _test_cookie_inject,
+            _test_bypass,
+        ]
+        runner_name = ""
+        for runner in runners:
+            await runner(mock_client, target)
+            runner_name = runner.__name__
+
+        for call in mock_client.get.call_args_list:
+            sent = call.args[0]
+            assert "??" not in sent, f"URL malformada em {runner_name}: {sent}"
 
 
 # ─── Test Header Overwrite ───────────────────────────────────────────────────
@@ -243,6 +280,27 @@ class TestCookieInject:
         results = await _test_cookie_inject(mock_client, "https://test.com")
         assert len(results) == 5
         assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_multi_value_set_cookie_all_iterated(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_resp.headers = httpx.Headers(
+            [
+                ("set-cookie", "session=abc; Path=/"),
+                ("set-cookie", f"evil={_MARKER}; Path=/admin"),
+            ]
+        )
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_cookie_inject(mock_client, "https://test.com")
+        vuln = [r for r in results if r.vulnerable]
+        assert len(vuln) > 0
+        assert any("set-cookie" in r.details.lower() for r in vuln)
 
 
 # ─── Test Bypass ─────────────────────────────────────────────────────────────

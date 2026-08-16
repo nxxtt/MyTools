@@ -287,6 +287,29 @@ class TestCheckSSIResponse:
     def test_empty_body(self) -> None:
         assert not _check_ssi_response(b"", 200, ["uid="])
 
+    def test_digit_not_part_of_number(self) -> None:
+        assert not _check_ssi_response(b"The year 2023 release", 200, ["2"])
+
+    def test_digit_not_part_of_word(self) -> None:
+        assert not _check_ssi_response(b"3G network coverage", 200, ["3"])
+
+    def test_standalone_digit_still_matches(self) -> None:
+        assert _check_ssi_response(b"result: 2 points", 200, ["2"])
+
+    def test_word_indicator_not_substring_of_word(self) -> None:
+        assert not _check_ssi_response(b"user id guides", 200, ["uid"])
+
+    def test_word_indicator_standalone_matches(self) -> None:
+        assert _check_ssi_response(b"uid=1000 gid=1000", 200, ["uid"])
+
+    def test_md5_hash_uses_substring(self) -> None:
+        hash_value = "098f6bcd4621d373cade4e832627b4f6"
+        body = f"md5:{hash_value}".encode()
+        assert _check_ssi_response(body, 200, [hash_value])
+
+    def test_punctuation_indicator_uses_substring(self) -> None:
+        assert _check_ssi_response(b"root:x:0:0:root", 200, ["root:"])
+
 
 class TestTestBaseline:
     """Testes para _test_baseline."""
@@ -444,7 +467,7 @@ class TestTestBlind:
 
         with patch(
             "mytools.web.ssiinject.time.monotonic",
-            side_effect=[0.0] + [10.0] * 40,
+            side_effect=[0.0, 0.1, 0.1, 2.6] * 4 + [0.0, 1.0] * 16,
         ):
             results = await _test_blind(
                 mock_client, "https://example.com", (200, 100, b"")
@@ -452,6 +475,45 @@ class TestTestBlind:
         assert results[0].technique.startswith("blind_sleep")
         assert results[0].vulnerable is True
         assert "Sleep detectado" in results[0].details
+
+    @pytest.mark.asyncio
+    async def test_time_sleep_gated_by_baseline_latency(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client.get.return_value = mock_resp
+
+        with patch(
+            "mytools.web.ssiinject.time.monotonic",
+            side_effect=[0.0, 3.0, 3.0, 4.6] * 4 + [0.0, 1.0] * 16,
+        ):
+            results = await _test_blind(
+                mock_client, "https://example.com", (200, 100, b"")
+            )
+        assert results[0].technique.startswith("blind_sleep")
+        assert results[0].vulnerable is False
+        assert "baseline" in results[0].details.lower()
+
+    @pytest.mark.asyncio
+    async def test_time_sleep_baseline_request_error(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(
+            side_effect=[httpx.RequestError("boom")] + [mock_resp] * 100
+        )
+
+        with patch(
+            "mytools.web.ssiinject.time.monotonic",
+            side_effect=([0.0, 0.1, 2.6] + [0.0, 0.1, 0.1, 2.6] * 3 + [0.0, 1.0] * 16),
+        ):
+            results = await _test_blind(
+                mock_client, "https://example.com", (200, 100, b"")
+            )
+        assert results[0].technique.startswith("blind_sleep")
+        assert results[0].vulnerable is True
 
     @pytest.mark.asyncio
     async def test_status_changed_details(self) -> None:
@@ -649,6 +711,30 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_run_scan_json_output(self) -> None:
+        from mytools.web.ssiinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.ssiinject.print_json") as mock_print:
+            result = await run_scan(
+                target="https://example.com",
+                categories=["echo"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+                json_output=True,
+            )
+        assert result == 0
+        mock_print.assert_called_once()
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_vulnerable(self) -> None:
         from mytools.web.ssiinject import run_scan
 
@@ -760,6 +846,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.ssiinject.run_scan",
@@ -780,6 +868,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.ssiinject.run_scan",

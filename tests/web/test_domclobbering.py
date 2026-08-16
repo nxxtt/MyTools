@@ -507,7 +507,8 @@ class TestHelperBranches:
         async with httpx.AsyncClient() as client:
             result = await _test_form_child(client, "https://example.com", 10.0)
         assert result
-        assert any(a.vulnerable for a in result)
+        assert any("Payload refletido" in a.details for a in result)
+        assert all(not a.vulnerable for a in result)
 
     @pytest.mark.asyncio
     @respx.mock
@@ -573,7 +574,8 @@ class TestHelperBranches:
         async with httpx.AsyncClient() as client:
             result = await _test_impact_chains(client, "https://example.com", 10.0)
         assert result
-        assert any(a.vulnerable for a in result)
+        assert any("Payload refletido" in a.details for a in result)
+        assert all(not a.vulnerable for a in result)
 
     @pytest.mark.asyncio
     @respx.mock
@@ -701,6 +703,52 @@ class TestRunScanCore:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_reflection_only_not_vulnerable(self) -> None:
+        """Reflexao do payload sozinha nao e vulnerabilidade de DOM clobbering."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            params = parse_qs(urlparse(str(request.url)).query)
+            for key, values in params.items():
+                if key.startswith("_clob_"):
+                    return httpx.Response(200, text=values[0])
+            return httpx.Response(200, text="<html><body>safe</body></html>")
+
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            side_effect=handler
+        )
+        result = await _run_scan_core("https://example.com", ["named_access"], 10, None)
+        assert result == 0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_headless_confirms_reflection(self) -> None:
+        """Com headless, um payload refletido e confirmado vira vulneravel."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            params = parse_qs(urlparse(str(request.url)).query)
+            for key, values in params.items():
+                if key.startswith("_clob_"):
+                    return httpx.Response(200, text=values[0])
+            return httpx.Response(200, text="<html><body>safe</body></html>")
+
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            side_effect=handler
+        )
+        with (
+            patch("mytools.core.headless.browser_available", return_value=True),
+            patch(
+                "mytools.core.headless.evaluate",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            result = await _run_scan_core(
+                "https://example.com", ["named_access"], 10, None, headless=True
+            )
+        assert result == 1
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_invalid_category(self) -> None:
         respx.route(method="GET", url__startswith="https://example.com").mock(
             return_value=httpx.Response(200, text="<html><body>safe</body></html>")
@@ -797,12 +845,12 @@ class TestRunScanCore:
             result = await _run_scan_core(
                 "https://example.com", ["named_access"], 10, None, headless=True
             )
-        assert result == 1
+        assert result == 0
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_headless_partial_confirmation(self) -> None:
-        """Um attempt sem confirmacao headless ainda e reportado (sem replace)."""
+        """Attempt sem confirmacao headless e rebaixado para nao-vulneravel."""
         respx.route(method="GET", url__startswith="https://example.com").mock(
             return_value=httpx.Response(200, text="<html><body>safe</body></html>")
         )
@@ -824,7 +872,7 @@ class TestRunScanCore:
             result = await _run_scan_core(
                 "https://example.com", ["named_access"], 10, None, headless=True
             )
-        assert result == 1
+        assert result == 0
 
 
 # ─── Scanner Class ───────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -894,7 +895,7 @@ class TestWsScanner:
         insecure = next(r for r in results if r.technique == "insecure_scheme")
         assert insecure.vulnerable is True
         cswh = next(r for r in results if r.technique == "cswh_hijack")
-        assert cswh.vulnerable is True
+        assert cswh.vulnerable is False
         rate_limit = next(r for r in results if r.technique == "no_rate_limit")
         assert rate_limit.details == "5 conexoes rapidas completadas"
 
@@ -994,6 +995,36 @@ class TestWsUpgradeAbuse:
 class TestWsMessageInject:
     @pytest.mark.asyncio
     async def test_all_responses(self) -> None:
+        sent: list[bytes] = []
+
+        def fake_send(
+            sock: Any, opcode: int, payload: bytes = b"", mask: bool = True
+        ) -> bool:
+            sent.append(payload)
+            return True
+
+        def fake_recv(sock: Any, timeout: float) -> tuple[int, bytes] | None:
+            if not sent:
+                return (WS_OPCODE_TEXT, b"echo")
+            return (WS_OPCODE_TEXT, sent[-1])
+
+        with (
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(MagicMock(), "key"),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", side_effect=fake_send),
+            patch("mytools.web.websocketattack._recv_ws_frame", side_effect=fake_recv),
+        ):
+            results = await _test_ws_message_inject(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(r.vulnerable for r in results)
+        assert all(r.status_test == 101 for r in results)
+
+    @pytest.mark.asyncio
+    async def test_echo_not_matching_payload_not_vulnerable(self) -> None:
         with (
             patch(
                 "mytools.web.websocketattack._ws_handshake",
@@ -1002,14 +1033,13 @@ class TestWsMessageInject:
             patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
             patch(
                 "mytools.web.websocketattack._recv_ws_frame",
-                return_value=(WS_OPCODE_TEXT, b"echo"),
+                return_value=(WS_OPCODE_TEXT, b"unrelated text"),
             ),
         ):
             results = await _test_ws_message_inject(
                 "example.com", 80, "/ws", 5.0, False, 200, 100
             )
-        assert len(results) == 5
-        assert all(r.vulnerable for r in results)
+        assert all(not r.vulnerable for r in results)
         assert all(r.status_test == 101 for r in results)
 
     @pytest.mark.asyncio
@@ -1069,7 +1099,8 @@ class TestWsDos:
         ):
             results = await _test_ws_dos("example.com", 80, "/ws", 5.0, False, 200, 100)
         assert len(results) == 5
-        assert all(r.vulnerable for r in results)
+        assert all(not r.vulnerable for r in results)
+        assert all("Opcode resposta" in r.details for r in results)
         assert mock_sock.sendall.call_count == 1
 
     @pytest.mark.asyncio
@@ -1108,7 +1139,7 @@ class TestWsDos:
 
 class TestWsCompressionBomb:
     @pytest.mark.asyncio
-    async def test_upgraded_with_deflate(self) -> None:
+    async def test_upgraded_with_deflate_bomb_no_response(self) -> None:
         sock = MagicMock()
         response = (
             b"HTTP/1.1 101 Switching Protocols\r\n"
@@ -1120,12 +1151,41 @@ class TestWsCompressionBomb:
                 "mytools.web.websocketattack._send_http_request",
                 return_value=(101, response),
             ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch("mytools.web.websocketattack._recv_ws_frame", return_value=None),
         ):
             results = await _test_ws_compression_bomb(
                 "example.com", 80, "/ws", 5.0, False, 200, 100
             )
         assert len(results) == 5
         assert all(r.vulnerable for r in results)
+        assert all(r.status_test == 101 for r in results)
+        assert all("bomb" in r.details for r in results)
+
+    @pytest.mark.asyncio
+    async def test_upgraded_with_deflate_server_survives(self) -> None:
+        sock = MagicMock()
+        response = (
+            b"HTTP/1.1 101 Switching Protocols\r\n"
+            b"Sec-WebSocket-Extensions: permessage-deflate\r\n\r\n"
+        )
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(101, response),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame",
+                return_value=(0x1, b"ok"),
+            ),
+        ):
+            results = await _test_ws_compression_bomb(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(not r.vulnerable for r in results)
         assert all(r.status_test == 101 for r in results)
 
     @pytest.mark.asyncio
@@ -1154,6 +1214,53 @@ class TestWsCompressionBomb:
             )
         assert all(r.error for r in results)
 
+    @pytest.mark.asyncio
+    async def test_upgraded_send_frame_fails(self) -> None:
+        sock = MagicMock()
+        response = (
+            b"HTTP/1.1 101 Switching Protocols\r\n"
+            b"Sec-WebSocket-Extensions: permessage-deflate\r\n\r\n"
+        )
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(101, response),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=False),
+        ):
+            results = await _test_ws_compression_bomb(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(r.vulnerable for r in results)
+        assert all("encerrada apos bomb" in r.details for r in results)
+
+    @pytest.mark.asyncio
+    async def test_upgraded_oserror(self) -> None:
+        sock = MagicMock()
+        response = (
+            b"HTTP/1.1 101 Switching Protocols\r\n"
+            b"Sec-WebSocket-Extensions: permessage-deflate\r\n\r\n"
+        )
+        with (
+            patch("mytools.web.websocketattack._create_connection", return_value=sock),
+            patch(
+                "mytools.web.websocketattack._send_http_request",
+                return_value=(101, response),
+            ),
+            patch(
+                "mytools.web.websocketattack._send_ws_frame",
+                side_effect=OSError("reset"),
+            ),
+        ):
+            results = await _test_ws_compression_bomb(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        assert len(results) == 5
+        assert all(r.vulnerable for r in results)
+        assert all("encerrada apos bomb" in r.details for r in results)
+
 
 # ─── Payload Fuzz Timing Branch ─────────────────────────────────────────────
 
@@ -1162,7 +1269,7 @@ class TestPayloadFuzzTiming:
     @pytest.mark.asyncio
     async def test_timing_threshold_reached(self) -> None:
         mock_sock = MagicMock()
-        values: list[float] = []
+        values: list[float] = [0.0, 0.5]
         for _ in range(8):
             values.extend([0.0, 100.0])
         with (
@@ -1184,6 +1291,31 @@ class TestPayloadFuzzTiming:
         ]
         assert len(timing_vuln) == 8
         assert all("threshold" in r.details for r in timing_vuln)
+
+    @pytest.mark.asyncio
+    async def test_timing_gated_by_baseline_latency(self) -> None:
+        mock_sock = MagicMock()
+        values: list[float] = [0.0, 100.0]
+        for _ in range(8):
+            values.extend([0.0, 100.0])
+        with (
+            patch(
+                "mytools.web.websocketattack._ws_handshake",
+                return_value=(mock_sock, "key"),
+            ),
+            patch("mytools.web.websocketattack._send_ws_frame", return_value=True),
+            patch(
+                "mytools.web.websocketattack._recv_ws_frame", return_value=(0x1, b"ok")
+            ),
+            patch("mytools.web.websocketattack.time.monotonic", side_effect=values),
+        ):
+            results = await _test_ws_payload_fuzz(
+                "example.com", 80, "/ws", 5.0, False, 200, 100
+            )
+        timing_vuln = [
+            r for r in results if r.vulnerable and r.technique.endswith("_timing")
+        ]
+        assert len(timing_vuln) == 0
 
 
 # ─── Print Results Secure Category ──────────────────────────────────────────

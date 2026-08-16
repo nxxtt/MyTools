@@ -12,7 +12,6 @@ import pytest
 import respx
 
 from mytools.web.timingattack import (
-    _CATEGORY_DISPATCH,
     _CATEGORY_MAP,
     TimingAttempt,
     TimingResult,
@@ -109,15 +108,10 @@ class TestCategoryMap:
         total = sum(len(v) for v in _CATEGORY_MAP.values())
         assert total == 4
 
-    def test_dispatch_matches_map(self) -> None:
-        for cat in _CATEGORY_MAP:
-            assert cat in _CATEGORY_DISPATCH
-
-    def test_all_dispatches_are_coroutines(self) -> None:
+    def test_test_timing_is_coroutine(self) -> None:
         import inspect
 
-        for cat, fn in _CATEGORY_DISPATCH.items():
-            assert inspect.iscoroutinefunction(fn), f"{cat} is not a coroutine"
+        assert inspect.iscoroutinefunction(_test_timing)
 
 
 class TestMakeAttempt:

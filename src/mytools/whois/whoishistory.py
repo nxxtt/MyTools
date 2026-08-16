@@ -13,12 +13,13 @@ Fluxo principal:
 """
 
 import argparse
+import asyncio
 import contextlib
 import json
 import logging
 import time
 from dataclasses import asdict, dataclass
-from datetime import UTC
+from datetime import UTC, datetime
 
 from mytools.core.utils import (
     Cyber,
@@ -28,6 +29,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     init_scanner,
+    print_json,
     print_table,
     run_main_loop,
     write_output,
@@ -85,14 +87,12 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
         return []
 
     records: list[WhoisHistoryRecord] = []
-    items = data.get("result", {}).get("items", [])
+    items = (data.get("result") or {}).get("items", []) or []
 
     for item in items:
         ended = item.get("ended")
         date_str = ""
         if ended:
-            from datetime import datetime
-
             try:
                 date_str = datetime.fromtimestamp(ended / 1000, tz=UTC).strftime(
                     "%Y-%m-%d"
@@ -100,14 +100,14 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
             except ValueError, OSError:
                 date_str = str(ended)
 
-        ns_list = item.get("nameServers", [])
+        ns_list = item.get("nameServers") or []
         name_servers = ", ".join(ns_list[:5])
 
         registrant_name = ""
         registrant_org = ""
         registrant_country = ""
         registrar = ""
-        for contact in item.get("contact", []):
+        for contact in item.get("contact") or []:
             ctype = contact.get("type", "")
             if ctype == "registrant":
                 registrant_name = contact.get("name", "")
@@ -118,8 +118,6 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
 
         created = ""
         if item.get("createdDate"):
-            from datetime import datetime
-
             with contextlib.suppress(ValueError, OSError):
                 created = datetime.fromtimestamp(
                     item["createdDate"] / 1000, tz=UTC
@@ -127,8 +125,6 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
 
         expires = ""
         if item.get("expiresDate"):
-            from datetime import datetime
-
             with contextlib.suppress(ValueError, OSError):
                 expires = datetime.fromtimestamp(
                     item["expiresDate"] / 1000, tz=UTC
@@ -168,7 +164,7 @@ def _parse_whoisxml(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
 
     records: list[WhoisHistoryRecord] = []
 
-    for item in data.get("records", []):
+    for item in data.get("records") or []:
         date_str = ""
         created = item.get("createdDateISO8601", "")
         if created:
@@ -179,7 +175,7 @@ def _parse_whoisxml(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
         registrant_org = registrant.get("organization", "")
         registrant_country = registrant.get("country", "")
 
-        ns_list = item.get("nameServers", [])
+        ns_list = item.get("nameServers") or []
         name_servers = ", ".join(ns_list[:5])
 
         statuses = item.get("status", [])
@@ -187,16 +183,8 @@ def _parse_whoisxml(body: bytes, domain: str) -> list[WhoisHistoryRecord]:
             ", ".join(statuses[:3]) if isinstance(statuses, list) else str(statuses)
         )
 
-        expires = (
-            item.get("expiresDateISO8601", "")[:10]
-            if item.get("expiresDateISO8601")
-            else ""
-        )
-        updated = (
-            item.get("updatedDateISO8601", "")[:10]
-            if item.get("updatedDateISO8601")
-            else ""
-        )
+        expires = (item.get("expiresDateISO8601") or "")[:10]
+        updated = (item.get("updatedDateISO8601") or "")[:10]
 
         records.append(
             WhoisHistoryRecord(
@@ -272,8 +260,6 @@ async def _query_all_sources(
     timeout: float,
 ) -> list[WhoisHistoryRecord]:
     """Consulta todas as fontes em paralelo."""
-    import asyncio
-
     sem = asyncio.Semaphore(3)
 
     async def _limited(source: str) -> list[WhoisHistoryRecord]:
@@ -290,10 +276,10 @@ async def _query_all_sources(
         if isinstance(result, list):
             all_records.extend(result)
 
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str, str]] = set()
     unique: list[WhoisHistoryRecord] = []
     for r in all_records:
-        key = (r.date, r.registrar)
+        key = (r.date, r.registrar, r.registrant_name, r.registrant_org)
         if key not in seen:
             seen.add(key)
             unique.append(r)
@@ -387,7 +373,7 @@ def _print_history(records: list[WhoisHistoryRecord]) -> None:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa uma unica consulta de historico WHOIS."""
-    init_scanner(args)
+    quiet = init_scanner(args)
 
     domain = args.domain.strip().lower()
     sources = getattr(args, "source", None) or ["securitytrails"]
@@ -403,18 +389,22 @@ def run_once(args: argparse.Namespace) -> int:
         logger.info("Fontes: %s", ", ".join(sources))
         return 0
 
-    start = time.time()
+    start = time.monotonic()
     records = run_history(
         domain,
         sources=sources,
         api_keys=api_keys,
         timeout=args.timeout,
     )
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     logger.info("")
-    _print_history(records)
-    logger.info("")
+
+    if getattr(args, "json_output", False):
+        print_json([asdict(r) for r in records])
+    elif not quiet:
+        _print_history(records)
+        logger.info("")
 
     for s in sources:
         if not api_keys.get(s):
@@ -429,7 +419,7 @@ def run_once(args: argparse.Namespace) -> int:
     )
 
     if getattr(args, "output", None):
-        write_output(args.output, [asdict(r) for r in records])
+        write_output(args.output, [asdict(r) for r in records], quiet=quiet)
         logger.info("Output salvo em: %s", args.output)
 
     return 0
@@ -437,30 +427,23 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """Entry point CLI."""
-    parser = build_parser()
-    args = parser.parse_args()
-
-    if not args.domain:
-        return run_main_loop(
-            parser=parser,
-            banner_fn=create_banner(BANNER_ART, "WHOIS History"),
-            run_fn=run_once,
-            has_target=lambda a: bool(getattr(a, "domain", None)),
-            prompt="whois-history> ",
-            description="Consulta historico de WHOIS de um dominio.",
-            example="example.com",
-            contextual_help=(
-                "Uso: <dominio> [opcoes]\n"
-                "Exemplos:\n"
-                "  example.com\n"
-                "  example.com --source securitytrails --st-api-key KEY\n"
-                "  example.com --source whoisxml --whoisxml-api-key KEY\n"
-                "  example.com -o whois-history.json\n"
-                "  Use -l para arquivo com dominios (um por linha)"
-            ),
-        )
-
-    return run_once(args)
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=create_banner(BANNER_ART, "WHOIS History"),
+        run_fn=run_once,
+        has_target=lambda a: bool(getattr(a, "domain", None)),
+        prompt="whois-history> ",
+        description="Consulta historico de WHOIS de um dominio.",
+        example="example.com",
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --source securitytrails --st-api-key KEY\n"
+            "  example.com --source whoisxml --whoisxml-api-key KEY\n"
+            "  example.com -o whois-history.json"
+        ),
+    )
 
 
 if __name__ == "__main__":

@@ -83,21 +83,6 @@ class EmailBreach:
     tool: str = ""
 
 
-def _classify_severity(breach_count: int, data_classes: str) -> str:
-    """Classifica severidade baseado em count e tipos de dados."""
-    sensitive = {"passwords", "creditcards", "bankaccounts", "socialsecuritynumbers"}
-    classes = {c.strip().lower() for c in data_classes.split(",") if c.strip()}
-    has_sensitive = bool(classes & sensitive)
-
-    if breach_count >= 10 or has_sensitive:
-        return "critical"
-    if breach_count >= 5:
-        return "high"
-    if breach_count >= 2:
-        return "medium"
-    return "low"
-
-
 async def _query_xposedornot(
     client: httpx.AsyncClient,
     email: str,
@@ -126,12 +111,15 @@ async def _query_xposedornot(
         data = json.loads(body)
     except json.JSONDecodeError, ValueError:
         return []
+    if not isinstance(data, dict):
+        return []
 
     breaches_raw = data.get("breaches", [])
     if not breaches_raw:
         return []
 
     breaches: list[EmailBreach] = []
+    exploit_url = f"https://haveibeenpwned.com/account/{email}"
     if isinstance(breaches_raw, list):
         for b in breaches_raw:
             if isinstance(b, str):
@@ -140,7 +128,7 @@ async def _query_xposedornot(
                         email=email,
                         breach_name=b,
                         source="xposedornot",
-                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        exploit=exploit_url,
                         tool="xposedornot",
                     )
                 )
@@ -153,7 +141,7 @@ async def _query_xposedornot(
                         pwn_count=b.get("pwn_count", 0),
                         data_classes=b.get("data_classes", ""),
                         source="xposedornot",
-                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        exploit=exploit_url,
                         tool="xposedornot",
                     )
                 )
@@ -163,7 +151,7 @@ async def _query_xposedornot(
                 email=email,
                 breach_name=name,
                 source="xposedornot",
-                exploit=f"https://haveibeenpwned.com/account/{email}",
+                exploit=exploit_url,
                 tool="xposedornot",
             )
             for name in breaches_raw
@@ -200,11 +188,14 @@ async def _query_leakcheck(
         data = json.loads(body)
     except json.JSONDecodeError, ValueError:
         return []
+    if not isinstance(data, dict):
+        return []
 
     if not data.get("success") or not data.get("found"):
         return []
 
     breaches: list[EmailBreach] = []
+    exploit_url = f"https://haveibeenpwned.com/account/{email}"
     sources = data.get("sources", [])
     if isinstance(sources, list):
         for src in sources:
@@ -215,7 +206,7 @@ async def _query_leakcheck(
                         breach_name=src.get("name", "unknown"),
                         breach_date=src.get("date", ""),
                         source="leakcheck",
-                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        exploit=exploit_url,
                         tool="leakcheck",
                     )
                 )
@@ -225,7 +216,7 @@ async def _query_leakcheck(
                         email=email,
                         breach_name=src,
                         source="leakcheck",
-                        exploit=f"https://haveibeenpwned.com/account/{email}",
+                        exploit=exploit_url,
                         tool="leakcheck",
                     )
                 )
@@ -272,15 +263,16 @@ async def _query_hibp(
     if not isinstance(items, list):
         return []
 
+    exploit_url = f"https://haveibeenpwned.com/account/{email}"
     breaches: list[EmailBreach] = [
         EmailBreach(
             email=email,
             breach_name=item.get("Name", "unknown"),
             breach_date=item.get("BreachDate", ""),
             pwn_count=item.get("PwnCount", 0),
-            data_classes=", ".join(item.get("DataClasses", [])),
+            data_classes=", ".join(item.get("DataClasses") or []),
             source="hibp",
-            exploit=f"https://haveibeenpwned.com/account/{email}",
+            exploit=exploit_url,
             tool="hibp",
         )
         for item in items

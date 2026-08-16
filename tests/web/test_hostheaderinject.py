@@ -609,6 +609,46 @@ class TestBypassDetail:
         )
         assert all(not r.vulnerable for r in results)
 
+    @pytest.mark.asyncio
+    async def test_proxy_host_sends_and_checks_injected_host(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"evil.attacker.com"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_bypass(
+            mock_client, "https://test.com", "test.com", "evil.attacker.com"
+        )
+        proxy = next(r for r in results if r.technique == "proxy_host")
+        assert proxy.header_name == "X-Real-IP"
+        assert proxy.header_value == "evil.attacker.com"
+        assert proxy.vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_proxy_host_request_uses_injected_host_header(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"plain"
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        await _test_bypass(
+            mock_client, "https://test.com", "test.com", "evil.attacker.com"
+        )
+        proxy_call = next(
+            call
+            for call in mock_client.get.call_args_list
+            if call.kwargs.get("headers", {}).get("X-Real-IP") is not None
+        )
+        assert proxy_call.kwargs["headers"]["X-Real-IP"] == "evil.attacker.com"
+
 
 # ─── Print Results Detail Tests ──────────────────────────────────────────────
 

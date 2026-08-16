@@ -33,6 +33,7 @@ Fluxo:
 import argparse
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
 
@@ -44,7 +45,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -253,6 +256,27 @@ _XPATH_PARAMS: list[str] = [
 ]
 
 
+def _xpath_falsey(payload: str) -> str:
+    """Gera contraparte falsey para um payload XPath de condicao booleana.
+
+    Se o payload termina em comparacao (`='1`, `='a'`, `=5`), troca o valor
+    comparado por um garantidamente falso. Caso contrario, nega a expressao
+    com not(). O resultado mantem tamanho proximo do original para que
+    paginas que apenas ecoam a entrada nao gerem diferenca relevante.
+    """
+    m = re.search(r"=('[^']*'|\d+|'1)$", payload)
+    if m:
+        old = m.group(1)
+        if old == "'1":
+            new = "'2"
+        elif old.startswith("'") and old.endswith("'"):
+            new = "'x'"
+        else:
+            new = str(int(old) + 1)
+        return payload[: m.start()] + "=" + new
+    return f"not({payload})"
+
+
 @dataclass(frozen=True, slots=True)
 class XPathiAttempt:
     """Tentativa individual de XPath Injection."""
@@ -351,33 +375,48 @@ async def _test_detect(
 
     b_status, b_size, _ = baseline
 
-    for technique, payload, indicators in _DETECT_PAYLOADS:
+    for technique, payload, _ in _DETECT_PAYLOADS:
+        falsey = _xpath_falsey(payload)
         for param in _XPATH_PARAMS[:6]:
             for method in ("post_form", "query"):
                 try:
                     if method == "post_form":
-                        resp = await client.post(
+                        resp_t = await client.post(
                             base_url,
                             data={param: payload},
                             follow_redirects=False,
                         )
 
+                        resp_f = await client.post(
+                            base_url,
+                            data={param: falsey},
+                            follow_redirects=False,
+                        )
+
                     else:
-                        resp = await client.get(
+                        resp_t = await client.get(
                             base_url,
                             params={param: payload},
                             follow_redirects=False,
                         )
 
-                    t_status = resp.status_code
+                        resp_f = await client.get(
+                            base_url,
+                            params={param: falsey},
+                            follow_redirects=False,
+                        )
 
-                    t_size = len(resp.content)
+                    t_status = resp_t.status_code
+
+                    t_size = len(resp_t.content)
+
+                    f_status = resp_f.status_code
+
+                    f_size = len(resp_f.content)
 
                     status_changed = t_status != b_status
 
-                    vulnerable = _check_xpath_response(
-                        resp.content, t_status, indicators
-                    )
+                    vulnerable = (t_status != f_status) or (abs(t_size - f_size) > 50)
 
                     attempts.append(
                         XPathiAttempt(
@@ -606,22 +645,33 @@ async def _test_blind(
 
     b_status, b_size, _ = baseline
 
-    for technique, payload, indicators in _BLIND_PAYLOADS:
+    for technique, payload, _ in _BLIND_PAYLOADS:
+        falsey = _xpath_falsey(payload)
         for param in ["user", "username", "uid", "name"]:
             try:
-                resp = await client.get(
+                resp_t = await client.get(
                     base_url,
                     params={param: payload},
                     follow_redirects=False,
                 )
 
-                t_status = resp.status_code
+                resp_f = await client.get(
+                    base_url,
+                    params={param: falsey},
+                    follow_redirects=False,
+                )
 
-                t_size = len(resp.content)
+                t_status = resp_t.status_code
+
+                t_size = len(resp_t.content)
+
+                f_status = resp_f.status_code
+
+                f_size = len(resp_f.content)
 
                 status_changed = t_status != b_status
 
-                vulnerable = _check_xpath_response(resp.content, t_status, indicators)
+                vulnerable = (t_status != f_status) or (abs(t_size - f_size) > 50)
 
                 attempts.append(
                     XPathiAttempt(
@@ -815,12 +865,14 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan XPath Injection."""
 
     tls = target.startswith("https")
 
-    client = create_async_client(timeout=timeout)
+    client = create_async_client(timeout=timeout, proxy=proxy)
 
     try:
         print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
@@ -889,7 +941,10 @@ async def run_scan(
             overall_status=overall,
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -962,6 +1017,8 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan XPath Injection a partir de argumentos parseados."""
 
+    init_scanner(args)
+
     logger.info("XPathi scan iniciado para %s", args.url)
 
     categories: list[str] = []
@@ -977,6 +1034,8 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

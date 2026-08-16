@@ -24,7 +24,7 @@ Amplificacao DNS ocorre quando:
 
 A ferramenta testa:
 
-  - Tamanho de resposta para cada record type (ANY, TXT, A, MX, NS, SOA)
+  - Tamanho de resposta para cada record type (TXT, A, MX, NS, SOA)
 
   - Fator de amplificacao (response_bytes / request_bytes)
 
@@ -65,8 +65,10 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -79,7 +81,7 @@ DEFAULT_NAMESERVER = "8.8.8.8"
 
 DEFAULT_TIMEOUT = 3.0
 
-DEFAULT_RECORD_TYPES = ["ANY", "TXT", "A", "MX", "NS", "SOA"]
+DEFAULT_RECORD_TYPES = ["TXT", "A", "MX", "NS", "SOA"]
 
 REQUEST_SIZE_ESTIMATE = 50
 
@@ -143,25 +145,17 @@ def classify_severity(amplification_factor: float) -> str:
 
 
 def _query_record(
-    nameserver: str,
+    resolver: object,
     domain: str,
     record_type: str,
     timeout: float,
 ) -> RecordAmplification:
     """Envia uma query DNS e mede o tamanho da resposta."""
 
-    resolver = dns.resolver.Resolver()
-
-    resolver.nameservers = [nameserver]
-
-    resolver.timeout = timeout
-
-    resolver.lifetime = timeout
-
     request_bytes = REQUEST_SIZE_ESTIMATE
 
     try:
-        answer = resolver.resolve(domain, record_type)
+        answer = resolver.resolve(domain, record_type)  # type: ignore[attr-defined]
 
         response_bytes = len(answer.response.to_wire())
 
@@ -255,10 +249,15 @@ def scan_amplification(
 
     types_to_test = record_types or DEFAULT_RECORD_TYPES
 
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = [nameserver]
+    resolver.timeout = timeout
+    resolver.lifetime = timeout
+
     records = []
 
     for rt in types_to_test:
-        result = _query_record(nameserver, domain, rt, timeout)
+        result = _query_record(resolver, domain, rt, timeout)
 
         records.append(result)
 
@@ -452,6 +451,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _is_valid_nameserver(value: str) -> bool:
+    """Valida se o valor parece um hostname ou endereco IP plausivel."""
+    value = value.strip()
+    if not value or len(value) > 253:
+        return False
+    if any(ch.isspace() for ch in value):
+        return False
+    if value[0] in ".-" or value[-1] in ".-":
+        return False
+    return all(ch.isalnum() or ch in ".-:" for ch in value)
+
+
 async def _async_run_once(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
 
@@ -462,6 +473,13 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not domain:
         logger.error("Informe um dominio ou nameserver.")
 
+        return 1
+
+    if not _is_valid_nameserver(args.nameserver):
+        logger.error(
+            "Nameserver invalido: %r. Use um hostname ou endereco IP valido.",
+            args.nameserver,
+        )
         return 1
 
     if getattr(args, "dry_run", False):
@@ -487,6 +505,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not quiet:
         print_results(result)
 
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
+
     if args.output:
         write_output(
             args.output,
@@ -503,7 +524,25 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 0
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(result)],
+            [
+                "domain",
+                "nameserver",
+                "recursion_available",
+                "is_open_resolver",
+                "max_amplification",
+                "severity",
+                "request_size",
+            ],
+            quiet=quiet,
+        )
+
+    return 1 if result.is_open_resolver else 0
 
 
 def run_once(args: argparse.Namespace) -> int:
@@ -522,9 +561,9 @@ def main() -> int:
         has_target=lambda a: bool(a.domain),
         prompt="amp> ",
         description="DNS Amplification Detection interativo.",
-        example="example.com --record-types ANY,TXT,MX",
+        example="example.com --record-types TXT,MX",
         contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types ANY,TXT,MX"
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types TXT,MX"
         ),
     )
 

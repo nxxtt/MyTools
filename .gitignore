@@ -52,3 +52,4 @@ src/mytools.egg-info/
 /htmlcov
 /coverage.xml
 /.freebuff
+/coverage.json

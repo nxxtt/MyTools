@@ -195,7 +195,7 @@ def _load_backup_paths() -> None:
         "archive": ARCHIVE_PATHS,
         "orig_tmp": ORIG_TMP_PATHS,
     }
-    ALL_PATHS = list({p for paths in ALL_TYPES.values() for p in paths})
+    ALL_PATHS = list(dict.fromkeys(p for paths in ALL_TYPES.values() for p in paths))
 
 
 _load_backup_paths()
@@ -293,18 +293,8 @@ def _validate_content(path: str, content: bytes) -> tuple[bool, str]:
         return False, ""
 
     # bak, tilde, orig_tmp, save — qualquer conteudo nao vazio
-    if backup_type == "tilde" and len(content) > 10:
-        snippet = (
-            content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
-        )
-        return True, snippet
-    if content:
-        snippet = (
-            content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
-        )
-        return True, snippet
-
-    return False, ""  # pragma: no cover
+    snippet = content[:80].decode("utf-8", errors="replace").strip().replace("\n", " ")
+    return True, snippet
 
 
 async def _probe_path(
@@ -317,6 +307,7 @@ async def _probe_path(
 ) -> BackupFile | None:
     """Sonda um unico path e retorna BackupFile se encontrar backup confirmado."""
     full_url = urljoin(base_url, path)
+    backup_type = _classify_backup(path)
     await rate_limiter.wait()
 
     # HEAD pre-check
@@ -342,7 +333,7 @@ async def _probe_path(
             try:
                 size = int(cl)
                 # Archives podem ser grandes
-                if _classify_backup(path) == "archive":
+                if backup_type == "archive":
                     if size > 50 * 1024 * 1024:
                         return None
                 elif size > 10 * 1024 * 1024:
@@ -371,7 +362,6 @@ async def _probe_path(
     if not is_backup:
         return None
 
-    backup_type = _classify_backup(path)
     return BackupFile(
         backup_type=backup_type,
         url=full_url,
@@ -379,7 +369,7 @@ async def _probe_path(
         status=status,
         detail=detail,
         raw_size=len(content),
-        exploit="curl <TARGET>/backup.zip",
+        exploit=f"curl {full_url}",
         tool="curl",
     )
 
@@ -518,7 +508,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--type",
-        choices=["bak", "swp", "tilde", "sql", "archive", "all"],
+        choices=["bak", "swp", "tilde", "sql", "archive", "orig_tmp", "all"],
         default="all",
         dest="backup_type",
         help="Tipo de backup para buscar. Padrao: all",
@@ -567,9 +557,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             custom_paths=custom_paths,
         )
 
-        if getattr(args, "json_output", False):
-            print_json([asdict(b) for b in backups])
-        elif not quiet:
+        if not quiet and not getattr(args, "json_output", False):
             print_results(backups)
 
         all_backups.extend(backups)
@@ -586,7 +574,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "json_output", False):
         print_json([asdict(b) for b in all_backups])
-    elif args.output:
+    if args.output:
         write_output(
             args.output,
             [asdict(b) for b in all_backups],

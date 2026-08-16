@@ -797,7 +797,7 @@ class TestRunOnce:
             ),
         ):
             code = run_once(_ns(json_output=True))
-        assert code == 0
+        assert code == 1
         out = capsys.readouterr().out
         assert '"overall_status": "vulnerable"' in out
 

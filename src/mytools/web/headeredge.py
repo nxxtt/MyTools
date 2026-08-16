@@ -163,9 +163,9 @@ def _send_raw(
                     if body_received >= expected_body:
                         break
                 else:
-                    if response.rstrip().endswith(b"0\r\n\r\n") or len(response) > 1024:
+                    if response.endswith(b"0\r\n\r\n"):
                         break
-                    else:
+                    if len(response) > 65536:
                         break
         except TimeoutError, OSError:
             break
@@ -256,7 +256,8 @@ def _get_baseline(
     try:
         sock = _create_connection(host, port, timeout, tls)
         try:
-            request = _build_request("GET", path, host)
+            host_header = host if port in (80, 443) else f"{host}:{port}"
+            request = _build_request("GET", path, host_header)
             status, response = _send_raw(sock, request, timeout)
             return status, len(response)
         finally:

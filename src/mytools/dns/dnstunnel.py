@@ -57,8 +57,10 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -169,16 +171,14 @@ def _is_hex(label: str) -> bool:
     return bool(HEX_PATTERN.match(label))
 
 
-def _generate_synthetic_labels(
-    domain: str,
+def _generate_candidate_labels(
     count: int,
     tunnel_ratio: float = 0.3,
 ) -> list[str]:
-    """Gera labels sinteticos para analise (modo monitoramento).
+    """Gera labels candidatos (potenciais subdominios) para sondar via DNS.
 
-
-
-    Em producao, labels viriam de captura de trafego DNS.
+    A mistura inclui labels curtos (nome comum) e longos com alta entropia
+    (semelhantes a payloads de tunneling) para testar a resolucao real do alvo.
 
     """
 
@@ -208,6 +208,46 @@ def _generate_synthetic_labels(
     return labels
 
 
+def _query_candidate_labels(
+    resolver: object,
+    domain: str,
+    labels: list[str],
+) -> list[tuple[str, str]]:
+    """Sonda cada label candidato via DNS e retorna (label, status).
+
+    Status possiveis: 'answer' (nome resolveu), 'noanswer' (nome existe sem
+    registros), 'nxdomain' (nome nao existe), 'error' (falha/timeout).
+
+    """
+
+    results: list[tuple[str, str]] = []
+
+    for label in labels:
+        qname = f"{label}.{domain}"
+
+        try:
+            resolver.resolve(qname, "A")  # type: ignore[attr-defined]
+
+            results.append((label, "answer"))
+
+        except dns.resolver.NXDOMAIN:
+            results.append((label, "nxdomain"))
+
+        except dns.resolver.NoAnswer:
+            results.append((label, "noanswer"))
+
+        except dns.resolver.NoNameservers:
+            results.append((label, "error"))
+
+        except dns.exception.Timeout:
+            results.append((label, "error"))
+
+        except dns.exception.DNSException:
+            results.append((label, "error"))
+
+    return results
+
+
 def analyze_labels(labels: list[str]) -> dict[str, float]:
     """Analisa uma lista de labels e retorna metricas."""
 
@@ -225,7 +265,9 @@ def analyze_labels(labels: list[str]) -> dict[str, float]:
 
     entropies = [shannon_entropy(label) for label in labels]
 
-    base64_count = sum(1 for label in labels if _is_base64(label))
+    base64_count = sum(
+        1 for label in labels if _is_base64(label) and not _is_hex(label)
+    )
 
     hex_count = sum(1 for label in labels if _is_hex(label))
 
@@ -291,9 +333,15 @@ def scan_tunnel(
         except dns.exception.DNSException:
             total_queries += 1
 
-    labels = _generate_synthetic_labels(domain, num_queries, tunnel_ratio=0.2)
+    candidate_labels = _generate_candidate_labels(num_queries)
 
-    metrics = analyze_labels(labels)
+    probed = _query_candidate_labels(resolver, domain, candidate_labels)
+
+    resolved_labels = [
+        label for label, status in probed if status in ("answer", "noanswer")
+    ]
+
+    metrics = analyze_labels(resolved_labels)
 
     if metrics["avg_entropy"] > entropy_threshold:
         indicators.append(
@@ -348,7 +396,7 @@ def scan_tunnel(
         )
 
     if metrics["base64_count"] > 0:
-        ratio = metrics["base64_count"] / len(labels)
+        ratio = metrics["base64_count"] / max(len(resolved_labels), 1)
 
         indicators.append(
             TunnelIndicator(
@@ -360,7 +408,7 @@ def scan_tunnel(
         )
 
     if metrics["hex_count"] > 0:
-        ratio = metrics["hex_count"] / len(labels)
+        ratio = metrics["hex_count"] / max(len(resolved_labels), 1)
 
         indicators.append(
             TunnelIndicator(
@@ -403,7 +451,7 @@ def scan_tunnel(
         overall_severity=overall,
         is_tunneling=is_tunneling,
         confidence=round(confidence, 2),
-        labels_analyzed=len(labels),
+        labels_analyzed=len(resolved_labels),
         avg_label_length=round(metrics["avg_length"], 1),
         max_label_length=float(metrics["max_length"]),
         avg_entropy=round(metrics["avg_entropy"], 3),
@@ -629,6 +677,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not quiet:
         print_results(result)
 
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
+
     if args.output:
         write_output(
             args.output,
@@ -651,7 +702,31 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 0
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(result)],
+            [
+                "domain",
+                "overall_severity",
+                "is_tunneling",
+                "confidence",
+                "labels_analyzed",
+                "avg_label_length",
+                "max_label_length",
+                "avg_entropy",
+                "max_entropy",
+                "txt_ratio",
+                "base64_count",
+                "hex_count",
+                "nxdomain_ratio",
+            ],
+            quiet=quiet,
+        )
+
+    return 1 if result.is_tunneling else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

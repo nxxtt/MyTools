@@ -45,7 +45,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -386,17 +388,34 @@ def _generate_callback(webhook_url: str) -> str:
     return f"{webhook_url.rstrip('/')}/xss-callback/{token}"
 
 
-def _check_xss_response(body: bytes, status: int) -> bool:
-    """Verifica se a resposta indica XSS possivel."""
+def _check_xss_response(
+    body: bytes,
+    status: int,
+    baseline_body: bytes,
+    token: str = "",
+) -> bool:
+    """Verifica se a resposta indica XSS possivel.
+
+    Indicador so conta se aparecer na resposta de teste e NAO estiver
+    na resposta baseline. O token de callback unico refletido e o
+    sinal mais forte de Blind XSS.
+    """
 
     if status == 0:
         return False
 
+    token_bytes = token.encode()
+
+    if token_bytes and token_bytes in body and token_bytes not in baseline_body:
+        return True
+
     text = body.decode("utf-8", errors="ignore").lower()
+
+    baseline_text = baseline_body.decode("utf-8", errors="ignore").lower()
 
     xss_indicators = ["script", "onerror", "onload", "fetch", "alert", "prompt"]
 
-    return any(ind in text for ind in xss_indicators)
+    return any(ind in text and ind not in baseline_text for ind in xss_indicators)
 
 
 async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, bytes]:
@@ -419,12 +438,14 @@ async def _test_input(
 ) -> list[BlindXSSAttempt]:
     """Testa injecao de XSS em campos de formulario."""
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, baseline_body = baseline
 
     results: list[BlindXSSAttempt] = []
 
     for technique, payload_template, indicators in _INPUT_PAYLOADS:
         callback_url = _generate_callback(webhook_url)
+
+        token = callback_url.rsplit("/", 1)[-1]
 
         payload = payload_template.replace("{{callback}}", callback_url)
 
@@ -439,12 +460,19 @@ async def _test_input(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_xss_response(resp.content, resp.status_code)
+                vulnerable = _check_xss_response(
+                    resp.content, resp.status_code, baseline_body, token
+                )
 
                 if not vulnerable:
+                    text = resp.content.decode("utf-8", errors="ignore").lower()
+
+                    baseline_text = baseline_body.decode(
+                        "utf-8", errors="ignore"
+                    ).lower()
+
                     vulnerable = any(
-                        ind.lower()
-                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        ind.lower() in text and ind.lower() not in baseline_text
                         for ind in indicators
                     )
 
@@ -506,12 +534,14 @@ async def _test_header(
 ) -> list[BlindXSSAttempt]:
     """Testa injecao de XSS em headers."""
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, baseline_body = baseline
 
     results: list[BlindXSSAttempt] = []
 
     for technique, header_name, payload_template, indicators in _HEADER_PAYLOADS:
         callback_url = _generate_callback(webhook_url)
+
+        token = callback_url.rsplit("/", 1)[-1]
 
         payload = payload_template.replace("{{callback}}", callback_url)
 
@@ -525,12 +555,19 @@ async def _test_header(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_xss_response(resp.content, resp.status_code)
+                vulnerable = _check_xss_response(
+                    resp.content, resp.status_code, baseline_body, token
+                )
 
                 if not vulnerable:
+                    text = resp.content.decode("utf-8", errors="ignore").lower()
+
+                    baseline_text = baseline_body.decode(
+                        "utf-8", errors="ignore"
+                    ).lower()
+
                     vulnerable = any(
-                        ind.lower()
-                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        ind.lower() in text and ind.lower() not in baseline_text
                         for ind in indicators
                     )
 
@@ -592,12 +629,14 @@ async def _test_attr(
 ) -> list[BlindXSSAttempt]:
     """Testa injecao de XSS em atributos HTML."""
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, baseline_body = baseline
 
     results: list[BlindXSSAttempt] = []
 
     for technique, payload_template, indicators in _ATTR_PAYLOADS:
         callback_url = _generate_callback(webhook_url)
+
+        token = callback_url.rsplit("/", 1)[-1]
 
         payload = payload_template.replace("{{callback}}", callback_url)
 
@@ -612,12 +651,19 @@ async def _test_attr(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_xss_response(resp.content, resp.status_code)
+                vulnerable = _check_xss_response(
+                    resp.content, resp.status_code, baseline_body, token
+                )
 
                 if not vulnerable:
+                    text = resp.content.decode("utf-8", errors="ignore").lower()
+
+                    baseline_text = baseline_body.decode(
+                        "utf-8", errors="ignore"
+                    ).lower()
+
                     vulnerable = any(
-                        ind.lower()
-                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        ind.lower() in text and ind.lower() not in baseline_text
                         for ind in indicators
                     )
 
@@ -677,12 +723,14 @@ async def _test_event(
 ) -> list[BlindXSSAttempt]:
     """Testa injecao de XSS via event handlers."""
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, baseline_body = baseline
 
     results: list[BlindXSSAttempt] = []
 
     for technique, payload_template, indicators in _EVENT_PAYLOADS:
         callback_url = _generate_callback(webhook_url)
+
+        token = callback_url.rsplit("/", 1)[-1]
 
         payload = payload_template.replace("{{callback}}", callback_url)
 
@@ -697,12 +745,19 @@ async def _test_event(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_xss_response(resp.content, resp.status_code)
+                vulnerable = _check_xss_response(
+                    resp.content, resp.status_code, baseline_body, token
+                )
 
                 if not vulnerable:
+                    text = resp.content.decode("utf-8", errors="ignore").lower()
+
+                    baseline_text = baseline_body.decode(
+                        "utf-8", errors="ignore"
+                    ).lower()
+
                     vulnerable = any(
-                        ind.lower()
-                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        ind.lower() in text and ind.lower() not in baseline_text
                         for ind in indicators
                     )
 
@@ -762,12 +817,14 @@ async def _test_bypass(
 ) -> list[BlindXSSAttempt]:
     """Testa bypass de XSS (encoding, null byte, etc)."""
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, baseline_body = baseline
 
     results: list[BlindXSSAttempt] = []
 
     for technique, payload_template, indicators in _BYPASS_PAYLOADS:
         callback_url = _generate_callback(webhook_url)
+
+        token = callback_url.rsplit("/", 1)[-1]
 
         payload = payload_template.replace("{{callback}}", callback_url)
 
@@ -782,12 +839,19 @@ async def _test_bypass(
                     follow_redirects=True,
                 )
 
-                vulnerable = _check_xss_response(resp.content, resp.status_code)
+                vulnerable = _check_xss_response(
+                    resp.content, resp.status_code, baseline_body, token
+                )
 
                 if not vulnerable:
+                    text = resp.content.decode("utf-8", errors="ignore").lower()
+
+                    baseline_text = baseline_body.decode(
+                        "utf-8", errors="ignore"
+                    ).lower()
+
                     vulnerable = any(
-                        ind.lower()
-                        in resp.content.decode("utf-8", errors="ignore").lower()
+                        ind.lower() in text and ind.lower() not in baseline_text
                         for ind in indicators
                     )
 
@@ -992,6 +1056,8 @@ async def run_scan(
     categories: list[str],
     timeout: float,
     output_file: str | None,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan de Blind XSS via callback."""
 
@@ -999,7 +1065,7 @@ async def run_scan(
 
     tls = target.startswith("https://")
 
-    async with create_async_client(timeout=timeout) as client:
+    async with create_async_client(timeout=timeout, proxy=proxy) as client:
         baseline = await _test_baseline(client, target)
 
         b_status, b_size, _ = baseline
@@ -1060,7 +1126,10 @@ async def run_scan(
             else ("safe" if blocked_techs else "unknown"),
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         logger.info(
             "Blind XSS scan concluido: %d testes, %d vulneraveis",
@@ -1144,6 +1213,8 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan Blind XSS a partir de argumentos parseados."""
 
+    init_scanner(args)
+
     logger.info("Blind XSS scan iniciado para %s", args.url)
 
     categories: list[str] = []
@@ -1158,6 +1229,8 @@ def run_once(args: argparse.Namespace) -> int:
             categories=categories,
             timeout=getattr(args, "timeout", 10),
             output_file=getattr(args, "output", None),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

@@ -277,6 +277,16 @@ class TestSendRaw:
         assert status == 200
         assert len(response) > 1024
 
+    def test_no_content_length_chunked_terminator(self) -> None:
+        mock_sock = MagicMock()
+        mock_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
+            b"",
+        ]
+        status, response = _send_raw(mock_sock, b"GET / HTTP/1.1\r\n\r\n", 5.0)
+        assert status == 200
+        assert response.endswith(b"0\r\n\r\n")
+
     def test_http09_response(self) -> None:
         mock_sock = MagicMock()
         mock_sock.recv.side_effect = [b"HTTP/0.9\r\n\r\nplain body", b""]

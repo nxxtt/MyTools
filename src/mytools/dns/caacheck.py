@@ -29,8 +29,10 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -77,10 +79,10 @@ class CaaResult:
 
 
 def _identify_ca(value: str) -> str:
-    """Identifica a CA pelo nome."""
+    """Identifica a CA pelo nome, respeitando a fronteira de ponto."""
     value_lower = value.lower().rstrip(".")
     for domain, name in KNOWN_CAS.items():
-        if domain in value_lower:
+        if value_lower == domain or value_lower.endswith(f".{domain}"):
             return name
     return value
 
@@ -282,6 +284,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not quiet:
         print_results(result)
 
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
+
     if args.output:
         write_output(
             args.output,
@@ -289,7 +294,19 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             ["domain", "has_caa", "authorized_cas", "has_iodef", "policy_status"],
             quiet=quiet,
         )
-    return 0
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(result)],
+            ["domain", "has_caa", "authorized_cas", "has_iodef", "policy_status"],
+            quiet=quiet,
+        )
+
+    # Sem registro CAA, qualquer CA pode emitir certificados (vulnerabilidade).
+    return 1 if result.policy_status == "none" else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

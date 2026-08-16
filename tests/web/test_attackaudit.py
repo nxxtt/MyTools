@@ -1420,6 +1420,52 @@ class TestCheckSQLiErrorsEdgeCases:
         assert any("postgresql" in r for r in result) or len(result) > 0
 
 
+class TestCheckSQLiErrorsInjection:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_param_in_query_injects_payload(self, async_client):
+        seen: list[str] = []
+
+        def handler(request):
+            seen.append(str(request.url))
+            return httpx.Response(200, text="normal page")
+
+        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
+        result = await check_sqli_errors(
+            async_client,
+            "https://example.com/page?id=1",
+            5.0,
+            inject_params=["id"],
+        )
+        assert result == []
+        assert len(seen) == len(SQLI_PAYLOADS[:2])
+        for url in seen:
+            assert url.startswith("https://example.com/page?id=")
+            assert url != "https://example.com/page?id=1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_param_missing_in_query_does_not_retest_base(self, async_client):
+        seen: list[str] = []
+
+        def handler(request):
+            seen.append(str(request.url))
+            return httpx.Response(200, text="normal page")
+
+        respx.route(url__regex=r"https://example\.com.*").mock(side_effect=handler)
+        result = await check_sqli_errors(
+            async_client,
+            "https://example.com/page?search=test",
+            5.0,
+            inject_params=["id"],
+        )
+        assert result == []
+        assert len(seen) == len(SQLI_PAYLOADS[:2])
+        for url in seen:
+            assert "id=" in url
+            assert url != "https://example.com/page?search=test"
+
+
 class TestExtractQueryParams:
     def test_empty_url(self):
         assert _extract_query_params("https://example.com") == []
@@ -3415,6 +3461,29 @@ class TestAsyncRunOnceExtra:
         assert code == 0
         assert not mock_save.called
         assert not mock_write.called
+
+    @pytest.mark.asyncio
+    async def test_full_run_with_findings_returns_1(self):
+        result = _make_audit_result(
+            findings=[Finding("high", "transport", "item", "evidence", "rec")]
+        )
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        with (
+            patch(
+                "mytools.web.attackaudit.resolve_target_urls",
+                return_value=["https://example.com"],
+            ),
+            patch(
+                "mytools.web.attackaudit._run_single",
+                new_callable=AsyncMock,
+                side_effect=lambda u, args, quiet: result,
+            ),
+            patch("mytools.web.attackaudit._save_audit_output"),
+            patch("mytools.web.attackaudit.write_output"),
+        ):
+            code = await _async_run_once(args)
+        assert code == 1
 
 
 class TestRunOnce:

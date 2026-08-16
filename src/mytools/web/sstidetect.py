@@ -54,7 +54,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -304,25 +306,22 @@ def _extract_engine(technique: str) -> str:
 
 
 def _check_response(body: bytes, expected: str) -> bool:
-    """Verifica se a resposta contem o valor esperado."""
+    """Verifica se a resposta contem o valor esperado.
+
+    Valores curtos com caracteres alfanumericos ("49", "class") usam
+    word-boundary para nao casar como substring de palavras maiores.
+    Longas strings unicas ou valores com pontuacao usam substring.
+    """
 
     text = body.decode("utf-8", errors="ignore")
 
-    if expected in text:
-        return True
+    if not expected:
+        return False
 
-    try:
-        if (
-            expected.isdigit()
-            and int(expected) in [49, 98]
-            and re.search(rf"\b{expected}\b", text)
-        ):
-            return True
+    if re.search(r"\w", expected) and len(expected) < 6:
+        return bool(re.search(rf"\b{re.escape(expected)}\b", text))
 
-    except ValueError:
-        pass
-
-    return False
+    return expected in text
 
 
 def _check_exploit(body: bytes, indicators: list[str]) -> tuple[bool, str]:
@@ -476,6 +475,38 @@ async def _test_header_ssti(
 
                 vuln = detected
 
+                # Second-order verification for detection
+                details = f"Header {header}: {name}" + (
+                    f" -> ENGINE={engine}" if detected else ""
+                )
+                if detected:
+                    verify = get_verify_payload("sstidetect", "detect")
+                    if verify:
+                        v_payload, v_indicators = verify
+                        try:
+                            v_resp = await client.get(
+                                base_url,
+                                headers={header: v_payload},
+                                follow_redirects=False,
+                            )
+                        except httpx.RequestError:
+                            v_resp = None
+                        confirmed = False
+                        v_found = ""
+                        if v_resp is not None:
+                            for v_ind in v_indicators:
+                                if v_ind in v_resp.content:
+                                    confirmed = True
+                                    v_found = v_ind.decode("utf-8", errors="replace")
+                                    break
+                        if not confirmed:
+                            detected = False
+                            engine = ""
+                            vuln = False
+                            details += f" [2nd-order failed: {v_found or 'no match'}]"
+                        else:
+                            details += f" [2nd-order confirmed: {v_found}]"
+
                 attempts.append(
                     SSTIAttempt(
                         technique=f"{name}_{header.lower().replace('-', '_')}",
@@ -552,6 +583,40 @@ async def _test_body_ssti(
 
             vuln = detected
 
+            # Second-order verification for detection
+            details = f"JSON: {name}" + (f" -> ENGINE={engine}" if detected else "")
+            if detected:
+                verify = get_verify_payload("sstidetect", "detect")
+                if verify:
+                    v_payload, v_indicators = verify
+                    try:
+                        v_resp = await client.post(
+                            base_url,
+                            json={
+                                "input": v_payload,
+                                "name": v_payload,
+                                "template": v_payload,
+                            },
+                            follow_redirects=False,
+                        )
+                    except httpx.RequestError:
+                        v_resp = None
+                    confirmed = False
+                    v_found = ""
+                    if v_resp is not None:
+                        for v_ind in v_indicators:
+                            if v_ind in v_resp.content:
+                                confirmed = True
+                                v_found = v_ind.decode("utf-8", errors="replace")
+                                break
+                    if not confirmed:
+                        detected = False
+                        engine = ""
+                        vuln = False
+                        details += f" [2nd-order failed: {v_found or 'no match'}]"
+                    else:
+                        details += f" [2nd-order confirmed: {v_found}]"
+
             attempts.append(
                 SSTIAttempt(
                     technique=f"{name}_json",
@@ -613,6 +678,40 @@ async def _test_body_ssti(
             engine = _extract_engine(name) if detected else ""
 
             vuln = detected
+
+            # Second-order verification for detection
+            details = f"Form: {name}" + (f" -> ENGINE={engine}" if detected else "")
+            if detected:
+                verify = get_verify_payload("sstidetect", "detect")
+                if verify:
+                    v_payload, v_indicators = verify
+                    try:
+                        v_resp = await client.post(
+                            base_url,
+                            data={
+                                "input": v_payload,
+                                "name": v_payload,
+                                "template": v_payload,
+                            },
+                            follow_redirects=False,
+                        )
+                    except httpx.RequestError:
+                        v_resp = None
+                    confirmed = False
+                    v_found = ""
+                    if v_resp is not None:
+                        for v_ind in v_indicators:
+                            if v_ind in v_resp.content:
+                                confirmed = True
+                                v_found = v_ind.decode("utf-8", errors="replace")
+                                break
+                    if not confirmed:
+                        detected = False
+                        engine = ""
+                        vuln = False
+                        details += f" [2nd-order failed: {v_found or 'no match'}]"
+                    else:
+                        details += f" [2nd-order confirmed: {v_found}]"
 
             attempts.append(
                 SSTIAttempt(
@@ -901,12 +1000,14 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan SSTI."""
 
     tls = target.startswith("https")
 
-    client = create_async_client(timeout=timeout)
+    client = create_async_client(timeout=timeout, proxy=proxy)
 
     try:
         logger.info("Conectando a %s...", target)
@@ -994,7 +1095,10 @@ async def run_scan(
             overall_status=overall,
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -1065,6 +1169,8 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan SSTI a partir de argumentos parseados."""
 
+    init_scanner(args)
+
     logger.info("SSTI scan iniciado para %s", args.url)
 
     categories: list[str] = []
@@ -1080,6 +1186,8 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

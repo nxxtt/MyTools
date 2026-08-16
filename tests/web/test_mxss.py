@@ -242,6 +242,11 @@ def test_detect_namespace_contexts_xmp() -> None:
     assert "xmp_rawtext" in ctxs
 
 
+def test_detect_namespace_contexts_noscript() -> None:
+    ctxs = _detect_namespace_contexts("<noscript>fallback</noscript>")
+    assert "noscript_rawtext" in ctxs
+
+
 def test_attempt_dataclass_frozen() -> None:
     a = MXSSAttempt(
         technique="test",
@@ -363,6 +368,27 @@ def test_detect_namespace_contexts_extra_markers() -> None:
     assert "template" in ctxs
     assert "xmp_rawtext" in ctxs
     assert "listing_rawtext" in ctxs
+
+
+def test_detect_namespace_contexts_restricted_to_payload_slice() -> None:
+    """Markers de namespace fora da regiao refletida nao contam."""
+    body = (
+        "<html><body><svg><foreignObject>legit svg</foreignObject></svg>"
+        "<div>PAYLOAD_MARKER</div></body></html>"
+    )
+    ctxs = _detect_namespace_contexts(body, "PAYLOAD_MARKER")
+    assert ctxs == []
+
+
+def test_detect_namespace_contexts_payload_slice_has_marker() -> None:
+    body = "<html><svg>legit</svg><div><svg><script>x</script></svg></div></html>"
+    ctxs = _detect_namespace_contexts(body, "<svg><script>x</script></svg>")
+    assert "svg" in ctxs
+
+
+def test_detect_namespace_contexts_payload_not_reflected() -> None:
+    ctxs = _detect_namespace_contexts("<html><body>safe</body></html>", "<svg>")
+    assert ctxs == []
 
 
 def test_all_payload_lists_registered() -> None:
@@ -512,6 +538,46 @@ class TestTestMxssCategory:
             )
         assert results
         assert all(a.error for a in results)
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_namespace_markers_outside_payload_ignored(self) -> None:
+        """Pagina com <svg>/<template> legitimos nao gera contextos para o payload."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            params = parse_qs(urlparse(str(request.url)).query)
+            for key, values in params.items():
+                if key.startswith("_mxss_"):
+                    return httpx.Response(
+                        200,
+                        text=(
+                            "<html><body><svg><template>LEGIT</template></svg>"
+                            f"{values[0]}</body></html>"
+                        ),
+                    )
+            return httpx.Response(
+                200, text="<html><body><svg>legit</svg></body></html>"
+            )
+
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            side_effect=handler
+        )
+        async with httpx.AsyncClient() as client:
+            results = await _test_mxss_category(
+                client,
+                "https://example.com",
+                10,
+                200,
+                4,
+                _COMMENT_PAYLOADS,
+                "comment_parse",
+            )
+        assert results
+        for a in results:
+            if "svg" not in a.payload.lower():
+                assert "svg" not in a.namespace_contexts, a.namespace_contexts
+            if "template" not in a.payload.lower():
+                assert "template" not in a.namespace_contexts, a.namespace_contexts
 
 
 # ─── Print Results ───────────────────────────────────────────────────────────
@@ -708,7 +774,59 @@ class TestRunScanCore:
             result = await _run_scan_core(
                 "https://example.com", ["entity_decode"], 10, None, headless=True
             )
-        assert result == 1
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_json_output_emits_print_json(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        client = AsyncMock()
+        with (
+            patch(
+                "mytools.web.mxss.create_async_client",
+                return_value=client,
+            ),
+            patch(
+                "mytools.web.mxss.fetch",
+                new_callable=AsyncMock,
+                return_value=(200, {}, b"<html>ok</html>", b"raw"),
+            ),
+        ):
+            result = await _run_scan_core(
+                "https://example.com",
+                ["invalid"],
+                10,
+                None,
+                proxy="http://127.0.0.1:8080",
+                json_output=True,
+            )
+        assert result == 0
+        out = capsys.readouterr().out
+        assert '"target": "https://example.com"' in out
+        assert "mXSS) Detection" not in out
+
+    @pytest.mark.asyncio
+    async def test_create_client_receives_proxy(self) -> None:
+        client = AsyncMock()
+        with (
+            patch(
+                "mytools.web.mxss.create_async_client",
+                return_value=client,
+            ) as mock_client,
+            patch(
+                "mytools.web.mxss.fetch",
+                new_callable=AsyncMock,
+                return_value=(200, {}, b"<html>ok</html>", b"raw"),
+            ),
+        ):
+            await _run_scan_core(
+                "https://example.com",
+                ["invalid"],
+                10,
+                None,
+                proxy="http://127.0.0.1:8080",
+            )
+        mock_client.assert_called_once_with(timeout=10, proxy="http://127.0.0.1:8080")
 
 
 # ─── Parser / Scanner Class ──────────────────────────────────────────────────
@@ -745,6 +863,26 @@ class TestScannerClass:
         assert result == 0
         mock_core.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_run_scan_forwards_proxy_and_json_output(self) -> None:
+        with patch(
+            "mytools.web.mxss._run_scan_core",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_core:
+            result = await MXScanner().run_scan(
+                target="https://example.com",
+                categories=[],
+                timeout=10,
+                output_file=None,
+                proxy="http://127.0.0.1:8080",
+                json_output=True,
+            )
+        assert result == 0
+        _, kwargs = mock_core.call_args
+        assert kwargs["proxy"] == "http://127.0.0.1:8080"
+        assert kwargs["json_output"] is True
+
     def test_print_results(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = MXSSResult(
             target=_TARGET,
@@ -774,6 +912,11 @@ class TestBannerArt:
         MXScanner.__dict__["banner_fn"]()
         out = capsys.readouterr().out
         assert "mxss" in out
+
+    def test_module_banner_art_is_function(self) -> None:
+        from mytools.web.mxss import banner_art
+
+        assert callable(banner_art)
 
 
 class TestMainGuard:

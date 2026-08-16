@@ -18,6 +18,7 @@ Fluxo:
 import argparse
 import asyncio
 import logging
+import re
 import time
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
@@ -30,7 +31,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -273,11 +276,23 @@ def _check_ssi_response(
     status: int,
     indicators: list[str],
 ) -> bool:
-    """Verifica se a resposta indica SSI injection bem-sucedido."""
+    """Verifica se a resposta indica SSI injection bem-sucedido.
+
+    Indicadores compostos apenas por palavras/digitos ("2", "3", "uid")
+    casam com word-boundary para nao acusar substring de numeros/palavras
+    maiores. Indicadores com pontuacao ou hashes unicos usam substring.
+    """
     text = body.decode("utf-8", errors="ignore").lower()
     if status == 0:
         return False
-    return any(indicator.lower() in text for indicator in indicators)
+    for indicator in indicators:
+        ind = indicator.lower()
+        if re.fullmatch(r"\w+", ind) and len(ind) < 16:
+            if re.search(rf"\b{re.escape(ind)}\b", text):
+                return True
+        elif ind in text:
+            return True
+    return False
 
 
 async def _test_detect(
@@ -520,6 +535,19 @@ async def _test_blind(
     for technique, payload, _check_type, indicators in _BLIND_PAYLOADS:
         for param in _SSI_PARAMS[:4]:
             try:
+                b_elapsed = 0.0
+                if _check_type == "time":
+                    try:
+                        b_start = time.monotonic()
+                        await client.get(
+                            base_url,
+                            params={param: "a"},
+                            follow_redirects=False,
+                        )
+                        b_elapsed = time.monotonic() - b_start
+                    except httpx.RequestError:
+                        b_elapsed = 0.0
+
                 t_start = time.monotonic()
                 resp = await client.get(
                     base_url,
@@ -533,12 +561,21 @@ async def _test_blind(
                 status_changed = t_status != b_status
                 vulnerable = _check_ssi_response(resp.content, t_status, indicators)
 
-                if _check_type == "time" and t_elapsed >= 1.5:
+                if (
+                    _check_type == "time"
+                    and t_elapsed >= 1.5
+                    and t_elapsed >= b_elapsed + 1.0
+                ):
                     vulnerable = True
 
                 details = ""
                 if _check_type == "time" and t_elapsed >= 1.5:
-                    details = f"Sleep detectado: {t_elapsed:.1f}s"
+                    if t_elapsed >= b_elapsed + 1.0:
+                        details = f"Sleep detectado: {t_elapsed:.1f}s"
+                    else:
+                        details = (
+                            f"Sleep {t_elapsed:.1f}s < baseline {b_elapsed:.1f}s + 1.0s"
+                        )
                 elif status_changed:
                     details = f"Status {b_status}->{t_status}"
                 else:
@@ -709,10 +746,12 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan SSI Injection."""
     tls = target.startswith("https")
-    client = create_async_client(timeout=timeout)
+    client = create_async_client(timeout=timeout, proxy=proxy)
     try:
         print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
         baseline = await _test_baseline(client, target)
@@ -725,18 +764,26 @@ async def run_scan(
         run_categories = categories or list(_CATEGORY_MAP.keys())
         all_attempts: list[SSIiAttempt] = []
 
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _limited(
+            coro: Awaitable[list[SSIiAttempt]],
+        ) -> list[SSIiAttempt]:
+            async with sem:
+                return await coro
+
         tasks: list[Awaitable[list[SSIiAttempt]]] = []
         for cat in run_categories:
             if cat == "detect":
-                tasks.append(_test_detect(client, target, baseline))
+                tasks.append(_limited(_test_detect(client, target, baseline)))
             elif cat == "rce":
-                tasks.append(_test_rce(client, target, baseline))
+                tasks.append(_limited(_test_rce(client, target, baseline)))
             elif cat == "file_read":
-                tasks.append(_test_file_read(client, target, baseline))
+                tasks.append(_limited(_test_file_read(client, target, baseline)))
             elif cat == "blind":
-                tasks.append(_test_blind(client, target, baseline))
+                tasks.append(_limited(_test_blind(client, target, baseline)))
             elif cat == "bypass":
-                tasks.append(_test_bypass(client, target, baseline))
+                tasks.append(_limited(_test_bypass(client, target, baseline)))
 
         if tasks:
             results_list = await asyncio.gather(*tasks, return_exceptions=True)
@@ -768,7 +815,10 @@ async def run_scan(
             overall_status=overall,
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -823,6 +873,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan SSI Injection a partir de argumentos parseados."""
+    init_scanner(args)
     logger.info("SSI scan iniciado para %s", args.url)
     categories: list[str] = []
     if getattr(args, "category", None):
@@ -835,6 +886,8 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

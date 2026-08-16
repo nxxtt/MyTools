@@ -769,6 +769,43 @@ class TestSharedResourceTester:
         assert all(not a.vulnerable for a in uuid_attempts)
 
     @pytest.mark.asyncio
+    async def test_uuid_200_same_size_as_baseline_not_vulnerable(self) -> None:
+        same_body = b"x" * 1000
+        rules = [
+            ("/api/v1/files/", (200, {}, same_body)),
+            ("", (200, {}, same_body)),
+        ]
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch(rules),
+            ):
+                attempts = await _test_shared_resource(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        uuid_attempts = [a for a in attempts if a.technique == "uuid_enumeration"]
+        assert len(uuid_attempts) == 4
+        assert all(not a.vulnerable for a in uuid_attempts)
+
+    @pytest.mark.asyncio
+    async def test_uuid_200_with_distinct_data_vulnerable(self) -> None:
+        rules = [
+            ("/api/v1/files/", (200, {}, b'{"user_id": 1, "tenant": "OTHER"}')),
+            ("", (200, {}, b"x" * 1000)),
+        ]
+        async with httpx.AsyncClient() as client:
+            with patch(
+                "mytools.web.multitenant.fetch",
+                side_effect=_route_fetch(rules),
+            ):
+                attempts = await _test_shared_resource(
+                    client, "https://example.com", 5.0, 200, 1000
+                )
+        uuid_attempts = [a for a in attempts if a.technique == "uuid_enumeration"]
+        assert len(uuid_attempts) == 4
+        assert all(a.vulnerable for a in uuid_attempts)
+
+    @pytest.mark.asyncio
     async def test_exceptions(self) -> None:
         async with httpx.AsyncClient() as client:
             with patch(

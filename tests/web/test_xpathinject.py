@@ -24,6 +24,7 @@ from mytools.web.xpathinject import (
     _test_bypass,
     _test_detect,
     _test_extract,
+    _xpath_falsey,
     build_parser,
     main,
     print_results,
@@ -181,6 +182,33 @@ class TestXPathParams:
         assert len(_XPATH_PARAMS) == 12
 
 
+class TestXPathFalsey:
+    """Testes para _xpath_falsey."""
+
+    def test_tautology_pair(self) -> None:
+        assert _xpath_falsey("' or '1'='1") == "' or '1'='2"
+
+    def test_tautology_paren_pair(self) -> None:
+        assert _xpath_falsey("') or ('1'='1") == "') or ('1'='2"
+
+    def test_quoted_literal_pair(self) -> None:
+        assert _xpath_falsey("substring(//user[1],1,1)='a'") == (
+            "substring(//user[1],1,1)='x'"
+        )
+
+    def test_number_pair(self) -> None:
+        assert _xpath_falsey("string-length(//user[1])=5") == (
+            "string-length(//user[1])=6"
+        )
+
+    def test_boolean_negation(self) -> None:
+        assert _xpath_falsey("boolean(//admin)") == "not(boolean(//admin))"
+
+    def test_keep_similar_length(self) -> None:
+        for _, payload, _ in _DETECT_PAYLOADS + _BLIND_PAYLOADS:
+            assert abs(len(payload) - len(_xpath_falsey(payload))) <= 7
+
+
 class TestXPathiAttempt:
     """Testes para dataclass XPathiAttempt."""
 
@@ -330,6 +358,43 @@ class TestTestDetect:
         assert len(results) > 0
 
     @pytest.mark.asyncio
+    async def test_echo_page_not_flagged(self) -> None:
+        mock_client = AsyncMock()
+
+        def _echo(data: dict[str, str]) -> httpx.Response:
+            value = next(iter(data.values()))
+            return httpx.Response(200, text=f"you said: {value}")
+
+        mock_client.post.side_effect = lambda url, data, **kw: _echo(data)
+        mock_client.get.side_effect = lambda url, params, **kw: _echo(params)
+
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, 200, b"ok")
+        )
+        assert len(results) > 0
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_differential_flagged(self) -> None:
+        mock_client = AsyncMock()
+        truthy = {p for _, p, _ in _DETECT_PAYLOADS}
+
+        def _diff(data: dict[str, str]) -> httpx.Response:
+            value = next(iter(data.values()))
+            if value in truthy:
+                return httpx.Response(200, text="welcome success token")
+            return httpx.Response(404, text="not found")
+
+        mock_client.post.side_effect = lambda url, data, **kw: _diff(data)
+        mock_client.get.side_effect = lambda url, params, **kw: _diff(params)
+
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, 200, b"ok")
+        )
+        assert len(results) > 0
+        assert any(r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
     async def test_request_error(self) -> None:
         import httpx
 
@@ -421,6 +486,41 @@ class TestTestBlind:
 
         results = await _test_blind(mock_client, "https://example.com", (200, 100, b""))
         assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_echo_page_not_flagged(self) -> None:
+        mock_client = AsyncMock()
+
+        def _echo(params: dict[str, str]) -> httpx.Response:
+            value = next(iter(params.values()))
+            return httpx.Response(200, text=f"you said: {value}")
+
+        mock_client.get.side_effect = lambda url, params, **kw: _echo(params)
+
+        results = await _test_blind(
+            mock_client, "https://example.com", (200, 200, b"ok")
+        )
+        assert len(results) > 0
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_differential_flagged(self) -> None:
+        mock_client = AsyncMock()
+        truthy = {p for _, p, _ in _BLIND_PAYLOADS}
+
+        def _diff(params: dict[str, str]) -> httpx.Response:
+            value = next(iter(params.values()))
+            if value in truthy:
+                return httpx.Response(200, text="welcome success token")
+            return httpx.Response(404, text="not found")
+
+        mock_client.get.side_effect = lambda url, params, **kw: _diff(params)
+
+        results = await _test_blind(
+            mock_client, "https://example.com", (200, 200, b"ok")
+        )
+        assert len(results) > 0
+        assert any(r.vulnerable for r in results)
 
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
@@ -634,14 +734,48 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_run_scan_json_output(self) -> None:
+        from mytools.web.xpathinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.xpathinject.print_json") as mock_print:
+            result = await run_scan(
+                target="https://example.com",
+                categories=["boolean"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+                json_output=True,
+            )
+        assert result == 0
+        mock_print.assert_called_once()
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_vulnerable(self) -> None:
+        from urllib.parse import unquote
+
         from mytools.web.xpathinject import run_scan
 
         respx.route(method="GET", url__startswith="https://example.com/").mock(
             return_value=httpx.Response(200, text="ok"),
         )
         respx.route(method="POST", url__startswith="https://example.com/").mock(
-            return_value=httpx.Response(200, text="welcome success token"),
+            side_effect=lambda request: (
+                httpx.Response(200, text="welcome success token")
+                if "not("
+                not in unquote(request.content.decode("utf-8", errors="ignore"))
+                and not unquote(
+                    request.content.decode("utf-8", errors="ignore")
+                ).endswith("='2")
+                else httpx.Response(404, text="invalid login")
+            ),
         )
         result = await run_scan(
             target="https://example.com",
@@ -745,6 +879,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.xpathinject.run_scan",
@@ -765,6 +901,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.xpathinject.run_scan",

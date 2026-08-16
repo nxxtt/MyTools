@@ -43,6 +43,23 @@ def _clear_fetch_cache():
 
 
 @pytest.fixture(autouse=True)
+def _reset_stealth_ctx():
+    """Zera o contexto stealth global entre testes.
+
+    init_scanner(args) grava um StealthContext global por thread. Testes que
+    chamam run_once() com args MagicMock() acabam 'envenenando' esse contexto
+    (impersonate truthy), o que faz create_async_client() retornar um cliente
+    curl-cffi e quebra testes de integracao subsequentes. Resetar entre testes
+    isola o estado e elimina a poluicao cross-module.
+    """
+    from mytools.core.utils import reset_stealth_ctx
+
+    reset_stealth_ctx()
+    yield
+    reset_stealth_ctx()
+
+
+@pytest.fixture(autouse=True)
 def _fast_sleep(monkeypatch, request):
     """Mock asyncio.sleep para testes rodarem instantaneamente.
 

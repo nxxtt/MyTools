@@ -36,7 +36,7 @@ import logging
 import time
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
@@ -263,7 +263,7 @@ def _make_inject_url(base_url: str, param: str, payload: str) -> str:
     parsed = urlparse(base_url)
     params = parse_qs(parsed.query, keep_blank_values=True)
     params[param] = [payload]
-    new_query = "&".join(f"{k}={v[0]}" for k, v in params.items())
+    new_query = urlencode(params, doseq=True)
     return urlunparse(parsed._replace(query=new_query))
 
 

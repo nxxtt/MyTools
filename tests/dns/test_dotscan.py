@@ -17,7 +17,6 @@ import pytest
 
 from mytools.dns.dotscan import (
     _DOT_RESOLVERS,
-    _RDTYPE_MAP,
     DotRecord,
     DotResolverResult,
     DotScanResult,
@@ -171,18 +170,6 @@ class TestDotResolvers:
             assert "host" in prov, f"{key} missing host"
             assert "port" in prov, f"{key} missing port"
             assert prov["port"] == 853, f"{key} wrong port"
-
-
-class TestRdtypeMap:
-    def test_common_types(self) -> None:
-        assert "A" in _RDTYPE_MAP
-        assert "AAAA" in _RDTYPE_MAP
-        assert "MX" in _RDTYPE_MAP
-        assert "TXT" in _RDTYPE_MAP
-
-    def test_all_values_are_ints(self) -> None:
-        for k, v in _RDTYPE_MAP.items():
-            assert isinstance(v, int), f"{k} has non-int value"
 
 
 class TestBuildDnsQuery:
@@ -525,6 +512,29 @@ class TestDotQuery:
         assert error == ""
         assert ssock.sent == struct.pack("!H", len(b"\x00\x01")) + b"\x00\x01"
 
+    @patch("mytools.dns.dotscan.ssl.SSLContext")
+    @patch("mytools.dns.dotscan.socket.create_connection")
+    def test_no_verify(self, mock_conn: MagicMock, mock_ssl: MagicMock) -> None:
+        payload = b"\x00\x01\x02\x03"
+        wire = struct.pack("!H", len(payload)) + payload
+        sock = FakeSock(wire)
+        mock_conn.return_value = sock
+        ctx = MagicMock()
+        ssock = FakeSock(wire)
+        ctx.wrap_socket.return_value = ssock
+        mock_ssl.return_value = ctx
+        ssock._peer_cert = None
+        ssock._tls_version = "TLSv1.3"
+
+        data, _tls_info, error = _dot_query(
+            "dns.google", 853, b"\x00\x01", 5.0, verify=False
+        )
+        assert data == payload
+        assert error == ""
+        assert ctx.check_hostname is False
+        assert ctx.verify_mode == ssl.CERT_NONE
+        assert ctx.minimum_version == ssl.TLSVersion.TLSv1_2
+
     @patch("mytools.dns.dotscan.ssl.create_default_context")
     @patch("mytools.dns.dotscan.socket.create_connection")
     def test_chunked_recv(self, mock_conn: MagicMock, mock_ctx: MagicMock) -> None:
@@ -735,6 +745,27 @@ class TestScanDot:
         assert result.resolvers == []
         mock_dot.assert_not_called()
 
+    @patch("mytools.dns.dotscan._dot_query")
+    @patch("mytools.dns.dotscan._traditional_resolve")
+    @pytest.mark.asyncio
+    async def test_filtering_when_traditional_blocked(
+        self, mock_trad: MagicMock, mock_dot: MagicMock
+    ) -> None:
+        mock_trad.return_value = ([], 10.0, "timeout")
+        mock_dot.return_value = (
+            b"\x00\x01",
+            DotTlsInfo("", "", "", "", [], "", ""),
+            "",
+        )
+        with patch(
+            "mytools.dns.dotscan._parse_dns_response",
+            return_value=[DotRecord("example.com", "A", 300, "1.2.3.4")],
+        ):
+            result = await scan_dot("example.com", resolvers=["google"])
+        assert result.overall_status == "filtering_detected"
+        assert result.filtering_detected is True
+        assert "traditional_dns_blocked_but_dot_resolves" in result.inconsistencies
+
 
 class TestPrintResultsAdditional:
     def test_trad_error(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -800,7 +831,7 @@ class TestRunScan:
         mock_scan.return_value = result
         out = await _run_scan(args)
         assert out == result
-        mock_scan.assert_awaited_once_with("example.com", "A", ["google"], 7.0)
+        mock_scan.assert_awaited_once_with("example.com", "A", ["google"], 7.0, True)
 
 
 class TestBanner:
@@ -840,13 +871,13 @@ class TestSafeRun:
     @patch("mytools.dns.dotscan.print_results")
     @patch("mytools.dns.dotscan.init_scanner", return_value=False)
     @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
-    def test_error_returns_one(
+    def test_error_returns_zero(
         self, mock_scan: AsyncMock, mock_init: MagicMock, mock_print: MagicMock
     ) -> None:
         mock_scan.return_value = _make_dot_result(
             overall_status="error", dot_supported=False
         )
-        assert _safe_run(_make_safe_run_args()) == 1
+        assert _safe_run(_make_safe_run_args()) == 0
 
     @patch("mytools.dns.dotscan.write_output")
     @patch("mytools.dns.dotscan.print_results")
@@ -861,6 +892,39 @@ class TestSafeRun:
     ) -> None:
         mock_scan.return_value = _make_dot_result(overall_status="resolved")
         assert _safe_run(_make_safe_run_args(output="out.json")) == 0
+        mock_write.assert_called_once()
+
+    @patch("mytools.dns.dotscan.print_json")
+    @patch("mytools.dns.dotscan.print_results")
+    @patch("mytools.dns.dotscan.init_scanner", return_value=False)
+    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    def test_json_output(
+        self,
+        mock_scan: AsyncMock,
+        mock_init: MagicMock,
+        mock_print: MagicMock,
+        mock_json: MagicMock,
+    ) -> None:
+        mock_scan.return_value = _make_dot_result(overall_status="resolved")
+        assert _safe_run(_make_safe_run_args(json_output=True)) == 0
+        mock_json.assert_called_once()
+
+    @patch("mytools.dns.dotscan.ensure_output_dir")
+    @patch("mytools.dns.dotscan.write_output")
+    @patch("mytools.dns.dotscan.print_results")
+    @patch("mytools.dns.dotscan.init_scanner", return_value=False)
+    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    def test_output_dir(
+        self,
+        mock_scan: AsyncMock,
+        mock_init: MagicMock,
+        mock_print: MagicMock,
+        mock_write: MagicMock,
+        mock_ensure: MagicMock,
+    ) -> None:
+        mock_scan.return_value = _make_dot_result(overall_status="resolved")
+        assert _safe_run(_make_safe_run_args(output_dir="reports")) == 0
+        mock_ensure.assert_called_once_with("reports")
         mock_write.assert_called_once()
 
     @patch("mytools.dns.dotscan.print_results")

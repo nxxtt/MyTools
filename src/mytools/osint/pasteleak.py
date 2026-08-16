@@ -42,9 +42,11 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    ensure_output_dir,
     fetch,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -161,9 +163,12 @@ def _dedup_leaks(leaks: list[LeakRecord]) -> list[LeakRecord]:
     return result
 
 
-def _contains_domain(content: str, domain: str) -> bool:
+def _contains_domain(
+    content: str, domain: str, pattern: re.Pattern[str] | None = None
+) -> bool:
     """Verifica se o conteudo menciona o dominio alvo (word boundary)."""
-    pattern = re.compile(rf"\b{re.escape(domain)}\b", re.IGNORECASE)
+    if pattern is None:
+        pattern = re.compile(rf"\b{re.escape(domain)}\b", re.IGNORECASE)
     return bool(pattern.search(content))
 
 
@@ -199,12 +204,17 @@ async def _query_github_gists(
         gists = json.loads(body)
     except json.JSONDecodeError, ValueError:
         return leaks
+    if not isinstance(gists, list):
+        return leaks
+    domain_pattern = re.compile(rf"\b{re.escape(domain)}\b", re.IGNORECASE)
     for gist in gists[:max_results]:
-        description = gist.get("description", "") or ""
-        files = gist.get("files", {})
+        if not isinstance(gist, dict):
+            continue
+        description = gist.get("description") or ""
+        files = gist.get("files") or {}
         gist_url = gist.get("html_url", "")
 
-        if _contains_domain(description, domain):
+        if _contains_domain(description, domain, domain_pattern):
             for fname, fdata in files.items():
                 raw_url = fdata.get("raw_url", "")
                 if raw_url:
@@ -333,10 +343,17 @@ async def _query_gitlab_snippets(
         logger.debug("GitLab Snippets status %d", status)
         return leaks
 
-    snippets = json.loads(body)
+    try:
+        snippets = json.loads(body)
+    except json.JSONDecodeError, ValueError:
+        return leaks
+    if not isinstance(snippets, list):
+        return leaks
     for snippet in snippets[:max_results]:
+        if not isinstance(snippet, dict):
+            continue
         snippet_url = snippet.get("web_url", "")
-        files = snippet.get("files", {})
+        files = snippet.get("files") or {}
 
         for fname, fdata in files.items():
             raw_url = fdata.get("raw_url", "")
@@ -409,9 +426,14 @@ async def _query_github_code(
             continue
 
         try:
-            items = json.loads(body).get("items", [])
+            body_data = json.loads(body)
         except json.JSONDecodeError, ValueError:
-            items = []
+            continue
+        if not isinstance(body_data, dict):
+            continue
+        items = body_data.get("items")
+        if not isinstance(items, list):
+            continue
         for item in items[:max_results]:
             file_path = item.get("path", "")
             html_url = item.get("html_url", "")
@@ -624,10 +646,28 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         )
         all_leaks.extend(leaks)
 
-    all_leaks = _dedup_leaks(all_leaks)
-
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json([asdict(leak) for leak in all_leaks])
+    elif not quiet:
         print_results(all_leaks)
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        out_path = f"{output_dir}/pasteleak.json"
+        write_output(
+            out_path,
+            [asdict(leak) for leak in all_leaks],
+            [
+                "source",
+                "url",
+                "filename",
+                "matched_pattern",
+                "matched_text",
+                "found_at",
+            ],
+            quiet=quiet,
+        )
 
     if args.output:
         write_output(

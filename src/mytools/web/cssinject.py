@@ -1107,7 +1107,6 @@ class CSSInjectScanner(BaseScanner):
 scanner = CSSInjectScanner()
 main = scanner.main
 run_once = scanner.run_once
-banner_art = scanner._make_banner()
 build_parser = scanner.build_parser
 
 if __name__ == "__main__":

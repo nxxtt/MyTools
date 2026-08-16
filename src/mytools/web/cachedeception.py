@@ -33,6 +33,7 @@ Fluxo:
 """
 
 import argparse
+import asyncio
 import logging
 from dataclasses import asdict, dataclass
 
@@ -99,11 +100,11 @@ _CATEGORY_MAP = _load_category_map()
 
 
 _EXTENSION_PAYLOADS_DEFAULT: list[list] = [
-    ["css_ext", "/admin.css", ["admin", "css", "cache", "static"]],
-    ["js_ext", "/secret.js", ["secret", "js", "cache", "static"]],
-    ["png_ext", "/profile.png", ["profile", "png", "cache", "image"]],
-    ["gif_ext", "/data.gif", ["data", "gif", "cache", "image"]],
-    ["ico_ext", "/auth.ico", ["auth", "ico", "cache", "favicon"]],
+    ["css_ext", "/admin.css", ["admin"]],
+    ["js_ext", "/secret.js", ["secret"]],
+    ["png_ext", "/profile.png", ["profile"]],
+    ["gif_ext", "/data.gif", ["data"]],
+    ["ico_ext", "/auth.ico", ["auth"]],
 ]
 
 
@@ -122,11 +123,11 @@ _EXTENSION_PAYLOADS = _load_extension_payloads()
 
 
 _PATH_PAYLOADS_DEFAULT: list[list] = [
-    ["trailing_slash", "/admin/", ["admin", "cache", "static"]],
-    ["double_slash", "/admin//", ["admin", "cache", "double"]],
-    ["semicolon_path", "/admin;.css", ["admin", "css", "semicolon", "cache"]],
-    ["fragment_bypass", "/admin#.css", ["admin", "css", "fragment", "cache"]],
-    ["case_path", "/Admin/", ["Admin", "cache", "case"]],
+    ["trailing_slash", "/admin/", ["admin"]],
+    ["double_slash", "/admin//", ["admin"]],
+    ["semicolon_path", "/admin;.css", ["admin"]],
+    ["fragment_bypass", "/admin#.css", ["admin"]],
+    ["case_path", "/Admin/", ["admin"]],
 ]
 
 
@@ -143,11 +144,11 @@ _PATH_PAYLOADS = _load_path_payloads()
 
 
 _PARAMETER_PAYLOADS_DEFAULT: list[list] = [
-    ["cache_param", "?cache=1", ["cache", "param", "static"]],
-    ["utm_source", "?utm_source=test", ["utm_source", "cache", "param"]],
-    ["cb_param", "?cb=12345", ["cb", "cache", "param", "callback"]],
-    ["nocache_bypass", "?nocache=0", ["nocache", "cache", "param"]],
-    ["version_param", "?v=1.0", ["v=", "cache", "param", "version"]],
+    ["cache_param", "?cache=1", ["cache"]],
+    ["utm_source", "?utm_source=test", ["utm_source"]],
+    ["cb_param", "?cb=12345", ["callback"]],
+    ["nocache_bypass", "?nocache=0", ["nocache"]],
+    ["version_param", "?v=1.0", ["version"]],
 ]
 
 
@@ -166,11 +167,11 @@ _PARAMETER_PAYLOADS = _load_parameter_payloads()
 
 
 _FRAMEWORK_PAYLOADS_DEFAULT: list[list] = [
-    ["django_static", "/static/admin.css", ["static", "admin", "css", "django"]],
-    ["flask_static", "/static/secret.js", ["static", "secret", "js", "flask"]],
-    ["express_static", "/public/admin.css", ["public", "admin", "css", "express"]],
-    ["rails_asset", "/assets/admin.css", ["assets", "admin", "css", "rails"]],
-    ["spring_static", "/resources/admin.css", ["resources", "admin", "css", "spring"]],
+    ["django_static", "/static/admin.css", ["admin", "django"]],
+    ["flask_static", "/static/secret.js", ["secret", "flask"]],
+    ["express_static", "/public/admin.css", ["admin", "express"]],
+    ["rails_asset", "/assets/admin.css", ["admin", "rails"]],
+    ["spring_static", "/resources/admin.css", ["admin", "spring"]],
 ]
 
 
@@ -189,11 +190,11 @@ _FRAMEWORK_PAYLOADS = _load_framework_payloads()
 
 
 _BYPASS_PAYLOADS_DEFAULT: list[list] = [
-    ["double_encode", "/%2561dmin.css", ["admin", "css", "double", "encode"]],
-    ["null_byte", "/admin%00.css", ["admin", "css", "null", "bypass"]],
-    ["unicode_path", "/%E0%80%80admin.css", ["admin", "css", "unicode", "bypass"]],
-    ["backslash_path", "/\\admin.css", ["admin", "css", "backslash", "bypass"]],
-    ["case_extension", "/admin.CSS", ["admin", "CSS", "case", "extension"]],
+    ["double_encode", "/%2561dmin.css", ["admin"]],
+    ["null_byte", "/admin%00.css", ["admin"]],
+    ["unicode_path", "/%E0%80%80admin.css", ["admin"]],
+    ["backslash_path", "/\\admin.css", ["admin"]],
+    ["case_extension", "/admin.CSS", ["admin"]],
 ]
 
 
@@ -306,35 +307,17 @@ def _check_deception_response(
     if status == 0:
         return False
 
-    cache_headers = {
-        "x-cache",
-        "age",
-        "cf-cache-status",
-        "x-varnish",
-        "via",
-        "x-cache-hits",
-        "x-served-by",
-        "surrogate-control",
-        "cdn-cache-status",
-    }
-
-    has_cache_header = any(k.lower() in cache_headers for k in headers)
-
     cache_hit = any(
         "hit" in headers.get(k, "").lower()
         for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits")
     )
 
-    if not has_cache_header and not cache_hit:
+    if not cache_hit:
         return False
 
     text = body.decode("utf-8", errors="ignore").lower()
 
-    header_text = " ".join(f"{k}: {v}" for k, v in headers.items()).lower()
-
-    combined = text + " " + header_text
-
-    return any(ind.lower() in combined for ind in indicators)
+    return any(ind.lower() in text for ind in indicators)
 
 
 async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, bytes]:
@@ -784,32 +767,38 @@ async def run_scan(
 
         all_attempts: list[DeceptionAttempt] = []
 
-        for cat in test_categories:
-            if cat == "extension":
-                attempts = await _test_extension(
-                    client, target, (b_status, b_size, b"")
-                )
+        sem = asyncio.Semaphore(concurrency)
 
-            elif cat == "path":
-                attempts = await _test_path(client, target, (b_status, b_size, b""))
+        async def _run_cat(cat: str) -> list[DeceptionAttempt]:
+            async with sem:
+                if cat == "extension":
+                    return await _test_extension(
+                        client, target, (b_status, b_size, b"")
+                    )
 
-            elif cat == "parameter":
-                attempts = await _test_parameter(
-                    client, target, (b_status, b_size, b"")
-                )
+                if cat == "path":
+                    return await _test_path(client, target, (b_status, b_size, b""))
 
-            elif cat == "framework":
-                attempts = await _test_framework(
-                    client, target, (b_status, b_size, b"")
-                )
+                if cat == "parameter":
+                    return await _test_parameter(
+                        client, target, (b_status, b_size, b"")
+                    )
 
-            elif cat == "bypass":
-                attempts = await _test_bypass(client, target, (b_status, b_size, b""))
+                if cat == "framework":
+                    return await _test_framework(
+                        client, target, (b_status, b_size, b"")
+                    )
 
-            else:
-                continue
+                if cat == "bypass":
+                    return await _test_bypass(client, target, (b_status, b_size, b""))
 
-            all_attempts.extend(attempts)
+                return []
+
+        cat_tasks = [_run_cat(cat) for cat in test_categories]
+
+        for attempts in await asyncio.gather(*cat_tasks, return_exceptions=True):
+            if isinstance(attempts, list):
+                all_attempts.extend(attempts)
 
         vulnerable = [a for a in all_attempts if a.vulnerable]
 

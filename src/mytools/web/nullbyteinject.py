@@ -269,10 +269,10 @@ async def _test_null_in_headers(
     b_status, b_size, _ = baseline
 
     header_payloads = {
-        "ua_null": ("User-Agent", f"Mozilla/5.0{chr(0)}Bot"),
-        "cookie_null": ("Cookie", f"session=abc{chr(0)}def"),
-        "auth_null": ("Authorization", f"Bearer token{chr(0)}"),
-        "referer_null": ("Referer", f"https://example.com{chr(0)}/admin"),
+        "ua_null": ("User-Agent", "Mozilla/5.0%00Bot"),
+        "cookie_null": ("Cookie", "session=abc%00def"),
+        "auth_null": ("Authorization", "Bearer token%00"),
+        "referer_null": ("Referer", "https://example.com%00/admin"),
     }
 
     for technique, (header_name, header_value) in header_payloads.items():
@@ -313,7 +313,7 @@ async def _test_null_in_headers(
                 )
             )
 
-        except httpx.RequestError as exc:
+        except (httpx.RequestError, ValueError) as exc:
             attempts.append(
                 NullByteAttempt(
                     technique=technique,
@@ -615,9 +615,9 @@ async def _test_auth_bypass(
     b_status, b_size, _ = baseline
 
     auth_payloads = [
-        ("basic_null", "Authorization", f"Basic YWRtaW46cGFzc3dvcmQ{chr(0)}"),
-        ("token_null", "X-Auth-Token", f"abc123{chr(0)}"),
-        ("session_null", "Cookie", f"PHPSESSID=abc{chr(0)}def"),
+        ("basic_null", "Authorization", "Basic YWRtaW46cGFzc3dvcmQ%00"),
+        ("token_null", "X-Auth-Token", "abc123%00"),
+        ("session_null", "Cookie", "PHPSESSID=abc%00def"),
     ]
 
     for technique, header_name, header_value in auth_payloads:
@@ -656,7 +656,7 @@ async def _test_auth_bypass(
                 )
             )
 
-        except httpx.RequestError as exc:
+        except (httpx.RequestError, ValueError) as exc:
             attempts.append(
                 NullByteAttempt(
                     technique=technique,

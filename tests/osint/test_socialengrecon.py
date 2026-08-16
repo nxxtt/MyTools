@@ -2,7 +2,6 @@
 """Testes unitarios do modulo de Social Engineering Recon."""
 
 import asyncio
-import json
 import runpy
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -407,7 +406,6 @@ async def test_scan_employees_github_only():
             sources=["github"],
             api_keys={},
             timeout=5.0,
-            concurrency=3,
             user_agent="test/1.0",
         )
         assert any(e.email == "john@example.com" for e in employees)
@@ -420,7 +418,6 @@ async def test_scan_employees_hunter_no_key():
         sources=["hunter"],
         api_keys={},
         timeout=5.0,
-        concurrency=3,
         user_agent="test/1.0",
     )
     assert employees == []
@@ -433,7 +430,6 @@ async def test_scan_employees_unknown_source():
         sources=["unknown_source"],
         api_keys={},
         timeout=5.0,
-        concurrency=3,
         user_agent="test/1.0",
     )
     assert employees == []
@@ -831,6 +827,38 @@ class TestGithubEdges:
         await client.aclose()
         assert len(emps) == 1
 
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_repo_loop_break_between_repos(self):
+        respx.get(url__startswith="https://api.github.com/orgs/").mock(
+            return_value=httpx.Response(
+                200,
+                json=[{"full_name": "example/repo1"}, {"full_name": "example/repo2"}],
+            ),
+        )
+        respx.get(url__startswith="https://api.github.com/repos/").mock(
+            return_value=httpx.Response(
+                200,
+                json=[{"login": "john"}, {"login": "jane"}],
+            ),
+        )
+        respx.get(url__startswith="https://api.github.com/users/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "John",
+                    "email": "john@example.com",
+                    "bio": "",
+                    "html_url": "",
+                },
+            ),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_github(client, "example.com", 5.0, rl, max_results=2)
+        await client.aclose()
+        assert len(emps) == 2
+
 
 # ── _query_hunter edge/error paths ───────────────────────────────────────────
 
@@ -874,6 +902,18 @@ class TestHunterEdges:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_data_null(self):
+        respx.get(url__startswith="https://api.hunter.io/").mock(
+            return_value=httpx.Response(200, json={"data": None}),
+        )
+        client = httpx.AsyncClient()
+        rl = RateLimiter(0)
+        emps = await _query_hunter(client, "example.com", "key", 5.0, rl)
+        await client.aclose()
+        assert emps == []
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_item_not_dict(self):
         respx.get(url__startswith="https://api.hunter.io/").mock(
             return_value=httpx.Response(200, json={"data": {"emails": [42]}}),
@@ -888,25 +928,7 @@ class TestHunterEdges:
 # ── _query_webpages edge paths ───────────────────────────────────────────────
 
 
-class _BadDecodeBody:
-    def decode(self, *args, **kwargs):
-        raise json.JSONDecodeError("bad", "doc", 0)
-
-
 class TestWebpagesEdges:
-    @pytest.mark.asyncio
-    @respx.mock
-    async def test_decode_error(self):
-        with patch(
-            "mytools.osint.socialengrecon.fetch",
-            new=AsyncMock(return_value=(200, {}, _BadDecodeBody(), {})),
-        ):
-            client = httpx.AsyncClient()
-            rl = RateLimiter(0)
-            emps = await _query_webpages(client, "example.com", 5.0, rl)
-            await client.aclose()
-            assert emps == []
-
     @pytest.mark.asyncio
     @respx.mock
     async def test_filters(self):
@@ -980,7 +1002,6 @@ async def test_scan_employees_web_source():
         sources=["web"],
         api_keys={},
         timeout=5.0,
-        concurrency=3,
         user_agent="test/1.0",
     )
     assert any(e.source == "web" for e in employees)
@@ -1063,6 +1084,73 @@ class TestAsyncRunOnce:
         assert result == 0
         mock_print.assert_not_called()
         mock_write.assert_called_once()
+
+    def test_missing_target_returns_1(self):
+        args = build_parser().parse_args([])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_list_file_multiple_domains(self, tmp_path):
+        lst = tmp_path / "domains.txt"
+        lst.write_text("one.com\ntwo.com\n", encoding="utf-8")
+        args = build_parser().parse_args(["-l", str(lst)])
+        emp = EmployeeInfo(domain="one.com", name="John", source="github")
+        with (
+            patch(
+                "mytools.osint.socialengrecon.scan_employees",
+                new=AsyncMock(return_value=[emp]),
+            ) as mock_scan,
+            patch("mytools.osint.socialengrecon.print_results"),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert mock_scan.call_count == 2
+        assert mock_scan.call_args_list[0].kwargs["domain"] == "one.com"
+        assert mock_scan.call_args_list[1].kwargs["domain"] == "two.com"
+
+    def test_list_file_missing_returns_1(self, tmp_path):
+        args = build_parser().parse_args(["-l", str(tmp_path / "nope.txt")])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 1
+
+    def test_list_file_dry_run(self, tmp_path):
+        lst = tmp_path / "domains.txt"
+        lst.write_text("one.com\ntwo.com\n", encoding="utf-8")
+        args = build_parser().parse_args(["-l", str(lst), "--dry-run"])
+        result = asyncio.run(_async_run_once(args))
+        assert result == 0
+
+    def test_json_output_flag(self):
+        emp = EmployeeInfo(domain="example.com", name="John", source="github")
+        args = build_parser().parse_args(["example.com", "--json"])
+        with (
+            patch(
+                "mytools.osint.socialengrecon.scan_employees",
+                new=AsyncMock(return_value=[emp]),
+            ),
+            patch("mytools.osint.socialengrecon.print_json") as mock_json,
+            patch("mytools.osint.socialengrecon.print_results") as mock_print,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_json.assert_called_once()
+        mock_print.assert_not_called()
+
+    def test_output_dir_flag(self, tmp_path):
+        emp = EmployeeInfo(domain="example.com", name="John", source="github")
+        out_dir = tmp_path / "out"
+        args = build_parser().parse_args(["example.com", "--output-dir", str(out_dir)])
+        with (
+            patch(
+                "mytools.osint.socialengrecon.scan_employees",
+                new=AsyncMock(return_value=[emp]),
+            ),
+            patch("mytools.osint.socialengrecon.write_output") as mock_write,
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        mock_write.assert_called_once()
+        assert out_dir.is_dir()
 
 
 class TestMain:

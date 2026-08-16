@@ -252,7 +252,7 @@ class TestSendQuery:
     def test_noerror(self, mock_resolver_cls: MagicMock) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
-        result = _send_query("a.example.com", "8.8.8.8", 2.0)
+        result = _send_query(mock_resolver, "a.example.com")
         assert result.response_code == "NOERROR"
         assert result.error == ""
         assert result.domain == "a.example.com"
@@ -262,7 +262,7 @@ class TestSendQuery:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
-        result = _send_query("x.example.com", "8.8.8.8", 2.0)
+        result = _send_query(mock_resolver, "x.example.com")
         assert result.response_code == "NXDOMAIN"
 
     @patch("mytools.dns.dnswatorture.dns.resolver.Resolver")
@@ -270,7 +270,7 @@ class TestSendQuery:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NoAnswer()
-        result = _send_query("x.example.com", "8.8.8.8", 2.0)
+        result = _send_query(mock_resolver, "x.example.com")
         assert result.response_code == "NOANSWER"
 
     @patch("mytools.dns.dnswatorture.dns.resolver.Resolver")
@@ -278,7 +278,7 @@ class TestSendQuery:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.exception.Timeout()
-        result = _send_query("x.example.com", "8.8.8.8", 2.0)
+        result = _send_query(mock_resolver, "x.example.com")
         assert result.response_code == "TIMEOUT"
         assert result.error == "timeout"
 
@@ -287,7 +287,7 @@ class TestSendQuery:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.exception.DNSException("fail")
-        result = _send_query("x.example.com", "8.8.8.8", 2.0)
+        result = _send_query(mock_resolver, "x.example.com")
         assert result.response_code == "ERROR"
         assert "fail" in result.error
 
@@ -352,6 +352,18 @@ class TestRunWaterTorture:
         mock_send.side_effect = RuntimeError("unexpected")
         result = run_water_torture(
             "example.com", rate=3, duration=1, concurrency=2, timeout=2.0
+        )
+        assert result.queries_sent == 0
+        assert result.nxdomain_count == 0
+
+    @patch("mytools.dns.dnswatorture.time.sleep")
+    @patch("mytools.dns.dnswatorture._send_query")
+    def test_wait_loop_exception(
+        self, mock_send: MagicMock, mock_sleep: MagicMock
+    ) -> None:
+        mock_send.side_effect = RuntimeError("unexpected")
+        result = run_water_torture(
+            "example.com", rate=10, duration=1, concurrency=2, timeout=2.0
         )
         assert result.queries_sent == 0
         assert result.nxdomain_count == 0
@@ -422,6 +434,18 @@ class TestRunOnce:
     def test_dry_run(self, mock_init: MagicMock) -> None:
         assert run_once(_make_run_once_args(dry_run=True)) == 0
 
+    @patch("mytools.dns.dnswatorture.init_scanner", return_value=False)
+    def test_zero_rate(self, mock_init: MagicMock) -> None:
+        assert run_once(_make_run_once_args(rate=0)) == 1
+
+    @patch("mytools.dns.dnswatorture.init_scanner", return_value=False)
+    def test_zero_duration(self, mock_init: MagicMock) -> None:
+        assert run_once(_make_run_once_args(duration=0)) == 1
+
+    @patch("mytools.dns.dnswatorture.init_scanner", return_value=False)
+    def test_zero_concurrency(self, mock_init: MagicMock) -> None:
+        assert run_once(_make_run_once_args(concurrency=0)) == 1
+
     @patch("mytools.dns.dnswatorture.print_results")
     @patch("mytools.dns.dnswatorture.run_water_torture")
     @patch("mytools.dns.dnswatorture.init_scanner", return_value=False)
@@ -481,6 +505,71 @@ class TestRunOnce:
         )
         mock_torture.return_value = result
         assert run_once(_make_run_once_args(output="out.json")) == 0
+        mock_write.assert_called_once()
+
+    @patch("mytools.dns.dnswatorture.print_json")
+    @patch("mytools.dns.dnswatorture.print_results")
+    @patch("mytools.dns.dnswatorture.run_water_torture")
+    @patch("mytools.dns.dnswatorture.init_scanner", return_value=False)
+    def test_json_output(
+        self,
+        mock_init: MagicMock,
+        mock_torture: MagicMock,
+        mock_print: MagicMock,
+        mock_json: MagicMock,
+    ) -> None:
+        result = WaterTortureResult(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            pattern="random",
+            queries_sent=0,
+            nxdomain_count=0,
+            noerror_count=0,
+            other_count=0,
+            timeout_count=0,
+            avg_latency_ms=0.0,
+            p95_latency_ms=0.0,
+            p99_latency_ms=0.0,
+            loss_rate=0.0,
+            duration_s=0.0,
+            qps=0.0,
+        )
+        mock_torture.return_value = result
+        assert run_once(_make_run_once_args(json_output=True)) == 0
+        mock_json.assert_called_once()
+
+    @patch("mytools.dns.dnswatorture.ensure_output_dir")
+    @patch("mytools.dns.dnswatorture.write_output")
+    @patch("mytools.dns.dnswatorture.print_results")
+    @patch("mytools.dns.dnswatorture.run_water_torture")
+    @patch("mytools.dns.dnswatorture.init_scanner", return_value=False)
+    def test_output_dir(
+        self,
+        mock_init: MagicMock,
+        mock_torture: MagicMock,
+        mock_print: MagicMock,
+        mock_write: MagicMock,
+        mock_ensure: MagicMock,
+    ) -> None:
+        result = WaterTortureResult(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            pattern="random",
+            queries_sent=0,
+            nxdomain_count=0,
+            noerror_count=0,
+            other_count=0,
+            timeout_count=0,
+            avg_latency_ms=0.0,
+            p95_latency_ms=0.0,
+            p99_latency_ms=0.0,
+            loss_rate=0.0,
+            duration_s=0.0,
+            qps=0.0,
+        )
+        mock_torture.return_value = result
+        assert run_once(_make_run_once_args(output_dir="reports")) == 0
+        mock_ensure.assert_called_once_with("reports")
         mock_write.assert_called_once()
 
     @patch("mytools.dns.dnswatorture.write_output")

@@ -29,7 +29,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -263,12 +265,22 @@ def _check_ldap_response(
     body: bytes,
     status: int,
     indicators: list[str],
+    baseline_body: bytes = b"",
 ) -> bool:
-    """Verifica se a resposta indica LDAP injection bem-sucedido."""
+    """Verifica se a resposta indica LDAP injection bem-sucedido.
+
+    Indicador conta apenas se presente no corpo do teste e ausente no
+    corpo baseline (baseline diff) — evita falsos positivos em paginas
+    normais que contem palavras genericas como "success" ou "user".
+    """
     text = body.decode("utf-8", errors="ignore").lower()
     if status == 0:
         return False
-    return any(indicator.lower() in text for indicator in indicators)
+    b_text = baseline_body.decode("utf-8", errors="ignore").lower()
+    return any(
+        indicator.lower() in text and indicator.lower() not in b_text
+        for indicator in indicators
+    )
 
 
 async def _test_detect(
@@ -278,7 +290,7 @@ async def _test_detect(
 ) -> list[LDAPiAttempt]:
     """Testa LDAP injection basico com payloads de deteccao."""
     attempts: list[LDAPiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, indicators in _DETECT_PAYLOADS:
         for param in _LDAP_PARAMS[:6]:
@@ -301,7 +313,7 @@ async def _test_detect(
                     t_size = len(resp.content)
                     status_changed = t_status != b_status
                     vulnerable = _check_ldap_response(
-                        resp.content, t_status, indicators
+                        resp.content, t_status, indicators, baseline_body=b_body
                     )
 
                     attempts.append(
@@ -356,7 +368,7 @@ async def _test_auth_bypass(
 ) -> list[LDAPiAttempt]:
     """Testa bypass de autenticacao LDAP."""
     attempts: list[LDAPiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, indicators in _AUTH_BYPASS_PAYLOADS:
         for param in ["user", "username", "login", "uid"]:
@@ -379,7 +391,7 @@ async def _test_auth_bypass(
                     t_size = len(resp.content)
                     status_changed = t_status != b_status
                     vulnerable = _check_ldap_response(
-                        resp.content, t_status, indicators
+                        resp.content, t_status, indicators, baseline_body=b_body
                     )
 
                     attempts.append(
@@ -434,7 +446,7 @@ async def _test_search(
 ) -> list[LDAPiAttempt]:
     """Testa enumeracao via busca LDAP."""
     attempts: list[LDAPiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, indicators in _SEARCH_PAYLOADS:
         for param in ["search", "filter", "query", "dn"]:
@@ -457,7 +469,7 @@ async def _test_search(
                     t_size = len(resp.content)
                     status_changed = t_status != b_status
                     vulnerable = _check_ldap_response(
-                        resp.content, t_status, indicators
+                        resp.content, t_status, indicators, baseline_body=b_body
                     )
 
                     attempts.append(
@@ -512,7 +524,7 @@ async def _test_blind(
 ) -> list[LDAPiAttempt]:
     """Testa LDAP injection cega."""
     attempts: list[LDAPiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, indicators in _BLIND_PAYLOADS:
         for param in ["user", "username", "uid", "login"]:
@@ -526,7 +538,9 @@ async def _test_blind(
                 t_status = resp.status_code
                 t_size = len(resp.content)
                 status_changed = t_status != b_status
-                vulnerable = _check_ldap_response(resp.content, t_status, indicators)
+                vulnerable = _check_ldap_response(
+                    resp.content, t_status, indicators, baseline_body=b_body
+                )
 
                 attempts.append(
                     LDAPiAttempt(
@@ -580,7 +594,7 @@ async def _test_bypass(
 ) -> list[LDAPiAttempt]:
     """Testa bypass de filtragem LDAP."""
     attempts: list[LDAPiAttempt] = []
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, indicators in _BYPASS_PAYLOADS:
         for param in ["user", "username", "search"]:
@@ -594,7 +608,9 @@ async def _test_bypass(
                 t_status = resp.status_code
                 t_size = len(resp.content)
                 status_changed = t_status != b_status
-                vulnerable = _check_ldap_response(resp.content, t_status, indicators)
+                vulnerable = _check_ldap_response(
+                    resp.content, t_status, indicators, baseline_body=b_body
+                )
 
                 attempts.append(
                     LDAPiAttempt(
@@ -697,10 +713,12 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan LDAP Injection."""
     tls = target.startswith("https")
-    client = create_async_client(timeout=timeout)
+    client = create_async_client(timeout=timeout, proxy=proxy)
     try:
         print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
         baseline = await _test_baseline(client, target)
@@ -756,7 +774,10 @@ async def run_scan(
             overall_status=overall,
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -812,6 +833,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan LDAP Injection a partir de argumentos parseados."""
+    init_scanner(args)
     logger.info("LDAPi scan iniciado para %s", args.url)
     categories: list[str] = []
     if getattr(args, "category", None):
@@ -824,6 +846,8 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

@@ -109,6 +109,10 @@ class TestFileReadPayloads:
     def test_count(self) -> None:
         assert len(_FILE_READ_PAYLOADS) == 8
 
+    def test_shadow_read_no_exclamation(self) -> None:
+        shadow = next(p for p in _FILE_READ_PAYLOADS if "shadow" in p[0])
+        assert "!" not in shadow[3]
+
 
 class TestSSRFPayloads:
     """Testes para _SSRF_PAYLOADS."""
@@ -311,6 +315,78 @@ class TestCheckXXEResponse:
 
     def test_empty_body(self) -> None:
         assert not _check_xxe_response(b"", 200, ["root:"])
+
+    def test_generic_indicator_no_diff_not_flagged(self) -> None:
+        body = b"<html>response ok</html>"
+        assert not _check_xxe_response(
+            body,
+            200,
+            ["response"],
+            baseline_body=body,
+            baseline_status=200,
+            baseline_size=len(body),
+        )
+
+    def test_generic_indicator_small_diff_not_flagged(self) -> None:
+        base = b"<html>response ok</html>"
+        test = b"<html>response ok</html>" + b"X" * 10
+        assert not _check_xxe_response(
+            test,
+            200,
+            ["response"],
+            baseline_body=base,
+            baseline_status=200,
+            baseline_size=len(base),
+        )
+
+    def test_generic_indicator_status_diff_flagged(self) -> None:
+        base = b"<html>response ok</html>"
+        assert _check_xxe_response(
+            b"<html>response ok</html>",
+            500,
+            ["response"],
+            baseline_body=base,
+            baseline_status=200,
+            baseline_size=len(base),
+        )
+
+    def test_generic_indicator_size_diff_flagged(self) -> None:
+        base = b"<html>response ok</html>"
+        test = b"<html>response ok</html>" + b"X" * 100
+        assert _check_xxe_response(
+            test,
+            200,
+            ["response"],
+            baseline_body=base,
+            baseline_status=200,
+            baseline_size=len(base),
+        )
+
+    def test_generic_indicator_no_baseline_not_flagged(self) -> None:
+        assert not _check_xxe_response(b"response", 200, ["response"])
+
+    def test_unique_indicator_in_baseline_not_flagged(self) -> None:
+        body = b"root:x:0:0:root:/root:/bin/bash"
+        assert not _check_xxe_response(
+            body,
+            200,
+            ["root:", "/bin/bash"],
+            baseline_body=body,
+            baseline_status=200,
+            baseline_size=len(body),
+        )
+
+    def test_unique_indicator_new_in_test_flagged(self) -> None:
+        base = b"<html>normal page</html>"
+        test = b"<html>root:x:0:0:root:/root:/bin/bash</html>"
+        assert _check_xxe_response(
+            test,
+            200,
+            ["root:"],
+            baseline_body=base,
+            baseline_status=200,
+            baseline_size=len(base),
+        )
 
 
 class TestBuildXXEBody:
@@ -537,6 +613,108 @@ class TestTestBypass:
         assert all(r.error for r in results)
 
 
+class TestSSRFRegression:
+    """Regressao: pagina normal contendo 'response' no baseline nao e flagada."""
+
+    @pytest.mark.asyncio
+    async def test_normal_page_with_response_word_not_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        body = b"<html>the server response is cached here</html>"
+        mock_resp.status_code = 200
+        mock_resp.content = body
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_ssrf(
+            mock_client, "https://example.com", (200, len(body), body)
+        )
+        assert len(results) == 6
+        assert all(not a.vulnerable for a in results)
+
+    @pytest.mark.asyncio
+    async def test_response_differs_from_baseline_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        base = b"<html>the server response is cached here</html>"
+        mock_resp.status_code = 200
+        mock_resp.content = base + b"X" * 200
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_ssrf(
+            mock_client, "https://example.com", (200, len(base), base)
+        )
+        assert len(results) == 6
+        assert any(a.vulnerable for a in results)
+
+
+class TestBlindRegression:
+    """Regressao: pagina normal contendo 'response' no baseline nao e flagada."""
+
+    @pytest.mark.asyncio
+    async def test_normal_page_with_response_word_not_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        body = b"<html>the server response is cached here</html>"
+        mock_resp.status_code = 200
+        mock_resp.content = body
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_blind(
+            mock_client, "https://example.com", (200, len(body), body)
+        )
+        assert len(results) == 5
+        assert all(not a.vulnerable for a in results)
+
+    @pytest.mark.asyncio
+    async def test_response_differs_from_baseline_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        base = b"<html>the server response is cached here</html>"
+        mock_resp.status_code = 200
+        mock_resp.content = base + b"X" * 200
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_blind(
+            mock_client, "https://example.com", (200, len(base), base)
+        )
+        assert len(results) == 5
+        assert any(a.vulnerable for a in results)
+
+
+class TestFileReadRegression:
+    """Regressao: indicador unico presente no baseline nao e flagado."""
+
+    @pytest.mark.asyncio
+    async def test_unique_indicator_in_baseline_not_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        body = b"root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:"
+        mock_resp.status_code = 200
+        mock_resp.content = body
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_file_read(
+            mock_client, "https://example.com", (200, len(body), body)
+        )
+        assert len(results) == 8
+        assert all(not a.vulnerable for a in results)
+
+    @pytest.mark.asyncio
+    async def test_unique_indicator_new_in_test_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        base = b"<html>generic login page</html>"
+        mock_resp.status_code = 200
+        mock_resp.content = b"root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:"
+        mock_client.post.return_value = mock_resp
+
+        results = await _test_file_read(
+            mock_client, "https://example.com", (200, len(base), base)
+        )
+        assert len(results) == 8
+        assert any(a.vulnerable for a in results)
+
+
 class TestPrintResults:
     """Testes para print_results."""
 
@@ -720,6 +898,30 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_run_scan_json_output(self) -> None:
+        from mytools.web.xxedetect import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.xxedetect.print_json") as mock_print:
+            result = await run_scan(
+                target="https://example.com",
+                categories=["external_entity"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+                json_output=True,
+            )
+        assert result == 0
+        mock_print.assert_called_once()
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_vulnerable(self) -> None:
         from mytools.web.xxedetect import run_scan
 
@@ -831,6 +1033,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.xxedetect.run_scan",
@@ -851,6 +1055,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.xxedetect.run_scan",

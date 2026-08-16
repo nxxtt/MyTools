@@ -118,7 +118,11 @@ class TestBrowserAvailable:
             return real_import(name, *args, **kwargs)
 
         monkeypatch.setattr(builtins, "__import__", fake_import)
-        assert h.browser_available() is False
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
 
 
 class TestBrowserDir:
@@ -152,11 +156,19 @@ class TestBrowserDir:
     def test_browser_available_no_chromium(self, tmp_path, monkeypatch) -> None:
         (tmp_path / "firefox-123").mkdir()
         monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
-        assert h.browser_available() is False
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
 
     def test_browser_available_dir_none(self, monkeypatch) -> None:
         monkeypatch.setattr(h, "_browser_dir", lambda: None)
-        assert h.browser_available() is False
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
 
 
 @pytest.mark.skipif(not h.browser_available(), reason="chromium nao instalado")
@@ -233,3 +245,50 @@ class TestConfirmJsExecution:
         monkeypatch.setattr(h, "browser_available", lambda: False)
         with pytest.raises(h.HeadlessError):
             await h.confirm_js_execution("http://localhost:1/")
+
+
+class TestBrowserReuse:
+    """Passa um browser ja iniciado: nao cria/fecha (owns_playwright=False)."""
+
+    @pytest.mark.asyncio
+    async def test_evaluate_reuses_existing_browser(self, http_server) -> None:
+        from playwright.async_api import async_playwright
+
+        p = await async_playwright().start()
+        browser = await p.chromium.launch(headless=True)
+        try:
+            result = await h.evaluate(
+                f"{http_server}/index.html",
+                "() => window.MARKER",
+                browser=browser,
+            )
+            assert result == "headless-ok"
+        finally:
+            await browser.close()
+            await p.stop()
+
+    @pytest.mark.asyncio
+    async def test_confirm_reuses_existing_browser(self, http_server) -> None:
+        from playwright.async_api import async_playwright
+
+        p = await async_playwright().start()
+        browser = await p.chromium.launch(headless=True)
+        try:
+            result = await h.confirm_js_execution(
+                f"{http_server}/index.html", browser=browser
+            )
+            assert result is False
+        finally:
+            await browser.close()
+            await p.stop()
+
+
+class TestTimeoutMs:
+    def test_zero_clamped_to_min(self) -> None:
+        assert h._timeout_ms(0.0) == 1
+
+    def test_fraction_truncates(self) -> None:
+        assert h._timeout_ms(1.5) == 1500
+
+    def test_seconds_to_ms(self) -> None:
+        assert h._timeout_ms(10.0) == 10000

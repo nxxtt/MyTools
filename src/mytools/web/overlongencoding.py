@@ -376,7 +376,7 @@ async def _test_overlong_params(
             "overlong_json",
             "JSON",
             {
-                "data": f"payload{_overlong_3byte('\\')}..%e0%80%afe0%80%afetc%e0%80%afpasswd"
+                "data": f"payload{_overlong_3byte('\\')}..%e0%80%af%e0%80%afetc%e0%80%afpasswd"
             },
         ),
     ]

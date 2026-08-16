@@ -37,6 +37,7 @@ from mytools.core.utils import (
     create_banner,
     fetch,
     print_exploit_info,
+    print_json,
     write_output,
 )
 
@@ -662,9 +663,20 @@ def _detect_entity_decoding(body_str: str, original_payload: str) -> dict[str, b
     }
 
 
-def _detect_namespace_contexts(body_str: str) -> list[str]:
-    """Detecta contextos de namespace SVG/MathML na resposta."""
+def _detect_namespace_contexts(body_str: str, payload: str | None = None) -> list[str]:
+    """Detecta contextos de namespace SVG/MathML na resposta.
+
+    Quando ``payload`` e fornecido e esta refletido no body, apenas a regiao
+    onde o payload aparece e analisada — markers de namespace vindos de
+    conteudo legitimo do resto da pagina nao contam como evidencia.
+    """
     lower = body_str.lower()
+    if payload:
+        start = lower.find(payload.lower())
+        if start == -1:
+            return []
+        lower = lower[start : start + len(payload)]
+
     contexts: list[str] = []
     if "<svg" in lower:
         contexts.append("svg")
@@ -758,7 +770,9 @@ async def _test_mxss_category(
 
             reflected = _check_mxss_reflection(body_str, payload)
             entity_info = _detect_entity_decoding(body_str, payload)
-            namespace_ctxs = _detect_namespace_contexts(body_str)
+            namespace_ctxs = (
+                _detect_namespace_contexts(body_str, payload) if reflected else []
+            )
 
             status_changed = t_status != b_status
             size_changed = abs(t_size - b_size) > 50
@@ -899,12 +913,13 @@ async def _run_scan_core(
     output_file: str | None,
     headless: bool = False,
     proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan de Mutation XSS."""
     logger.info("Mutation XSS scan para %s", target)
     tls = target.startswith("https://")
 
-    async with create_async_client(timeout=timeout) as client:
+    async with create_async_client(timeout=timeout, proxy=proxy) as client:
         try:
             b_status, _b_headers, b_body, _b_raw = await fetch(
                 client, target, timeout=timeout
@@ -947,21 +962,21 @@ async def _run_scan_core(
                 timeout=timeout,
                 proxy=proxy,
             )
-            if confirmed_urls:
-                all_attempts = [
-                    replace(
-                        a,
-                        dom_confirmed=True,
-                        details=(
-                            a.details + " [confirmado via headless]"
-                            if a.details
-                            else "Confirmado via headless"
-                        ),
-                    )
-                    if a.vulnerable and a.test_url in confirmed_urls
-                    else a
-                    for a in all_attempts
-                ]
+            all_attempts = [
+                replace(
+                    a,
+                    dom_confirmed=a.test_url in confirmed_urls,
+                    vulnerable=a.test_url in confirmed_urls,
+                    details=(
+                        (a.details + " [confirmado via headless]").strip()
+                        if a.test_url in confirmed_urls
+                        else (a.details + " [nao confirmado via headless]").strip()
+                    ),
+                )
+                if a.vulnerable
+                else a
+                for a in all_attempts
+            ]
 
         vuln_techs = list({a.technique for a in all_attempts if a.vulnerable})
         blocked_techs = list(
@@ -992,7 +1007,10 @@ async def _run_scan_core(
             else ("safe" if blocked_techs else "unknown"),
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
         logger.info(
             "Mutation XSS scan concluido: %d testes, %d vulneraveis",
             len(all_attempts),
@@ -1066,6 +1084,7 @@ class MXScanner(BaseScanner):
             output_file=kwargs.get("output_file"),
             headless=kwargs.get("headless", False),
             proxy=kwargs.get("proxy"),
+            json_output=kwargs.get("json_output", False),
         )
 
     def print_results(self, result: object) -> None:
@@ -1090,7 +1109,6 @@ class MXScanner(BaseScanner):
 scanner = MXScanner()
 main = scanner.main
 run_once = scanner.run_once
-banner_art = scanner._make_banner()
 build_parser = scanner.build_parser
 
 if __name__ == "__main__":

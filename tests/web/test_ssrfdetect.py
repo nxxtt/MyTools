@@ -32,6 +32,7 @@ from mytools.web.ssrfdetect import (
     print_results,
     run_once,
     run_scan,
+    safe_asyncio_run,
 )
 
 
@@ -43,6 +44,8 @@ def _ns(**overrides: object) -> argparse.Namespace:
         concurrency=5,
         output=None,
         verbose=False,
+        proxy=None,
+        log_file=None,
         json_output=False,
     )
     for key, value in overrides.items():
@@ -488,6 +491,100 @@ class TestTestCloud:
         assert any(a.error for a in attempts)
 
 
+class TestSSRFDetectionRegression:
+    """Regressao: todas as payloads rodam e deteccao usa indicador/baseline."""
+
+    @staticmethod
+    def _client(resp) -> AsyncMock:
+        client = AsyncMock()
+        client.get = AsyncMock(return_value=resp)
+        return client
+
+    @staticmethod
+    def _resp(status: int = 200, content: bytes = b"ok") -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = status
+        resp.content = content
+        return resp
+
+    @pytest.mark.asyncio
+    async def test_detect_covers_all_payloads(self) -> None:
+        attempts = await _test_detect(
+            self._client(self._resp()),
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        assert len(attempts) == len(_URL_PARAMS[:8]) * len(_DETECT_PAYLOADS)
+        assert any("metadata_aws" in a.technique for a in attempts)
+        assert any("hex_ip" in a.technique for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_internal_covers_all_payloads(self) -> None:
+        attempts = await _test_internal(
+            self._client(self._resp()),
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        assert len(attempts) == len(_URL_PARAMS[:5]) * len(_INTERNAL_PAYLOADS)
+        assert any("internal_gitlab" in a.technique for a in attempts)
+        assert any("internal_jenkins" in a.technique for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_cloud_covers_all_payloads(self) -> None:
+        attempts = await _test_cloud(
+            self._client(self._resp()),
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        assert len(attempts) == len(_URL_PARAMS[:5]) * len(_CLOUD_PAYLOADS)
+        assert any("kubernetes" in a.technique for a in attempts)
+        assert any("aws_metadata_iam" in a.technique for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_indicator_in_test_not_baseline_is_vulnerable(self) -> None:
+        attempts = await _test_detect(
+            self._client(self._resp(content=b"ami-id-12345")),
+            "https://example.com",
+            (200, 100, b"<html>baseline</html>", 0.5),
+        )
+        aws = [a for a in attempts if "metadata_aws" in a.technique]
+        assert aws
+        assert all(a.vulnerable for a in aws)
+
+    @pytest.mark.asyncio
+    async def test_indicator_also_in_baseline_not_vulnerable(self) -> None:
+        attempts = await _test_detect(
+            self._client(self._resp(content=b"<html>ami-id</html>")),
+            "https://example.com",
+            (200, 100, b"ami-id-baseline", 0.5),
+        )
+        aws = [a for a in attempts if "metadata_aws" in a.technique]
+        assert aws
+        assert not any(a.vulnerable for a in aws)
+
+    @pytest.mark.asyncio
+    async def test_generic_payload_requires_stable_diff(self) -> None:
+        attempts = await _test_detect(
+            self._client(self._resp(status=302, content=b"x" * 500)),
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        localhost = [a for a in attempts if "localhost_80" in a.technique]
+        assert localhost
+        assert all(a.vulnerable for a in localhost)
+
+    @pytest.mark.asyncio
+    async def test_dynamic_page_not_vulnerable(self) -> None:
+        attempts = await _test_detect(
+            self._client(self._resp(status=302, content=b"ok")),
+            "https://example.com",
+            (200, 100, b"ok", 0.5),
+        )
+        localhost = [a for a in attempts if "localhost_80" in a.technique]
+        assert localhost
+        assert not any(a.vulnerable for a in localhost)
+
+
 class TestTestHeader:
     """Testes para _test_header."""
 
@@ -707,7 +804,7 @@ class TestRunScan:
             ),
         ):
             result = await run_scan(
-                "https://example.com", ["detect"], 10, 5, None, False, True
+                "https://example.com", ["detect"], 10, 5, None, False, None, True
             )
         assert result == 1
         out = capsys.readouterr().out
@@ -731,6 +828,55 @@ class TestRunScan:
                 "https://example.com", ["invalid"], 10, 5, None, False
             )
         assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_uppercase_https_detected_as_tls(self) -> None:
+        mock_client = AsyncMock()
+        captured: list[SSRFResult] = []
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok", 0.5),
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_detect",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_internal",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_bypass",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_cloud",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect._test_header",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.ssrfdetect.print_results",
+                side_effect=lambda result: captured.append(result),
+            ),
+        ):
+            result = await run_scan("HTTPS://example.com", [], 10, 5, None, False)
+        assert result == 0
+        assert captured
+        assert captured[0].tls is True
 
     @pytest.mark.asyncio
     async def test_output_file_written(self, tmp_path: Path) -> None:
@@ -802,6 +948,35 @@ class TestRunOnce:
             assert run_once(_ns(category="detect")) == 1
         _, kwargs = mock_scan.call_args
         assert kwargs["categories"] == ["detect"]
+
+    def test_forwards_proxy(self) -> None:
+        with patch(
+            "mytools.web.ssrfdetect.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            run_once(_ns(proxy="http://127.0.0.1:8080"))
+        _, kwargs = mock_scan.call_args
+        assert kwargs["proxy"] == "http://127.0.0.1:8080"
+
+    def test_creates_client_with_proxy(self) -> None:
+        with (
+            patch(
+                "mytools.web.ssrfdetect.create_async_client",
+                return_value=AsyncMock(),
+            ) as mock_client,
+            patch(
+                "mytools.web.ssrfdetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 1000, b"ok", 0.5),
+            ),
+        ):
+            safe_asyncio_run(
+                run_scan(
+                    "https://example.com", ["detect"], 10, 5, None, False, "http://p"
+                )
+            )
+        mock_client.assert_called_once_with(timeout=10, proxy="http://p")
 
 
 class TestMainGuard:

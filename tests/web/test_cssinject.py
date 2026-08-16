@@ -803,6 +803,12 @@ def test_banner_art_runs(capsys: pytest.CaptureFixture[str]) -> None:
     assert "cssinject" in capsys.readouterr().out
 
 
+def test_banner_art_is_module_function() -> None:
+    from mytools.web.cssinject import banner_art
+
+    assert callable(banner_art)
+
+
 def test_main_guard() -> None:
     with (
         patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),

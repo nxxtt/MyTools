@@ -2,6 +2,7 @@ import argparse
 import runpy
 import sys
 from contextlib import ExitStack
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -76,7 +77,7 @@ class TestExtractDomain:
 class TestMakeArgs:
     def test_merges_base_and_extra(self):
         base = argparse.Namespace(timeout=5.0, verbose=False)
-        result = _make_args("target", {"url": "http://example.com", "deep": True}, base)
+        result = _make_args({"url": "http://example.com", "deep": True}, base)
         assert result.url == "http://example.com"
         assert result.deep is True
         assert result.timeout == 5.0
@@ -226,7 +227,6 @@ class TestRunAll:
 class TestNamespaceConstruction:
     def test_portscanner_has_threads(self):
         ns = _make_args(
-            "example.com",
             {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
             _domain_ns(),
         )
@@ -235,7 +235,6 @@ class TestNamespaceConstruction:
 
     def test_portscanner_has_workers(self):
         ns = _make_args(
-            "example.com",
             {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
             _domain_ns(),
         )
@@ -244,7 +243,6 @@ class TestNamespaceConstruction:
 
     def test_dirscanner_has_required_attrs(self):
         ns = _make_args(
-            "https://example.com",
             {
                 "url": "https://example.com",
                 "extensions": ["php", "txt", "bak", "html"],
@@ -272,7 +270,6 @@ class TestNamespaceConstruction:
 
     def test_dirscanner_extensions_is_list(self):
         ns = _make_args(
-            "https://example.com",
             {
                 "url": "https://example.com",
                 "extensions": ["php", "txt", "bak", "html"],
@@ -285,7 +282,6 @@ class TestNamespaceConstruction:
 
     def test_webrecon_has_required_attrs(self):
         ns = _make_args(
-            "https://example.com",
             {"url": "https://example.com", "cve": False, "deep": False, "output": None},
             _url_ns(),
         )
@@ -301,7 +297,6 @@ class TestNamespaceConstruction:
 
     def test_attackaudit_has_required_attrs(self):
         ns = _make_args(
-            "https://example.com",
             {
                 "url": "https://example.com",
                 "deep": False,
@@ -325,15 +320,12 @@ class TestNamespaceConstruction:
             assert hasattr(ns, attr), f"attackaudit missing attribute: {attr}"
 
     def test_subenum_has_threads(self):
-        ns = _make_args(
-            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
-        )
+        ns = _make_args({"domain": "example.com", "output": None}, _domain_ns())
         assert hasattr(ns, "threads")
         assert ns.threads is None or isinstance(ns.threads, int)
 
     def test_portscanner_ports_is_list(self):
         ns = _make_args(
-            "example.com",
             {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
             _domain_ns(),
         )
@@ -342,7 +334,6 @@ class TestNamespaceConstruction:
 
     def test_portscanner_default_ports_count(self):
         ns = _make_args(
-            "example.com",
             {"targets": ["example.com"], "ports": TOP_100_PORTS, "output": None},
             _domain_ns(),
         )
@@ -350,7 +341,6 @@ class TestNamespaceConstruction:
 
     def test_portscanner_custom_ports(self):
         ns = _make_args(
-            "example.com",
             {"targets": ["example.com"], "ports": [22, 80, 443], "output": None},
             _domain_ns(),
         )
@@ -358,7 +348,6 @@ class TestNamespaceConstruction:
 
     def test_http_modules_user_agent_not_none(self):
         ns = _make_args(
-            "https://example.com",
             {"url": "https://example.com", "cve": False, "deep": False, "output": None},
             _url_ns(),
         )
@@ -367,7 +356,6 @@ class TestNamespaceConstruction:
 
     def test_portscanner_has_output(self):
         ns = _make_args(
-            "example.com",
             {
                 "targets": ["example.com"],
                 "ports": TOP_100_PORTS,
@@ -379,21 +367,15 @@ class TestNamespaceConstruction:
         assert "portscanner" in ns.output
 
     def test_dnshistory_runs_for_domain(self):
-        ns = _make_args(
-            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
-        )
+        ns = _make_args({"domain": "example.com", "output": None}, _domain_ns())
         assert ns.domain == "example.com"
 
     def test_dnshistory_runs_for_url(self):
-        ns = _make_args(
-            "example.com", {"domain": "example.com", "output": None}, _url_ns()
-        )
+        ns = _make_args({"domain": "example.com", "output": None}, _url_ns())
         assert ns.domain == "example.com"
 
     def test_dnshistory_has_required_attrs(self):
-        ns = _make_args(
-            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
-        )
+        ns = _make_args({"domain": "example.com", "output": None}, _domain_ns())
         for attr in (
             "source",
             "record_types",
@@ -412,21 +394,15 @@ class TestNamespaceConstruction:
         assert "whoishistory" in args.skip
 
     def test_whoishistory_runs_for_domain(self):
-        ns = _make_args(
-            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
-        )
+        ns = _make_args({"domain": "example.com", "output": None}, _domain_ns())
         assert ns.domain == "example.com"
 
     def test_whoishistory_runs_for_url(self):
-        ns = _make_args(
-            "example.com", {"domain": "example.com", "output": None}, _url_ns()
-        )
+        ns = _make_args({"domain": "example.com", "output": None}, _url_ns())
         assert ns.domain == "example.com"
 
     def test_whoishistory_has_required_attrs(self):
-        ns = _make_args(
-            "example.com", {"domain": "example.com", "output": None}, _domain_ns()
-        )
+        ns = _make_args({"domain": "example.com", "output": None}, _domain_ns())
         for attr in ("st_api_key", "whoisxml_key", "source"):
             assert hasattr(ns, attr), f"whoishistory missing attribute: {attr}"
 
@@ -439,21 +415,15 @@ class TestNamespaceConstruction:
         assert "ipasninfo" in args.skip
 
     def test_ipasninfo_runs_for_domain(self):
-        ns = _make_args(
-            "example.com", {"ips": ["example.com"], "output": None}, _domain_ns()
-        )
+        ns = _make_args({"ips": ["example.com"], "output": None}, _domain_ns())
         assert hasattr(ns, "ips")
 
     def test_ipasninfo_runs_for_url(self):
-        ns = _make_args(
-            "example.com", {"ips": ["example.com"], "output": None}, _url_ns()
-        )
+        ns = _make_args({"ips": ["example.com"], "output": None}, _url_ns())
         assert hasattr(ns, "ips")
 
     def test_ipasninfo_has_required_attrs(self):
-        ns = _make_args(
-            "example.com", {"ips": ["example.com"], "output": None}, _domain_ns()
-        )
+        ns = _make_args({"ips": ["example.com"], "output": None}, _domain_ns())
         for attr in ("ips", "output"):
             assert hasattr(ns, attr), f"ipasninfo missing attribute: {attr}"
 
@@ -467,7 +437,6 @@ class TestNamespaceConstruction:
 
     def test_techfingerprint_runs_for_url(self):
         ns = _make_args(
-            "https://example.com",
             {"urls": ["https://example.com"], "output": None},
             _url_ns(),
         )
@@ -475,7 +444,6 @@ class TestNamespaceConstruction:
 
     def test_techfingerprint_has_required_attrs(self):
         ns = _make_args(
-            "https://example.com",
             {"urls": ["https://example.com"], "output": None},
             _url_ns(),
         )
@@ -746,12 +714,27 @@ class TestRunAllFull:
         with stack:
             run_all(args)
             ns = mock_web.call_args[0][0]
-            assert ns.output == str(tmp_path / "res" / "webrecon.json")
+            out = Path(ns.output)
+            assert out.parent == tmp_path / "res" / "webrecon"
+            assert out.suffix == ".json"
+            assert out.stem.startswith("20")
 
     def test_empty_skipped_returns_zero(self):
         parser = build_parser()
         args = parser.parse_args(["example.com", *_skip_all_except()])
         result = run_all(args)
+        assert result == 0
+
+    def test_non_url_without_url_only_modules(self):
+        # Alvo sem esquema e ALL_MODULES sem modulos URL-only -> aviso vazio.
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        stack = _patch_all_modules()
+        stack.enter_context(
+            patch("mytools.core.reconall.ALL_MODULES", ["dnstransfer"])
+        )
+        with stack:
+            result = run_all(args)
         assert result == 0
 
 
@@ -869,3 +852,92 @@ class TestMain:
         banner()
         out = capsys.readouterr().out
         assert "recon all-in-one" in out
+
+
+class TestRtlOverrideRegistered:
+    def test_rtloverride_in_all_modules(self):
+        assert "rtloverride" in ALL_MODULES
+
+    def test_rtloverride_scheduled_for_url(self):
+        parser = build_parser()
+        args = parser.parse_args(["https://example.com"])
+        with (
+            _patch_all_modules(),
+            patch("mytools.core.reconall.rtloverride.run_once", return_value=0) as mock,
+        ):
+            run_all(args)
+        assert mock.call_count == 1
+        ns = mock.call_args[0][0]
+        assert ns.url == "https://example.com"
+
+    def test_rtloverride_skipped_for_bare_domain(self):
+        parser = build_parser()
+        args = parser.parse_args(["example.com"])
+        with (
+            _patch_all_modules(),
+            patch("mytools.core.reconall.rtloverride.run_once", return_value=0) as mock,
+        ):
+            run_all(args)
+        assert mock.call_count == 0
+
+
+class TestGetParserDefaults:
+    def test_no_stderr_spam_on_required_positionals(self, capsys):
+        import mytools.core.reconall as reconall_mod
+
+        with patch.object(reconall_mod, "_PARSER_DEFAULTS", None):
+            reconall_mod.get_parser_defaults()
+        err = capsys.readouterr().err
+        assert "the following arguments are required" not in err
+
+
+class TestModuleTimeout:
+    def test_timeout_counts_as_error(self):
+        import time
+
+        import mytools.core.reconall as reconall_mod
+
+        original_timeout = reconall_mod._MODULE_TIMEOUT_SECONDS
+        original_max = reconall_mod._MAX_CONCURRENT_MODULES
+        reconall_mod._MODULE_TIMEOUT_SECONDS = 0.05
+        reconall_mod._MAX_CONCURRENT_MODULES = 64
+        try:
+            parser = build_parser()
+            args = parser.parse_args(["example.com", *_skip_all_except("dnstransfer")])
+            args.target = "https://example.com"
+
+            def _slow(*_a, **_k):
+                time.sleep(5)
+                return 0
+
+            with patch("mytools.core.reconall.dnstransfer.run_once", side_effect=_slow):
+                result = run_all(args)
+        finally:
+            reconall_mod._MODULE_TIMEOUT_SECONDS = original_timeout
+            reconall_mod._MAX_CONCURRENT_MODULES = original_max
+        assert result == 1
+
+    def test_per_module_timeout_override(self):
+        import time
+
+        import mytools.core.reconall as reconall_mod
+
+        original_timeouts = dict(reconall_mod._MODULE_TIMEOUTS)
+        original_max = reconall_mod._MAX_CONCURRENT_MODULES
+        reconall_mod._MODULE_TIMEOUTS = {"dnstransfer": 0.05}
+        reconall_mod._MAX_CONCURRENT_MODULES = 64
+        try:
+            parser = build_parser()
+            args = parser.parse_args(["example.com", *_skip_all_except("dnstransfer")])
+            args.target = "https://example.com"
+
+            def _slow(*_a, **_k):
+                time.sleep(5)
+                return 0
+
+            with patch("mytools.core.reconall.dnstransfer.run_once", side_effect=_slow):
+                result = run_all(args)
+        finally:
+            reconall_mod._MODULE_TIMEOUTS = original_timeouts
+            reconall_mod._MAX_CONCURRENT_MODULES = original_max
+        assert result == 1

@@ -170,6 +170,22 @@ def _recv_events(
     return conn.receive_data(data)
 
 
+def _h2_abuse_evidence(events: list[h2.events.Event]) -> tuple[bool, int]:
+    """Evidencia real de mau processamento h2 no servidor.
+
+    Retorna (goaway, resets): True quando o servidor encerrou a conexao
+    (GOAWAY/ConnectionTerminated) ou respondeu com RST_STREAM ao abuso.
+    """
+    goaway = False
+    resets = 0
+    for ev in events:
+        if isinstance(ev, h2.events.ConnectionTerminated):
+            goaway = True
+        elif isinstance(ev, h2.events.StreamReset):
+            resets += 1
+    return goaway, resets
+
+
 def _drain_settings(
     sock: socket.socket,
     conn: h2.connection.H2Connection,
@@ -279,7 +295,7 @@ async def _test_h2_downgrade(
                     description="Testa se server aceita downgrade via ALPN",
                     h2_supported=h2_ok,
                     settings_observed=server_settings,
-                    vulnerable=not h2_ok,
+                    vulnerable=False,
                     details=details,
                     error="",
                 )
@@ -334,7 +350,7 @@ async def _test_h2_downgrade(
                     description="Envia HTTP/1.1 user-agent em conexao h2",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=status == 0,
+                    vulnerable=False,
                     details=f"Status: {status}",
                     error="",
                 )
@@ -881,6 +897,8 @@ async def _test_h2_reset_attack(
             sock.sendall(conn.data_to_send())
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
+            events = _recv_events(sock, conn, timeout)
+            goaway, resets = _h2_abuse_evidence(events)
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -890,8 +908,12 @@ async def _test_h2_reset_attack(
                     description="RST_STREAM imediatamente apos HEADERS",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=True,
-                    details="RST_STREAM sent after HEADERS on stream " + str(sid),
+                    vulnerable=goaway or resets > 0,
+                    details=(
+                        "RST_STREAM sent after HEADERS on stream "
+                        + str(sid)
+                        + f" | evidence: goaway={goaway}, resets={resets}"
+                    ),
                     error="",
                 )
             )
@@ -933,6 +955,8 @@ async def _test_h2_reset_attack(
             sock.sendall(conn.data_to_send())
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
+            events = _recv_events(sock, conn, timeout)
+            goaway, resets = _h2_abuse_evidence(events)
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -942,8 +966,11 @@ async def _test_h2_reset_attack(
                     description="RST_STREAM apos HEADERS + DATA parcial",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=True,
-                    details=f"Partial DATA (100/1000 bytes) then RST on stream {sid}",
+                    vulnerable=goaway or resets > 0,
+                    details=(
+                        f"Partial DATA (100/1000 bytes) then RST on stream {sid}"
+                        + f" | evidence: goaway={goaway}, resets={resets}"
+                    ),
                     error="",
                 )
             )
@@ -986,6 +1013,8 @@ async def _test_h2_reset_attack(
             for sid in stream_ids[::2]:
                 conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
+            events = _recv_events(sock, conn, timeout)
+            goaway, resets = _h2_abuse_evidence(events)
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -995,8 +1024,11 @@ async def _test_h2_reset_attack(
                     description="RST seletivo de streams em conexao multiplexada",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=True,
-                    details=f"Reset streams {stream_ids[::2]} of {stream_ids}",
+                    vulnerable=goaway or resets > 0,
+                    details=(
+                        f"Reset streams {stream_ids[::2]} of {stream_ids}"
+                        + f" | evidence: goaway={goaway}, resets={resets}"
+                    ),
                     error="",
                 )
             )
@@ -1044,6 +1076,8 @@ async def _test_h2_reset_attack(
             await asyncio.sleep(0.05)
             conn.reset_stream(sid, h2.errors.ErrorCodes.CANCEL)
             sock.sendall(conn.data_to_send())
+            events = _recv_events(sock, conn, timeout)
+            goaway, resets = _h2_abuse_evidence(events)
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -1053,8 +1087,11 @@ async def _test_h2_reset_attack(
                     description="RST com timing para explorar gap de processamento",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=True,
-                    details=f"Delayed RST with XXE payload on stream {sid}",
+                    vulnerable=goaway or resets > 0,
+                    details=(
+                        f"Delayed RST with XXE payload on stream {sid}"
+                        + f" | evidence: goaway={goaway}, resets={resets}"
+                    ),
                     error="",
                 )
             )
@@ -1259,6 +1296,7 @@ async def _test_h2_priority_attack(
                 prev_sid = sid
             sock.sendall(conn.data_to_send())
             events = _recv_events(sock, conn, timeout)
+            goaway, resets = _h2_abuse_evidence(events)
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -1268,8 +1306,11 @@ async def _test_h2_priority_attack(
                     description="Arvore de dependencia profunda (10 niveis)",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=True,
-                    details="Deep priority tree: 10 levels, weights=1",
+                    vulnerable=goaway or resets > 0,
+                    details=(
+                        "Deep priority tree: 10 levels, weights=1"
+                        + f" | evidence: goaway={goaway}, resets={resets}"
+                    ),
                     error="",
                 )
             )
@@ -1326,6 +1367,8 @@ async def _test_h2_priority_attack(
                 priority_depends_on=sid1,
             )
             sock.sendall(conn.data_to_send())
+            events = _recv_events(sock, conn, timeout)
+            goaway, resets = _h2_abuse_evidence(events)
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -1335,8 +1378,11 @@ async def _test_h2_priority_attack(
                     description="Tenta criar dependencia circular de prioridade",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=True,
-                    details=f"Circular: stream {sid1} depends on {sid2} and vice versa",
+                    vulnerable=goaway or resets > 0,
+                    details=(
+                        f"Circular: stream {sid1} depends on {sid2} and vice versa"
+                        + f" | evidence: goaway={goaway}, resets={resets}"
+                    ),
                     error="",
                 )
             )
@@ -1386,6 +1432,8 @@ async def _test_h2_priority_attack(
                 priority_weight=1,
             )
             sock.sendall(conn.data_to_send())
+            events = _recv_events(sock, conn, timeout)
+            goaway, resets = _h2_abuse_evidence(events)
             results.append(
                 HTTP2Attempt(
                     exploit="h2_rapid_reset_command",
@@ -1395,8 +1443,11 @@ async def _test_h2_priority_attack(
                     description="PRIORITY com weights extremos (256 vs 1)",
                     h2_supported=True,
                     settings_observed=server_settings,
-                    vulnerable=True,
-                    details=f"High priority stream {sid_high} (weight=256) vs low {sid_low} (weight=1)",
+                    vulnerable=goaway or resets > 0,
+                    details=(
+                        f"High priority stream {sid_high} (weight=256) vs low {sid_low} (weight=1)"
+                        + f" | evidence: goaway={goaway}, resets={resets}"
+                    ),
                     error="",
                 )
             )

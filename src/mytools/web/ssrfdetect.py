@@ -33,6 +33,7 @@ Fluxo:
 import argparse
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -45,6 +46,7 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
     print_json,
     run_main_loop,
@@ -315,8 +317,6 @@ async def _test_baseline(
 ) -> tuple[int, int, bytes, float]:
     """Envia requisicao baseline para obter resposta de referencia."""
 
-    import time
-
     start = time.monotonic()
 
     try:
@@ -345,6 +345,38 @@ def _check_ssrf_response(
     return any(indicator.lower() in text for indicator in indicators)
 
 
+def _usable_indicators(indicators: list[str]) -> list[str]:
+    """Retorna apenas indicadores utilizaveis (descarta o marker generico)."""
+
+    return [ind for ind in indicators if ind and ind.lower() != "response"]
+
+
+def _ssrf_vuln(
+    body: bytes,
+    status: int,
+    baseline_body: bytes,
+    baseline_status: int,
+    indicators: list[str],
+    status_changed: bool,
+    size_changed: bool,
+) -> bool:
+    """Decide se a tentativa e vulneravel.
+
+    Com indicador utilizavel: exige o indicador no corpo do teste E ausente no
+    baseline (evita falso positivo em paginas dinamicas). Sem indicador
+    utilizavel: recorre a diff estavel de baseline (status + tamanho).
+    """
+
+    usable = _usable_indicators(indicators)
+
+    if usable:
+        return _check_ssrf_response(body, status, usable) and not _check_ssrf_response(
+            baseline_body, baseline_status, usable
+        )
+
+    return status_changed and size_changed
+
+
 async def _test_detect(
     client: httpx.AsyncClient,
     base_url: str,
@@ -358,10 +390,10 @@ async def _test_detect(
 
     attempts: list[SSRFAttempt] = []
 
-    status_base, size_base, _, time_base = baseline
+    status_base, size_base, base_body, time_base = baseline
 
     for param in _URL_PARAMS[:8]:
-        for name, payload, _ in _DETECT_PAYLOADS[:6]:
+        for name, payload, indicator in _DETECT_PAYLOADS:
             new_params = {
                 k: v[0] if isinstance(v, list) else v
                 for k, v in original_params.items()
@@ -372,8 +404,6 @@ async def _test_detect(
             new_query = urlencode(new_params, doseq=True)
 
             test_url = urlunparse(parsed._replace(query=new_query))
-
-            import time
 
             start = time.monotonic()
 
@@ -392,7 +422,15 @@ async def _test_detect(
 
                 time_changed = elapsed > time_base * 2 and elapsed > 1.0
 
-                vuln = status_changed or size_changed or time_changed
+                vuln = _ssrf_vuln(
+                    resp.content,
+                    status_test,
+                    base_body,
+                    status_base,
+                    [indicator],
+                    status_changed,
+                    size_changed,
+                )
 
                 attempts.append(
                     SSRFAttempt(
@@ -460,10 +498,10 @@ async def _test_internal(
 
     attempts: list[SSRFAttempt] = []
 
-    status_base, size_base, _, time_base = baseline
+    status_base, size_base, base_body, time_base = baseline
 
     for param in _URL_PARAMS[:5]:
-        for name, payload, indicators in _INTERNAL_PAYLOADS[:5]:
+        for name, payload, indicators in _INTERNAL_PAYLOADS:
             new_params = {
                 k: v[0] if isinstance(v, list) else v
                 for k, v in original_params.items()
@@ -474,8 +512,6 @@ async def _test_internal(
             new_query = urlencode(new_params, doseq=True)
 
             test_url = urlunparse(parsed._replace(query=new_query))
-
-            import time
 
             start = time.monotonic()
 
@@ -490,10 +526,18 @@ async def _test_internal(
 
                 detected = _check_ssrf_response(resp.content, status_test, indicators)
 
-                vuln = (
-                    detected
-                    or status_test != status_base
-                    or size_changed(size_test, size_base)
+                status_changed = status_test != status_base
+
+                size_changed_flag = size_changed(size_test, size_base)
+
+                vuln = _ssrf_vuln(
+                    resp.content,
+                    status_test,
+                    base_body,
+                    status_base,
+                    indicators,
+                    status_changed,
+                    size_changed_flag,
                 )
 
                 attempts.append(
@@ -508,8 +552,8 @@ async def _test_internal(
                         size_test=size_test,
                         time_baseline=time_base,
                         time_test=elapsed,
-                        status_changed=status_test != status_base,
-                        size_changed=size_changed(size_test, size_base),
+                        status_changed=status_changed,
+                        size_changed=size_changed_flag,
                         time_changed=elapsed > time_base * 2 and elapsed > 1.0,
                         vulnerable=vuln,
                         details=f"Param {param}: {name}"
@@ -568,10 +612,10 @@ async def _test_bypass(
 
     attempts: list[SSRFAttempt] = []
 
-    status_base, size_base, _, time_base = baseline
+    status_base, size_base, base_body, time_base = baseline
 
     for param in _URL_PARAMS[:5]:
-        for name, payload, _ in _BYPASS_PAYLOADS:
+        for name, payload, indicator in _BYPASS_PAYLOADS:
             new_params = {
                 k: v[0] if isinstance(v, list) else v
                 for k, v in original_params.items()
@@ -582,8 +626,6 @@ async def _test_bypass(
             new_query = urlencode(new_params, doseq=True)
 
             test_url = urlunparse(parsed._replace(query=new_query))
-
-            import time
 
             start = time.monotonic()
 
@@ -602,7 +644,15 @@ async def _test_bypass(
 
                 time_changed_flag = elapsed > time_base * 2 and elapsed > 1.0
 
-                vuln = status_changed_flag or size_changed_flag or time_changed_flag
+                vuln = _ssrf_vuln(
+                    resp.content,
+                    status_test,
+                    base_body,
+                    status_base,
+                    [indicator],
+                    status_changed_flag,
+                    size_changed_flag,
+                )
 
                 attempts.append(
                     SSRFAttempt(
@@ -670,10 +720,10 @@ async def _test_cloud(
 
     attempts: list[SSRFAttempt] = []
 
-    status_base, size_base, _, time_base = baseline
+    status_base, size_base, base_body, time_base = baseline
 
     for param in _URL_PARAMS[:5]:
-        for name, payload, indicators in _CLOUD_PAYLOADS[:4]:
+        for name, payload, indicators in _CLOUD_PAYLOADS:
             new_params = {
                 k: v[0] if isinstance(v, list) else v
                 for k, v in original_params.items()
@@ -684,8 +734,6 @@ async def _test_cloud(
             new_query = urlencode(new_params, doseq=True)
 
             test_url = urlunparse(parsed._replace(query=new_query))
-
-            import time
 
             start = time.monotonic()
 
@@ -700,10 +748,18 @@ async def _test_cloud(
 
                 detected = _check_ssrf_response(resp.content, status_test, indicators)
 
-                vuln = (
-                    detected
-                    or status_test != status_base
-                    or size_changed(size_test, size_base)
+                status_changed = status_test != status_base
+
+                size_changed_flag = size_changed(size_test, size_base)
+
+                vuln = _ssrf_vuln(
+                    resp.content,
+                    status_test,
+                    base_body,
+                    status_base,
+                    indicators,
+                    status_changed,
+                    size_changed_flag,
                 )
 
                 attempts.append(
@@ -718,8 +774,8 @@ async def _test_cloud(
                         size_test=size_test,
                         time_baseline=time_base,
                         time_test=elapsed,
-                        status_changed=status_test != status_base,
-                        size_changed=size_changed(size_test, size_base),
+                        status_changed=status_changed,
+                        size_changed=size_changed_flag,
                         time_changed=elapsed > time_base * 2 and elapsed > 1.0,
                         vulnerable=vuln,
                         details=f"Cloud {param}: {name}"
@@ -771,8 +827,6 @@ async def _test_header(
     status_base, size_base, _, time_base = baseline
 
     for name, header, payload, indicators in _HEADER_PAYLOADS:
-        import time
-
         start = time.monotonic()
 
         try:
@@ -927,13 +981,14 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
     json_output: bool = False,
 ) -> int:
     """Executa o scan SSRF."""
 
-    tls = target.startswith("https")
+    tls = target.lower().startswith("https")
 
-    client = create_async_client(timeout=timeout)
+    client = create_async_client(timeout=timeout, proxy=proxy)
 
     try:
         logger.info("Conectando a %s...", target)
@@ -1076,6 +1131,8 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan SSRF a partir de argumentos parseados."""
 
+    init_scanner(args)
+
     logger.info("SSRF scan iniciado para %s", args.url)
 
     categories: list[str] = []
@@ -1091,6 +1148,7 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
             json_output=getattr(args, "json_output", False),
         ),
     )

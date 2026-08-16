@@ -25,7 +25,6 @@ Modulos disponiveis:
 
 import argparse
 import asyncio
-import contextlib
 import logging
 import sys
 import time
@@ -164,6 +163,7 @@ ALL_MODULES = [
     "pathtraversal",
     "overlongencoding",
     "bominjection",
+    "rtloverride",
     "charsetbypass",
     "openredirect",
     "crlfinjection",
@@ -198,6 +198,28 @@ ALL_MODULES = [
     "webrecon",
     "attackaudit",
 ]
+
+_URL_ONLY_MODULES = frozenset(
+    {
+        "techfingerprint",
+        "openapidiscovery",
+        "graphqlplayground",
+        "sourcemapdiscovery",
+        "vcsleak",
+        "configfiledetect",
+        "backupfiledetect",
+        "dirscanner",
+        "webrecon",
+        "attackaudit",
+        "rtloverride",
+    }
+)
+
+# Limite de execucao concorrente e timeout por modulo no recon-all.
+_MAX_CONCURRENT_MODULES = 8
+_MODULE_TIMEOUT_SECONDS = 600
+# Timeouts especificos por modulo (segundos); ausente -> _MODULE_TIMEOUT_SECONDS.
+_MODULE_TIMEOUTS: dict[str, float] = {}
 
 """Recon completo: executa portscanner, dirscanner, webrecon, attackaudit, dnstransfer e subenum contra um alvo."""
 
@@ -306,15 +328,65 @@ def _extract_domain(target: str) -> str:
 
 
 def _make_args(
-    target: str, extra: dict, base_args: argparse.Namespace
+    extra: dict,
+    base_args: argparse.Namespace,
+    module: object = None,
 ) -> argparse.Namespace:
+    """Constroi o namespace de um modulo filho.
+
+    Ordem de precedencia (maior vence):
+      1. base_args (defaults globais + overrides do reconall)
+      2. defaults do proprio modulo (via _RECONALL_OVERRIDES)
+      3. extra (dests especificos do modulo)
+    """
     ns = argparse.Namespace(**vars(base_args))
+    if module is not None:
+        parser = _module_parser(module)
+        for action in parser._actions:
+            dest = getattr(action, "dest", None)
+            if (
+                dest
+                and dest not in _RECONALL_OVERRIDES
+                and action.default is not argparse.SUPPRESS
+            ):
+                setattr(ns, dest, action.default)
     for k, v in extra.items():
         setattr(ns, k, v)
     return ns
 
 
 _PARSER_DEFAULTS: dict[str, object] | None = None
+_MODULE_PARSERS: dict[object, argparse.ArgumentParser] = {}
+
+
+def _module_parser(mod: object) -> argparse.ArgumentParser:
+    """Cacheia o parser de um modulo (build_parser() e caro e chamado muito)."""
+    if mod not in _MODULE_PARSERS:
+        _MODULE_PARSERS[mod] = mod.build_parser()  # type: ignore[attr-defined]
+    return _MODULE_PARSERS[mod]
+
+
+# Dests que o reconall define explicitamente e nao devem ser sobrescritos
+# por defaults especificos de modulo (evita dirscanner concurrency 40->20).
+_RECONALL_OVERRIDES = frozenset(
+    {
+        "output",
+        "quiet",
+        "log_file",
+        "color",
+        "verbose",
+        "timeout",
+        "dry_run",
+        "output_dir",
+        "user_agent",
+        "verify",
+        "threads",
+        "auth",
+        "bearer_token",
+        "cookie",
+        "header",
+    }
+)
 
 _ALL_MODS = (
     dirscanner,
@@ -398,9 +470,10 @@ def get_parser_defaults() -> dict[str, object]:
     if _PARSER_DEFAULTS is None:
         _PARSER_DEFAULTS = {}
         for mod in _ALL_MODS:
-            parser = mod.build_parser()
-            with contextlib.suppress(SystemExit):
-                _PARSER_DEFAULTS.update(vars(parser.parse_args([])))
+            parser = _module_parser(mod)
+            for action in parser._actions:
+                if action.dest is not None and action.default is not argparse.SUPPRESS:
+                    _PARSER_DEFAULTS[action.dest] = action.default
     return _PARSER_DEFAULTS
 
 
@@ -413,6 +486,9 @@ def _build_base_ns(args: argparse.Namespace) -> argparse.Namespace:
     all_defaults = dict(get_parser_defaults())
 
     # Overrides do reconall — valores que difinem do default do parser
+    # NOTA: output_dir NAO e propagado aos filhos — cada modulo so recebe
+    # o caminho via 'output' (ver _out), evitando corrida de escrita no
+    # mesmo output_dir/<host>.json entre modulos concorrentes (R1).
     all_defaults.update(
         {
             "output": None,
@@ -422,7 +498,6 @@ def _build_base_ns(args: argparse.Namespace) -> argparse.Namespace:
             "verbose": args.verbose,
             "timeout": args.timeout,
             "dry_run": args.dry_run,
-            "output_dir": args.output_dir,
             "user_agent": f"MyTools/{__version__}",
             "verify": False,
             "threads": None,
@@ -442,6 +517,15 @@ def run_all(args: argparse.Namespace) -> int:
     is_url = _is_url(target)
     domain = _extract_domain(target)
 
+    if not is_url:
+        url_only = [m for m in ALL_MODULES if m in _URL_ONLY_MODULES]
+        if url_only:
+            logger.warning(
+                "Alvo sem esquema http(s): %d modulos URL-only serao pulados: %s",
+                len(url_only),
+                ", ".join(url_only),
+            )
+
     base_ns = _build_base_ns(args)
 
     if args.output_dir:
@@ -450,7 +534,9 @@ def run_all(args: argparse.Namespace) -> int:
     def _out(module_name: str) -> str | None:
         if not args.output_dir:
             return None
-        return str(Path(args.output_dir) / f"{module_name}.json")
+        # Caminho unico por modulo+execucao: output_dir/<modulo>/<ts>.json
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        return str(Path(args.output_dir) / module_name / f"{ts}.json")
 
     modules: list[
         tuple[str, Callable[[argparse.Namespace], int], argparse.Namespace]
@@ -462,7 +548,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "dnstransfer",
                 dnstransfer.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("dnstransfer")}, base_ns
+                    {"domain": domain, "output": _out("dnstransfer")},
+                    base_ns,
+                    dnstransfer,
                 ),
             )
         )
@@ -472,7 +560,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "subenum",
                 subdomainenum.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("subenum")}, base_ns
+                    {"domain": domain, "output": _out("subenum")},
+                    base_ns,
+                    subdomainenum,
                 ),
             )
         )
@@ -483,7 +573,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "dnshistory",
                 dnshistory.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("dnshistory")}, base_ns
+                    {"domain": domain, "output": _out("dnshistory")},
+                    base_ns,
+                    dnshistory,
                 ),
             )
         )
@@ -494,7 +586,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "whoishistory",
                 whoishistory.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("whoishistory")}, base_ns
+                    {"domain": domain, "output": _out("whoishistory")},
+                    base_ns,
+                    whoishistory,
                 ),
             )
         )
@@ -505,7 +599,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "ipasninfo",
                 ipasninfo.run_once,
                 _make_args(
-                    target, {"ips": [domain], "output": _out("ipasninfo")}, base_ns
+                    {"ips": [domain], "output": _out("ipasninfo")},
+                    base_ns,
+                    ipasninfo,
                 ),
             )
         )
@@ -516,13 +612,13 @@ def run_all(args: argparse.Namespace) -> int:
                 "portscanner",
                 portscanner.run_once,
                 _make_args(
-                    target,
                     {
                         "targets": [domain],
                         "ports": args.ports,
                         "output": _out("portscanner"),
                     },
                     base_ns,
+                    portscanner,
                 ),
             )
         )
@@ -533,7 +629,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "googledorking",
                 googledorking.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("googledorking")}, base_ns
+                    {"domain": domain, "output": _out("googledorking")},
+                    base_ns,
+                    googledorking,
                 ),
             )
         )
@@ -545,9 +643,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "emailbreachcheck",
                 emailbreachcheck.run_once,
                 _make_args(
-                    domain,
                     {"emails": [admin_email], "output": _out("emailbreachcheck")},
                     base_ns,
+                    emailbreachcheck,
                 ),
             )
         )
@@ -558,9 +656,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "socialengrecon",
                 socialengrecon.run_once,
                 _make_args(
-                    domain,
                     {"domain": domain, "output": _out("socialengrecon")},
                     base_ns,
+                    socialengrecon,
                 ),
             )
         )
@@ -571,7 +669,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "pasteleak",
                 pasteleak.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("pasteleak")}, base_ns
+                    {"domain": domain, "output": _out("pasteleak")},
+                    base_ns,
+                    pasteleak,
                 ),
             )
         )
@@ -582,9 +682,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "darkwebmonitor",
                 darkwebmonitor.run_once,
                 _make_args(
-                    domain,
                     {"domain": domain, "output": _out("darkwebmonitor")},
                     base_ns,
+                    darkwebmonitor,
                 ),
             )
         )
@@ -595,7 +695,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "dnsrebinding",
                 dnsrebinding.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("dnsrebinding")}, base_ns
+                    {"domain": domain, "output": _out("dnsrebinding")},
+                    base_ns,
+                    dnsrebinding,
                 ),
             )
         )
@@ -606,7 +708,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "dnswatorture",
                 dnswatorture.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("dnswatorture")}, base_ns
+                    {"domain": domain, "output": _out("dnswatorture")},
+                    base_ns,
+                    dnswatorture,
                 ),
             )
         )
@@ -617,9 +721,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "dnsamplification",
                 dnsamplification.run_once,
                 _make_args(
-                    domain,
                     {"domain": domain, "output": _out("dnsamplification")},
                     base_ns,
+                    dnsamplification,
                 ),
             )
         )
@@ -630,7 +734,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "dnstunnel",
                 dnstunnel.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("dnstunnel")}, base_ns
+                    {"domain": domain, "output": _out("dnstunnel")},
+                    base_ns,
+                    dnstunnel,
                 ),
             )
         )
@@ -641,9 +747,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "dnssecvalidation",
                 dnssecvalidation.run_once,
                 _make_args(
-                    domain,
                     {"domain": domain, "output": _out("dnssecvalidation")},
                     base_ns,
+                    dnssecvalidation,
                 ),
             )
         )
@@ -654,7 +760,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "nsecwalking",
                 nsecwalking.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("nsecwalking")}, base_ns
+                    {"domain": domain, "output": _out("nsecwalking")},
+                    base_ns,
+                    nsecwalking,
                 ),
             )
         )
@@ -665,7 +773,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "caacheck",
                 caacheck.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("caacheck")}, base_ns
+                    {"domain": domain, "output": _out("caacheck")},
+                    base_ns,
+                    caacheck,
                 ),
             )
         )
@@ -676,7 +786,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "emailsecurity",
                 emailsecurity.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("emailsecurity")}, base_ns
+                    {"domain": domain, "output": _out("emailsecurity")},
+                    base_ns,
+                    emailsecurity,
                 ),
             )
         )
@@ -687,7 +799,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "emailspoof",
                 emailspoof.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("emailspoof")}, base_ns
+                    {"domain": domain, "output": _out("emailspoof")},
+                    base_ns,
+                    emailspoof,
                 ),
             )
         )
@@ -698,7 +812,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "smtpinjection",
                 smtpinjection.run_once,
                 _make_args(
-                    target, {"target": domain, "output": _out("smtpinjection")}, base_ns
+                    {"target": domain, "output": _out("smtpinjection")},
+                    base_ns,
+                    smtpinjection,
                 ),
             )
         )
@@ -709,7 +825,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "smtpdowngrade",
                 smtpdowngrade.run_once,
                 _make_args(
-                    target, {"target": domain, "output": _out("smtpdowngrade")}, base_ns
+                    {"target": domain, "output": _out("smtpdowngrade")},
+                    base_ns,
+                    smtpdowngrade,
                 ),
             )
         )
@@ -720,9 +838,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "emailtemplateinject",
                 emailtemplateinject.run_once,
                 _make_args(
-                    target,
                     {"target": domain, "output": _out("emailtemplateinject")},
                     base_ns,
+                    emailtemplateinject,
                 ),
             )
         )
@@ -733,9 +851,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "emailattachmentbypass",
                 emailattachmentbypass.run_once,
                 _make_args(
-                    target,
                     {"target": domain, "output": _out("emailattachmentbypass")},
                     base_ns,
+                    emailattachmentbypass,
                 ),
             )
         )
@@ -746,9 +864,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "emailaddressbypass",
                 emailaddressbypass.run_once,
                 _make_args(
-                    target,
                     {"target": domain, "output": _out("emailaddressbypass")},
                     base_ns,
+                    emailaddressbypass,
                 ),
             )
         )
@@ -759,9 +877,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "emaillinktracking",
                 emaillinktracking.run_once,
                 _make_args(
-                    target,
                     {"target": domain, "output": _out("emaillinktracking")},
                     base_ns,
+                    emaillinktracking,
                 ),
             )
         )
@@ -772,7 +890,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "nullbyteinject",
                 nullbyteinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("nullbyteinject")}, base_ns
+                    {"url": target, "output": _out("nullbyteinject")},
+                    base_ns,
+                    nullbyteinject,
                 ),
             )
         )
@@ -783,7 +903,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "doubleurlencode",
                 doubleurlencode.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("doubleurlencode")}, base_ns
+                    {"url": target, "output": _out("doubleurlencode")},
+                    base_ns,
+                    doubleurlencode,
                 ),
             )
         )
@@ -794,7 +916,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "pathtraversal",
                 pathtraversal.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("pathtraversal")}, base_ns
+                    {"url": target, "output": _out("pathtraversal")},
+                    base_ns,
+                    pathtraversal,
                 ),
             )
         )
@@ -805,7 +929,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "lfidetect",
                 lfidetect.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("lfidetect")}, base_ns
+                    {"url": target, "output": _out("lfidetect")},
+                    base_ns,
+                    lfidetect,
                 ),
             )
         )
@@ -816,7 +942,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "cmdinject",
                 cmdinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("cmdinject")}, base_ns
+                    {"url": target, "output": _out("cmdinject")},
+                    base_ns,
+                    cmdinject,
                 ),
             )
         )
@@ -827,7 +955,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "csrfscan",
                 csrfscan.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("csrfscan")}, base_ns
+                    {"url": target, "output": _out("csrfscan")},
+                    base_ns,
+                    csrfscan,
                 ),
             )
         )
@@ -838,7 +968,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "sqliscan",
                 sqliscan.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("sqliscan")}, base_ns
+                    {"url": target, "output": _out("sqliscan")},
+                    base_ns,
+                    sqliscan,
                 ),
             )
         )
@@ -849,7 +981,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "loginbruteforce",
                 loginbruteforce.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("loginbruteforce")}, base_ns
+                    {"url": target, "output": _out("loginbruteforce")},
+                    base_ns,
+                    loginbruteforce,
                 ),
             )
         )
@@ -860,9 +994,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "cloudbucketenum",
                 cloudbucketenum.run_once,
                 _make_args(
-                    target,
                     {"domain": domain, "output": _out("cloudbucketenum")},
                     base_ns,
+                    cloudbucketenum,
                 ),
             )
         )
@@ -873,7 +1007,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "subtakeover",
                 subdomaintakeover.run_once,
                 _make_args(
-                    domain, {"domain": domain, "output": _out("subtakeover")}, base_ns
+                    {"domain": domain, "output": _out("subtakeover")},
+                    base_ns,
+                    subdomaintakeover,
                 ),
             )
         )
@@ -884,7 +1020,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "overlongencoding",
                 overlongencoding.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("overlongencoding")}, base_ns
+                    {"url": target, "output": _out("overlongencoding")},
+                    base_ns,
+                    overlongencoding,
                 ),
             )
         )
@@ -894,7 +1032,21 @@ def run_all(args: argparse.Namespace) -> int:
                 "bominjection",
                 bominjection.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("bominjection")}, base_ns
+                    {"url": target, "output": _out("bominjection")},
+                    base_ns,
+                    bominjection,
+                ),
+            )
+        )
+    if "rtloverride" not in skipped and is_url:
+        modules.append(
+            (
+                "rtloverride",
+                rtloverride.run_once,
+                _make_args(
+                    {"url": target, "output": _out("rtloverride")},
+                    base_ns,
+                    rtloverride,
                 ),
             )
         )
@@ -904,7 +1056,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "charsetbypass",
                 charsetbypass.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("charsetbypass")}, base_ns
+                    {"url": target, "output": _out("charsetbypass")},
+                    base_ns,
+                    charsetbypass,
                 ),
             )
         )
@@ -914,7 +1068,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "openredirect",
                 openredirect.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("openredirect")}, base_ns
+                    {"url": target, "output": _out("openredirect")},
+                    base_ns,
+                    openredirect,
                 ),
             )
         )
@@ -924,7 +1080,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "crlfinjection",
                 crlfinjection.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("crlfinjection")}, base_ns
+                    {"url": target, "output": _out("crlfinjection")},
+                    base_ns,
+                    crlfinjection,
                 ),
             )
         )
@@ -934,7 +1092,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "sstidetect",
                 sstidetect.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("sstidetect")}, base_ns
+                    {"url": target, "output": _out("sstidetect")},
+                    base_ns,
+                    sstidetect,
                 ),
             )
         )
@@ -944,7 +1104,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "ssrfdetect",
                 ssrfdetect.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("ssrfdetect")}, base_ns
+                    {"url": target, "output": _out("ssrfdetect")},
+                    base_ns,
+                    ssrfdetect,
                 ),
             )
         )
@@ -954,7 +1116,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "xxedetect",
                 xxedetect.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("xxedetect")}, base_ns
+                    {"url": target, "output": _out("xxedetect")},
+                    base_ns,
+                    xxedetect,
                 ),
             )
         )
@@ -964,7 +1128,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "nosqliinject",
                 nosqliinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("nosqliinject")}, base_ns
+                    {"url": target, "output": _out("nosqliinject")},
+                    base_ns,
+                    nosqliinject,
                 ),
             )
         )
@@ -974,7 +1140,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "ldapiinject",
                 ldapiinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("ldapiinject")}, base_ns
+                    {"url": target, "output": _out("ldapiinject")},
+                    base_ns,
+                    ldapiinject,
                 ),
             )
         )
@@ -984,7 +1152,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "xpathinject",
                 xpathinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("xpathinject")}, base_ns
+                    {"url": target, "output": _out("xpathinject")},
+                    base_ns,
+                    xpathinject,
                 ),
             )
         )
@@ -994,7 +1164,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "ssiinject",
                 ssiinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("ssiinject")}, base_ns
+                    {"url": target, "output": _out("ssiinject")},
+                    base_ns,
+                    ssiinject,
                 ),
             )
         )
@@ -1004,9 +1176,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "prototypepollution",
                 prototypepollution.run_once,
                 _make_args(
-                    target,
                     {"url": target, "output": _out("prototypepollution")},
                     base_ns,
+                    prototypepollution,
                 ),
             )
         )
@@ -1016,7 +1188,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "deserialinject",
                 deserialinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("deserialinject")}, base_ns
+                    {"url": target, "output": _out("deserialinject")},
+                    base_ns,
+                    deserialinject,
                 ),
             )
         )
@@ -1026,7 +1200,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "cachepoisoning",
                 cachepoisoning.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("cachepoisoning")}, base_ns
+                    {"url": target, "output": _out("cachepoisoning")},
+                    base_ns,
+                    cachepoisoning,
                 ),
             )
         )
@@ -1036,7 +1212,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "cachedeception",
                 cachedeception.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("cachedeception")}, base_ns
+                    {"url": target, "output": _out("cachedeception")},
+                    base_ns,
+                    cachedeception,
                 ),
             )
         )
@@ -1046,7 +1224,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "methodoverride",
                 methodoverride.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("methodoverride")}, base_ns
+                    {"url": target, "output": _out("methodoverride")},
+                    base_ns,
+                    methodoverride,
                 ),
             )
         )
@@ -1056,9 +1236,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "httpparampollution",
                 httpparampollution.run_once,
                 _make_args(
-                    target,
                     {"url": target, "output": _out("httpparampollution")},
                     base_ns,
+                    httpparampollution,
                 ),
             )
         )
@@ -1068,7 +1248,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "blindxss",
                 blindxss.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("blindxss")}, base_ns
+                    {"url": target, "output": _out("blindxss")},
+                    base_ns,
+                    blindxss,
                 ),
             )
         )
@@ -1078,7 +1260,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "corsmisconfig",
                 corsmisconfig.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("corsmisconfig")}, base_ns
+                    {"url": target, "output": _out("corsmisconfig")},
+                    base_ns,
+                    corsmisconfig,
                 ),
             )
         )
@@ -1088,7 +1272,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "clickjacking",
                 clickjacking.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("clickjacking")}, base_ns
+                    {"url": target, "output": _out("clickjacking")},
+                    base_ns,
+                    clickjacking,
                 ),
             )
         )
@@ -1098,7 +1284,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "hostheaderinject",
                 hostheaderinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("hostheaderinject")}, base_ns
+                    {"url": target, "output": _out("hostheaderinject")},
+                    base_ns,
+                    hostheaderinject,
                 ),
             )
         )
@@ -1108,7 +1296,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "headerinject",
                 headerinject.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("headerinject")}, base_ns
+                    {"url": target, "output": _out("headerinject")},
+                    base_ns,
+                    headerinject,
                 ),
             )
         )
@@ -1118,7 +1308,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "loginjection",
                 loginjection.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("loginjection")}, base_ns
+                    {"url": target, "output": _out("loginjection")},
+                    base_ns,
+                    loginjection,
                 ),
             )
         )
@@ -1128,7 +1320,9 @@ def run_all(args: argparse.Namespace) -> int:
                 "log4shell",
                 log4shell.run_once,
                 _make_args(
-                    target, {"url": target, "output": _out("log4shell")}, base_ns
+                    {"url": target, "output": _out("log4shell")},
+                    base_ns,
+                    log4shell,
                 ),
             )
         )
@@ -1140,9 +1334,9 @@ def run_all(args: argparse.Namespace) -> int:
                     "techfingerprint",
                     techfingerprint.run_once,
                     _make_args(
-                        target,
                         {"urls": [target], "output": _out("techfingerprint")},
                         base_ns,
+                        techfingerprint,
                     ),
                 )
             )
@@ -1152,9 +1346,9 @@ def run_all(args: argparse.Namespace) -> int:
                     "openapidiscovery",
                     openapidiscovery.run_once,
                     _make_args(
-                        target,
                         {"url": target, "output": _out("openapidiscovery")},
                         base_ns,
+                        openapidiscovery,
                     ),
                 )
             )
@@ -1164,9 +1358,9 @@ def run_all(args: argparse.Namespace) -> int:
                     "graphqlplayground",
                     graphqlplayground.run_once,
                     _make_args(
-                        target,
                         {"url": target, "output": _out("graphqlplayground")},
                         base_ns,
+                        graphqlplayground,
                     ),
                 )
             )
@@ -1176,9 +1370,9 @@ def run_all(args: argparse.Namespace) -> int:
                     "sourcemapdiscovery",
                     sourcemapdiscovery.run_once,
                     _make_args(
-                        target,
                         {"url": target, "output": _out("sourcemapdiscovery")},
                         base_ns,
+                        sourcemapdiscovery,
                     ),
                 )
             )
@@ -1188,7 +1382,9 @@ def run_all(args: argparse.Namespace) -> int:
                     "vcsleak",
                     vcsleak.run_once,
                     _make_args(
-                        target, {"url": target, "output": _out("vcsleak")}, base_ns
+                        {"url": target, "output": _out("vcsleak")},
+                        base_ns,
+                        vcsleak,
                     ),
                 )
             )
@@ -1198,9 +1394,9 @@ def run_all(args: argparse.Namespace) -> int:
                     "configfiledetect",
                     configfiledetect.run_once,
                     _make_args(
-                        target,
                         {"url": target, "output": _out("configfiledetect")},
                         base_ns,
+                        configfiledetect,
                     ),
                 )
             )
@@ -1210,9 +1406,9 @@ def run_all(args: argparse.Namespace) -> int:
                     "backupfiledetect",
                     backupfiledetect.run_once,
                     _make_args(
-                        target,
                         {"url": target, "output": _out("backupfiledetect")},
                         base_ns,
+                        backupfiledetect,
                     ),
                 )
             )
@@ -1222,13 +1418,13 @@ def run_all(args: argparse.Namespace) -> int:
                     "dirscanner",
                     dirscanner.run_once,
                     _make_args(
-                        target,
                         {
                             "url": target,
                             "output": _out("dirscanner"),
                             "extensions": ["php", "txt", "bak", "html"],
                         },
                         base_ns,
+                        dirscanner,
                     ),
                 )
             )
@@ -1238,7 +1434,6 @@ def run_all(args: argparse.Namespace) -> int:
                     "webrecon",
                     webrecon.run_once,
                     _make_args(
-                        target,
                         {
                             "url": target,
                             "output": _out("webrecon"),
@@ -1246,6 +1441,7 @@ def run_all(args: argparse.Namespace) -> int:
                             "deep": args.deep,
                         },
                         base_ns,
+                        webrecon,
                     ),
                 )
             )
@@ -1255,7 +1451,6 @@ def run_all(args: argparse.Namespace) -> int:
                     "attackaudit",
                     attackaudit.run_once,
                     _make_args(
-                        target,
                         {
                             "url": target,
                             "output": _out("attackaudit"),
@@ -1264,6 +1459,7 @@ def run_all(args: argparse.Namespace) -> int:
                             "test_methods": args.test_methods,
                         },
                         base_ns,
+                        attackaudit,
                     ),
                 )
             )
@@ -1273,6 +1469,7 @@ def run_all(args: argparse.Namespace) -> int:
 
     async def _run_all_async() -> int:
         total_errors = 0
+        sem = asyncio.Semaphore(_MAX_CONCURRENT_MODULES)
 
         async def _run_one(
             name: str, fn: Callable[[argparse.Namespace], int], a: argparse.Namespace
@@ -1282,11 +1479,22 @@ def run_all(args: argparse.Namespace) -> int:
             logger.info("%s Iniciando %s", color_name, name)
             logger.info("=" * 60)
             start = time.monotonic()
-            try:
-                result = await asyncio.to_thread(fn, a)
-            except Exception as exc:
-                logger.error("Erro em %s: %s", name, exc)
-                return 1
+            timeout = _MODULE_TIMEOUTS.get(name, _MODULE_TIMEOUT_SECONDS)
+            async with sem:
+                try:
+                    result = await asyncio.wait_for(
+                        asyncio.to_thread(fn, a), timeout=timeout
+                    )
+                except TimeoutError:
+                    logger.error(
+                        "%s Estourou o timeout de %ds",
+                        color_name,
+                        timeout,
+                    )
+                    return 1
+                except Exception as exc:
+                    logger.error("Erro em %s: %s", name, exc)
+                    return 1
             elapsed = time.monotonic() - start
             status = (
                 color("OK", Cyber.GREEN, Cyber.BOLD)

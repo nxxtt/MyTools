@@ -305,10 +305,31 @@ def _check_response_content(body: bytes, indicators: list[str]) -> bool:
     return any(ind.lower() in text for ind in indicators)
 
 
-async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, bytes]:
+def _build_test_url(url: str, path: str, query_payload: str) -> str:
+    """Monta URL de teste preservando query string existente (sem ``??``)."""
+    base = url.rstrip("/") + path
+    if "?" in base:
+        return f"{base}&{query_payload}"
+    return f"{base}?{query_payload}"
+
+
+async def _test_baseline(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    method: str = "GET",
+    content: bytes | str | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, int, bytes]:
     """Envia request baseline para obter status e tamanho de referencia."""
     try:
-        resp = await client.get(url, follow_redirects=True)
+        resp = await client.request(
+            method,
+            url,
+            content=content,
+            headers=headers,
+            follow_redirects=True,
+        )
         return resp.status_code, len(resp.content), resp.content
     except httpx.RequestError:
         return 0, 0, b""
@@ -326,7 +347,7 @@ async def _test_query(
     for technique, query_payload, param_name, indicators in _QUERY_PAYLOADS:
         for path in _SENSITIVE_PATHS[:4]:
             try:
-                test_url = url.rstrip("/") + path + "?" + query_payload
+                test_url = _build_test_url(url, path, query_payload)
                 resp = await client.get(test_url, follow_redirects=True)
                 vulnerable = _check_hpp_response(
                     resp.content, resp.status_code, b_status
@@ -383,7 +404,18 @@ async def _test_body(
     baseline: tuple[int, int, bytes],
 ) -> list[HPPAttempt]:
     """Testa HPP em body form parameters."""
-    b_status, b_size, _ = baseline
+    get_b_status, get_b_size, _ = baseline
+
+    post_b_status, post_b_size, _ = await _test_baseline(
+        client,
+        url,
+        method="POST",
+        content=b"",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    b_status = post_b_status if post_b_status else get_b_status
+    b_size = post_b_size if post_b_size else get_b_size
     results: list[HPPAttempt] = []
 
     for technique, body_payload, param_name, indicators in _BODY_PAYLOADS:
@@ -593,7 +625,7 @@ async def _test_bypass(
     for technique, payload, _, param_name, indicators in _BYPASS_PAYLOADS:
         for path in _SENSITIVE_PATHS[:4]:
             try:
-                test_url = url.rstrip("/") + path + "?" + payload
+                test_url = _build_test_url(url, path, payload)
                 resp = await client.get(test_url, follow_redirects=True)
                 vulnerable = _check_hpp_response(
                     resp.content, resp.status_code, b_status

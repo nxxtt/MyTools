@@ -577,18 +577,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def _run_single(
-    url: str, args: argparse.Namespace, quiet: bool = False
+    url: str,
+    args: argparse.Namespace,
+    quiet: bool = False,
+    paths: list[str] | None = None,
 ) -> list[Finding]:
     """Executa scan em uma unica URL."""
     extra_headers = parse_extra_headers(args.header) if args.header else {}
     cookie_headers = {"Cookie": args.cookie} if args.cookie else {}
     base_url = normalize_url(url, default_scheme="http", ensure_trailing_slash=True)
-    paths = load_paths(
-        args.wordlist,
-        args.extensions,
-        case_variation=getattr(args, "case_variation", False),
-        unicode_norm=getattr(args, "unicode_norm", False),
-    )
+    if paths is None:
+        paths = load_paths(
+            args.wordlist,
+            args.extensions,
+            case_variation=getattr(args, "case_variation", False),
+            unicode_norm=getattr(args, "unicode_norm", False),
+        )
     findings = await scan_target(
         base_url=base_url,
         paths=paths,
@@ -608,9 +612,7 @@ async def _run_single(
         words_range=args.filter_words,
         retries=args.retries,
     )
-    if getattr(args, "json_output", False):
-        print_json([asdict(f) for f in findings])
-    elif not quiet:
+    if not quiet and not getattr(args, "json_output", False):
         print_dir_table(findings)
     return findings
 
@@ -625,13 +627,14 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     output_dir = getattr(args, "output_dir", None)
     ensure_output_dir(output_dir)
 
+    paths = load_paths(
+        args.wordlist,
+        args.extensions,
+        case_variation=getattr(args, "case_variation", False),
+        unicode_norm=getattr(args, "unicode_norm", False),
+    )
+
     if getattr(args, "dry_run", False):
-        paths = load_paths(
-            args.wordlist,
-            args.extensions,
-            case_variation=getattr(args, "case_variation", False),
-            unicode_norm=getattr(args, "unicode_norm", False),
-        )
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(
@@ -649,7 +652,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     all_findings: list[Finding] = []
     for url in urls:
-        findings = await _run_single(url, args, quiet=quiet)
+        findings = await _run_single(url, args, quiet=quiet, paths=paths)
         all_findings.extend(findings)
         if output_dir:
             hostname = extract_hostname(url)
@@ -672,7 +675,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "json_output", False):
         print_json([asdict(f) for f in all_findings])
-    elif args.output:
+    if args.output:
         write_output(
             args.output,
             [asdict(f) for f in all_findings],

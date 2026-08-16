@@ -12,8 +12,6 @@ Testa se o servidor e vulneravel a redirecionamentos abusivos:
 
   - Redirect via headers (Referer, Location)
 
-  - Redirect via fragment (#)
-
   - Bypass de filtros (encoding, protocol-relative, null byte, etc.)
 
 
@@ -69,12 +67,10 @@ _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     ],
     "path": ["path_redirect", "path_login", "path_go", "path_link"],
     "header": ["header_referer", "header_callback"],
-    "fragment": ["fragment_redirect"],
     "bypass": [
         "bypass_protocol",
         "bypass_nullbyte",
-        "bypass userinfo",
-        "bypass_fragment",
+        "bypass_userinfo",
         "bypass_backslash",
         "bypass_percent",
         "bypass_double_slash",
@@ -115,8 +111,7 @@ _EVIL_DOMAIN_DEFAULT: str = "evil.com"
 _BYPASS_TECHNIQUES_DEFAULT: list[tuple[str, str, str]] = [
     ("bypass_protocol", "url", "//evil.com"),
     ("bypass_nullbyte", "url", "http://evil.com%00.example.com"),
-    ("bypass userinfo", "url", "http://evil.com@example.com"),
-    ("bypass_fragment", "url", "http://evil.com#.example.com"),
+    ("bypass_userinfo", "url", "http://evil.com@example.com"),
     ("bypass_backslash", "url", "http://evil.com\\@.example.com"),
     ("bypass_percent", "url", "http://evil%2ecom"),
     ("bypass_double_slash", "url", "///evil.com"),
@@ -514,84 +509,6 @@ async def _test_header_redirect(
     return attempts
 
 
-async def _test_fragment_redirect(
-    client: httpx.AsyncClient,
-    url: str,
-    baseline: tuple[int, int, bytes],
-) -> list[OpenRedirectAttempt]:
-    """Testa open redirect via fragment."""
-
-    attempts: list[OpenRedirectAttempt] = []
-
-    b_status, b_size, _ = baseline
-
-    parsed = urlparse(url)
-
-    target_domain = parsed.hostname or ""
-
-    test_url = f"{url}#{_EVIL_DOMAIN}"
-
-    try:
-        resp = await client.get(test_url, follow_redirects=False)
-
-        t_status = resp.status_code
-
-        t_size = len(resp.content)
-
-        location = resp.headers.get("location", "")
-
-        status_changed = t_status != b_status
-
-        vuln = _is_external_redirect(location, target_domain)
-
-        attempts.append(
-            OpenRedirectAttempt(
-                technique="fragment_redirect",
-                category="fragment",
-                url=test_url,
-                payload=f"#{_EVIL_DOMAIN}",
-                status_baseline=b_status,
-                status_test=t_status,
-                size_baseline=b_size,
-                size_test=t_size,
-                status_changed=status_changed,
-                size_changed=abs(t_size - b_size) > 50,
-                redirect_location=location,
-                vulnerable=vuln,
-                details=f"Redirect -> {location}"
-                if vuln
-                else f"Status {b_status}->{t_status}"
-                if status_changed
-                else "Sem redirect",
-                error="",
-                exploit="<TARGET>/redirect?url=https://evil.com" if vuln else "",
-                tool="curl",
-            )
-        )
-
-    except httpx.RequestError as exc:
-        attempts.append(
-            OpenRedirectAttempt(
-                technique="fragment_redirect",
-                category="fragment",
-                url=test_url,
-                payload=f"#{_EVIL_DOMAIN}",
-                status_baseline=b_status,
-                status_test=0,
-                size_baseline=b_size,
-                size_test=0,
-                status_changed=False,
-                size_changed=False,
-                redirect_location="",
-                vulnerable=False,
-                details="",
-                error=str(exc),
-            )
-        )
-
-    return attempts
-
-
 async def _test_bypass_redirect(
     client: httpx.AsyncClient,
     url: str,
@@ -768,9 +685,6 @@ async def scan_open_redirect(
         if not category or category == "header":
             tasks.append(_limited(_test_header_redirect(client, url, baseline)))
 
-        if not category or category == "fragment":
-            tasks.append(_limited(_test_fragment_redirect(client, url, baseline)))
-
         if not category or category == "bypass":
             tasks.append(_limited(_test_bypass_redirect(client, url, baseline)))
 
@@ -929,7 +843,7 @@ class OpenredirectScanner(BaseScanner):
             "-c",
             "--category",
             choices=list(_CATEGORY_MAP.keys()),
-            help="Categoria de teste (param, path, header, fragment, bypass)",
+            help="Categoria de teste (param, path, header, bypass)",
         )
         parser.add_argument(
             "--concurrency",

@@ -29,11 +29,13 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    ensure_output_dir,
     fetch,
     init_scanner,
     print_exploit_info,
     print_table,
     run_main_loop,
+    safe_asyncio_run,
     write_output,
 )
 
@@ -87,7 +89,7 @@ def _parse_ipwhois(body: bytes) -> IpAsnInfo | None:
     if not data.get("success", False):
         return None
 
-    conn = data.get("connection", {})
+    conn = data.get("connection") or {}
     asn_num = conn.get("asn", "")
     asn = f"AS{asn_num}" if isinstance(asn_num, int) else str(asn_num)
 
@@ -155,7 +157,7 @@ def _parse_ipapi_batch(body: bytes) -> list[IpAsnInfo]:
 
     results: list[IpAsnInfo] = []
     for item in items:
-        if item.get("status") != "success":
+        if not isinstance(item, dict) or item.get("status") != "success":
             continue
         results.append(
             IpAsnInfo(
@@ -184,33 +186,31 @@ def _parse_ipapi_batch(body: bytes) -> list[IpAsnInfo]:
 # ---------------------------------------------------------------------------
 
 
-async def _query_single(ip: str, timeout: float) -> IpAsnInfo | None:
+async def _query_single(
+    client: httpx.AsyncClient, ip: str, timeout: float
+) -> IpAsnInfo | None:
     """Consulta um unico IP via ipwho.is com fallback para ip-api.com."""
-    client = create_async_client(timeout=timeout)
+    # ipwho.is (HTTPS, no key)
     try:
-        # ipwho.is (HTTPS, no key)
-        try:
-            url = f"https://ipwho.is/{ip}"
-            status, _headers, body, _raw = await fetch(client, url, timeout=timeout)
-            if status == 200:
-                result = _parse_ipwhois(body)
-                if result:
-                    return result
-        except FetchError:
-            pass
+        url = f"https://ipwho.is/{ip}"
+        status, _headers, body, _raw = await fetch(client, url, timeout=timeout)
+        if status == 200:
+            result = _parse_ipwhois(body)
+            if result:
+                return result
+    except FetchError:
+        pass
 
-        # Fallback: ip-api.com (HTTP)
-        try:
-            url = f"http://ip-api.com/json/{ip}?fields=query,as,asname,isp,org,country,countryCode,city,hosting,proxy"
-            status, _headers, body, _raw = await fetch(client, url, timeout=timeout)
-            if status == 200:
-                return _parse_ipapi(body)
-        except FetchError:
-            pass
+    # Fallback: ip-api.com (HTTP)
+    try:
+        url = f"http://ip-api.com/json/{ip}?fields=query,as,asname,isp,org,country,countryCode,city,hosting,proxy"
+        status, _headers, body, _raw = await fetch(client, url, timeout=timeout)
+        if status == 200:
+            return _parse_ipapi(body)
+    except FetchError:
+        pass
 
-        return None
-    finally:
-        await client.aclose()
+    return None
 
 
 async def _query_batch(ips: list[str], timeout: float) -> list[IpAsnInfo]:
@@ -232,7 +232,7 @@ async def _query_batch(ips: list[str], timeout: float) -> list[IpAsnInfo]:
                 )
                 if resp.status_code == 200:
                     results.extend(_parse_ipapi_batch(resp.content))
-            except httpx.RequestError, httpx.HTTPStatusError:
+            except httpx.RequestError:
                 logger.debug(
                     "ip-api.com batch falhou para lote %d-%d", i, i + len(batch)
                 )
@@ -249,32 +249,33 @@ async def _query_batch(ips: list[str], timeout: float) -> list[IpAsnInfo]:
 def lookup_ip_asn(
     ips: list[str],
     timeout: float = DEFAULT_TIMEOUT,
+    force_batch: bool = False,
 ) -> list[IpAsnInfo]:
     """Consulta ASN/BGP para lista de IPs (sync wrapper)."""
-    from mytools.core.utils import safe_asyncio_run
-
     if not ips:
         return []
 
-    # Para batch (5+ IPs), usa ip-api.com batch
-    if len(ips) >= 5:
+    # Para batch (5+ IPs ou force_batch), usa ip-api.com batch
+    if force_batch or len(ips) >= 5:
         return safe_asyncio_run(_query_batch(ips, timeout))
 
     # Para poucos IPs, consulta individual via ipwho.is
     async def _lookup_all() -> list[IpAsnInfo]:
         sem = asyncio.Semaphore(3)
-        results: list[IpAsnInfo] = []
+        client = create_async_client(timeout=timeout)
+        try:
 
-        async def _limited(ip: str) -> IpAsnInfo | None:
-            async with sem:
-                return await _query_single(ip, timeout)
+            async def _limited(ip: str) -> IpAsnInfo | None:
+                async with sem:
+                    return await _query_single(client, ip, timeout)
 
-        tasks = [_limited(ip) for ip in ips]
-        async with asyncio.TaskGroup() as tg:
-            futures = [tg.create_task(t) for t in tasks]
-        gathered = [f.result() for f in futures]
-        results = [r for r in gathered if isinstance(r, IpAsnInfo)]
-        return results
+            tasks = [_limited(ip) for ip in ips]
+            async with asyncio.TaskGroup() as tg:
+                futures = [tg.create_task(t) for t in tasks]
+            gathered = [f.result() for f in futures]
+            return [r for r in gathered if isinstance(r, IpAsnInfo)]
+        finally:
+            await client.aclose()
 
     return safe_asyncio_run(_lookup_all())
 
@@ -363,7 +364,7 @@ def _load_ips_from_args(args: argparse.Namespace) -> list[str]:
             )
             return []
 
-    return ips
+    return list(dict.fromkeys(ips))
 
 
 def run_once(args: argparse.Namespace) -> int:
@@ -394,54 +395,62 @@ def run_once(args: argparse.Namespace) -> int:
         )
         return 0
 
-    start = time.time()
-    results = lookup_ip_asn(ips, timeout=args.timeout)
-    elapsed = time.time() - start
+    start = time.monotonic()
+    results = lookup_ip_asn(
+        ips, timeout=args.timeout, force_batch=getattr(args, "batch", False)
+    )
+    elapsed = time.monotonic() - start
 
     print()
     _print_results(results)
     print()
 
+    mode = "batch" if getattr(args, "batch", False) or len(ips) >= 5 else "individual"
     print(
         color("[*]", Cyber.CYAN, Cyber.BOLD),
         f"IPs: {color(str(len(results)), Cyber.GREEN, Cyber.BOLD)} | "
         f"Elapsed: {color(f'{elapsed:.1f}s', Cyber.YELLOW)} | "
-        f"Mode: {color('auto', Cyber.WHITE, Cyber.BOLD)}",
+        f"Mode: {color(mode, Cyber.WHITE, Cyber.BOLD)}",
     )
 
     if getattr(args, "output", None):
         write_output(args.output, [asdict(r) for r in results])
         print(color("[+]", Cyber.GREEN, Cyber.BOLD), f"Output salvo em: {args.output}")
 
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        out_path = f"{output_dir}/asn_results.json"
+        write_output(
+            out_path,
+            [asdict(r) for r in results],
+            ["ip", "asn", "org", "isp", "country", "country_code", "city", "source"],
+            quiet=getattr(args, "quiet", False),
+        )
+
     return 0
 
 
 def main() -> int:
     """Entry point CLI."""
-    parser = build_parser()
-    args = parser.parse_args()
-
-    if not args.ips and not getattr(args, "ip_file", None):
-        return run_main_loop(
-            parser=parser,
-            banner_fn=create_banner(BANNER_ART, "IP ASN Info"),
-            run_fn=run_once,
-            has_target=lambda a: bool(a.ips) or bool(getattr(a, "ip_file", None)),
-            prompt="ip-asn> ",
-            description="Enriquece IPs com dados BGP (ASN, organizacao, pais).",
-            example="8.8.8.8 1.1.1.1",
-            contextual_help=(
-                "Uso: <ips...> [opcoes]\n"
-                "Exemplos:\n"
-                "  8.8.8.8\n"
-                "  8.8.8.8 1.1.1.1 208.67.222.222\n"
-                "  -f ips.txt\n"
-                "  -f ips.txt --batch\n"
-                "  -f ips.txt -o results.json"
-            ),
-        )
-
-    return run_once(args)
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=create_banner(BANNER_ART, "IP ASN Info"),
+        run_fn=run_once,
+        has_target=lambda a: bool(a.ips) or bool(getattr(a, "ip_file", None)),
+        prompt="ip-asn> ",
+        description="Enriquece IPs com dados BGP (ASN, organizacao, pais).",
+        example="8.8.8.8 1.1.1.1",
+        contextual_help=(
+            "Uso: <ips...> [opcoes]\n"
+            "Exemplos:\n"
+            "  8.8.8.8\n"
+            "  8.8.8.8 1.1.1.1 208.67.222.222\n"
+            "  -f ips.txt\n"
+            "  -f ips.txt --batch\n"
+            "  -f ips.txt -o results.json"
+        ),
+    )
 
 
 if __name__ == "__main__":

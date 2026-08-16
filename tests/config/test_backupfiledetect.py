@@ -270,6 +270,10 @@ class TestLoadPathsFromArgs:
         args = argparse.Namespace(backup_type="sql")
         assert _load_paths_from_args(args) == SQL_DUMP_PATHS
 
+    def test_orig_tmp_returns_orig_tmp_paths(self):
+        args = argparse.Namespace(backup_type="orig_tmp")
+        assert _load_paths_from_args(args) == ORIG_TMP_PATHS
+
 
 # ── build_parser ──────────────────────────────────────────────────────────────
 
@@ -287,6 +291,10 @@ class TestBuildParser:
     def test_has_type(self):
         args = build_parser().parse_args(["--type", "sql"])
         assert args.backup_type == "sql"
+
+    def test_type_orig_tmp(self):
+        args = build_parser().parse_args(["--type", "orig_tmp"])
+        assert args.backup_type == "orig_tmp"
 
     def test_has_concurrency(self):
         args = build_parser().parse_args(["--concurrency", "50"])
@@ -684,6 +692,37 @@ class TestJsonOutput:
         data, _ = decoder.raw_decode(captured)
         assert isinstance(data, list)
         assert data[0]["path"] == "c.php.bak"
+        assert json.loads(captured) == data
+
+    def test_json_with_output_writes_file(self, tmp_path, capsys):
+        backup = BackupFile(
+            backup_type="bak", url="http://x.com/c.php.bak", path="c.php.bak"
+        )
+        out = tmp_path / "out.json"
+        args = build_parser().parse_args(
+            ["--json", "-q", "-o", str(out), "http://x.com"]
+        )
+        with patch(
+            "mytools.config.backupfiledetect.scan_backups",
+            new=AsyncMock(return_value=[backup]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert out.exists()
+        assert json.loads(out.read_text()) == [
+            {
+                "backup_type": "bak",
+                "url": "http://x.com/c.php.bak",
+                "path": "c.php.bak",
+                "status": 0,
+                "detail": "",
+                "raw_size": 0,
+                "exploit": "",
+                "tool": "",
+            }
+        ]
+        captured = capsys.readouterr().out
+        assert json.loads(captured) == json.loads(out.read_text())
 
 
 class TestPrintResultsExploit:

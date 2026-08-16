@@ -21,7 +21,6 @@ from mytools.web.openredirect import (
     _is_external_redirect,
     _test_baseline,
     _test_bypass_redirect,
-    _test_fragment_redirect,
     _test_header_redirect,
     _test_param_redirect,
     _test_path_redirect,
@@ -85,16 +84,19 @@ class TestBypassTechniques:
         assert any(t[0] == "bypass_nullbyte" for t in _BYPASS_TECHNIQUES)
 
     def test_hasuserinfo(self) -> None:
-        assert any(t[0] == "bypass userinfo" for t in _BYPASS_TECHNIQUES)
+        assert any(t[0] == "bypass_userinfo" for t in _BYPASS_TECHNIQUES)
 
-    def test_has_fragment(self) -> None:
-        assert any(t[0] == "bypass_fragment" for t in _BYPASS_TECHNIQUES)
+    def test_no_space_technique_keys(self) -> None:
+        assert all(" " not in t[0] for t in _BYPASS_TECHNIQUES)
+
+    def test_no_fragment_technique(self) -> None:
+        assert not any(t[0] == "bypass_fragment" for t in _BYPASS_TECHNIQUES)
 
     def test_has_backslash(self) -> None:
         assert any(t[0] == "bypass_backslash" for t in _BYPASS_TECHNIQUES)
 
     def test_count(self) -> None:
-        assert len(_BYPASS_TECHNIQUES) == 8
+        assert len(_BYPASS_TECHNIQUES) == 7
 
 
 class TestCategoryMap:
@@ -109,14 +111,14 @@ class TestCategoryMap:
     def test_has_header(self) -> None:
         assert "header" in _CATEGORY_MAP
 
-    def test_has_fragment(self) -> None:
-        assert "fragment" in _CATEGORY_MAP
-
     def test_has_bypass(self) -> None:
         assert "bypass" in _CATEGORY_MAP
 
+    def test_no_fragment_category(self) -> None:
+        assert "fragment" not in _CATEGORY_MAP
+
     def test_count(self) -> None:
-        assert len(_CATEGORY_MAP) == 5
+        assert len(_CATEGORY_MAP) == 4
 
 
 class TestIsExternalRedirect:
@@ -312,26 +314,6 @@ class TestTestHeaderRedirect:
         assert len(attempts) == 2
 
 
-class TestTestFragmentRedirect:
-    """Testes para _test_fragment_redirect."""
-
-    @pytest.mark.asyncio
-    async def test_returns_attempts(self) -> None:
-        client = AsyncMock()
-        resp = MagicMock()
-        resp.status_code = 200
-        resp.content = b"ok"
-        resp.headers = {}
-        client.get = AsyncMock(return_value=resp)
-
-        attempts = await _test_fragment_redirect(
-            client,
-            "https://example.com",
-            (200, 1000, b""),
-        )
-        assert len(attempts) == 1
-
-
 class TestTestBypassRedirect:
     """Testes para _test_bypass_redirect."""
 
@@ -349,7 +331,25 @@ class TestTestBypassRedirect:
             "https://example.com",
             (200, 1000, b""),
         )
-        assert len(attempts) == 8
+        assert len(attempts) == 7
+
+    @pytest.mark.asyncio
+    async def test_no_fragment_payload_sent(self) -> None:
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = b"ok"
+        resp.headers = {}
+        client.get = AsyncMock(return_value=resp)
+
+        attempts = await _test_bypass_redirect(
+            client,
+            "https://example.com",
+            (200, 1000, b""),
+        )
+        assert not any(a.technique == "bypass_fragment" for a in attempts)
+        for call in client.get.call_args_list:
+            assert "#" not in call.args[0] or call.args[0].count("#") == 0
 
 
 @pytest.mark.smoke
@@ -457,16 +457,6 @@ class TestRedirectHelpersRequestError:
             client, "https://example.com", (200, 1000, b"")
         )
         assert len(attempts) == 2
-        assert all(a.error for a in attempts)
-
-    @pytest.mark.asyncio
-    async def test_fragment_redirect_error(self) -> None:
-        client = AsyncMock()
-        client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
-        attempts = await _test_fragment_redirect(
-            client, "https://example.com", (200, 1000, b"")
-        )
-        assert len(attempts) == 1
         assert all(a.error for a in attempts)
 
     @pytest.mark.asyncio
@@ -614,6 +604,17 @@ class TestScanOpenRedirect:
         result = await scan_open_redirect("http://example.com/", category="bogus")
         assert result.overall_status == "error"
         assert any("bogus" in i for i in result.issues)
+        assert result.attempts == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fragment_category_removed(self) -> None:
+        respx.get(url__startswith="http://example.com/").mock(
+            return_value=httpx.Response(200, text="ok")
+        )
+        result = await scan_open_redirect("http://example.com/", category="fragment")
+        assert result.overall_status == "error"
+        assert any("fragment" in i for i in result.issues)
         assert result.attempts == []
 
     @respx.mock

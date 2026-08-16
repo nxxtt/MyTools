@@ -817,6 +817,15 @@ class TestParseIntRange:
         result = parse_int_range("80,80,80", 1, 65535, "porta")
         assert result == [80]
 
+    def test_huge_range_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="grande demais"):
+            parse_int_range("1-999999999", 1, 65535, "porta")
+
+    def test_many_items_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="em excesso"):
+            parts = ",".join(str(i) for i in range(1, 100000))
+            parse_int_range(parts, 1, 999999, "porta")
+
 
 class TestWriteOutput:
     """Testa write_output com validacao de extensao."""

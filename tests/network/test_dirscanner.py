@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+from dataclasses import asdict
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -973,7 +974,7 @@ class TestPrintDirTable:
 
 class TestRunSingle:
     @pytest.mark.asyncio
-    async def test_json_output(self, capsys):
+    async def test_json_output_no_table(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["--json", "http://example.com"])
         finding = Finding(
@@ -990,8 +991,7 @@ class TestRunSingle:
         ):
             result = await _run_single("http://example.com", args)
         assert result == [finding]
-        data = json.loads(capsys.readouterr().out)
-        assert data[0]["path"] == "/admin"
+        assert capsys.readouterr().out == ""
 
     @pytest.mark.asyncio
     async def test_table_output_not_quiet(self, capsys):
@@ -1174,7 +1174,32 @@ class TestJsonOutput:
         ):
             result = asyncio.run(_async_run_once(args))
         assert result == 0
+        captured = capsys.readouterr().out
         decoder = json.JSONDecoder()
-        data, _ = decoder.raw_decode(capsys.readouterr().out)
+        data, _ = decoder.raw_decode(captured)
         assert isinstance(data, list)
         assert data[0]["path"] == "/admin"
+        assert json.loads(captured) == data
+
+    def test_json_with_output_writes_file(self, capsys, tmp_path):
+        finding = Finding(
+            url="http://x.com/admin",
+            path="/admin",
+            status=200,
+            size=1234,
+            words=100,
+            title="Admin",
+        )
+        out = tmp_path / "out.json"
+        args = build_parser().parse_args(
+            ["--json", "-q", "-o", str(out), "http://x.com"]
+        )
+        with patch(
+            "mytools.network.dirscanner.scan_target",
+            new=AsyncMock(return_value=[finding]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert out.exists()
+        assert json.loads(out.read_text()) == [asdict(finding)]
+        assert json.loads(capsys.readouterr().out) == json.loads(out.read_text())

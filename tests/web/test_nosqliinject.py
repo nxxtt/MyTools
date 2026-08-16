@@ -308,6 +308,24 @@ class TestCheckNoSQLiResponse:
     def test_empty_body(self) -> None:
         assert not _check_nosqli_response(b"", 200, ["welcome"])
 
+    def test_indicator_in_baseline_not_flagged(self) -> None:
+        body = b"Welcome back! success token issued"
+        assert not _check_nosqli_response(
+            body, 200, ["welcome", "success", "token"], baseline_body=body
+        )
+
+    def test_indicator_new_in_test_flagged(self) -> None:
+        base = b"<html>generic login page</html>"
+        assert _check_nosqli_response(
+            b"Welcome back! success token issued",
+            200,
+            ["welcome", "success", "token"],
+            baseline_body=base,
+        )
+
+    def test_no_baseline_preserves_old_behavior(self) -> None:
+        assert _check_nosqli_response(b"welcome back", 200, ["welcome"])
+
 
 class TestTestBaseline:
     """Testes para _test_baseline."""
@@ -356,6 +374,38 @@ class TestTestDetect:
         assert len(results) == 10
         vulns = [r for r in results if r.vulnerable]
         assert len(vulns) > 0
+
+    @pytest.mark.asyncio
+    async def test_normal_login_page_not_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        body = b"Welcome back! Your success token is ready. Logged in."
+        mock_resp.status_code = 200
+        mock_resp.content = body
+        mock_client.post.return_value = mock_resp
+        mock_client.get.return_value = mock_resp
+
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, len(body), body)
+        )
+        assert len(results) == 10
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_bypass_differs_from_baseline_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        base = b"<html>generic login page</html>"
+        mock_resp.status_code = 200
+        mock_resp.content = b"Welcome back! success token issued. Logged in."
+        mock_client.post.return_value = mock_resp
+        mock_client.get.return_value = mock_resp
+
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, len(base), base)
+        )
+        assert len(results) == 10
+        assert any(r.vulnerable for r in results)
 
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
@@ -828,6 +878,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.nosqliinject.run_scan",
@@ -848,6 +900,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.nosqliinject.run_scan",

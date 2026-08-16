@@ -5,11 +5,11 @@ Le alvos de um arquivo e executa modulos MyTools selecionados contra cada um.
 Soh orquestracao — nao contem logica de scanning.
 
 Exemplos:
-  mytools-batch targets.txt webrecon attackaudit
-  mytools-batch targets.txt all --skip portscanner
-  mytools-batch targets.txt webrecon -p 3 -o results/
-  mytools-batch targets.txt webrecon --strict --fail-fast
-  mytools-batch targets.txt webrecon --format json
+  mytools-batch targets.txt recon audit
+  mytools-batch targets.txt all --skip port
+  mytools-batch targets.txt recon -p 3 -o results/
+  mytools-batch targets.txt recon --strict --fail-fast
+  mytools-batch targets.txt recon --format json
 """
 
 import argparse
@@ -23,7 +23,7 @@ import sys
 import time
 import types
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -118,6 +118,17 @@ class TargetResult:
     duration: float = 0.0
 
 
+@dataclass
+class ModuleJob:
+    """Modulo pronto para execucao, com parser e compatibilidade pre-computados."""
+
+    name: str
+    run_fn: Callable[[argparse.Namespace], int]
+    parser: argparse.ArgumentParser
+    compat_url: bool
+    compat_domain: bool
+
+
 # ---------------------------------------------------------------------------
 # Funcoes de suporte
 # ---------------------------------------------------------------------------
@@ -152,36 +163,48 @@ def _detect_target_type(target: str) -> str:
     return "domain"
 
 
-def _is_compatible(target: str, parser: argparse.ArgumentParser) -> bool:
-    """Verifica se o modulo aceita o tipo de target."""
+def _compat_flags(parser: argparse.ArgumentParser) -> tuple[bool, bool]:
+    """Retorna (compat_url, compat_domain) para um modulo.
+
+    Um target de dominio puro (sem esquema) tambem e aceito por modulos que
+    so definem `url`, pois o batch injeta o mesmo valor em `url`/`domain`/
+    `target`. Isso evita que modulos web sejam silenciosamente ignorados.
+    """
     arg_names = {a.dest for a in parser._actions if hasattr(a, "dest")}
-    target_type = _detect_target_type(target)
-    if target_type == "url":
-        return bool({"url", "target", "targets"} & arg_names)
-    return bool({"domain", "target", "targets", "ips"} & arg_names)
+    compat_url = bool({"url", "target", "targets"} & arg_names)
+    compat_domain = bool({"url", "domain", "target", "targets", "ips"} & arg_names)
+    return compat_url, compat_domain
 
 
-def _make_args(
-    extra: dict[str, object],
+def _make_module_args(
+    parser: argparse.ArgumentParser,
     base_ns: argparse.Namespace,
+    extra: dict[str, object],
 ) -> argparse.Namespace:
-    """Cria namespace combinando base_ns com extras do target."""
-    ns = argparse.Namespace(**vars(base_ns))
-    for k, v in extra.items():
-        setattr(ns, k, v)
+    """Cria args por-modulo: defaults do proprio parser primeiro.
+
+    Garante que cada modulo use SEUS defaults (ex. `concurrency` do dirscanner,
+    `user_agent` do webrecon) em vez de um namespace mesclado onde o ultimo
+    modulo registrado sobrescreve dests compartilhados. `base_ns` so preenche
+    dests que o modulo nao declara; `extra` tem a ultima palavra.
+    """
+    ns = argparse.Namespace()
+    for action in parser._actions:
+        if hasattr(action, "dest") and action.default is not argparse.SUPPRESS:
+            setattr(ns, action.dest, action.default)
+    for key, value in vars(base_ns).items():
+        if not hasattr(ns, key):
+            setattr(ns, key, value)
+    for key, value in extra.items():
+        setattr(ns, key, value)
     return ns
-
-
-# ---------------------------------------------------------------------------
-# Base namespace — defaults dos modulos selecionados
-# ---------------------------------------------------------------------------
 
 
 def _get_parser_defaults(module_names: list[str]) -> dict[str, object]:
     """Le defaults so dos modulos selecionados via _actions.
 
     Extrai defaults direto de parser._actions em vez de parse_args([]),
-    que falha em positionais obrigatórios.
+    que falha em positionais obrigatorios.
     """
     defaults: dict[str, object] = {}
     registry = _get_registry()
@@ -192,8 +215,8 @@ def _get_parser_defaults(module_names: list[str]) -> dict[str, object]:
                 for a in mod.build_parser()._actions:
                     if hasattr(a, "dest") and a.default is not argparse.SUPPRESS:
                         defaults[a.dest] = a.default
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao ler defaults de %s: %s", name, exc)
     return defaults
 
 
@@ -210,7 +233,7 @@ def _build_base_ns(
             "output": None,
             "output_dir": getattr(args, "output_dir", None),
             # Logging
-            "quiet": True,
+            "quiet": getattr(args, "quiet", False) or getattr(args, "parallel", 1) > 1,
             "verbose": getattr(args, "verbose", False),
             "log_file": None,
             "color": None,
@@ -256,13 +279,7 @@ def _suppress_stdout() -> Iterator[None]:
 
 def process_target(
     target: str,
-    module_list: list[
-        tuple[
-            str,
-            Callable[[argparse.Namespace], int],
-            Callable[[], argparse.ArgumentParser],
-        ]
-    ],
+    module_jobs: list[ModuleJob],
     base_ns: argparse.Namespace,
     output_dir: str | None,
     timeout: float,
@@ -277,10 +294,10 @@ def process_target(
         target_dir = Path(output_dir) / sanitized
         target_dir.mkdir(parents=True, exist_ok=True)
 
-    for mod_name, run_fn, build_parser_fn in module_list:
-        parser = build_parser_fn()
-        if not _is_compatible(target, parser):
-            logger.info("  %s: incompatible with %s, skipping", mod_name, target)
+    for job in module_jobs:
+        compat_url, compat_domain = job.compat_url, job.compat_domain
+        if not (compat_url if _detect_target_type(target) == "url" else compat_domain):
+            logger.info("  %s: incompatible with %s, skipping", job.name, target)
             continue
 
         extra: dict[str, object] = {"timeout": timeout}
@@ -290,25 +307,44 @@ def process_target(
         extra["targets"] = [target]
         extra["ips"] = [target]
         if target_dir:
-            extra["output"] = str(target_dir / f"{mod_name}.json")
+            extra["output"] = str(target_dir / f"{job.name}.json")
 
-        args = _make_args(extra, base_ns)
+        args = _make_module_args(job.parser, base_ns, extra)
 
-        logger.info("  %s: running...", mod_name)
+        logger.info("  %s: running...", job.name)
         try:
-            code = run_fn(args)
-            result.details[mod_name] = code
+            code = job.run_fn(args)
+            result.details[job.name] = code
             if code == 0:
                 result.success += 1
+            elif code == -1:
+                result.errors += 1
             else:
                 result.vulns += 1
         except Exception as exc:
-            logger.error("  %s: exception: %s", mod_name, exc)
-            result.details[mod_name] = -1
+            logger.error("  %s: exception: %s", job.name, exc)
+            result.details[job.name] = -1
             result.errors += 1
 
     result.duration = time.monotonic() - start
     return result
+
+
+def _run_target_result(
+    future: Future[TargetResult],
+    target: str,
+) -> TargetResult:
+    """Coleta o resultado de um future; erros viram TargetResult de erro."""
+    try:
+        return future.result()
+    except Exception as exc:
+        logger.error("Target %s failed: %s", target, exc)
+        return TargetResult(
+            target=target,
+            sanitized=_sanitize_target(target),
+            errors=1,
+            details={"__init__": -1},
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -331,64 +367,80 @@ def run_batch(args: argparse.Namespace) -> int:
         else [n for n in args.modules if n not in args.skip]
     )
 
-    module_list: list[
-        tuple[
-            str,
-            Callable[[argparse.Namespace], int],
-            Callable[[], argparse.ArgumentParser],
-        ]
-    ] = []
+    # Parser e compatibilidade computados UMA vez por modulo (nao por target).
+    module_jobs: list[ModuleJob] = []
     for name in mod_names:
         mod = _resolve_module(name)
-        module_list.append((name, mod.run_once, mod.build_parser))
+        parser = mod.build_parser()
+        compat_url, compat_domain = _compat_flags(parser)
+        module_jobs.append(
+            ModuleJob(
+                name=name,
+                run_fn=mod.run_once,
+                parser=parser,
+                compat_url=compat_url,
+                compat_domain=compat_domain,
+            ),
+        )
 
     base_ns = _build_base_ns(args, mod_names)
     parallel = getattr(args, "parallel", 1)
 
     ctx = _suppress_stdout() if parallel > 1 else contextlib.nullcontext()
     results: list[TargetResult] = []
+    errors_so_far = 0
+
+    def _run_target(target: str) -> TargetResult:
+        try:
+            return process_target(
+                target, module_jobs, base_ns, args.output_dir, args.timeout
+            )
+        except Exception as exc:
+            logger.error("Target %s failed: %s", target, exc)
+            return TargetResult(
+                target=target,
+                sanitized=_sanitize_target(target),
+                errors=1,
+                details={"__init__": -1},
+            )
 
     with ctx:
         if parallel <= 1:
             for target in targets:
-                if args.fail_fast and results and any(r.errors > 0 for r in results):
+                if args.fail_fast and errors_so_far > 0:
                     break
-                results.append(
-                    process_target(
-                        target,
-                        module_list,
-                        base_ns,
-                        args.output_dir,
-                        args.timeout,
-                    ),
-                )
+                result = _run_target(target)
+                errors_so_far += result.errors
+                results.append(result)
         else:
             with ThreadPoolExecutor(max_workers=parallel) as pool:
-                futures = {
-                    pool.submit(
-                        process_target,
-                        t,
-                        module_list,
-                        base_ns,
-                        args.output_dir,
-                        args.timeout,
-                    ): t
-                    for t in targets
-                }
-                for future in as_completed(futures):
-                    target = futures[future]
-                    try:
-                        results.append(future.result())
-                    except Exception as exc:
-                        logger.error("Target %s failed: %s", target, exc)
-                        results.append(
-                            TargetResult(
-                                target=target,
-                                sanitized=_sanitize_target(target),
-                                errors=1,
-                                details={"__init__": -1},
-                            ),
+                pending: dict = {}
+                target_iter = iter(targets)
+                window = parallel * 2
+
+                def _fill() -> None:
+                    while len(pending) < window:
+                        try:
+                            target = next(target_iter)
+                        except StopIteration:
+                            return
+                        future = pool.submit(
+                            process_target,
+                            target,
+                            module_jobs,
+                            base_ns,
+                            args.output_dir,
+                            args.timeout,
                         )
+                        pending[future] = target
+
+                _fill()
+                while pending:
+                    done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        target = pending.pop(future)
+                        results.append(_run_target_result(future, target))
+                    _fill()
 
     return _print_report(
         results,
@@ -407,7 +459,12 @@ def _print_report(
     strict: bool,
     fmt: str = "text",
 ) -> int:
-    """Imprime relatorio final e retorna exit code."""
+    """Imprime relatorio final e retorna exit code.
+
+    Exit codes: 0 = tudo ok, 1 = erros, 2 = vulns detectadas.
+    `strict` e mantido por compatibilidade (exit 2 agora independe
+    do --strict; a flag nao muda mais o codigo de saida).
+    """
     total_targets = len(results)
     total_success = sum(r.success for r in results)
     total_vulns = sum(r.vulns for r in results)
@@ -466,7 +523,7 @@ def _print_report(
 
     if total_errors > 0:
         return 1
-    if strict and total_vulns > 0:
+    if total_vulns > 0:
         return 2
     return 0
 
@@ -581,15 +638,15 @@ def main() -> int:
             prompt="batch> ",
             run_fn=run_once,
             description="Executa modulos MyTools contra multiplos alvos.",
-            example="targets.txt all --skip portscanner",
+            example="targets.txt all --skip port",
             contextual_help=(
                 "Uso: <arquivo_de_alvos> <modulos> [opcoes]\n"
                 "Exemplos:\n"
-                "  targets.txt webrecon attackaudit\n"
-                "  targets.txt all --skip portscanner\n"
-                "  targets.txt webrecon -p 3 -o results/\n"
-                "  targets.txt webrecon --strict --fail-fast\n"
-                "  targets.txt webrecon --format json --dry-run"
+                "  targets.txt recon audit\n"
+                "  targets.txt all --skip port\n"
+                "  targets.txt recon -p 3 -o results/\n"
+                "  targets.txt recon --strict --fail-fast\n"
+                "  targets.txt recon --format json --dry-run"
             ),
         )
 

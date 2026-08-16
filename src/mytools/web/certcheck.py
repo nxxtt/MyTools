@@ -17,7 +17,7 @@ import logging
 import re
 import socket
 import ssl
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -321,9 +321,11 @@ def _check_ocsp_stapling_raw(host: str, port: int, timeout: float) -> dict[str, 
                         pass
 
                 if ocsp_url:
+                    # A presence of an AIA OCSP responder URL is NOT evidence
+                    # that the server actually staples OCSP responses. Without
+                    # a real OCSP response the status stays "unknown" and
+                    # stapling stays False (see _check_ocsp_stapling_raw caller).
                     result["responder_url"] = ocsp_url
-                    result["stapling"] = True
-                    result["response_status"] = "stapled"
 
             except Exception:
                 pass
@@ -465,8 +467,11 @@ async def _check_hsts_header(url: str, timeout: float) -> dict[str, Any]:
     return result
 
 
-async def _check_chrome_preload(domain: str, timeout: float) -> bool:
-    """Verifica se dominio esta na lista de preload do Chrome."""
+async def _check_chrome_preload(domain: str, timeout: float) -> str:
+    """Verifica se dominio esta na lista de preload do Chrome.
+
+    Retorna "present", "not_present" ou "unknown" (API indisponivel).
+    """
     try:
         import httpx
 
@@ -475,18 +480,20 @@ async def _check_chrome_preload(domain: str, timeout: float) -> bool:
             resp = await client.get(url, params={"domain": domain})
             if resp.status_code == 200:
                 data = resp.json()
-                return data.get("status") == "present"
+                return "present" if data.get("status") == "present" else "not_present"
     except Exception:
         pass
 
-    return domain in _HSTS_PRELOAD_DOMAINS
+    return "unknown"
 
 
 # ─── Mixed Content Helpers ───────────────────────────────────────────────────
 
 
-async def _fetch_page_content(url: str, timeout: float) -> str:
-    """Busca conteudo HTML de pagina HTTPS."""
+async def _fetch_page_content(
+    url: str, timeout: float
+) -> tuple[str, Mapping[str, str]]:
+    """Busca conteudo HTML e headers de resposta de pagina HTTPS."""
     try:
         import httpx
 
@@ -494,9 +501,9 @@ async def _fetch_page_content(url: str, timeout: float) -> str:
             timeout=timeout, verify=False, follow_redirects=True
         ) as client:
             resp = await client.get(url)
-            return resp.text
+            return resp.text, resp.headers
     except Exception:
-        return ""
+        return "", {}
 
 
 def _detect_mixed_content(html: str, base_url: str) -> dict[str, Any]:
@@ -504,8 +511,6 @@ def _detect_mixed_content(html: str, base_url: str) -> dict[str, Any]:
     result: dict[str, Any] = {
         "active_mixed": [],
         "passive_mixed": [],
-        "has_upgrade_insecure": False,
-        "has_csp_upgrade": False,
     }
 
     active_tags = re.findall(
@@ -576,9 +581,11 @@ async def _test_ocsp_stapling(
     for tech, desc in techniques:
         try:
             if tech == "ocsp_stapling_check":
-                vulnerable = not ocsp_info.get("stapling", False)
+                vulnerable = False
                 details = (
-                    f"OCSP Stapling: {'enabled' if not vulnerable else 'not available'}"
+                    "OCSP Stapling: enabled"
+                    if ocsp_info.get("stapling", False)
+                    else "OCSP stapling: sem evidencia de stapling (nao verificado)"
                 )
             elif tech == "ocsp_response_status":
                 status = ocsp_info.get("response_status", "unknown")
@@ -1016,7 +1023,8 @@ async def _test_hsts_preload(
     scheme = "https" if tls else "http"
     url = f"{scheme}://{host}{path}"
     hsts_info = await _check_hsts_header(url, timeout)
-    in_preload = await _check_chrome_preload(host, timeout)
+    preload_status = await _check_chrome_preload(host, timeout)
+    in_preload = preload_status == "present"
 
     techniques = [
         ("hsts_header", "HSTS header present"),
@@ -1042,8 +1050,13 @@ async def _test_hsts_preload(
                 vulnerable = not hsts_info.get("preload", False)
                 details = f"preload: {not vulnerable}"
             elif tech == "chrome_preload_list":
-                vulnerable = not in_preload
-                details = f"In preload list: {not vulnerable}"
+                vulnerable = preload_status == "not_present"
+                if preload_status == "present":
+                    details = "In preload list: True"
+                elif preload_status == "unknown":
+                    details = "Preload status: unknown (API failure)"
+                else:
+                    details = "In preload list: False"
             else:  # pragma: no cover
                 vulnerable = False
                 details = ""
@@ -1132,24 +1145,16 @@ async def _test_mixed_content(
 
     scheme = "https" if tls else "http"
     url = f"{scheme}://{host}{path}"
-    html = await _fetch_page_content(url, timeout)
+    # Reuse a single module fetch for both body and headers, avoiding a second
+    # raw client with different (verify/proxy) settings.
+    html, headers = await _fetch_page_content(url, timeout)
 
     mixed = _detect_mixed_content(html, url)
 
-    try:
-        import httpx
-
-        async with httpx.AsyncClient(
-            timeout=timeout, verify=False, follow_redirects=True
-        ) as client:
-            resp = await client.get(url)
-            upgrade_header = resp.headers.get("upgrade-insecure-requests", "")
-            csp_header = resp.headers.get("content-security-policy", "")
-            has_upgrade = bool(upgrade_header)
-            has_csp_upgrade = "upgrade-insecure-requests" in csp_header
-    except Exception:
-        has_upgrade = False
-        has_csp_upgrade = False
+    upgrade_header = headers.get("upgrade-insecure-requests", "")
+    csp_header = headers.get("content-security-policy", "")
+    has_upgrade = bool(upgrade_header)
+    has_csp_upgrade = "upgrade-insecure-requests" in csp_header
 
     techniques = [
         ("active_mixed", "Active mixed content"),
@@ -1167,11 +1172,19 @@ async def _test_mixed_content(
                 vulnerable = len(mixed["passive_mixed"]) > 0
                 details = f"Found: {len(mixed['passive_mixed'])} passive elements"
             elif tech == "upgrade_insecure":
-                vulnerable = not has_upgrade
-                details = f"Upgrade-Insecure-Requests: {'present' if has_upgrade else 'missing'}"
+                vulnerable = False
+                details = (
+                    "Upgrade-Insecure-Requests: present"
+                    if has_upgrade
+                    else "Upgrade-Insecure-Requests: missing (informational)"
+                )
             elif tech == "csp_upgrade":
-                vulnerable = not has_csp_upgrade
-                details = f"CSP upgrade-insecure: {'present' if has_csp_upgrade else 'missing'}"
+                vulnerable = False
+                details = (
+                    "CSP upgrade-insecure: present"
+                    if has_csp_upgrade
+                    else "CSP upgrade-insecure: missing (informational)"
+                )
             else:  # pragma: no cover
                 vulnerable = False
                 details = ""

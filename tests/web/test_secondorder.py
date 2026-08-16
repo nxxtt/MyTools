@@ -169,6 +169,27 @@ class TestVerifyPositive:
             assert confirmed is True
             assert found == "56"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_custom_timeout_forwarded(self) -> None:
+        respx.get("https://example.com/?param=whoami").mock(
+            return_value=httpx.Response(200, text="www-data"),
+        )
+        async with httpx.AsyncClient() as client:
+            confirmed, _found = await verify_positive(
+                client,
+                "https://example.com/?param=whoami",
+                [b"www-data"],
+                timeout=3.5,
+            )
+            assert confirmed is True
+        assert respx.calls[0].request.extensions["timeout"] == {
+            "connect": 3.5,
+            "read": 3.5,
+            "write": 3.5,
+            "pool": 3.5,
+        }
+
 
 # ---------------------------------------------------------------------------
 # VERIFY_PAYLOADS structure

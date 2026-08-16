@@ -618,6 +618,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         return 0
 
     all_specs: list[ApiSpecInfo] = []
+    single_target = len(urls) == 1
     for url in urls:
         base_url = normalize_url(
             url, default_scheme="https", ensure_trailing_slash=True
@@ -632,12 +633,13 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             user_agent=args.user_agent,
             proxy=args.proxy,
             verify=getattr(args, "verify", False),
-            requests_per_second=args.delay,
+            requests_per_second=1.0 / args.delay if args.delay else 0.0,
             retries=args.retries,
         )
 
         if getattr(args, "json_output", False):
-            print_json([asdict(s) for s in specs])
+            if not quiet and not single_target:
+                print_json([asdict(s) for s in specs])
         elif not quiet:
             print_api_summary(specs)
             if args.show_endpoints:
@@ -668,7 +670,8 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             )
 
     if getattr(args, "json_output", False):
-        print_json([asdict(s) for s in all_specs])
+        if not quiet:
+            print_json([asdict(s) for s in all_specs])
     elif args.output:
         write_output(
             args.output,

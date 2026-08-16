@@ -274,7 +274,7 @@ backend_libraries:
     cookies: ['connect.sid']
     error_patterns: ['at Layer.handle', 'at Router.handle']
     manifest_paths: ['/package.json']
-    manifest_key_pattern: '"express":\s*"(\\^?\\d+\\.\\d+\\.\\d+)"'
+    manifest_key_pattern: '"express":\s*"([~^]?\d+\.\d+\.\d+)"'
     latest_known: "4.21.0"
     cves:
       - id: "CVE-2024-29041"

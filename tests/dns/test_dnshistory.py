@@ -482,6 +482,35 @@ class TestRunOnce:
             result = run_once(args)
         assert result == 0
 
+    def test_quiet_skips_printing(self, capsys):
+        args = argparse.Namespace(
+            domain="example.com",
+            source=None,
+            dnslytics_key=None,
+            st_api_key=None,
+            viewdns_key=None,
+            record_types=None,
+            timeout=5.0,
+            dry_run=False,
+            output=None,
+            verbose=False,
+            quiet=True,
+            color=None,
+            log_file=None,
+        )
+        with (
+            patch(
+                "mytools.dns.dnshistory.run_history",
+                return_value=[
+                    DnsHistoryRecord(record_type="a", value="1.2.3.4", source="test"),
+                ],
+            ),
+            patch("mytools.dns.dnshistory._print_history") as mock_print,
+        ):
+            result = run_once(args)
+        assert result == 0
+        mock_print.assert_not_called()
+
     def test_dry_run(self, caplog):
         args = argparse.Namespace(
             domain="example.com",
@@ -602,15 +631,16 @@ class TestMain:
             assert result == 0
             mock_loop.assert_called_once()
 
-    def test_valid_domain_calls_run_once(self):
-        with patch("mytools.dns.dnshistory.run_main_loop"):
+    def test_valid_domain_calls_run_main_loop(self):
+        with patch("mytools.dns.dnshistory.run_main_loop", return_value=0) as mock_loop:
             with patch("mytools.dns.dnshistory.run_once", return_value=0) as mock_run:
                 from mytools.dns.dnshistory import main
 
                 with patch("sys.argv", ["mytools-dnshistory", "example.com"]):
                     result = main()
             assert result == 0
-            mock_run.assert_called_once()
+            mock_loop.assert_called_once()
+            mock_run.assert_not_called()
 
     def test_main_guard(self):
         with (

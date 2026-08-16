@@ -515,6 +515,43 @@ class TestScanRebinding:
             severity="high",
             detail="CNAME chain",
         )
+        mock_wildcard.return_value = None
+        mock_flip.return_value = RebindingResult(
+            domain="example.com",
+            check="ip_flip",
+            severity="critical",
+            detail="IP flip",
+        )
+
+        results = scan_rebinding("example.com")
+        checks = {r.check for r in results}
+        assert {"ttl", "cname_chain", "ip_flip"} <= checks
+
+    @patch("mytools.dns.dnsrebinding._check_ip_flip")
+    @patch("mytools.dns.dnsrebinding._check_wildcard")
+    @patch("mytools.dns.dnsrebinding._check_cname_chain")
+    @patch("mytools.dns.dnsrebinding._check_private_ips")
+    @patch("mytools.dns.dnsrebinding._check_ttl")
+    @patch("mytools.dns.dnsrebinding.dns.resolver.Resolver")
+    def test_wildcard_short_circuits_ip_flip(
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_ttl: MagicMock,
+        mock_private: MagicMock,
+        mock_cname: MagicMock,
+        mock_wildcard: MagicMock,
+        mock_flip: MagicMock,
+    ) -> None:
+        mock_resolver = MagicMock()
+        mock_resolver_cls.return_value = mock_resolver
+        mock_answers = MagicMock()
+        mock_answers.rrset.ttl = 3600
+        mock_answers.__iter__ = MagicMock(return_value=iter([]))
+        mock_resolver.resolve.return_value = mock_answers
+
+        mock_ttl.return_value = None
+        mock_private.return_value = []
+        mock_cname.return_value = None
         mock_wildcard.return_value = RebindingResult(
             domain="example.com",
             check="wildcard",
@@ -530,7 +567,9 @@ class TestScanRebinding:
 
         results = scan_rebinding("example.com")
         checks = {r.check for r in results}
-        assert {"ttl", "cname_chain", "wildcard", "ip_flip"} <= checks
+        assert "wildcard" in checks
+        assert "ip_flip" not in checks
+        mock_flip.assert_not_called()
 
 
 def _make_args(**overrides: object) -> argparse.Namespace:
@@ -628,6 +667,42 @@ class TestAsyncRunOnce:
         ):
             result = await _async_run_once(args)
         assert result == 0
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_json_output(self) -> None:
+        args = _make_args(json_output=True)
+        mock_result = RebindingResult(
+            domain="example.com", check="ttl", severity="low", detail="TTL baixo"
+        )
+        with (
+            patch(
+                "mytools.dns.dnsrebinding.scan_rebinding", return_value=[mock_result]
+            ),
+            patch("mytools.dns.dnsrebinding.print_json") as mock_json,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        mock_json.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_output_dir(self) -> None:
+        args = _make_args(output_dir="reports")
+        mock_result = RebindingResult(
+            domain="example.com", check="ttl", severity="low", detail="TTL baixo"
+        )
+        with (
+            patch(
+                "mytools.dns.dnsrebinding.scan_rebinding", return_value=[mock_result]
+            ),
+            patch(
+                "mytools.dns.dnsrebinding.ensure_output_dir"
+            ) as mock_ensure,
+            patch("mytools.dns.dnsrebinding.write_output") as mock_write,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        mock_ensure.assert_called_once_with("reports")
         mock_write.assert_called_once()
 
 

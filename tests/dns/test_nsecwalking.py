@@ -2,15 +2,22 @@
 """Testes unitarios do modulo de NSEC Walking."""
 
 import argparse
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import dns.exception
+import dns.flags
+import dns.message
+import dns.name
+import dns.rcode
 import dns.resolver
+import dns.rrset
 import pytest
 
 from mytools.dns.nsecwalking import (
     NsecEntry,
     NsecResult,
+    _iter_nsec_rrs,
     _parse_nsec_types,
     _query_nsec,
     _random_label,
@@ -201,6 +208,13 @@ class TestScanNsec:
         assert result.zone_enumerated is False
         mock_query.assert_not_called()
 
+    @patch("mytools.dns.nsecwalking._query_nsec")
+    def test_reaches_domain_breaks(self, mock_query: MagicMock) -> None:
+        mock_query.return_value = ("x.example.com", "example.com", ["A"], False)
+        result = scan_nsec("example.com", max_hops=5)
+        assert result.total_names == 1
+        assert result.hops_used == 1
+
 
 class TestParseNsecTypesAdditional:
     """Cobertura adicional dos branches de _parse_nsec_types."""
@@ -236,6 +250,55 @@ class TestParseNsecTypesAdditional:
             result = _parse_nsec_types("A NS SOA")
         assert "A" in result
         assert "NS" in result
+
+    def test_windows_iteration_raises(self) -> None:
+        class BadWindows:
+            windows: ClassVar[list[int]] = [1]
+
+            def __iter__(self) -> None:
+                raise RuntimeError("boom")
+
+        result = _parse_nsec_types(BadWindows())
+        assert isinstance(result, list)
+
+    def test_windows_decoding_success(self) -> None:
+        class GoodWindows:
+            windows: ClassVar[list[tuple[int, bytes]]] = [(0, b"\x40")]
+
+        result = _parse_nsec_types(GoodWindows())
+        assert "A" in result
+
+
+class TestIterNsecRrs:
+    """Testes da funcao _iter_nsec_rrs."""
+
+    def test_none_rrsets(self) -> None:
+        assert list(_iter_nsec_rrs(None, dns.rdatatype.NSEC)) == []
+
+    def test_empty_rrsets(self) -> None:
+        assert list(_iter_nsec_rrs([], dns.rdatatype.NSEC)) == []
+
+    def test_matching_rdtype(self) -> None:
+        rrset = MagicMock()
+        rrset.rdtype = dns.rdatatype.NSEC
+        rrset.__iter__.return_value = iter(["rr1", "rr2"])
+        result = list(_iter_nsec_rrs([rrset], dns.rdatatype.NSEC))
+        assert result == ["rr1", "rr2"]
+
+    def test_non_matching_rdtype(self) -> None:
+        rrset = MagicMock()
+        rrset.rdtype = dns.rdatatype.A
+        result = list(_iter_nsec_rrs([rrset], dns.rdatatype.NSEC))
+        assert result == []
+
+    def test_mixed_rrsets(self) -> None:
+        a = MagicMock()
+        a.rdtype = dns.rdatatype.A
+        nsec = MagicMock()
+        nsec.rdtype = dns.rdatatype.NSEC
+        nsec.__iter__.return_value = iter(["only"])
+        result = list(_iter_nsec_rrs([a, nsec], dns.rdatatype.NSEC))
+        assert result == ["only"]
 
 
 class TestQueryNsec:
@@ -316,6 +379,71 @@ class TestQueryNsec:
             [dns.resolver.NXDOMAIN(), RuntimeError("x")]
         )
         _name, next_name, _types, _is_nsec3 = _query_nsec("example.com", "8.8.8.8", 3.0)
+        assert next_name == ""
+
+    @patch("mytools.dns.nsecwalking.dns.resolver.Resolver")
+    def test_nxdomain_reads_authority_nsec(self, mock_cls: MagicMock) -> None:
+        qname = dns.name.from_text("abc.example.com")
+        msg = dns.message.make_response(dns.message.make_query(qname, "NSEC"))
+        msg.set_rcode(dns.rcode.NXDOMAIN)
+        msg.flags |= dns.flags.AA
+        rrset = dns.rrset.from_text(
+            dns.name.from_text("zzz.example.com"),
+            3600,
+            "IN",
+            "NSEC",
+            "aaa.example.com A NS SOA RRSIG NSEC DNSKEY",
+        )
+        msg.authority.append(rrset)
+        exc = dns.resolver.NXDOMAIN(qnames=[qname], responses={qname: msg})
+        mock_cls.return_value = self._mock_resolver(exc)
+
+        _name, next_name, types, is_nsec3 = _query_nsec(
+            "example.com", "8.8.8.8", 3.0, query_name="abc.example.com"
+        )
+        assert next_name.rstrip(".") == "aaa.example.com"
+        assert is_nsec3 is False
+        assert "A" in types
+        mock_cls.return_value.resolve.assert_called_once()
+
+    @patch("mytools.dns.nsecwalking.dns.resolver.Resolver")
+    def test_nxdomain_reads_authority_nsec3(self, mock_cls: MagicMock) -> None:
+        qname = dns.name.from_text("abc.example.com")
+        msg = dns.message.make_response(dns.message.make_query(qname, "NSEC"))
+        msg.set_rcode(dns.rcode.NXDOMAIN)
+        msg.flags |= dns.flags.AA
+        nsec3_rr = MagicMock()
+        nsec3_rr.next_hashed = "HASH123"
+        nsec3_rrset = MagicMock()
+        nsec3_rrset.rdtype = dns.rdatatype.NSEC3
+        nsec3_rrset.__iter__.return_value = iter([nsec3_rr])
+        msg.authority.append(nsec3_rrset)
+        exc = dns.resolver.NXDOMAIN(qnames=[qname], responses={qname: msg})
+        mock_cls.return_value = self._mock_resolver(exc)
+
+        _name, next_name, _types, is_nsec3 = _query_nsec(
+            "example.com", "8.8.8.8", 3.0, query_name="abc.example.com"
+        )
+        assert is_nsec3 is True
+        assert next_name == "HASH123"
+
+    @patch("mytools.dns.nsecwalking.dns.resolver.Resolver")
+    def test_nxdomain_authority_no_nsec_falls_back(
+        self, mock_cls: MagicMock
+    ) -> None:
+        qname = dns.name.from_text("abc.example.com")
+        msg = dns.message.make_response(dns.message.make_query(qname, "NSEC"))
+        msg.set_rcode(dns.rcode.NXDOMAIN)
+        msg.flags |= dns.flags.AA
+        a_rrset = MagicMock()
+        a_rrset.rdtype = dns.rdatatype.A
+        msg.authority.append(a_rrset)
+        exc = dns.resolver.NXDOMAIN(qnames=[qname], responses={qname: msg})
+        mock_cls.return_value = self._mock_resolver(exc)
+
+        _name, next_name, _types, _is_nsec3 = _query_nsec(
+            "example.com", "8.8.8.8", 3.0, query_name="abc.example.com"
+        )
         assert next_name == ""
 
     @patch("mytools.dns.nsecwalking.dns.resolver.Resolver")
@@ -465,7 +593,7 @@ class TestRunOnce:
             hops_used=1,
         )
         mock_scan.return_value = result
-        assert run_once(_make_run_once_args()) == 0
+        assert run_once(_make_run_once_args()) == 1
         mock_scan.assert_called_once_with(
             domain="example.com",
             nameserver="8.8.8.8",
@@ -473,6 +601,59 @@ class TestRunOnce:
             timeout=3.0,
         )
         mock_print.assert_called_once_with(result)
+
+    @patch("mytools.dns.nsecwalking.print_json")
+    @patch("mytools.dns.nsecwalking.print_results")
+    @patch("mytools.dns.nsecwalking.scan_nsec")
+    @patch("mytools.dns.nsecwalking.init_scanner", return_value=False)
+    def test_json_output(
+        self,
+        mock_init: MagicMock,
+        mock_scan: MagicMock,
+        mock_print: MagicMock,
+        mock_json: MagicMock,
+    ) -> None:
+        result = NsecResult(
+            domain="example.com",
+            names_found=["a.example.com"],
+            total_names=1,
+            has_nsec3=False,
+            zone_enumerated=True,
+            entries=[],
+            max_hops=100,
+            hops_used=1,
+        )
+        mock_scan.return_value = result
+        assert run_once(_make_run_once_args(json_output=True)) == 1
+        mock_json.assert_called_once()
+
+    @patch("mytools.dns.nsecwalking.ensure_output_dir")
+    @patch("mytools.dns.nsecwalking.write_output")
+    @patch("mytools.dns.nsecwalking.print_results")
+    @patch("mytools.dns.nsecwalking.scan_nsec")
+    @patch("mytools.dns.nsecwalking.init_scanner", return_value=False)
+    def test_output_dir(
+        self,
+        mock_init: MagicMock,
+        mock_scan: MagicMock,
+        mock_print: MagicMock,
+        mock_write: MagicMock,
+        mock_ensure: MagicMock,
+    ) -> None:
+        result = NsecResult(
+            domain="example.com",
+            names_found=["a.example.com"],
+            total_names=1,
+            has_nsec3=False,
+            zone_enumerated=True,
+            entries=[],
+            max_hops=100,
+            hops_used=1,
+        )
+        mock_scan.return_value = result
+        assert run_once(_make_run_once_args(output_dir="reports")) == 1
+        mock_ensure.assert_called_once_with("reports")
+        mock_write.assert_called_once()
 
     @patch("mytools.dns.nsecwalking.write_output")
     @patch("mytools.dns.nsecwalking.print_results")
@@ -498,6 +679,28 @@ class TestRunOnce:
         mock_scan.return_value = result
         assert run_once(_make_run_once_args(output="out.json")) == 0
         mock_write.assert_called_once()
+
+    @patch("mytools.dns.nsecwalking.print_results")
+    @patch("mytools.dns.nsecwalking.scan_nsec")
+    @patch("mytools.dns.nsecwalking.init_scanner", return_value=False)
+    def test_safe_zone_returns_zero(
+        self,
+        mock_init: MagicMock,
+        mock_scan: MagicMock,
+        mock_print: MagicMock,
+    ) -> None:
+        result = NsecResult(
+            domain="example.com",
+            names_found=[],
+            total_names=0,
+            has_nsec3=True,
+            zone_enumerated=False,
+            entries=[],
+            max_hops=100,
+            hops_used=0,
+        )
+        mock_scan.return_value = result
+        assert run_once(_make_run_once_args()) == 0
 
     @patch("mytools.dns.nsecwalking.write_output")
     @patch("mytools.dns.nsecwalking.print_results")

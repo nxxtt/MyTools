@@ -22,6 +22,9 @@ Fluxo:
 import argparse
 import datetime
 import logging
+import random
+import string
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 
 import dns.dnssec
@@ -37,8 +40,10 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -96,10 +101,11 @@ class DnssecResult:
 
 def _check_dnskey(
     domain: str, resolver: dns.resolver.Resolver
-) -> tuple[bool, list[DnssecCheck]]:
+) -> tuple[bool, list[DnssecCheck], set[int]]:
     """Verifica registros DNSKEY."""
     checks: list[DnssecCheck] = []
     has_dnskey = False
+    algorithms: set[int] = set()
 
     try:
         answer = resolver.resolve(domain, "DNSKEY")
@@ -107,7 +113,9 @@ def _check_dnskey(
 
         zsk_count = 0
         ksk_count = 0
-        algorithms = set()
+
+        zsk_count = 0
+        ksk_count = 0
 
         for rr in answer:
             flags = rr.flags
@@ -204,7 +212,7 @@ def _check_dnskey(
             )
         )
 
-    return has_dnskey, checks
+    return has_dnskey, checks, algorithms
 
 
 def _check_ds(
@@ -268,25 +276,47 @@ def _check_ds(
     return has_ds, checks
 
 
+def _extract_rrsigs(answer: object) -> list:
+    """Extrai registros RRSIG da secao de resposta de uma query.
+
+    QTYPE=RRSIG nao e valido para resolvers recursivos (SERVFAIL), entao os
+    RRSIGs devem ser obtidos da secao ANSWER de uma query a um tipo real
+    (ex.: SOA), quando o bit DNSSEC OK (DO) esta habilitado.
+    """
+    response = getattr(answer, "response", None)
+    rrsigs: list = []
+    if response is not None:
+        for rrset in getattr(response, "answer", []) or []:
+            if rrset.rdtype == dns.rdatatype.RRSIG:
+                rrsigs.extend(rrset)
+    elif answer is not None and isinstance(answer, Iterable):
+        rrsigs.extend(answer)
+    return rrsigs
+
+
 def _check_rrsig(
     domain: str, resolver: dns.resolver.Resolver
 ) -> tuple[bool, list[DnssecCheck]]:
-    """Verifica registros RRSIG (assinaturas)."""
+    """Verifica registros RRSIG (assinaturas).
+
+    Consulta o SOA da zona e extrai os RRSIGs da secao ANSWER, pois a query
+    direta QTYPE=RRSIG falha (SERVFAIL) em resolvers recursivos.
+    """
     checks: list[DnssecCheck] = []
     has_rrsig = False
 
     try:
-        answer = resolver.resolve(domain, "RRSIG")
-        has_rrsig = True
+        answer = resolver.resolve(domain, "SOA")
+        rrsigs = _extract_rrsigs(answer)
+        has_rrsig = bool(rrsigs)
 
         now = datetime.datetime.now(datetime.UTC)
         expired = 0
         valid = 0
 
-        for rr in answer:
+        for rr in rrsigs:
             try:
-                expiry = rr.expiration
-                exp_ts = dns.dnssec.to_timestamp(expiry)
+                exp_ts = dns.dnssec.to_timestamp(rr.expiration)
                 exp_dt = datetime.datetime.fromtimestamp(exp_ts, tz=datetime.UTC)
                 if exp_dt < now:
                     expired += 1
@@ -295,7 +325,16 @@ def _check_rrsig(
             except Exception:
                 valid += 1
 
-        if expired > 0:
+        if not has_rrsig:
+            checks.append(
+                DnssecCheck(
+                    check="rrsig",
+                    status="missing",
+                    detail="Nenhum RRSIG — zona nao assinada",
+                    severity="high",
+                )
+            )
+        elif expired > 0:
             checks.append(
                 DnssecCheck(
                     check="rrsig_expiry",
@@ -319,7 +358,7 @@ def _check_rrsig(
             DnssecCheck(
                 check="rrsig",
                 status="missing",
-                detail="Nenhum registro RRSIG — zona nao assinada",
+                detail="Nenhum RRSIG — zona nao assinada",
                 severity="high",
             )
         )
@@ -354,57 +393,67 @@ def _check_rrsig(
     return has_rrsig, checks
 
 
-def _check_nsec(domain: str, resolver: dns.resolver.Resolver) -> list[DnssecCheck]:
+def _random_label(length: int = 12) -> str:
+    """Gera label aleatorio para sondar nomes inexistentes."""
+    return "".join(random.choices(string.ascii_lowercase, k=length))
+
+
+def _zone_uses_nsec(domain: str, resolver: object) -> bool:
+    """Detecta NSEC via probe NXDOMAIN (cobrindo o nome inexistente)."""
+    probe = f"{_random_label()}.{domain}"
+    try:
+        resolver.resolve(probe, "A")  # type: ignore[attr-defined]
+    except dns.resolver.NXDOMAIN as exc:
+        try:
+            response = exc.response(dns.name.from_text(probe))
+        except Exception:
+            response = None
+        return any(
+            rrset.rdtype == dns.rdatatype.NSEC
+            for rrset in getattr(response, "authority", []) or []
+        )
+    except dns.exception.DNSException:
+        return False
+    return False
+
+
+def _zone_uses_nsec3(domain: str, resolver: object) -> bool:
+    """Detecta NSEC3 via NSEC3PARAM no apex."""
+    try:
+        answer = resolver.resolve(domain, "NSEC3PARAM")  # type: ignore[attr-defined]
+        return len(list(answer)) > 0
+    except dns.exception.DNSException:
+        return False
+
+
+def _check_nsec(domain: str, resolver: object) -> list[DnssecCheck]:
     """Verifica registros NSEC/NSEC3."""
     checks: list[DnssecCheck] = []
 
-    try:
-        answer = resolver.resolve(domain, "NSEC")
-        nsec_count = len(list(answer))
+    if _zone_uses_nsec(domain, resolver):
         checks.append(
             DnssecCheck(
                 check="nsec",
                 status="pass",
-                detail=f"{nsec_count} NSEC record(s) encontrado(s)",
+                detail="NSEC record(s) encontrado(s)",
                 severity="low",
             )
         )
-    except dns.resolver.NoAnswer:
-        try:
-            answer = resolver.resolve(domain, "NSEC3")
-            nsec3_count = len(list(answer))
-            checks.append(
-                DnssecCheck(
-                    check="nsec3",
-                    status="pass",
-                    detail=f"{nsec3_count} NSEC3 record(s) encontrado(s)",
-                    severity="low",
-                )
+    elif _zone_uses_nsec3(domain, resolver):
+        checks.append(
+            DnssecCheck(
+                check="nsec3",
+                status="pass",
+                detail="NSEC3 record(s) encontrado(s) via NSEC3PARAM",
+                severity="low",
             )
-        except dns.resolver.NoAnswer:
-            checks.append(
-                DnssecCheck(
-                    check="nsec",
-                    status="missing",
-                    detail="Nenhum NSEC/NSEC3 encontrado",
-                    severity="low",
-                )
-            )
-        except dns.exception.DNSException:
-            checks.append(
-                DnssecCheck(
-                    check="nsec3",
-                    status="fail",
-                    detail="Erro ao consultar NSEC3",
-                    severity="low",
-                )
-            )
-    except dns.exception.DNSException:
+        )
+    else:
         checks.append(
             DnssecCheck(
                 check="nsec",
-                status="fail",
-                detail="Erro ao consultar NSEC",
+                status="missing",
+                detail="Nenhum NSEC/NSEC3 encontrado",
                 severity="low",
             )
         )
@@ -412,23 +461,15 @@ def _check_nsec(domain: str, resolver: dns.resolver.Resolver) -> list[DnssecChec
     return checks
 
 
-def _evaluate_algorithm_strength(domain: str, resolver: dns.resolver.Resolver) -> str:
+def _evaluate_algorithm_strength(algorithms: set[int]) -> str:
     """Avalia a forca dos algoritmos DNSSEC."""
-    try:
-        answer = resolver.resolve(domain, "DNSKEY")
-        algorithms = set()
-        for rr in answer:
-            algorithms.add(rr.algorithm)
-
-        if algorithms & STRONG_ALGORITHMS:
-            return "strong"
-        if algorithms & MEDIUM_ALGORITHMS:
-            return "medium"
-        if algorithms & WEAK_ALGORITHMS:
-            return "weak"
-        return "unknown"
-    except Exception:
-        return "unknown"
+    if algorithms & STRONG_ALGORITHMS:
+        return "strong"
+    if algorithms & MEDIUM_ALGORITHMS:
+        return "medium"
+    if algorithms & WEAK_ALGORITHMS:
+        return "weak"
+    return "unknown"
 
 
 def scan_dnssec(
@@ -441,10 +482,11 @@ def scan_dnssec(
     resolver.nameservers = [nameserver]
     resolver.timeout = timeout
     resolver.lifetime = timeout
+    resolver.use_edns(edns=0, ednsflags=dns.flags.DO, payload=1232)
 
     all_checks: list[DnssecCheck] = []
 
-    has_dnskey, dnskey_checks = _check_dnskey(domain, resolver)
+    has_dnskey, dnskey_checks, dnskey_algorithms = _check_dnskey(domain, resolver)
     all_checks.extend(dnskey_checks)
 
     has_ds, ds_checks = _check_ds(domain, resolver)
@@ -456,7 +498,7 @@ def scan_dnssec(
     nsec_checks = _check_nsec(domain, resolver)
     all_checks.extend(nsec_checks)
 
-    algo_strength = _evaluate_algorithm_strength(domain, resolver)
+    algo_strength = _evaluate_algorithm_strength(dnskey_algorithms)
 
     if algo_strength == "weak":
         all_checks.append(
@@ -625,6 +667,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _is_valid_nameserver(value: str) -> bool:
+    """Valida se o valor parece um hostname ou endereco IP plausivel."""
+    value = value.strip()
+    if not value or len(value) > 253:
+        return False
+    if any(ch.isspace() for ch in value):
+        return False
+    if value[0] in ".-" or value[-1] in ".-":
+        return False
+    return all(ch.isalnum() or ch in ".-:" for ch in value)
+
+
 async def _async_run_once(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
     quiet = init_scanner(args)
@@ -632,6 +686,13 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     domain = getattr(args, "domain", None)
     if not domain:
         print(color("[!] Informe um dominio.", Cyber.RED))
+        return 1
+
+    if not _is_valid_nameserver(args.nameserver):
+        logger.error(
+            "Nameserver invalido: %r. Use um hostname ou endereco IP valido.",
+            args.nameserver,
+        )
         return 1
 
     if getattr(args, "dry_run", False):
@@ -655,6 +716,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not quiet:
         print_results(result)
 
+    if getattr(args, "json_output", False):
+        print_json([asdict(result)])
+
     if args.output:
         write_output(
             args.output,
@@ -672,7 +736,29 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             ],
             quiet=quiet,
         )
-    return 0
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(result)],
+            [
+                "domain",
+                "nameserver",
+                "is_signed",
+                "has_ds",
+                "has_dnskey",
+                "has_rrsig",
+                "chain_valid",
+                "algorithm_strength",
+                "overall_status",
+            ],
+            quiet=quiet,
+        )
+
+    # Ausencia de DNSSEC ou cadeia quebrada indica exposicao.
+    return 1 if result.overall_status != "secure" else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

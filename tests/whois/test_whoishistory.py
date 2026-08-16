@@ -122,6 +122,28 @@ class TestParseSecurityTrails:
         result = _parse_securitytrails(json.dumps(data).encode(), "example.com")
         assert result[0].registrar == "GoDaddy"
 
+    def test_null_result(self):
+        data = {"result": None}
+        result = _parse_securitytrails(json.dumps(data).encode(), "example.com")
+        assert result == []
+
+    def test_null_items(self):
+        data = {"result": {"items": None}}
+        result = _parse_securitytrails(json.dumps(data).encode(), "example.com")
+        assert result == []
+
+    def test_null_name_servers(self):
+        data = {"result": {"items": [{"nameServers": None}]}}
+        result = _parse_securitytrails(json.dumps(data).encode(), "example.com")
+        assert len(result) == 1
+        assert result[0].name_servers == ""
+
+    def test_null_contact(self):
+        data = {"result": {"items": [{"contact": None}]}}
+        result = _parse_securitytrails(json.dumps(data).encode(), "example.com")
+        assert len(result) == 1
+        assert result[0].registrant_name == ""
+
 
 class TestParseWhoisxml:
     def test_extracts_record(self):
@@ -165,6 +187,17 @@ class TestParseWhoisxml:
         data = {"records": [{"registrarName": "MarkMonitor Inc."}]}
         result = _parse_whoisxml(json.dumps(data).encode(), "example.com")
         assert result[0].date == ""
+
+    def test_null_name_servers(self):
+        data = {"records": [{"nameServers": None}]}
+        result = _parse_whoisxml(json.dumps(data).encode(), "example.com")
+        assert len(result) == 1
+        assert result[0].name_servers == ""
+
+    def test_null_records(self):
+        data = {"records": None}
+        result = _parse_whoisxml(json.dumps(data).encode(), "example.com")
+        assert result == []
 
 
 class TestQuerySource:
@@ -340,6 +373,37 @@ class TestQuerySource:
         assert len(result) == 2
         assert result[0].date == "2023-01-01"
 
+    @pytest.mark.asyncio
+    async def test_dedup_keeps_distinct_registrants(self):
+        from mytools.whois.whoishistory import _query_all_sources
+
+        rec1 = WhoisHistoryRecord(
+            domain="example.com",
+            date="2024-01-01",
+            registrar="GoDaddy",
+            registrant_org="Acme",
+            source="securitytrails",
+        )
+        rec2 = WhoisHistoryRecord(
+            domain="example.com",
+            date="2024-01-01",
+            registrar="GoDaddy",
+            registrant_org="Globex",
+            source="whoisxml",
+        )
+        with patch(
+            "mytools.whois.whoishistory._query_source",
+            new_callable=AsyncMock,
+        ) as mock_q:
+            mock_q.return_value = [rec1, rec2]
+            result = await _query_all_sources(
+                "example.com",
+                ["securitytrails", "whoisxml"],
+                {"securitytrails": "k1", "whoisxml": "k2"},
+                10.0,
+            )
+        assert len(result) == 2
+
 
 class TestRunHistory:
     def test_returns_empty_with_no_sources(self):
@@ -452,6 +516,84 @@ class TestRunOnce:
         ):
             run_once(args)
         mock_write.assert_called_once()
+
+    def test_json_output_prints_json(self, capsys):
+        record = WhoisHistoryRecord(
+            domain="example.com",
+            date="2024-01-01",
+            registrar="GoDaddy",
+            source="securitytrails",
+        )
+        args = self._make_args(json_output=True)
+        with (
+            patch(
+                "mytools.whois.whoishistory.run_history",
+                return_value=[record],
+            ),
+            patch("mytools.whois.whoishistory.init_scanner", return_value=False),
+        ):
+            result = run_once(args)
+        assert result == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data == [
+            {
+                "domain": "example.com",
+                "date": "2024-01-01",
+                "registrar": "GoDaddy",
+                "registrant_name": "",
+                "registrant_org": "",
+                "registrant_country": "",
+                "name_servers": "",
+                "status": "",
+                "created_date": "",
+                "expires_date": "",
+                "updated_date": "",
+                "source": "securitytrails",
+            }
+        ]
+
+    def test_quiet_suppresses_table(self, capsys):
+        args = self._make_args(quiet=True)
+        with (
+            patch("mytools.whois.whoishistory.run_history", return_value=[]),
+            patch("mytools.whois.whoishistory.init_scanner", return_value=True),
+        ):
+            result = run_once(args)
+        assert result == 0
+        assert capsys.readouterr().out == ""
+
+    def test_not_quiet_prints_table(self, capsys):
+        record = WhoisHistoryRecord(
+            domain="example.com",
+            date="2024-01-01",
+            registrar="GoDaddy",
+            source="securitytrails",
+        )
+        args = self._make_args()
+        with (
+            patch(
+                "mytools.whois.whoishistory.run_history",
+                return_value=[record],
+            ),
+            patch("mytools.whois.whoishistory.init_scanner", return_value=False),
+        ):
+            result = run_once(args)
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "GoDaddy" in out
+
+    def test_quiet_output_writes_with_quiet(self, tmp_path):
+        out = str(tmp_path / "whois.json")
+        args = self._make_args(quiet=True, output=out)
+        with (
+            patch("mytools.whois.whoishistory.run_history", return_value=[]),
+            patch("mytools.whois.whoishistory.init_scanner", return_value=True),
+            patch("mytools.whois.whoishistory.write_output") as mock_write,
+        ):
+            result = run_once(args)
+        assert result == 0
+        mock_write.assert_called_once()
+        assert mock_write.call_args.kwargs["quiet"] is True
 
 
 class TestPrintHistory:

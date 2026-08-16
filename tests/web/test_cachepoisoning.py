@@ -274,7 +274,7 @@ class TestCheckCacheResponse:
     """Testes para _check_cache_response."""
 
     def test_cache_hit_detected(self) -> None:
-        assert _check_cache_response(b"ok", 200, {"x-cache": "HIT"}, ["HIT"])
+        assert _check_cache_response(b"evil.com", 200, {"x-cache": "HIT"}, ["evil.com"])
 
     def test_not_detected(self) -> None:
         assert not _check_cache_response(b"error 404", 200, {}, ["evil.com"])
@@ -285,11 +285,24 @@ class TestCheckCacheResponse:
     def test_case_insensitive(self) -> None:
         assert _check_cache_response(b"HIT", 200, {"x-cache": "HIT"}, ["hit"])
 
-    def test_header_match(self) -> None:
-        assert _check_cache_response(b"", 200, {"x-cache": "HIT"}, ["x-cache"])
+    def test_header_match_only_is_not_enough(self) -> None:
+        assert not _check_cache_response(b"", 200, {"x-cache": "HIT"}, ["x-cache"])
 
     def test_empty_body(self) -> None:
         assert not _check_cache_response(b"", 200, {}, ["evil.com"])
+
+    def test_cache_header_without_hit_not_vulnerable(self) -> None:
+        assert not _check_cache_response(
+            b"evil.com", 200, {"x-cache": "MISS"}, ["evil.com"]
+        )
+
+    def test_body_match_without_cache_hit_not_vulnerable(self) -> None:
+        assert not _check_cache_response(b"evil.com", 200, {}, ["evil.com"])
+
+    def test_via_hit_counts(self) -> None:
+        assert _check_cache_response(
+            b"evil.com", 200, {"via": "1.1 cache.hit"}, ["evil.com"]
+        )
 
 
 class TestTestBaseline:
@@ -335,6 +348,20 @@ class TestTestHost:
 
         results = await _test_host(mock_client, "https://example.com", (200, 100, b""))
         assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_each_payload_sent_once(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"evil.com"
+        mock_resp.headers = {"x-cache": "HIT"}
+        mock_client.get.return_value = mock_resp
+
+        results = await _test_host(mock_client, "https://example.com", (200, 100, b""))
+        assert len(results) == len(_HOST_PAYLOADS)
+        assert mock_client.get.await_count == len(_HOST_PAYLOADS)
+        assert all(r.param == "" for r in results)
 
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
@@ -741,7 +768,25 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @respx.mock
-    async def test_run_scan_vulnerable(self) -> None:
+    async def test_run_scan_cat_raises_exception(self) -> None:
+        from mytools.web.cachepoisoning import run_scan
+
+        async def _boom(*args: object, **kwargs: object) -> list:
+            raise RuntimeError("boom")
+
+        respx.route(method="GET", url__startswith="https://example.com").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.cachepoisoning._test_host", new=_boom):
+            result = await run_scan(
+                target="https://example.com",
+                categories=["host"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+            )
+        assert result == 0
         from mytools.web.cachepoisoning import run_scan
 
         call_count = 0

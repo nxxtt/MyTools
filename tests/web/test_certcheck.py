@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import runpy
+from collections.abc import Mapping
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -232,16 +233,9 @@ class TestDetectMixedContent:
         result = _detect_mixed_content(html, "https://example.com")
         assert len(result["active_mixed"]) == 2
 
-    def test_upgrade_insecure(self) -> None:
-        assert (
-            _detect_mixed_content("", "https://example.com")["has_upgrade_insecure"]
-            is False
-        )
-
-    def test_csp_upgrade(self) -> None:
-        assert (
-            _detect_mixed_content("", "https://example.com")["has_csp_upgrade"] is False
-        )
+    def test_only_active_and_passive_keys(self) -> None:
+        result = _detect_mixed_content("", "https://example.com")
+        assert set(result) == {"active_mixed", "passive_mixed"}
 
 
 class TestExtractScts:
@@ -731,8 +725,8 @@ class TestCheckOcspStaplingRaw:
             lambda *a, **k: _FakeCert([_FakeExt(_FakeAIAValue())]),
         )
         result = _check_ocsp_stapling_raw("example.com", 443, 5.0)
-        assert result["stapling"] is True
-        assert result["response_status"] == "stapled"
+        assert result["stapling"] is False
+        assert result["response_status"] == "unknown"
         assert result["responder_url"] == "http://ocsp.example.com"
 
     def test_real_aia_no_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -907,23 +901,23 @@ class TestCheckChromePreload:
     @respx.mock
     async def test_present(self) -> None:
         respx.route().mock(return_value=httpx.Response(200, json={"status": "present"}))
-        assert await _check_chrome_preload("example.com", 5.0) is True
+        assert await _check_chrome_preload("example.com", 5.0) == "present"
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_not_present(self) -> None:
         respx.route().mock(return_value=httpx.Response(200, json={"status": "unknown"}))
-        assert await _check_chrome_preload("example.com", 5.0) is False
+        assert await _check_chrome_preload("example.com", 5.0) == "not_present"
 
     @pytest.mark.asyncio
-    async def test_fallback_known_domain(self) -> None:
+    async def test_failure_unknown(self) -> None:
         with patch("httpx.AsyncClient", side_effect=Exception("no")):
-            assert await _check_chrome_preload("google.com", 5.0) is True
+            assert await _check_chrome_preload("google.com", 5.0) == "unknown"
 
     @pytest.mark.asyncio
-    async def test_fallback_unknown_domain(self) -> None:
+    async def test_failure_unknown_any_domain(self) -> None:
         with patch("httpx.AsyncClient", side_effect=Exception("no")):
-            assert await _check_chrome_preload("unknown.com", 5.0) is False
+            assert await _check_chrome_preload("unknown.com", 5.0) == "unknown"
 
 
 class TestFetchPageContent:
@@ -931,13 +925,30 @@ class TestFetchPageContent:
     @respx.mock
     async def test_ok(self) -> None:
         respx.route().mock(return_value=httpx.Response(200, text="<html></html>"))
-        html = await _fetch_page_content("https://example.com", 5.0)
+        html, headers = await _fetch_page_content("https://example.com", 5.0)
         assert "<html>" in html
+        assert isinstance(headers, Mapping)
+        assert headers.get("content-type") == "text/plain; charset=utf-8"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_ok_returns_headers(self) -> None:
+        respx.route().mock(
+            return_value=httpx.Response(
+                200,
+                text="<html></html>",
+                headers={"upgrade-insecure-requests": "1"},
+            )
+        )
+        _html, headers = await _fetch_page_content("https://example.com", 5.0)
+        assert headers.get("upgrade-insecure-requests") == "1"
 
     @pytest.mark.asyncio
     async def test_exception(self) -> None:
         with patch("httpx.AsyncClient", side_effect=Exception("no")):
-            assert await _fetch_page_content("https://example.com", 5.0) == ""
+            html, headers = await _fetch_page_content("https://example.com", 5.0)
+            assert html == ""
+            assert headers == {}
 
 
 class TestCheckHstsHeaderBranches:
@@ -1028,7 +1039,8 @@ class TestTestOcspStapling:
             ),
         )
         attempts = await _test_ocsp_stapling("example.com", 443, "/", 5.0, True, 0, 0)
-        assert attempts[0].vulnerable is True
+        assert attempts[0].vulnerable is False
+        assert "sem evidencia de stapling" in attempts[0].details
         assert attempts[3].vulnerable is True
         assert attempts[4].vulnerable is True
 
@@ -1276,7 +1288,7 @@ class TestTestHstsPreload:
         )
         monkeypatch.setattr(
             "mytools.web.certcheck._check_chrome_preload",
-            AsyncMock(return_value=True),
+            AsyncMock(return_value="present"),
         )
         attempts = await _test_hsts_preload("example.com", 443, "/", 5.0, True, 0, 0)
         assert len(attempts) == 5
@@ -1303,7 +1315,7 @@ class TestTestHstsPreload:
         )
         monkeypatch.setattr(
             "mytools.web.certcheck._check_chrome_preload",
-            AsyncMock(return_value=False),
+            AsyncMock(return_value="not_present"),
         )
         attempts = await _test_hsts_preload("example.com", 443, "/", 5.0, False, 0, 0)
         assert all(a.vulnerable for a in attempts)
@@ -1322,11 +1334,40 @@ class TestTestHstsPreload:
         )
         monkeypatch.setattr(
             "mytools.web.certcheck._check_chrome_preload",
-            AsyncMock(return_value=False),
+            AsyncMock(return_value="not_present"),
         )
         attempts = await _test_hsts_preload("example.com", 443, "/", 5.0, True, 0, 0)
         assert sum(1 for a in attempts if a.error) == 4
         assert attempts[4].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_api_failure_not_reported_vulnerable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "mytools.web.certcheck._get_cert_info",
+            lambda *a, **k: _cert_info(),
+        )
+        monkeypatch.setattr(
+            "mytools.web.certcheck._check_hsts_header",
+            AsyncMock(
+                return_value={
+                    "hsts_present": True,
+                    "max_age": 31536000,
+                    "include_subdomains": True,
+                    "preload": True,
+                    "raw_header": "max-age=31536000",
+                }
+            ),
+        )
+        monkeypatch.setattr(
+            "mytools.web.certcheck._check_chrome_preload",
+            AsyncMock(return_value="unknown"),
+        )
+        attempts = await _test_hsts_preload("example.com", 443, "/", 5.0, True, 0, 0)
+        assert attempts[4].vulnerable is False
+        assert "unknown" in attempts[4].details
+        assert attempts[4].hsts_preload is False
 
 
 class _BadLen:
@@ -1359,23 +1400,15 @@ class TestTestMixedContent:
             AsyncMock(
                 return_value=(
                     '<script src="http://evil.com/x.js"></script>'
-                    '<img src="http://evil.com/i.png">'
+                    '<img src="http://evil.com/i.png">',
+                    {
+                        "upgrade-insecure-requests": "1",
+                        "content-security-policy": "upgrade-insecure-requests",
+                    },
                 )
             ),
         )
-        mock_resp = MagicMock()
-        mock_resp.headers = {
-            "upgrade-insecure-requests": "1",
-            "content-security-policy": "upgrade-insecure-requests",
-        }
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        with patch("httpx.AsyncClient", return_value=mock_client):
-            attempts = await _test_mixed_content(
-                "example.com", 443, "/", 5.0, True, 0, 0
-            )
+        attempts = await _test_mixed_content("example.com", 443, "/", 5.0, True, 0, 0)
         assert len(attempts) == 4
         assert attempts[0].vulnerable is True
         assert attempts[1].vulnerable is True
@@ -1390,20 +1423,13 @@ class TestTestMixedContent:
         )
         monkeypatch.setattr(
             "mytools.web.certcheck._fetch_page_content",
-            AsyncMock(return_value="<html></html>"),
+            AsyncMock(return_value=("<html></html>", {})),
         )
-        mock_resp = MagicMock()
-        mock_resp.headers = {}
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        with patch("httpx.AsyncClient", return_value=mock_client):
-            attempts = await _test_mixed_content(
-                "example.com", 443, "/", 5.0, True, 0, 0
-            )
-        assert attempts[2].vulnerable is True
-        assert attempts[3].vulnerable is True
+        attempts = await _test_mixed_content("example.com", 443, "/", 5.0, True, 0, 0)
+        assert attempts[2].vulnerable is False
+        assert attempts[3].vulnerable is False
+        assert "informational" in attempts[2].details
+        assert "informational" in attempts[3].details
 
     @pytest.mark.asyncio
     async def test_http_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1413,14 +1439,12 @@ class TestTestMixedContent:
         )
         monkeypatch.setattr(
             "mytools.web.certcheck._fetch_page_content",
-            AsyncMock(return_value=""),
+            AsyncMock(return_value=("", {})),
         )
-        with patch("httpx.AsyncClient", side_effect=Exception("no")):
-            attempts = await _test_mixed_content(
-                "example.com", 443, "/", 5.0, True, 0, 0
-            )
+        attempts = await _test_mixed_content("example.com", 443, "/", 5.0, True, 0, 0)
         assert len(attempts) == 4
-        assert attempts[2].vulnerable is True
+        assert attempts[2].vulnerable is False
+        assert "informational" in attempts[2].details
 
     @pytest.mark.asyncio
     async def test_detect_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1430,15 +1454,13 @@ class TestTestMixedContent:
         )
         monkeypatch.setattr(
             "mytools.web.certcheck._fetch_page_content",
-            AsyncMock(return_value="<html></html>"),
+            AsyncMock(return_value=("<html></html>", {})),
         )
         monkeypatch.setattr(
             "mytools.web.certcheck._detect_mixed_content",
             lambda *a, **k: {
                 "active_mixed": _BadLen(),
                 "passive_mixed": _BadLen(),
-                "has_upgrade_insecure": False,
-                "has_csp_upgrade": False,
             },
         )
         attempts = await _test_mixed_content("example.com", 443, "/", 5.0, True, 0, 0)
@@ -1476,11 +1498,11 @@ def _scan_mocks(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "mytools.web.certcheck._check_chrome_preload",
-        AsyncMock(return_value=True),
+        AsyncMock(return_value="present"),
     )
     monkeypatch.setattr(
         "mytools.web.certcheck._fetch_page_content",
-        AsyncMock(return_value="<html></html>"),
+        AsyncMock(return_value=("<html></html>", {})),
     )
 
 

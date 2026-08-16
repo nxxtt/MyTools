@@ -2131,6 +2131,11 @@ class TestBannerArt:
         vars(CookieBoundaryScanner)["banner_fn"]()
         assert capsys.readouterr().out
 
+    def test_module_banner_art_is_function(self) -> None:
+        from mytools.web.cookieboundary import banner_art
+
+        assert callable(banner_art)
+
 
 # ─── Main Guard ──────────────────────────────────────────────────────────────
 class TestMainGuard:

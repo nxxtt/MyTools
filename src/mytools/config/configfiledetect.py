@@ -327,7 +327,7 @@ def _is_sensitive(path: str) -> bool:
     """Verifica se o arquivo e potencialmente sensivel."""
     basename = Path(path).name
 
-    if basename in SENSITIVE_BASENAMES:
+    if path in SENSITIVE_BASENAMES or basename in SENSITIVE_BASENAMES:
         return True
     if basename.startswith(".env"):
         return True
@@ -478,7 +478,7 @@ async def _probe_path(
         status=status,
         detail=detail,
         raw_size=len(content),
-        exploit="curl <TARGET>/.env",
+        exploit=f"curl {full_url}",
         tool="curl",
     )
 
@@ -683,9 +683,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             sensitive_only=getattr(args, "sensitive_only", False),
         )
 
-        if getattr(args, "json_output", False):
-            print_json([asdict(leak) for leak in leaks])
-        elif not quiet:
+        if not quiet and not getattr(args, "json_output", False):
             print_results(leaks)
 
         all_leaks.extend(leaks)
@@ -702,7 +700,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
 
     if getattr(args, "json_output", False):
         print_json([asdict(leak) for leak in all_leaks])
-    elif args.output:
+    if args.output:
         write_output(
             args.output,
             [asdict(leak) for leak in all_leaks],

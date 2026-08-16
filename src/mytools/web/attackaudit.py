@@ -1160,7 +1160,7 @@ async def check_sqli_errors(
 
     async def _test_one(param: str, payload: str) -> list[str]:
         async with sem:
-            if parsed.query:
+            if parsed.query and param + "=" in parsed.query:
                 test_url = re.sub(
                     rf"{re.escape(param)}=[^&]*",
                     param + "=" + payload,
@@ -1168,7 +1168,8 @@ async def check_sqli_errors(
                     count=1,
                 )
             else:
-                test_url = base_url + "?" + param + "=" + payload
+                separator = "&" if "?" in base_url else "?"
+                test_url = base_url + separator + param + "=" + payload
 
             try:
                 _, _, body, _ = await fetch(client, test_url, timeout=timeout)
@@ -2217,7 +2218,7 @@ async def _run_single(
         args.deep,
         proxy=args.proxy,
         verify=getattr(args, "verify", False),
-        requests_per_second=args.delay,
+        requests_per_second=1.0 / args.delay if args.delay else 0.0,
         test_vulns=args.test_vulns,
         test_methods=getattr(args, "test_methods", False),
         auth=getattr(args, "auth", None),
@@ -2301,7 +2302,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
                     "exploit",
                 ],
             )
-    return 0
+    return 1 if any(r.findings for r in all_results) else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

@@ -176,11 +176,13 @@ class TestTestEndpointBaseline:
 
 class TestGetEndpoints:
     def test_returns_user_endpoints_if_provided(self) -> None:
-        result = _get_endpoints(None, "https://api.example.com", ["/a", "/b"])
+        result = asyncio.run(
+            _get_endpoints(None, "https://api.example.com", ["/a", "/b"])
+        )
         assert result == ["/a", "/b"]
 
     def test_returns_fallback_if_no_client(self) -> None:
-        result = _get_endpoints(None, "https://api.example.com", None)
+        result = asyncio.run(_get_endpoints(None, "https://api.example.com", None))
         assert isinstance(result, list)
         assert len(result) > 0
 
@@ -287,7 +289,11 @@ class TestRunScan:
             patch(
                 "mytools.web.restapifuzz.create_async_client", return_value=mock_client
             ),
-            patch("mytools.web.restapifuzz._get_endpoints", return_value=["/users"]),
+            patch(
+                "mytools.web.restapifuzz._get_endpoints",
+                new_callable=AsyncMock,
+                return_value=["/users"],
+            ),
             patch(
                 "mytools.web.restapifuzz._test_endpoint_baseline",
                 new_callable=AsyncMock,
@@ -314,7 +320,11 @@ class TestRunScan:
             patch(
                 "mytools.web.restapifuzz.create_async_client", return_value=mock_client
             ),
-            patch("mytools.web.restapifuzz._get_endpoints", return_value=["/users"]),
+            patch(
+                "mytools.web.restapifuzz._get_endpoints",
+                new_callable=AsyncMock,
+                return_value=["/users"],
+            ),
             patch(
                 "mytools.web.restapifuzz._test_endpoint_baseline",
                 new_callable=AsyncMock,
@@ -344,7 +354,11 @@ class TestRunScan:
             patch(
                 "mytools.web.restapifuzz.create_async_client", return_value=mock_client
             ),
-            patch("mytools.web.restapifuzz._get_endpoints", return_value=["/admin"]),
+            patch(
+                "mytools.web.restapifuzz._get_endpoints",
+                new_callable=AsyncMock,
+                return_value=["/admin"],
+            ),
             patch(
                 "mytools.web.restapifuzz._test_endpoint_baseline",
                 new_callable=AsyncMock,
@@ -518,7 +532,9 @@ class TestGetEndpointsWithClient:
                 new_callable=AsyncMock,
                 return_value=["/users"],
             ):
-                result = _get_endpoints(mock_client, "https://api.example.com", None)
+                result = loop.run_until_complete(
+                    _get_endpoints(mock_client, "https://api.example.com", None)
+                )
         finally:
             loop.close()
             asyncio.set_event_loop(None)
@@ -534,7 +550,9 @@ class TestGetEndpointsWithClient:
                 new_callable=AsyncMock,
                 return_value=None,
             ):
-                result = _get_endpoints(mock_client, "https://api.example.com", None)
+                result = loop.run_until_complete(
+                    _get_endpoints(mock_client, "https://api.example.com", None)
+                )
         finally:
             loop.close()
             asyncio.set_event_loop(None)
@@ -624,6 +642,21 @@ class TestVersionEnum:
         assert any(a.vulnerable for a in result)
 
     @pytest.mark.asyncio
+    async def test_not_vulnerable(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.base_url = "https://api.example.com/"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        mock_resp.content = b"ok"
+        mock_resp.headers = {"content-type": "application/json"}
+        mock_client.get.return_value = mock_resp
+        result = await _test_version_enum(
+            mock_client, "/users", "https://api.example.com", (404, 5, "")
+        )
+        assert result
+        assert all(not a.vulnerable for a in result)
+
+    @pytest.mark.asyncio
     async def test_request_errors_recorded(self) -> None:
         mock_client = AsyncMock()
         mock_client.base_url = "https://api.example.com/"
@@ -687,7 +720,11 @@ class TestRunScanExtra:
                 "mytools.web.restapifuzz.create_async_client",
                 return_value=mock_client,
             ),
-            patch("mytools.web.restapifuzz._get_endpoints", return_value=["/users"]),
+            patch(
+                "mytools.web.restapifuzz._get_endpoints",
+                new_callable=AsyncMock,
+                return_value=["/users"],
+            ),
             patch(
                 "mytools.web.restapifuzz._test_endpoint_baseline",
                 new_callable=AsyncMock,
@@ -744,7 +781,11 @@ class TestRunScanExtra:
                 "mytools.web.restapifuzz.create_async_client",
                 return_value=mock_client,
             ),
-            patch("mytools.web.restapifuzz._get_endpoints", return_value=["/admin"]),
+            patch(
+                "mytools.web.restapifuzz._get_endpoints",
+                new_callable=AsyncMock,
+                return_value=["/admin"],
+            ),
             patch(
                 "mytools.web.restapifuzz._test_endpoint_baseline",
                 new_callable=AsyncMock,
@@ -779,6 +820,89 @@ class TestRunScanExtra:
         assert result.issues == ["1 tecnicas vulneraveis encontradas"]
 
     @pytest.mark.asyncio
+    async def test_vulnerable_attempt_after_secure_wins(self) -> None:
+        mock_client = self._mock_client()
+        secure_att = RestFuzzAttempt(
+            technique="bearer_empty",
+            category="auth_bypass",
+            endpoint="/admin",
+            url="http://api.example.com/admin",
+            payload="Authorization: ",
+            method="GET",
+            status_baseline=401,
+            status_test=401,
+            size_baseline=10,
+            size_test=10,
+            content_type_changed=False,
+            vulnerable=False,
+            details="Sem mudanca",
+            error="",
+            exploit="",
+            tool="",
+        )
+        vuln_att = RestFuzzAttempt(
+            technique="bearer_empty",
+            category="auth_bypass",
+            endpoint="/admin",
+            url="http://api.example.com/admin",
+            payload="Authorization: ",
+            method="GET",
+            status_baseline=401,
+            status_test=200,
+            size_baseline=10,
+            size_test=100,
+            content_type_changed=False,
+            vulnerable=True,
+            details="Auth bypass: 401->200",
+            error="",
+            exploit="",
+            tool="",
+        )
+        with (
+            patch(
+                "mytools.web.restapifuzz.create_async_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "mytools.web.restapifuzz._get_endpoints",
+                new_callable=AsyncMock,
+                return_value=["/admin"],
+            ),
+            patch(
+                "mytools.web.restapifuzz._test_endpoint_baseline",
+                new_callable=AsyncMock,
+                return_value=(401, 12, "application/json"),
+            ),
+            patch(
+                "mytools.web.restapifuzz._test_auth_bypass",
+                new_callable=AsyncMock,
+                return_value=[secure_att, vuln_att],
+            ),
+            patch(
+                "mytools.web.restapifuzz._test_content_type",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.restapifuzz._test_version_enum",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.restapifuzz._test_hateoas",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            result = await run_scan(
+                "https://api.example.com", categories=["auth_bypass"]
+            )
+        assert result.overall_status == "vulnerable"
+        assert result.vulnerable_techniques == ["bearer_empty"]
+        assert result.issues == ["1 tecnicas vulneraveis encontradas"]
+        assert result.attempts[1] is vuln_att
+
+    @pytest.mark.asyncio
     async def test_tester_exception_ignored(self) -> None:
         mock_client = self._mock_client()
         with (
@@ -786,7 +910,11 @@ class TestRunScanExtra:
                 "mytools.web.restapifuzz.create_async_client",
                 return_value=mock_client,
             ),
-            patch("mytools.web.restapifuzz._get_endpoints", return_value=["/admin"]),
+            patch(
+                "mytools.web.restapifuzz._get_endpoints",
+                new_callable=AsyncMock,
+                return_value=["/admin"],
+            ),
             patch(
                 "mytools.web.restapifuzz._test_endpoint_baseline",
                 new_callable=AsyncMock,
@@ -844,6 +972,25 @@ class TestRunOnce:
             return_value=result,
         ):
             assert run_once(args) == 0
+
+    def test_vulnerable_returns_1(self) -> None:
+        result = RestFuzzResult(
+            target="http://api.example.com",
+            endpoints_tested=1,
+            baseline_status=200,
+            tls=False,
+            attempts=[],
+            vulnerable_techniques=["bearer_empty"],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        args = build_parser().parse_args(["http://api.example.com"])
+        with patch(
+            "mytools.web.restapifuzz.run_scan",
+            new_callable=AsyncMock,
+            return_value=result,
+        ):
+            assert run_once(args) == 1
 
     def test_json_output_and_error_status(self, tmp_path) -> None:
         result = RestFuzzResult(

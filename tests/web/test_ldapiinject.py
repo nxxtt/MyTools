@@ -286,6 +286,24 @@ class TestCheckLDAPResponse:
     def test_empty_body(self) -> None:
         assert not _check_ldap_response(b"", 200, ["welcome"])
 
+    def test_indicator_in_baseline_not_flagged(self) -> None:
+        body = b"success welcome token result found"
+        assert not _check_ldap_response(
+            body, 200, ["success", "welcome", "token"], baseline_body=body
+        )
+
+    def test_indicator_new_in_test_flagged(self) -> None:
+        base = b"<html>generic search page</html>"
+        assert _check_ldap_response(
+            b"success welcome token result found",
+            200,
+            ["success", "welcome", "token"],
+            baseline_body=base,
+        )
+
+    def test_no_baseline_preserves_old_behavior(self) -> None:
+        assert _check_ldap_response(b"welcome back", 200, ["welcome"])
+
 
 class TestTestBaseline:
     """Testes para _test_baseline."""
@@ -332,6 +350,38 @@ class TestTestDetect:
             mock_client, "https://example.com", (200, 100, b"")
         )
         assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_normal_page_not_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        body = b"success welcome token result found on this page"
+        mock_resp.status_code = 200
+        mock_resp.content = body
+        mock_client.post.return_value = mock_resp
+        mock_client.get.return_value = mock_resp
+
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, len(body), body)
+        )
+        assert len(results) > 0
+        assert all(not r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_bypass_differs_from_baseline_flagged(self) -> None:
+        mock_client = AsyncMock()
+        mock_resp = MagicMock()
+        base = b"<html>generic search page</html>"
+        mock_resp.status_code = 200
+        mock_resp.content = b"success welcome token result found"
+        mock_client.post.return_value = mock_resp
+        mock_client.get.return_value = mock_resp
+
+        results = await _test_detect(
+            mock_client, "https://example.com", (200, len(base), base)
+        )
+        assert len(results) > 0
+        assert any(r.vulnerable for r in results)
 
     @pytest.mark.asyncio
     async def test_request_error(self) -> None:
@@ -638,6 +688,30 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @respx.mock
+    async def test_run_scan_json_output(self) -> None:
+        from mytools.web.ldapiinject import run_scan
+
+        respx.route(method="GET", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        respx.route(method="POST", url__startswith="https://example.com/").mock(
+            return_value=httpx.Response(200, text="not vulnerable"),
+        )
+        with patch("mytools.web.ldapiinject.print_json") as mock_print:
+            result = await run_scan(
+                target="https://example.com",
+                categories=["auth_bypass"],
+                timeout=10,
+                concurrency=5,
+                output_file=None,
+                verbose=False,
+                json_output=True,
+            )
+        assert result == 0
+        mock_print.assert_called_once()
+
+    @pytest.mark.asyncio
+    @respx.mock
     async def test_run_scan_vulnerable(self) -> None:
         from mytools.web.ldapiinject import run_scan
 
@@ -705,6 +779,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.ldapiinject.run_scan",
@@ -717,6 +793,52 @@ class TestIntegration:
             assert result == 0
             mock_scan.assert_called_once()
 
+    def test_run_once_forwards_proxy(self) -> None:
+        args = MagicMock()
+        args.url = "https://example.com"
+        args.category = None
+        args.timeout = 10
+        args.concurrency = 5
+        args.output = None
+        args.verbose = False
+        args.log_file = None
+        args.theme = None
+        args.proxy = "http://127.0.0.1:8080"
+
+        with patch(
+            "mytools.web.ldapiinject.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            from mytools.web.ldapiinject import run_once
+
+            run_once(args)
+        _, kwargs = mock_scan.call_args
+        assert kwargs["proxy"] == "http://127.0.0.1:8080"
+
+    def test_run_once_forwards_json_output(self) -> None:
+        args = MagicMock()
+        args.url = "https://example.com"
+        args.category = None
+        args.timeout = 10
+        args.concurrency = 5
+        args.output = None
+        args.verbose = False
+        args.log_file = None
+        args.theme = None
+        args.json_output = True
+
+        with patch(
+            "mytools.web.ldapiinject.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            from mytools.web.ldapiinject import run_once
+
+            run_once(args)
+        _, kwargs = mock_scan.call_args
+        assert kwargs["json_output"] is True
+
     def test_run_once_no_category(self) -> None:
         args = MagicMock()
         args.url = "https://example.com"
@@ -725,6 +847,8 @@ class TestIntegration:
         args.concurrency = 5
         args.output = None
         args.verbose = False
+        args.log_file = None
+        args.theme = None
 
         with patch(
             "mytools.web.ldapiinject.run_scan",

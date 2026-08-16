@@ -144,6 +144,36 @@ class TestBuildGraph:
         assert graph.total_vulnerabilities == 2
         assert len(graph.edges) == 0
 
+    def test_same_category_all_pairs_single_pass(self) -> None:
+        findings = [
+            {"severity": "high", "category": "xss", "item": "XSS1"},
+            {"severity": "medium", "category": "xss", "item": "XSS2"},
+            {"severity": "low", "category": "xss", "item": "XSS3"},
+        ]
+        graph = build_graph(findings, "test.com")
+        expected = {
+            ("vuln_0", "vuln_1"),
+            ("vuln_0", "vuln_2"),
+            ("vuln_1", "vuln_2"),
+        }
+        assert len(graph.edges) == len(expected)
+        assert {(e.source, e.target) for e in graph.edges} == expected
+        assert all(e.relationship == "same_category" for e in graph.edges)
+
+    def test_multiple_categories_edges_only_within(self) -> None:
+        findings = [
+            {"severity": "high", "category": "xss", "item": "XSS1"},
+            {"severity": "medium", "category": "xss", "item": "XSS2"},
+            {"severity": "low", "category": "sqli", "item": "SQLi1"},
+            {"severity": "low", "category": "sqli", "item": "SQLi2"},
+        ]
+        graph = build_graph(findings, "test.com")
+        assert len(graph.edges) == 2
+        assert {(e.source, e.target) for e in graph.edges} == {
+            ("vuln_0", "vuln_1"),
+            ("vuln_2", "vuln_3"),
+        }
+
     def test_severity_counts(self) -> None:
         findings = [
             {"severity": "critical", "category": "c", "item": "C"},
@@ -201,6 +231,50 @@ class TestSuggestExploits:
         assert len(exploits) == 2
         assert exploits[0]["module"] == "XSS"
         assert exploits[1]["module"] == "SQLi"
+
+    def test_exploit_tool_populated(self) -> None:
+        findings = [
+            {
+                "severity": "high",
+                "category": "sqli",
+                "item": "SQLi",
+                "exploit": "sqlmap -u <TARGET>",
+            },
+            {
+                "severity": "high",
+                "category": "xss",
+                "item": "XSS",
+                "exploit": "curl <TARGET>",
+            },
+        ]
+        exploits = suggest_exploits(findings)
+        assert exploits[0]["tool"] == "sqlmap"
+        assert exploits[1]["tool"] == "curl"
+
+    def test_exploit_tool_respects_finding(self) -> None:
+        findings = [
+            {
+                "severity": "high",
+                "category": "xss",
+                "item": "XSS",
+                "exploit": "curl <TARGET>",
+                "tool": "Burp Suite",
+            }
+        ]
+        exploits = suggest_exploits(findings)
+        assert exploits[0]["tool"] == "Burp Suite"
+
+    def test_exploit_tool_default(self) -> None:
+        findings = [
+            {
+                "severity": "high",
+                "category": "custom",
+                "item": "Custom",
+                "exploit": "cookie_theft_payload",
+            }
+        ]
+        exploits = suggest_exploits(findings)
+        assert exploits[0]["tool"] == "curl"
 
     def test_mixed_exploits(self) -> None:
         findings = [
@@ -316,6 +390,21 @@ class TestPrintResults:
         assert "Critical: 1" in captured.out
         assert "Medium: 1" in captured.out
         assert "Info: 1" in captured.out
+
+    def test_print_results_shows_tool(self, capsys: pytest.CaptureFixture[str]) -> None:
+        findings = [
+            {
+                "severity": "high",
+                "category": "sqli",
+                "item": "SQLi",
+                "exploit": "sqlmap -u <TARGET>",
+            }
+        ]
+        graph = build_graph(findings, "test.com")
+        print_results(graph, suggest_exploits(findings))
+        captured = capsys.readouterr()
+        assert "sqlmap -u <TARGET>" in captured.out
+        assert "Ferramenta: sqlmap" in captured.out
 
 
 class TestRunOnceLogging:

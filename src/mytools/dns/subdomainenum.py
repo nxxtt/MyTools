@@ -29,7 +29,7 @@ import logging
 import sys
 import time
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
 
 import dns.exception
@@ -42,6 +42,7 @@ from mytools.core.utils import (
     add_base_args,
     create_async_client,
     create_banner,
+    ensure_output_dir,
     fetch,
     init_scanner,
     print_json,
@@ -462,8 +463,8 @@ def _parse_crtsh(body: bytes, domain: str) -> list[str]:
     except ValueError:
         return []
     seen: set[str] = set()
-    for entry in data:
-        raw = entry.get("name_value", "")
+    for entry in (data or []) if isinstance(data, list) else []:
+        raw = entry.get("name_value", "") if isinstance(entry, dict) else ""
         for name in raw.split("\n"):
             name = name.strip().lower()
             if name.startswith("*."):
@@ -697,24 +698,35 @@ def enumerate_subdomains(
     with ThreadPoolExecutor(max_workers=threads) as executor:
         skip_all = prefetched_names | skipped
         remaining = [w for w in wordlist if f"{w}.{domain}" not in skip_all]
-        futures = {
-            executor.submit(_resolve_subdomain, word, domain, timeout, resolver): word
-            for word in remaining
-        }
-
         total_brute = len(remaining)
-        for future in tqdm(
-            as_completed(futures),
+
+        pending: dict[Future, str] = {}
+        window = max(threads * 4, 16)
+        index = 0
+        with tqdm(
             total=total_brute,
             desc="  Subdominios testados",
             leave=False,
             file=sys.stderr,
-        ):
-            result = future.result()
-            if result.status == "resolved":
-                resolved.append(result)
-                ips_str = ", ".join(result.ip_addresses)
-                logger.info("%s -> %s", result.subdomain, ips_str)
+        ) as pbar:
+            while index < len(remaining) or pending:
+                while len(pending) < window and index < len(remaining):
+                    word = remaining[index]
+                    pending[
+                        executor.submit(
+                            _resolve_subdomain, word, domain, timeout, resolver
+                        )
+                    ] = word
+                    index += 1
+                done, not_done = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done:
+                    result = future.result()
+                    if result.status == "resolved":
+                        resolved.append(result)
+                        ips_str = ", ".join(result.ip_addresses)
+                        logger.info("%s -> %s", result.subdomain, ips_str)
+                    pbar.update(1)
+                pending = {f: pending[f] for f in not_done}
 
     elapsed = time.monotonic() - start
     logger.info(
@@ -815,6 +827,13 @@ def run_once(args: argparse.Namespace) -> int:
     domain = args.domain.strip().lower()
     wordlist = load_wordlist(getattr(args, "wordlist", None))
 
+    if getattr(args, "dry_run", False):
+        logger.warning("Nenhuma consulta DNS sera realizada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Wordlist: %d subdominios", len(wordlist))
+        logger.info("Threads: %d | Timeout: %.1fs", threads, args.timeout)
+        return 0
+
     passive_results: list[SubdomainResult] = []
     if getattr(args, "passive", False):
         sources = ["crtsh", "otx", "urlscan"]
@@ -847,17 +866,6 @@ def run_once(args: argparse.Namespace) -> int:
             len(passive_results),
         )
 
-    if getattr(args, "dry_run", False):
-        logger.warning("Nenhuma consulta DNS sera realizada.")
-        logger.info("Dominio: %s", domain)
-        logger.info("Wordlist: %d subdominios", len(wordlist))
-        logger.info("Threads: %d | Timeout: %.1fs", threads, args.timeout)
-        if passive_results:
-            logger.info(
-                "Passive: %d subdominios (ja resolvidos via DNS)", len(passive_results)
-            )
-        return 0
-
     passive_names = {r.subdomain for r in passive_results}
 
     results = run_enum_scan(
@@ -868,16 +876,25 @@ def run_once(args: argparse.Namespace) -> int:
         skip_names=passive_names,
     )
 
-    all_results = passive_results + results
+    all_results = sorted(passive_results + results, key=lambda r: r.subdomain)
 
     if getattr(args, "json_output", False):
         print_json([asdict(r) for r in all_results])
-        return 0
 
+    rows = [asdict(r) for r in all_results]
     if args.output:
-        rows = [asdict(r) for r in all_results]
         write_output(
             args.output,
+            rows,
+            ["subdomain", "ip_addresses", "status"],
+            quiet=quiet,
+        )
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
             rows,
             ["subdomain", "ip_addresses", "status"],
             quiet=quiet,

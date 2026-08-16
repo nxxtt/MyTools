@@ -433,7 +433,7 @@ class TestJsonOutput:
             title="Test API",
             version="1.0",
         )
-        args = build_parser().parse_args(["--json", "-q", "http://x.com"])
+        args = build_parser().parse_args(["--json", "http://x.com"])
         with patch(
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
@@ -444,6 +444,58 @@ class TestJsonOutput:
         data, _ = decoder.raw_decode(capsys.readouterr().out)
         assert isinstance(data, list)
         assert data[0]["title"] == "Test API"
+
+    def test_json_output_single_target_printed_once(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="openapi",
+            title="Test API",
+            version="1.0",
+        )
+        args = build_parser().parse_args(["--json", "http://x.com"])
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert capsys.readouterr().out.count('"title"') == 1
+
+    def test_json_output_quiet_suppresses_stdout(self, capsys):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="openapi",
+            title="Test API",
+            version="1.0",
+        )
+        args = build_parser().parse_args(["--json", "-q", "http://x.com"])
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        assert capsys.readouterr().out == ""
+
+    def test_json_output_multiple_targets(self, capsys, tmp_path):
+        spec = ApiSpecInfo(
+            url="http://x.com/openapi.json",
+            format="openapi",
+            title="Test API",
+            version="1.0",
+        )
+        target_file = tmp_path / "targets.txt"
+        target_file.write_text("http://x.com\nhttp://y.com\n", encoding="utf-8")
+        args = build_parser().parse_args(["--json", "-l", str(target_file)])
+        with patch(
+            "mytools.web.openapidiscovery.scan_specs",
+            new=AsyncMock(return_value=[spec]),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(capsys.readouterr().out)
+        assert isinstance(data, list)
 
 
 class TestParseSpecEdgeCases:

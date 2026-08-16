@@ -192,15 +192,29 @@ class TestMainFlow:
     def test_dispatch_by_category_and_number(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["web", "1", "q"])
+        inputs = iter(["9", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "accountabuse")]
 
+    def test_eoferror_in_category_menu(
+        self, monkeypatch, no_clear, no_banner
+    ):
+        calls = {"n": 0}
+
+        def _input(*_):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return "core"  # entra em uma categoria pelo rotulo
+            raise EOFError
+
+        monkeypatch.setattr("builtins.input", _input)
+        assert main() == 0
+
     def test_dispatch_by_category_and_name(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["web", "blindxss", "q"])
+        inputs = iter(["9", "blindxss", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "blindxss")]
@@ -222,13 +236,13 @@ class TestMainFlow:
     def test_category_back_returns_root(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["web", "0", "dns", "0", "q"])
+        inputs = iter(["9", "0", "3", "0", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == []
 
     def test_pagination_next_prev(self, monkeypatch, no_clear, no_banner, fake_run):
-        inputs = iter(["web", "n", "p", "2", "q"])
+        inputs = iter(["9", "n", "p", "2", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "attackanalysis")]
@@ -236,13 +250,13 @@ class TestMainFlow:
     def test_pagination_reaches_second_page(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["web", "n", "1", "q"])
+        inputs = iter(["9", "n", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "clickjacking")]
 
     def test_invalid_choice_ignored(self, monkeypatch, no_clear, no_banner, fake_run):
-        inputs = iter(["web", "zzz", "", "2", "q"])
+        inputs = iter(["9", "zzz", "", "2", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "attackanalysis")]
@@ -260,7 +274,7 @@ class TestMainFlow:
     def test_exit_tool_returns_to_categories(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["web", "1", "3", "q"])
+        inputs = iter(["9", "1", "3", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "accountabuse")]
@@ -303,6 +317,7 @@ class TestLoadToolsEdgeCases:
     def test_entry_points_raises_uses_pyproject(self, monkeypatch):
         from unittest.mock import patch
 
+        main_mod._load_tools.cache_clear()
         with patch.object(
             main_mod.im, "entry_points", side_effect=RuntimeError("boom")
         ):
@@ -312,6 +327,7 @@ class TestLoadToolsEdgeCases:
     def test_entry_points_empty_uses_pyproject(self, monkeypatch):
         from unittest.mock import patch
 
+        main_mod._load_tools.cache_clear()
         with patch.object(main_mod.im, "entry_points", return_value=[]):
             tools = _load_tools()
         assert len(tools) > 50
@@ -374,6 +390,7 @@ class TestLoadToolsFromPyprojectFallback:
     def test_fallback_used_when_no_tools(self, monkeypatch):
         from unittest.mock import patch
 
+        main_mod._load_tools.cache_clear()
         with patch.object(main_mod.im, "entry_points", return_value=[]):
             tools = _load_tools()
         assert len(tools) > 50
@@ -428,6 +445,7 @@ class TestLoadToolsSkipsShortPaths:
             FakeEP("notmytools", "x.y:main"),
             FakeEP("mytools", "x:main"),
         ]
+        main_mod._load_tools.cache_clear()
         with patch.object(
             main_mod.im,
             "entry_points",
@@ -565,13 +583,13 @@ class TestMainEdgeCases:
         assert main() == 0
 
     def test_help_in_category(self, monkeypatch, no_clear, no_banner, capsys, fake_run):
-        inputs = iter(["web", "h", "", "2", "q"])
+        inputs = iter(["9", "h", "", "2", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         assert ("web", "attackanalysis") in fake_run
 
     def test_clear_in_category(self, monkeypatch, no_clear, no_banner, fake_run):
-        inputs = iter(["web", "clear", "1", "q"])
+        inputs = iter(["9", "clear", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         assert fake_run == [("web", "accountabuse")]
@@ -579,7 +597,7 @@ class TestMainEdgeCases:
     def test_prev_page_in_category(
         self, monkeypatch, no_clear, no_banner, capsys, fake_run
     ):
-        inputs = iter(["web", "p", "q"])
+        inputs = iter(["9", "p", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         out = capsys.readouterr().out
@@ -589,7 +607,7 @@ class TestMainEdgeCases:
     def test_invalid_number_in_category(
         self, monkeypatch, no_clear, no_banner, capsys, fake_run
     ):
-        inputs = iter(["web", "999", "", "1", "q"])
+        inputs = iter(["9", "999", "", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         out = capsys.readouterr().out
@@ -602,3 +620,48 @@ class TestMainEdgeCases:
             import runpy
 
             runpy.run_module("mytools.core.main", run_name="__main__")
+
+
+class TestMainFixes:
+    def test_load_tools_cached(self):
+        assert _load_tools() is _load_tools()
+
+    def test_load_tools_cache_clears(self):
+        main_mod._load_tools.cache_clear()
+        assert _load_tools() == _load_tools()
+        main_mod._load_tools.cache_clear()
+
+    def test_alias_at_root_runs_tool(self, monkeypatch, no_clear, no_banner, fake_run):
+        inputs = iter(["dns", "q"])
+        monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
+        main()
+        assert fake_run == [("dns", "dnstransfer")]
+
+    def test_eof_on_pause_is_swallowed(self, monkeypatch, capsys):
+        from unittest.mock import patch
+
+        def _input(*_):
+            raise EOFError
+
+        monkeypatch.setattr("builtins.input", _input)
+        with patch.object(
+            main_mod.importlib,
+            "import_module",
+            side_effect=ImportError("nope"),
+        ):
+            main_mod._run_tool("web", "nonexistent")  # nao deve propagar EOFError
+        out = capsys.readouterr().out
+        assert "Erro ao carregar o modulo" in out
+
+    def test_clear_after_tool_in_category(self, monkeypatch, no_banner, fake_run):
+        cleared = []
+
+        def _clear():
+            cleared.append(1)
+
+        monkeypatch.setattr(main_mod, "clear_console", _clear)
+        inputs = iter(["9", "1", "q"])
+        monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
+        main()
+        assert fake_run == [("web", "accountabuse")]
+        assert cleared  # clear_console chamado apos rodar a tool

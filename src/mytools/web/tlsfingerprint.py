@@ -42,6 +42,7 @@ from mytools.core.utils import (
     add_common_args,
     color,
     create_banner,
+    init_scanner,
     print_exploit_info,
     run_main_loop,
     safe_asyncio_run,
@@ -114,9 +115,9 @@ ECDHE_RSA_CHACHA20_POLY1305 = 0xCCA8
 
 ECDHE_ECDSA_CHACHA20_POLY1305 = 0xCCA9
 
-ECDHE_RSA_AES_128_CBC_SHA256 = 0x9C
+ECDHE_RSA_AES_128_CBC_SHA256 = 0xC027
 
-ECDHE_RSA_AES_128_CBC_SHA = 0x9D
+ECDHE_RSA_AES_128_CBC_SHA = 0xC013
 
 ECDHE_ECDSA_AES_128_CBC_SHA256 = 0xC023
 
@@ -616,7 +617,9 @@ def _build_client_hello(
 
     ext_data += _signature_algorithms_extension(sig_alg_list)
 
-    ext_data += _supported_versions_extension([tls_version, 0x0303])
+    ext_data += _supported_versions_extension(
+        [tls_version] if tls_version == 0x0303 else [tls_version, 0x0303]
+    )
 
     x25519_key = secrets.token_bytes(32)
 
@@ -846,7 +849,20 @@ def _compute_ja4(metadata: dict[str, Any]) -> str:
 
     alpn_list = metadata.get("alpn", [])
 
-    alpn_proto = (alpn_list[0] if alpn_list else "00")[:2].ljust(2, "0")
+    _ALPN_TO_JA4 = {
+        "http/1.1": "h1",
+        "http/1.0": "h1",
+        "h2": "h2",
+        "http/2": "h2",
+        "h2c": "h2",
+        "h3": "h3",
+        "http/3": "h3",
+        "spdy/3.1": "h3",
+    }
+
+    _mapped = _ALPN_TO_JA4.get(alpn_list[0], "00") if alpn_list else "00"
+
+    alpn_proto = _mapped[:2].ljust(2, "0")
 
     part_a = f"t{tls_ver}{sni}{num_ciphers}{num_exts}{alpn_proto}"
 
@@ -1343,16 +1359,16 @@ async def _test_key_exchange(
                     "DHE_RSA_AES_128_GCM_SHA256",
                 )
 
-                vulnerable = accepted
+                vulnerable = False
 
-                details = f"DHE key exchange: {'accepted' if accepted else 'rejected'} — {info}"
+                details = f"DHE available: {accepted} — {info} (forward secrecy supported, informational)"
 
             elif tech == "ecdhe_keyexchange":
                 cipher = cert_info.get("cipher", "")
 
-                vulnerable = "ECDHE" in cipher or "DHE" in cipher
+                vulnerable = False
 
-                details = f"Current cipher: {cipher}, Forward Secrecy: {vulnerable}"
+                details = f"Current cipher: {cipher}, ECDHE/DHE (forward secrecy) supported — informational"
 
             elif tech == "weak_dh_group":
                 vulnerable = False
@@ -1367,9 +1383,9 @@ async def _test_key_exchange(
                     "ECDHE_RSA_AES_128_GCM_SHA256",
                 )
 
-                vulnerable = accepted
+                vulnerable = False
 
-                details = f"ECDHE available: {accepted} — {info}"
+                details = f"ECDHE available: {accepted} — {info} (modern cipher accepted, informational)"
 
             else:  # pragma: no cover
                 vulnerable = False
@@ -1753,6 +1769,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa scan uma vez."""
+
+    init_scanner(args)
 
     result = safe_asyncio_run(
         run_scan(

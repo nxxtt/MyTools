@@ -8,7 +8,7 @@ Fluxo principal:
   4. Executa em paralelo via ThreadPoolExecutor (200 threads padrao)
 
 Banner grabbing:
-  Para portas HTTP (80, 8080, 8000, 8443), envia HEAD request
+  Para portas HTTP (80, 8080, 8000), envia HEAD request
   e le a resposta. Para outras portas, apenas le os primeiros
   bytes recebidos apos a conexao.
 
@@ -25,7 +25,7 @@ import logging
 import socket
 import time
 from collections.abc import Iterable
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
 
@@ -349,7 +349,7 @@ def scan_port(
                 service=service_name(port),
                 banner=banner_text,
             )
-    except ConnectionRefusedError, TimeoutError, OSError:
+    except OSError:
         return None
 
 
@@ -379,39 +379,49 @@ def scan_targets(
     logger.info("Timeout: %.2fs | Threads: %d", timeout, workers)
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        batch_size = workers * 2
-        pending = []
-        targets_ports = (
+        window = workers * 2
+        pending: set[Future[Finding | None]] = set()
+        tasks = iter(
             (host, address, port) for host, address in targets for port in ports
         )
 
-        def _process_completed(futures_list: list[Future[Finding | None]]) -> None:
-            for future in as_completed(futures_list):
-                try:
-                    finding = future.result()
-                except Exception:
-                    logger.warning("erro no scan_port", exc_info=True)
-                    continue
-                if finding:
-                    findings.append(finding)
-                    banner_text = f" | {finding.banner}" if finding.banner else ""
-                    port_text = str(finding.port).ljust(5)
-                    logger.info(
-                        "[+] %s:%s open %s%s",
-                        finding.address,
-                        port_text,
-                        finding.service,
-                        banner_text,
-                    )
+        def _process(future: Future[Finding | None]) -> None:
+            try:
+                finding = future.result()
+            except Exception:
+                logger.warning("erro no scan_port", exc_info=True)
+                return
+            if finding:
+                findings.append(finding)
+                banner_text = f" | {finding.banner}" if finding.banner else ""
+                port_text = str(finding.port).ljust(5)
+                logger.info(
+                    "[+] %s:%s open %s%s",
+                    finding.address,
+                    port_text,
+                    finding.service,
+                    banner_text,
+                )
 
-        for host, address, port in targets_ports:
-            pending.append(
+        def _submit_next() -> bool:
+            try:
+                host, address, port = next(tasks)
+            except StopIteration:
+                return False
+            pending.add(
                 executor.submit(scan_port, host, address, port, timeout, with_banner)
             )
-            if len(pending) >= batch_size:
-                _process_completed(pending)
-                pending.clear()
-        _process_completed(pending)
+            return True
+
+        while len(pending) < window and _submit_next():
+            pass
+
+        while pending:
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                _process(future)
+            while len(pending) < window and _submit_next():
+                pass
 
     elapsed = time.monotonic() - started
     findings.sort(key=lambda item: (ip_sort_key(item.address), item.port))
@@ -549,8 +559,7 @@ def run_once(args: argparse.Namespace) -> int:
     )
     if getattr(args, "json_output", False):
         print_json([asdict(f) for f in findings])
-        return 0
-    if not quiet:
+    if not quiet and not getattr(args, "json_output", False):
         print_port_table(findings)
     if args.output:
         write_output(

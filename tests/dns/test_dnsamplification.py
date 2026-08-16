@@ -15,6 +15,7 @@ from mytools.dns.dnsamplification import (
     RecordAmplification,
     _async_run_once,
     _check_recursion,
+    _is_valid_nameserver,
     _query_record,
     banner,
     build_parser,
@@ -200,6 +201,34 @@ class TestPrintResults:
         assert "amplificacao potencial" in out or "recursao habilitada" in out.lower()
 
 
+class TestIsValidNameserver:
+    """Testes da funcao _is_valid_nameserver."""
+
+    def test_valid_ip(self) -> None:
+        assert _is_valid_nameserver("8.8.8.8") is True
+
+    def test_valid_hostname(self) -> None:
+        assert _is_valid_nameserver("ns1.example.com") is True
+
+    def test_valid_ipv6(self) -> None:
+        assert _is_valid_nameserver("2001:4860:4860::8888") is True
+
+    def test_empty(self) -> None:
+        assert _is_valid_nameserver("   ") is False
+
+    def test_too_long(self) -> None:
+        assert _is_valid_nameserver("a" * 254) is False
+
+    def test_whitespace(self) -> None:
+        assert _is_valid_nameserver("8.8.8.8 1.1.1.1") is False
+
+    def test_leading_dot(self) -> None:
+        assert _is_valid_nameserver(".example.com") is False
+
+    def test_trailing_dash(self) -> None:
+        assert _is_valid_nameserver("example.com-") is False
+
+
 class TestBanner:
     """Testes da funcao banner."""
 
@@ -242,6 +271,11 @@ class TestAsyncRunOnce:
     async def test_dry_run(self) -> None:
         args = _make_args(dry_run=True)
         assert await _async_run_once(args) == 0
+
+    @pytest.mark.asyncio
+    async def test_invalid_nameserver_returns_one(self) -> None:
+        args = _make_args(nameserver="invalid name server")
+        assert await _async_run_once(args) == 1
 
     @pytest.mark.asyncio
     async def test_normal_runs_scan(self) -> None:
@@ -315,6 +349,58 @@ class TestAsyncRunOnce:
         assert result == 0
         mock_write.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_json_output(self) -> None:
+        args = _make_args(json_output=True)
+        mock_result = AmplificationResult(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            recursion_available=False,
+            is_open_resolver=False,
+            records=[],
+            max_amplification=0.0,
+            severity="safe",
+            request_size=50,
+        )
+        with (
+            patch(
+                "mytools.dns.dnsamplification.scan_amplification",
+                return_value=mock_result,
+            ),
+            patch("mytools.dns.dnsamplification.print_json") as mock_json,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        mock_json.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_output_dir(self) -> None:
+        args = _make_args(output_dir="reports")
+        mock_result = AmplificationResult(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            recursion_available=False,
+            is_open_resolver=False,
+            records=[],
+            max_amplification=0.0,
+            severity="safe",
+            request_size=50,
+        )
+        with (
+            patch(
+                "mytools.dns.dnsamplification.scan_amplification",
+                return_value=mock_result,
+            ),
+            patch(
+                "mytools.dns.dnsamplification.ensure_output_dir"
+            ) as mock_ensure,
+            patch("mytools.dns.dnsamplification.write_output") as mock_write,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        mock_ensure.assert_called_once_with("reports")
+        mock_write.assert_called_once()
+
 
 class TestRunOnce:
     """Testes da funcao run_once."""
@@ -363,7 +449,7 @@ class TestQueryRecord:
         answer.response.to_wire.return_value = b"\x00" * 200
         mock_resolver.resolve.return_value = answer
 
-        result = _query_record("8.8.8.8", "example.com", "A", 3.0)
+        result = _query_record(mock_resolver, "example.com", "A", 3.0)
         assert result.success is True
         assert result.response_bytes == 200
         assert result.amplification_factor == 4.0
@@ -374,7 +460,7 @@ class TestQueryRecord:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
-        result = _query_record("8.8.8.8", "example.com", "A", 3.0)
+        result = _query_record(mock_resolver, "example.com", "A", 3.0)
         assert result.success is False
         assert result.error == "NXDOMAIN"
 
@@ -383,7 +469,7 @@ class TestQueryRecord:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NoAnswer()
-        result = _query_record("8.8.8.8", "example.com", "A", 3.0)
+        result = _query_record(mock_resolver, "example.com", "A", 3.0)
         assert result.success is False
         assert result.error == "NOANSWER"
 
@@ -392,7 +478,7 @@ class TestQueryRecord:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NoNameservers()
-        result = _query_record("8.8.8.8", "example.com", "A", 3.0)
+        result = _query_record(mock_resolver, "example.com", "A", 3.0)
         assert result.success is False
         assert result.error == "NAMESERVERS"
 
@@ -401,7 +487,7 @@ class TestQueryRecord:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.exception.Timeout()
-        result = _query_record("8.8.8.8", "example.com", "A", 3.0)
+        result = _query_record(mock_resolver, "example.com", "A", 3.0)
         assert result.success is False
         assert result.error == "TIMEOUT"
 
@@ -410,7 +496,7 @@ class TestQueryRecord:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.exception.DNSException("boom")
-        result = _query_record("8.8.8.8", "example.com", "A", 3.0)
+        result = _query_record(mock_resolver, "example.com", "A", 3.0)
         assert result.success is False
         assert result.error == "boom"
 
@@ -450,7 +536,7 @@ class TestScanAmplification:
         result = scan_amplification("example.com")
         assert result.domain == "example.com"
         assert result.recursion_available is False
-        assert len(result.records) == 6
+        assert len(result.records) == 5
 
     @patch("mytools.dns.dnsamplification._check_recursion", return_value=True)
     @patch("mytools.dns.dnsamplification._query_record")

@@ -415,17 +415,17 @@ async def _test_gcp_iam_bypass(
         try:
             resp = await client.post(url, content=b"{}", headers=payload["headers"])
 
-            if resp.status_code == 200:
-                bypass_results.append(payload["desc"])
-
             resp_text = resp.text.lower()
 
-            if (
-                "permission denied" not in resp_text
-                and "unauthorized" not in resp_text
-                and resp.status_code != 403
-            ):
-                bypass_results.append(f"{payload['desc']}-no_403")
+            denied = (
+                resp.status_code == 403
+                or "permission denied" in resp_text
+                or "unauthorized" in resp_text
+                or "forbidden" in resp_text
+            )
+
+            if resp.status_code == 200 and resp.content.strip() and not denied:
+                bypass_results.append(payload["desc"])
 
         except Exception:
             pass
@@ -576,9 +576,6 @@ async def _test_edge_code_injection(
             )
 
             lower = resp.text.lower()
-
-            if resp.status_code == 200:
-                injection_signals.append(f"header:{payload['header']}")
 
             if payload["value"] in resp.text:
                 injection_signals.append(f"reflected:{payload['header']}")

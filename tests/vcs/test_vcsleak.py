@@ -1,5 +1,7 @@
 import argparse
 import asyncio
+import json
+from dataclasses import asdict
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -364,7 +366,7 @@ async def test_scan_vcs_no_results():
 async def test_scan_vcs_finds_git_head():
     with respx.mock:
         respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
-            return_value=httpx.Response(200),
+            return_value=httpx.Response(200, headers={"content-length": "20"}),
         )
         respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
             return_value=httpx.Response(200, content=b"ref: refs/heads/main\n"),
@@ -378,6 +380,9 @@ async def test_scan_vcs_finds_git_head():
             user_agent="test/1.0",
         )
         assert any(leak.path == ".git/HEAD" for leak in leaks)
+        head = next(leak for leak in leaks if leak.path == ".git/HEAD")
+        assert head.exploit == "git clone http://x.com/"
+        assert head.tool == "git"
 
 
 @pytest.mark.asyncio
@@ -398,6 +403,9 @@ async def test_scan_vcs_finds_svn_wc_db():
             user_agent="test/1.0",
         )
         assert any(leak.path == ".svn/wc.db" for leak in leaks)
+        svn = next(leak for leak in leaks if leak.path == ".svn/wc.db")
+        assert svn.exploit == "svn checkout http://x.com/"
+        assert svn.tool == "svn"
 
 
 @pytest.mark.asyncio
@@ -420,6 +428,9 @@ async def test_scan_vcs_finds_hg_manifest():
             user_agent="test/1.0",
         )
         assert any(leak.path == ".hg/store/00manifest.i" for leak in leaks)
+        hg = next(leak for leak in leaks if leak.path == ".hg/store/00manifest.i")
+        assert hg.exploit == "hg clone http://x.com/"
+        assert hg.tool == "hg"
 
 
 @pytest.mark.asyncio
@@ -518,6 +529,47 @@ async def test_scan_vcs_oversized():
             user_agent="test/1.0",
         )
         assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_head_oversized_content_length():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(
+                200, headers={"content-length": str(5 * 1024 * 1024 + 1)}
+            ),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert leaks == []
+
+
+@pytest.mark.asyncio
+async def test_scan_vcs_head_invalid_content_length():
+    with respx.mock:
+        respx.route(method="HEAD", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(
+                200, headers={"content-length": "not-a-number"}
+            ),
+        )
+        respx.route(method="GET", url="http://x.com/.git/HEAD").mock(
+            return_value=httpx.Response(200, content=b"ref: refs/heads/main\n"),
+        )
+        respx.route(method="HEAD").mock(return_value=httpx.Response(404))
+        respx.route(method="GET").mock(return_value=httpx.Response(404))
+        leaks = await scan_vcs(
+            base_url="http://x.com/",
+            timeout=5.0,
+            concurrency=5,
+            user_agent="test/1.0",
+        )
+        assert any(leak.path == ".git/HEAD" for leak in leaks)
 
 
 @pytest.mark.asyncio
@@ -634,6 +686,13 @@ class TestAsyncRunOnce:
     def test_json_output(self, capsys):
         args = self._args()
         args.json_output = True
+        leak = VCSLeak(
+            vcs_type="git",
+            url="http://x.com/.git/HEAD",
+            path=".git/HEAD",
+            status=200,
+            detail="ref: refs/heads/main",
+        )
         with (
             patch("mytools.vcs.vcsleak.init_scanner", return_value=True),
             patch(
@@ -642,11 +701,69 @@ class TestAsyncRunOnce:
             ),
             patch(
                 "mytools.vcs.vcsleak.scan_vcs",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(return_value=[leak]),
             ),
         ):
             result = asyncio.run(_async_run_once(args))
         assert result == 0
+        captured = capsys.readouterr().out
+        data = json.loads(captured)
+        assert data == [asdict(leak)]
+
+    def test_json_multiple_urls(self, capsys):
+        args = self._args()
+        args.json_output = True
+        leak = VCSLeak(
+            vcs_type="git",
+            url="http://x.com/.git/HEAD",
+            path=".git/HEAD",
+            status=200,
+            detail="ref: refs/heads/main",
+        )
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=True),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/", "http://y.com/"],
+            ),
+            patch(
+                "mytools.vcs.vcsleak.scan_vcs",
+                new=AsyncMock(side_effect=[[leak], []]),
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        captured = capsys.readouterr().out
+        assert json.loads(captured) == [asdict(leak)]
+
+    def test_json_with_output_writes_file(self, tmp_path, capsys):
+        args = self._args()
+        args.json_output = True
+        args.output = str(tmp_path / "out.json")
+        leak = VCSLeak(
+            vcs_type="git",
+            url="http://x.com/.git/HEAD",
+            path=".git/HEAD",
+            status=200,
+            detail="ref: refs/heads/main",
+        )
+        with (
+            patch("mytools.vcs.vcsleak.init_scanner", return_value=True),
+            patch(
+                "mytools.vcs.vcsleak.resolve_target_urls",
+                return_value=["http://x.com/"],
+            ),
+            patch(
+                "mytools.vcs.vcsleak.scan_vcs",
+                new=AsyncMock(return_value=[leak]),
+            ),
+        ):
+            result = asyncio.run(_async_run_once(args))
+        assert result == 0
+        out_file = tmp_path / "out.json"
+        assert out_file.exists()
+        assert json.loads(out_file.read_text()) == [asdict(leak)]
+        assert json.loads(capsys.readouterr().out) == [asdict(leak)]
 
     def test_output_dir(self, tmp_path):
         args = self._args()

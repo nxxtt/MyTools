@@ -933,7 +933,7 @@ class TestRunOnce:
             result = run_once(base_ns)
         assert result == 0
         mock_print.assert_called_once()
-        mock_write.assert_called_once()
+        mock_write.assert_not_called()
 
     def test_run_once_error(self, base_ns: argparse.Namespace) -> None:
         base_ns.domain = "example.com"
@@ -946,6 +946,26 @@ class TestRunOnce:
             patch(
                 "mytools.web.subdomaintakeover.run_scan",
                 MagicMock(return_value=self._make_result("error")),
+            ),
+            patch(
+                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                side_effect=lambda coro: coro,
+            ),
+        ):
+            result = run_once(base_ns)
+        assert result == 1
+
+    def test_run_once_vulnerable_returns_1(self, base_ns: argparse.Namespace) -> None:
+        base_ns.domain = "example.com"
+        base_ns.timeout = 10
+        base_ns.concurrency = 5
+        base_ns.output = None
+        base_ns.json_output = False
+        base_ns.wordlist = None
+        with (
+            patch(
+                "mytools.web.subdomaintakeover.run_scan",
+                MagicMock(return_value=self._make_result("vulnerable")),
             ),
             patch(
                 "mytools.web.subdomaintakeover.safe_asyncio_run",

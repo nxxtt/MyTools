@@ -242,7 +242,7 @@ class TestCheckResponse:
     def test_digit_word_boundary(self) -> None:
         with patch("re.search", return_value=MagicMock()) as mock_search:
             assert _check_response(b"abc", "49") is True
-        mock_search.assert_called_once()
+        mock_search.assert_any_call(r"\b49\b", "abc")
 
     def test_digit_not_expected_value(self) -> None:
         assert _check_response(b"abc", "123") is False
@@ -252,6 +252,27 @@ class TestCheckResponse:
 
     def test_digit_value_error(self) -> None:
         assert _check_response(b"abc", "\u00b2") is False
+
+    def test_digit_not_part_of_bigger_number(self) -> None:
+        assert _check_response(b"value 149 end", "49") is False
+
+    def test_digit_not_part_of_word(self) -> None:
+        assert _check_response(b"pizza2slices", "2") is False
+
+    def test_standalone_digit_still_matches(self) -> None:
+        assert _check_response(b"result: 49", "49") is True
+
+    def test_class_not_substring_of_word(self) -> None:
+        assert _check_response(b"subclassing a config", "class") is False
+
+    def test_class_standalone_word_matches(self) -> None:
+        assert _check_response(b"a class of users", "class") is True
+
+    def test_long_unique_word_uses_substring(self) -> None:
+        assert _check_response(b"abc handlebars_xyz", "handlebars") is True
+
+    def test_empty_expected(self) -> None:
+        assert _check_response(b"result: 49", "") is False
 
 
 class TestCheckExploit:
@@ -440,6 +461,22 @@ class TestTestParamSSTI:
         assert len(vuln) > 0
         assert all("2nd-order" not in a.details for a in vuln)
 
+    @pytest.mark.asyncio
+    async def test_page_with_config_class_text_not_flagged(self) -> None:
+        page = b"<html>app configuration class settings</html>"
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = page
+        client.get = AsyncMock(return_value=resp)
+
+        attempts = await _test_param_ssti(
+            client,
+            "https://example.com",
+            (200, 100, page),
+        )
+        assert not any(a.vulnerable for a in attempts)
+
 
 class TestTestHeaderSSTI:
     """Testes para _test_header_ssti."""
@@ -474,6 +511,97 @@ class TestTestHeaderSSTI:
         assert len(attempts) > 0
         assert any(a.error for a in attempts)
 
+    @pytest.mark.asyncio
+    async def test_page_with_config_class_text_not_flagged(self) -> None:
+        page = b"<html>app configuration class settings</html>"
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = page
+        client.get = AsyncMock(return_value=resp)
+
+        attempts = await _test_header_ssti(
+            client,
+            "https://example.com",
+            (200, 100, page),
+        )
+        assert not any(a.vulnerable for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_second_order_confirmed(self) -> None:
+        detect_resp = MagicMock()
+        detect_resp.status_code = 200
+        detect_resp.content = b"result: 49"
+        verify_resp = MagicMock()
+        verify_resp.status_code = 200
+        verify_resp.content = b"verify 56"
+
+        def fake_get(
+            url: str,
+            headers: dict[str, str] | None = None,
+            follow_redirects: bool = False,
+        ) -> MagicMock:
+            if headers and any("7*8" in str(v) for v in headers.values()):
+                return verify_resp
+            return detect_resp
+
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=fake_get)
+
+        attempts = await _test_header_ssti(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+        )
+        vuln = [a for a in attempts if a.vulnerable]
+        assert len(vuln) > 0
+        assert all(a.engine_detected for a in vuln)
+
+    @pytest.mark.asyncio
+    async def test_second_order_no_verify_payload(self) -> None:
+        detect_resp = MagicMock()
+        detect_resp.status_code = 200
+        detect_resp.content = b"result: 49"
+        client = AsyncMock()
+        client.get = AsyncMock(return_value=detect_resp)
+
+        with patch("mytools.web.sstidetect.get_verify_payload", return_value=None):
+            attempts = await _test_header_ssti(
+                client,
+                "https://example.com",
+                (200, 100, b"ok"),
+            )
+        vuln = [a for a in attempts if a.vulnerable]
+        assert len(vuln) > 0
+        assert all("2nd-order" not in a.details for a in vuln)
+
+    @pytest.mark.asyncio
+    async def test_second_order_verify_request_error(self) -> None:
+        import httpx
+
+        detect_resp = MagicMock()
+        detect_resp.status_code = 200
+        detect_resp.content = b"result: 49"
+
+        def fake_get(
+            url: str,
+            headers: dict[str, str] | None = None,
+            follow_redirects: bool = False,
+        ) -> MagicMock:
+            if headers and any("7*8" in str(v) for v in headers.values()):
+                raise httpx.RequestError("boom")
+            return detect_resp
+
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=fake_get)
+
+        attempts = await _test_header_ssti(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(attempts) > 0
+
 
 class TestTestBodySSTI:
     """Testes para _test_body_ssti."""
@@ -507,6 +635,101 @@ class TestTestBodySSTI:
         )
         assert len(attempts) > 0
         assert all(a.error for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_page_with_config_class_text_not_flagged(self) -> None:
+        page = b"<html>app configuration class settings</html>"
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.content = page
+        client.post = AsyncMock(return_value=resp)
+
+        attempts = await _test_body_ssti(
+            client,
+            "https://example.com",
+            (200, 100, page),
+        )
+        assert not any(a.vulnerable for a in attempts)
+
+    @pytest.mark.asyncio
+    async def test_second_order_confirmed(self) -> None:
+        detect_resp = MagicMock()
+        detect_resp.status_code = 200
+        detect_resp.content = b"result: 49"
+        verify_resp = MagicMock()
+        verify_resp.status_code = 200
+        verify_resp.content = b"verify 56"
+
+        def fake_post(
+            url: str,
+            json: dict[str, str] | None = None,
+            data: dict[str, str] | None = None,
+            follow_redirects: bool = False,
+        ) -> MagicMock:
+            body = json or data or {}
+            if any("7*8" in str(v) for v in body.values()):
+                return verify_resp
+            return detect_resp
+
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=fake_post)
+
+        attempts = await _test_body_ssti(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+        )
+        vuln = [a for a in attempts if a.vulnerable]
+        assert len(vuln) > 0
+        assert all(a.engine_detected for a in vuln)
+
+    @pytest.mark.asyncio
+    async def test_second_order_no_verify_payload(self) -> None:
+        detect_resp = MagicMock()
+        detect_resp.status_code = 200
+        detect_resp.content = b"result: 49"
+        client = AsyncMock()
+        client.post = AsyncMock(return_value=detect_resp)
+
+        with patch("mytools.web.sstidetect.get_verify_payload", return_value=None):
+            attempts = await _test_body_ssti(
+                client,
+                "https://example.com",
+                (200, 100, b"ok"),
+            )
+        vuln = [a for a in attempts if a.vulnerable]
+        assert len(vuln) > 0
+        assert all("2nd-order" not in a.details for a in vuln)
+
+    @pytest.mark.asyncio
+    async def test_second_order_verify_request_error(self) -> None:
+        import httpx
+
+        detect_resp = MagicMock()
+        detect_resp.status_code = 200
+        detect_resp.content = b"result: 49"
+
+        def fake_post(
+            url: str,
+            json: dict[str, str] | None = None,
+            data: dict[str, str] | None = None,
+            follow_redirects: bool = False,
+        ) -> MagicMock:
+            body = json or data or {}
+            if any("7*8" in str(v) for v in body.values()):
+                raise httpx.RequestError("boom")
+            return detect_resp
+
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=fake_post)
+
+        attempts = await _test_body_ssti(
+            client,
+            "https://example.com",
+            (200, 100, b"ok"),
+        )
+        assert len(attempts) > 0
 
 
 class TestTestExploit:
@@ -884,6 +1107,44 @@ class TestRunScan:
         assert code == 1
         assert tmp_path.joinpath("out.json").exists()
 
+    @pytest.mark.asyncio
+    async def test_json_output(self) -> None:
+        client = _make_scan_client()
+        with (
+            patch("mytools.web.sstidetect.create_async_client", return_value=client),
+            patch(
+                "mytools.web.sstidetect._test_baseline",
+                new_callable=AsyncMock,
+                return_value=(200, 100, b"ok"),
+            ),
+            patch(
+                "mytools.web.sstidetect._test_param_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_header_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_body_ssti",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "mytools.web.sstidetect._test_bypass",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch("mytools.web.sstidetect.print_json") as mock_print,
+        ):
+            code = await run_scan(
+                "https://example.com", [], 10, 5, None, False, json_output=True
+            )
+        assert code == 0
+        mock_print.assert_called_once()
+
 
 def _run_once_args(**overrides: object) -> argparse.Namespace:
     defaults: dict[str, object] = {
@@ -893,6 +1154,8 @@ def _run_once_args(**overrides: object) -> argparse.Namespace:
         "concurrency": 5,
         "output": None,
         "verbose": False,
+        "log_file": None,
+        "theme": None,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)

@@ -33,6 +33,7 @@ Fluxo:
 """
 
 import argparse
+import asyncio
 import logging
 from dataclasses import asdict, dataclass
 
@@ -415,43 +416,28 @@ def _check_cache_response(
     headers: dict[str, str],
     indicators: list[str],
 ) -> bool:
-    """Verifica se a resposta indica cache poisoning via headers reais de cache."""
+    """Verifica cache poisoning exigindo marcador cache-hit real E indicador no BODY."""
 
     if status == 0:
         return False
 
-    cache_headers = {
-        "x-cache",
-        "age",
-        "cf-cache-status",
-        "x-varnish",
-        "via",
-        "x-cache-hits",
-        "x-served-by",
-        "x-drupal-cache",
-        "x-fastly-debug",
-        "surrogate-control",
-        "cdn-cache-status",
-        "x-akamai-transformed",
-    }
-
-    has_cache_header = any(k.lower() in cache_headers for k in headers)
-
     cache_hit = any(
         "hit" in headers.get(k, "").lower()
-        for k in ("x-cache", "cf-cache-status", "x-varnish", "x-cache-hits")
+        for k in (
+            "x-cache",
+            "cf-cache-status",
+            "x-varnish",
+            "x-cache-hits",
+            "via",
+        )
     )
 
-    if not has_cache_header and not cache_hit:
+    if not cache_hit:
         return False
 
     text = body.decode("utf-8", errors="ignore").lower()
 
-    header_text = " ".join(f"{k}: {v}" for k, v in headers.items()).lower()
-
-    combined = text + " " + header_text
-
-    return any(ind.lower() in combined for ind in indicators)
+    return any(ind.lower() in text for ind in indicators)
 
 
 async def _test_baseline(client: httpx.AsyncClient, url: str) -> tuple[int, int, bytes]:
@@ -478,67 +464,64 @@ async def _test_host(
     results: list[CacheAttempt] = []
 
     for technique, extra_headers, indicators in _HOST_PAYLOADS:
-        for param in _SSI_PARAMS[:4]:
-            try:
-                resp = await client.get(
-                    url,
-                    headers=extra_headers,
-                    follow_redirects=True,
-                )
+        try:
+            resp = await client.get(
+                url,
+                headers=extra_headers,
+                follow_redirects=True,
+            )
 
-                headers_dict = dict(resp.headers)
+            headers_dict = dict(resp.headers)
 
-                vulnerable = _check_cache_response(
-                    resp.content,
-                    resp.status_code,
-                    headers_dict,
-                    indicators,
-                )
+            vulnerable = _check_cache_response(
+                resp.content,
+                resp.status_code,
+                headers_dict,
+                indicators,
+            )
 
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="host",
-                        payload=str(extra_headers),
-                        param=param,
-                        method="get_headers",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
-                        if vulnerable
-                        else "",
-                        tool="curl",
-                    )
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="host",
+                    payload=str(extra_headers),
+                    param="",
+                    method="get_headers",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"indicators={indicators}" if vulnerable else "",
+                    error="",
+                    exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                    if vulnerable
+                    else "",
+                    tool="curl",
                 )
+            )
 
-            except httpx.RequestError as e:
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="host",
-                        payload=str(extra_headers),
-                        param=param,
-                        method="get_headers",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="host",
+                    payload=str(extra_headers),
+                    param="",
+                    method="get_headers",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
+            )
 
     return results
 
@@ -555,65 +538,62 @@ async def _test_path(
     results: list[CacheAttempt] = []
 
     for technique, path_payload, indicators in _PATH_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                test_url = url.rstrip("/") + path_payload
+        try:
+            test_url = url.rstrip("/") + path_payload
 
-                resp = await client.get(test_url, follow_redirects=True)
+            resp = await client.get(test_url, follow_redirects=True)
 
-                headers_dict = dict(resp.headers)
+            headers_dict = dict(resp.headers)
 
-                vulnerable = _check_cache_response(
-                    resp.content,
-                    resp.status_code,
-                    headers_dict,
-                    indicators,
+            vulnerable = _check_cache_response(
+                resp.content,
+                resp.status_code,
+                headers_dict,
+                indicators,
+            )
+
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="path",
+                    payload=path_payload,
+                    param="",
+                    method="get_path",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"indicators={indicators}" if vulnerable else "",
+                    error="",
+                    exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                    if vulnerable
+                    else "",
+                    tool="curl",
                 )
+            )
 
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="path",
-                        payload=path_payload,
-                        param=param,
-                        method="get_path",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
-                        if vulnerable
-                        else "",
-                        tool="curl",
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="path",
+                    payload=path_payload,
+                    param="",
+                    method="get_path",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
-
-            except httpx.RequestError as e:
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="path",
-                        payload=path_payload,
-                        param=param,
-                        method="get_path",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
-                )
+            )
 
     return results
 
@@ -630,67 +610,64 @@ async def _test_header(
     results: list[CacheAttempt] = []
 
     for technique, extra_headers, indicators in _HEADER_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                resp = await client.get(
-                    url,
-                    headers=extra_headers,
-                    follow_redirects=True,
-                )
+        try:
+            resp = await client.get(
+                url,
+                headers=extra_headers,
+                follow_redirects=True,
+            )
 
-                headers_dict = dict(resp.headers)
+            headers_dict = dict(resp.headers)
 
-                vulnerable = _check_cache_response(
-                    resp.content,
-                    resp.status_code,
-                    headers_dict,
-                    indicators,
-                )
+            vulnerable = _check_cache_response(
+                resp.content,
+                resp.status_code,
+                headers_dict,
+                indicators,
+            )
 
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="header",
-                        payload=str(extra_headers),
-                        param=param,
-                        method="get_headers",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
-                        if vulnerable
-                        else "",
-                        tool="curl",
-                    )
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="header",
+                    payload=str(extra_headers),
+                    param="",
+                    method="get_headers",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"indicators={indicators}" if vulnerable else "",
+                    error="",
+                    exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                    if vulnerable
+                    else "",
+                    tool="curl",
                 )
+            )
 
-            except httpx.RequestError as e:
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="header",
-                        payload=str(extra_headers),
-                        param=param,
-                        method="get_headers",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="header",
+                    payload=str(extra_headers),
+                    param="",
+                    method="get_headers",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
+            )
 
     return results
 
@@ -707,68 +684,65 @@ async def _test_encoding(
     results: list[CacheAttempt] = []
 
     for technique, extra_headers, body_payload, indicators in _ENCODING_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                resp = await client.post(
-                    url,
-                    content=body_payload.encode("utf-8"),
-                    headers=extra_headers,
-                    follow_redirects=True,
-                )
+        try:
+            resp = await client.post(
+                url,
+                content=body_payload.encode("utf-8"),
+                headers=extra_headers,
+                follow_redirects=True,
+            )
 
-                headers_dict = dict(resp.headers)
+            headers_dict = dict(resp.headers)
 
-                vulnerable = _check_cache_response(
-                    resp.content,
-                    resp.status_code,
-                    headers_dict,
-                    indicators,
-                )
+            vulnerable = _check_cache_response(
+                resp.content,
+                resp.status_code,
+                headers_dict,
+                indicators,
+            )
 
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="encoding",
-                        payload=f"{extra_headers} + {body_payload[:50]}",
-                        param=param,
-                        method="post_headers",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
-                        if vulnerable
-                        else "",
-                        tool="curl",
-                    )
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="encoding",
+                    payload=f"{extra_headers} + {body_payload[:50]}",
+                    param="",
+                    method="post_headers",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"indicators={indicators}" if vulnerable else "",
+                    error="",
+                    exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                    if vulnerable
+                    else "",
+                    tool="curl",
                 )
+            )
 
-            except httpx.RequestError as e:
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="encoding",
-                        payload=f"{extra_headers} + {body_payload[:50]}",
-                        param=param,
-                        method="post_headers",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="encoding",
+                    payload=f"{extra_headers} + {body_payload[:50]}",
+                    param="",
+                    method="post_headers",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
+            )
 
     return results
 
@@ -785,65 +759,62 @@ async def _test_bypass(
     results: list[CacheAttempt] = []
 
     for technique, path_payload, indicators in _BYPASS_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                test_url = url.rstrip("/") + path_payload
+        try:
+            test_url = url.rstrip("/") + path_payload
 
-                resp = await client.get(test_url, follow_redirects=True)
+            resp = await client.get(test_url, follow_redirects=True)
 
-                headers_dict = dict(resp.headers)
+            headers_dict = dict(resp.headers)
 
-                vulnerable = _check_cache_response(
-                    resp.content,
-                    resp.status_code,
-                    headers_dict,
-                    indicators,
+            vulnerable = _check_cache_response(
+                resp.content,
+                resp.status_code,
+                headers_dict,
+                indicators,
+            )
+
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="bypass",
+                    payload=path_payload,
+                    param="",
+                    method="get_path",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"indicators={indicators}" if vulnerable else "",
+                    error="",
+                    exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
+                    if vulnerable
+                    else "",
+                    tool="curl",
                 )
+            )
 
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="bypass",
-                        payload=path_payload,
-                        param=param,
-                        method="get_path",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"param={param}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit="curl -H 'X-Forwarded-Host: evil.com' <TARGET>"
-                        if vulnerable
-                        else "",
-                        tool="curl",
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="bypass",
+                    payload=path_payload,
+                    param="",
+                    method="get_path",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
-
-            except httpx.RequestError as e:
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="bypass",
-                        payload=path_payload,
-                        param=param,
-                        method="get_path",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
-                )
+            )
 
     return results
 
@@ -860,60 +831,57 @@ async def _test_cdn(
     results: list[CacheAttempt] = []
 
     for technique, extra_headers, indicators in _CDN_PAYLOADS:
-        for param in _SSI_PARAMS[:3]:
-            try:
-                resp = await client.get(
-                    url, headers=extra_headers, follow_redirects=True
-                )
+        try:
+            resp = await client.get(url, headers=extra_headers, follow_redirects=True)
 
-                vulnerable = _check_cache_response(
-                    resp.content, resp.status_code, dict(resp.headers), indicators
-                )
+            vulnerable = _check_cache_response(
+                resp.content, resp.status_code, dict(resp.headers), indicators
+            )
 
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="cdn",
-                        payload=str(extra_headers),
-                        param=param,
-                        method="get_headers",
-                        status_baseline=b_status,
-                        status_test=resp.status_code,
-                        size_baseline=b_size,
-                        size_test=len(resp.content),
-                        status_changed=resp.status_code != b_status,
-                        size_changed=len(resp.content) != b_size,
-                        vulnerable=vulnerable,
-                        details=f"CDN header: {extra_headers}, indicators={indicators}"
-                        if vulnerable
-                        else "",
-                        error="",
-                        exploit=f"curl -H '{next(iter(extra_headers.keys()))}: {next(iter(extra_headers.values()))}' {url}"
-                        if vulnerable
-                        else "",
-                        tool="curl",
-                    )
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="cdn",
+                    payload=str(extra_headers),
+                    param="",
+                    method="get_headers",
+                    status_baseline=b_status,
+                    status_test=resp.status_code,
+                    size_baseline=b_size,
+                    size_test=len(resp.content),
+                    status_changed=resp.status_code != b_status,
+                    size_changed=len(resp.content) != b_size,
+                    vulnerable=vulnerable,
+                    details=f"CDN header: {extra_headers}, indicators={indicators}"
+                    if vulnerable
+                    else "",
+                    error="",
+                    exploit=f"curl -H '{next(iter(extra_headers.keys()))}: {next(iter(extra_headers.values()))}' {url}"
+                    if vulnerable
+                    else "",
+                    tool="curl",
                 )
+            )
 
-            except httpx.RequestError as e:
-                results.append(
-                    CacheAttempt(
-                        technique=technique,
-                        category="cdn",
-                        payload=str(extra_headers),
-                        param=param,
-                        method="get_headers",
-                        status_baseline=b_status,
-                        status_test=0,
-                        size_baseline=b_size,
-                        size_test=0,
-                        status_changed=False,
-                        size_changed=False,
-                        vulnerable=False,
-                        details="",
-                        error=str(e)[:100],
-                    )
+        except httpx.RequestError as e:
+            results.append(
+                CacheAttempt(
+                    technique=technique,
+                    category="cdn",
+                    payload=str(extra_headers),
+                    param="",
+                    method="get_headers",
+                    status_baseline=b_status,
+                    status_test=0,
+                    size_baseline=b_size,
+                    size_test=0,
+                    status_changed=False,
+                    size_changed=False,
+                    vulnerable=False,
+                    details="",
+                    error=str(e)[:100],
                 )
+            )
 
     return results
 
@@ -987,29 +955,34 @@ async def run_scan(
 
         all_attempts: list[CacheAttempt] = []
 
-        for cat in test_categories:
-            if cat == "host":
-                attempts = await _test_host(client, target, (b_status, b_size, b""))
+        sem = asyncio.Semaphore(concurrency)
 
-            elif cat == "path":
-                attempts = await _test_path(client, target, (b_status, b_size, b""))
+        async def _run_cat(cat: str) -> list[CacheAttempt]:
+            async with sem:
+                if cat == "host":
+                    return await _test_host(client, target, (b_status, b_size, b""))
 
-            elif cat == "header":
-                attempts = await _test_header(client, target, (b_status, b_size, b""))
+                if cat == "path":
+                    return await _test_path(client, target, (b_status, b_size, b""))
 
-            elif cat == "encoding":
-                attempts = await _test_encoding(client, target, (b_status, b_size, b""))
+                if cat == "header":
+                    return await _test_header(client, target, (b_status, b_size, b""))
 
-            elif cat == "bypass":
-                attempts = await _test_bypass(client, target, (b_status, b_size, b""))
+                if cat == "encoding":
+                    return await _test_encoding(client, target, (b_status, b_size, b""))
 
-            elif cat == "cdn":
-                attempts = await _test_cdn(client, target, (b_status, b_size, b""))
+                if cat == "bypass":
+                    return await _test_bypass(client, target, (b_status, b_size, b""))
 
-            else:
-                continue
+                if cat == "cdn":
+                    return await _test_cdn(client, target, (b_status, b_size, b""))
 
-            all_attempts.extend(attempts)
+                return []
+
+        cat_tasks = [_run_cat(cat) for cat in test_categories]
+        for attempts in await asyncio.gather(*cat_tasks, return_exceptions=True):
+            if isinstance(attempts, list):
+                all_attempts.extend(attempts)
 
         vulnerable = [a for a in all_attempts if a.vulnerable]
 

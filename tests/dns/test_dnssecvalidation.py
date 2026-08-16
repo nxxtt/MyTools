@@ -6,7 +6,13 @@ import datetime
 from unittest.mock import MagicMock, patch
 
 import dns.exception
+import dns.flags
+import dns.message
+import dns.name
+import dns.rcode
+import dns.rdatatype
 import dns.resolver
+import dns.rrset
 import pytest
 
 from mytools.dns.dnssecvalidation import (
@@ -17,6 +23,11 @@ from mytools.dns.dnssecvalidation import (
     _check_nsec,
     _check_rrsig,
     _evaluate_algorithm_strength,
+    _extract_rrsigs,
+    _is_valid_nameserver,
+    _random_label,
+    _zone_uses_nsec,
+    _zone_uses_nsec3,
     banner,
     build_parser,
     main,
@@ -165,6 +176,7 @@ class TestScanDnssec:
         mock_dnskey.return_value = (
             True,
             [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")],
+            {13},
         )
         mock_ds.return_value = (True, [DnssecCheck("ds_record", "pass", "1 DS", "low")])
         mock_rrsig.return_value = (
@@ -195,6 +207,7 @@ class TestScanDnssec:
         mock_dnskey.return_value = (
             False,
             [DnssecCheck("dnskey", "missing", "Nenhum", "high")],
+            {},
         )
         mock_ds.return_value = (
             False,
@@ -227,6 +240,7 @@ class TestScanDnssec:
         mock_dnskey.return_value = (
             True,
             [DnssecCheck("dnskey_ksk", "pass", "1 KSK", "low")],
+            {13},
         )
         mock_ds.return_value = (True, [DnssecCheck("ds_record", "pass", "1 DS", "low")])
         mock_rrsig.return_value = (
@@ -296,7 +310,7 @@ class TestCheckDnskey:
             self._make_rr(256, 8),
             self._make_rr(257, 13),
         ]
-        has_dnskey, checks = _check_dnskey("example.com", resolver)
+        has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert has_dnskey is True
         statuses = {c.check: c.status for c in checks}
         assert statuses["dnskey_ksk"] == "pass"
@@ -307,46 +321,46 @@ class TestCheckDnskey:
     def test_no_ksk(self) -> None:
         resolver = MagicMock()
         resolver.resolve.return_value = [self._make_rr(256, 8)]
-        _has_dnskey, checks = _check_dnskey("example.com", resolver)
+        _has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert any(c.check == "dnskey_ksk" and c.status == "warn" for c in checks)
 
     def test_no_zsk(self) -> None:
         resolver = MagicMock()
         resolver.resolve.return_value = [self._make_rr(257, 8)]
-        _has_dnskey, checks = _check_dnskey("example.com", resolver)
+        _has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert any(c.check == "dnskey_zsk" and c.status == "warn" for c in checks)
 
     def test_unknown_flags_ignored(self) -> None:
         resolver = MagicMock()
         resolver.resolve.return_value = [self._make_rr(128, 8)]
-        _has_dnskey, checks = _check_dnskey("example.com", resolver)
+        _has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert any(c.check == "dnskey_ksk" and c.status == "warn" for c in checks)
         assert any(c.check == "dnskey_zsk" and c.status == "warn" for c in checks)
 
     def test_nxdomain(self) -> None:
         resolver = MagicMock()
         resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
-        has_dnskey, checks = _check_dnskey("example.com", resolver)
+        has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert has_dnskey is False
         assert checks[0].status == "fail"
 
     def test_noanswer(self) -> None:
         resolver = MagicMock()
         resolver.resolve.side_effect = dns.resolver.NoAnswer()
-        has_dnskey, checks = _check_dnskey("example.com", resolver)
+        has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert has_dnskey is False
         assert checks[0].status == "missing"
 
     def test_timeout(self) -> None:
         resolver = MagicMock()
         resolver.resolve.side_effect = dns.exception.Timeout()
-        _has_dnskey, checks = _check_dnskey("example.com", resolver)
+        _has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert checks[0].status == "fail"
 
     def test_generic_dns_exception(self) -> None:
         resolver = MagicMock()
         resolver.resolve.side_effect = dns.exception.DNSException("boom")
-        _has_dnskey, checks = _check_dnskey("example.com", resolver)
+        _has_dnskey, checks, _algos = _check_dnskey("example.com", resolver)
         assert checks[0].status == "fail"
         assert "boom" in checks[0].detail
 
@@ -396,10 +410,28 @@ class TestCheckRrsig:
         rr.expiration = expiration
         return rr
 
+    def _make_answer(self, rrs: list[MagicMock]) -> MagicMock:
+        answer = MagicMock()
+        response = MagicMock()
+        rrset = MagicMock()
+        rrset.rdtype = dns.rdatatype.RRSIG
+        rrset.__iter__.return_value = iter(rrs)
+        response.answer = [rrset]
+        answer.response = response
+        return answer
+
+    def test_queries_soa_not_rrsig(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.return_value = self._make_answer([self._make_rr(123456)])
+        _check_rrsig("example.com", resolver)
+        resolver.resolve.assert_called_once_with("example.com", "SOA")
+
     def test_valid_signatures(self) -> None:
         future = int(datetime.datetime.now(datetime.UTC).timestamp()) + 100000
         resolver = MagicMock()
-        resolver.resolve.return_value = [self._make_rr(future), self._make_rr(future)]
+        resolver.resolve.return_value = self._make_answer(
+            [self._make_rr(future), self._make_rr(future)]
+        )
         has_rrsig, checks = _check_rrsig("example.com", resolver)
         assert has_rrsig is True
         assert checks[0].status == "pass"
@@ -408,14 +440,22 @@ class TestCheckRrsig:
     def test_expired_signatures(self) -> None:
         past = int(datetime.datetime.now(datetime.UTC).timestamp()) - 100000
         resolver = MagicMock()
-        resolver.resolve.return_value = [self._make_rr(past)]
+        resolver.resolve.return_value = self._make_answer([self._make_rr(past)])
         _has_rrsig, checks = _check_rrsig("example.com", resolver)
         assert checks[0].status == "warn"
         assert "1 assinatura(s) expirada(s)" in checks[0].detail
 
+    def test_unsigned_zone_soa_no_rrsig(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.return_value = self._make_answer([])
+        has_rrsig, checks = _check_rrsig("example.com", resolver)
+        assert has_rrsig is False
+        assert checks[0].check == "rrsig"
+        assert checks[0].status == "missing"
+
     def test_exception_parsing_expiry(self) -> None:
         resolver = MagicMock()
-        resolver.resolve.return_value = [self._make_rr(123456)]
+        resolver.resolve.return_value = self._make_answer([self._make_rr(123456)])
         with patch(
             "mytools.dns.dnssecvalidation.dns.dnssec.to_timestamp",
             side_effect=ValueError("bad ts"),
@@ -449,88 +489,206 @@ class TestCheckRrsig:
         assert checks[0].status == "fail"
 
 
+class TestExtractRrsigs:
+    """Testes da funcao _extract_rrsigs."""
+
+    def test_response_with_non_rrsig_rrset(self) -> None:
+        answer = MagicMock()
+        response = MagicMock()
+        non_rrsig = MagicMock()
+        non_rrsig.rdtype = dns.rdatatype.A
+        rrsig = MagicMock()
+        rrsig.rdtype = dns.rdatatype.RRSIG
+        rrsig.__iter__.return_value = iter(["sig1", "sig2"])
+        response.answer = [non_rrsig, rrsig]
+        answer.response = response
+        result = _extract_rrsigs(answer)
+        assert result == ["sig1", "sig2"]
+
+    def test_response_none_answer_iterable(self) -> None:
+        answer = MagicMock()
+        answer.response = None
+        answer.__iter__.return_value = iter(["sig1", "sig2"])
+        result = _extract_rrsigs(answer)
+        assert result == ["sig1", "sig2"]
+
+    def test_response_none_answer_not_iterable(self) -> None:
+        answer = MagicMock()
+        answer.response = None
+        type(answer).__iter__ = None
+        result = _extract_rrsigs(answer)
+        assert result == []
+
+    def test_empty_answer(self) -> None:
+        answer = MagicMock()
+        response = MagicMock()
+        response.answer = []
+        answer.response = response
+        assert _extract_rrsigs(answer) == []
+
+    def test_no_response(self) -> None:
+        answer = MagicMock()
+        answer.response = None
+        assert _extract_rrsigs(answer) == []
+
+
+class TestRandomLabel:
+    """Testes da funcao _random_label."""
+
+    def test_default_length(self) -> None:
+        label = _random_label()
+        assert len(label) == 12
+        assert label.islower()
+        assert label.isalpha()
+
+    def test_custom_length(self) -> None:
+        assert len(_random_label(5)) == 5
+
+
+class TestIsValidNameserver:
+    """Testes da funcao _is_valid_nameserver."""
+
+    def test_valid_ip(self) -> None:
+        assert _is_valid_nameserver("8.8.8.8") is True
+
+    def test_valid_hostname(self) -> None:
+        assert _is_valid_nameserver("ns1.example.com") is True
+
+    def test_valid_ipv6(self) -> None:
+        assert _is_valid_nameserver("2001:4860:4860::8888") is True
+
+    def test_empty(self) -> None:
+        assert _is_valid_nameserver("") is False
+
+    def test_whitespace(self) -> None:
+        assert _is_valid_nameserver("8.8.8.8 1.1.1.1") is False
+
+    def test_leading_dot(self) -> None:
+        assert _is_valid_nameserver(".example.com") is False
+
+    def test_trailing_dash(self) -> None:
+        assert _is_valid_nameserver("example.com-") is False
+
+
 class TestCheckNsec:
     """Testes da funcao _check_nsec."""
 
-    def test_nsec_success(self) -> None:
+    @patch("mytools.dns.dnssecvalidation._zone_uses_nsec", return_value=True)
+    def test_nsec_success(self, mock_nsec: MagicMock) -> None:
         resolver = MagicMock()
-        resolver.resolve.return_value = [MagicMock(), MagicMock()]
         checks = _check_nsec("example.com", resolver)
+        mock_nsec.assert_called_once_with("example.com", resolver)
         assert checks[0].check == "nsec"
         assert checks[0].status == "pass"
-        assert "2 NSEC" in checks[0].detail
+        assert "NSEC record(s)" in checks[0].detail
 
-    def test_nsec3_success(self) -> None:
+    @patch("mytools.dns.dnssecvalidation._zone_uses_nsec", return_value=False)
+    @patch("mytools.dns.dnssecvalidation._zone_uses_nsec3", return_value=True)
+    def test_nsec3_success(self, mock_nsec3: MagicMock, mock_nsec: MagicMock) -> None:
         resolver = MagicMock()
-        resolver.resolve.side_effect = [dns.resolver.NoAnswer(), [MagicMock()]]
         checks = _check_nsec("example.com", resolver)
         assert checks[0].check == "nsec3"
         assert checks[0].status == "pass"
+        assert "NSEC3PARAM" in checks[0].detail
 
-    def test_both_missing(self) -> None:
+    @patch("mytools.dns.dnssecvalidation._zone_uses_nsec", return_value=False)
+    @patch("mytools.dns.dnssecvalidation._zone_uses_nsec3", return_value=False)
+    def test_both_missing(self, mock_nsec3: MagicMock, mock_nsec: MagicMock) -> None:
         resolver = MagicMock()
-        resolver.resolve.side_effect = [
-            dns.resolver.NoAnswer(),
-            dns.resolver.NoAnswer(),
-        ]
         checks = _check_nsec("example.com", resolver)
         assert checks[0].check == "nsec"
         assert checks[0].status == "missing"
 
-    def test_nsec3_dns_exception(self) -> None:
+    @patch("mytools.dns.dnssecvalidation._random_label", return_value="abc")
+    def test_zone_uses_nsec_nxdomain_with_nsec(self, mock_label: MagicMock) -> None:
+        qname = dns.name.from_text("abc.example.com")
+        msg = dns.message.make_response(dns.message.make_query(qname, "A"))
+        msg.set_rcode(dns.rcode.NXDOMAIN)
+        msg.flags |= dns.flags.AA
+        rrset = dns.rrset.from_text(
+            dns.name.from_text("zzz.example.com"),
+            3600,
+            "IN",
+            "NSEC",
+            "abc.example.com A NS SOA RRSIG NSEC DNSKEY",
+        )
+        msg.authority.append(rrset)
+        exc = dns.resolver.NXDOMAIN(qnames=[qname], responses={qname: msg})
         resolver = MagicMock()
-        resolver.resolve.side_effect = [
-            dns.resolver.NoAnswer(),
-            dns.exception.DNSException("err"),
-        ]
-        checks = _check_nsec("example.com", resolver)
-        assert checks[0].check == "nsec3"
-        assert checks[0].status == "fail"
+        resolver.resolve.side_effect = exc
+        assert _zone_uses_nsec("example.com", resolver) is True
 
-    def test_nsec_dns_exception(self) -> None:
+    @patch("mytools.dns.dnssecvalidation._random_label", return_value="abc")
+    def test_zone_uses_nsec_nxdomain_no_nsec(self, mock_label: MagicMock) -> None:
+        qname = dns.name.from_text("abc.example.com")
+        msg = dns.message.make_response(dns.message.make_query(qname, "A"))
+        msg.set_rcode(dns.rcode.NXDOMAIN)
+        msg.flags |= dns.flags.AA
+        exc = dns.resolver.NXDOMAIN(qnames=[qname], responses={qname: msg})
+        resolver = MagicMock()
+        resolver.resolve.side_effect = exc
+        assert _zone_uses_nsec("example.com", resolver) is False
+
+    @patch("mytools.dns.dnssecvalidation._random_label", return_value="abc")
+    def test_zone_uses_nsec_not_nxdomain(self, mock_label: MagicMock) -> None:
+        resolver = MagicMock()
+        resolver.resolve.return_value = [MagicMock()]
+        assert _zone_uses_nsec("example.com", resolver) is False
+
+    @patch("mytools.dns.dnssecvalidation._random_label", return_value="abc")
+    def test_zone_uses_nsec_exc_response_raises(
+        self, mock_label: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        qname = dns.name.from_text("abc.example.com")
+        msg = dns.message.make_response(dns.message.make_query(qname, "A"))
+        msg.set_rcode(dns.rcode.NXDOMAIN)
+        msg.flags |= dns.flags.AA
+        exc = dns.resolver.NXDOMAIN(qnames=[qname], responses={qname: msg})
+
+        def boom(_name: object) -> None:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(exc, "response", boom)
+        resolver = MagicMock()
+        resolver.resolve.side_effect = exc
+        assert _zone_uses_nsec("example.com", resolver) is False
+
+    @patch("mytools.dns.dnssecvalidation._random_label", return_value="abc")
+    def test_zone_uses_nsec_generic_dns_exception(
+        self, mock_label: MagicMock
+    ) -> None:
         resolver = MagicMock()
         resolver.resolve.side_effect = dns.exception.DNSException("err")
-        checks = _check_nsec("example.com", resolver)
-        assert checks[0].check == "nsec"
-        assert checks[0].status == "fail"
+        assert _zone_uses_nsec("example.com", resolver) is False
+
+    def test_zone_uses_nsec3_with_param(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.return_value = [MagicMock()]
+        assert _zone_uses_nsec3("example.com", resolver) is True
+
+    def test_zone_uses_nsec3_no_answer(self) -> None:
+        resolver = MagicMock()
+        resolver.resolve.side_effect = dns.resolver.NoAnswer()
+        assert _zone_uses_nsec3("example.com", resolver) is False
 
 
 class TestEvaluateAlgorithmStrength:
     """Testes da funcao _evaluate_algorithm_strength."""
 
-    def _make_algo_resolver(self, algorithms: list[int]) -> MagicMock:
-        resolver = MagicMock()
-        resolver.resolve.return_value = [MagicMock(algorithm=a) for a in algorithms]
-        return resolver
-
     def test_strong(self) -> None:
-        assert (
-            _evaluate_algorithm_strength("example.com", self._make_algo_resolver([13]))
-            == "strong"
-        )
+        assert _evaluate_algorithm_strength({13}) == "strong"
 
     def test_medium(self) -> None:
-        assert (
-            _evaluate_algorithm_strength("example.com", self._make_algo_resolver([8]))
-            == "medium"
-        )
+        assert _evaluate_algorithm_strength({8}) == "medium"
 
     def test_weak(self) -> None:
-        assert (
-            _evaluate_algorithm_strength("example.com", self._make_algo_resolver([5]))
-            == "weak"
-        )
+        assert _evaluate_algorithm_strength({5}) == "weak"
 
     def test_unknown(self) -> None:
-        assert (
-            _evaluate_algorithm_strength("example.com", self._make_algo_resolver([1]))
-            == "unknown"
-        )
+        assert _evaluate_algorithm_strength({1}) == "unknown"
 
-    def test_exception(self) -> None:
-        resolver = MagicMock()
-        resolver.resolve.side_effect = dns.exception.DNSException("err")
-        assert _evaluate_algorithm_strength("example.com", resolver) == "unknown"
+    def test_empty(self) -> None:
+        assert _evaluate_algorithm_strength(set()) == "unknown"
 
 
 class TestScanDnssecAdditional:
@@ -552,7 +710,7 @@ class TestScanDnssecAdditional:
         mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
-        mock_dnskey.return_value = (True, [])
+        mock_dnskey.return_value = (True, [], {13})
         mock_ds.return_value = (False, [])
         mock_rrsig.return_value = (True, [])
 
@@ -577,7 +735,7 @@ class TestScanDnssecAdditional:
         mock_nsec: MagicMock,
         mock_algo: MagicMock,
     ) -> None:
-        mock_dnskey.return_value = (True, [])
+        mock_dnskey.return_value = (True, [], {13})
         mock_ds.return_value = (True, [])
         mock_rrsig.return_value = (True, [])
 
@@ -646,6 +804,10 @@ class TestRunOnce:
     def test_dry_run(self, mock_init: MagicMock) -> None:
         assert run_once(_make_run_once_args(dry_run=True)) == 0
 
+    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    def test_invalid_nameserver(self, mock_init: MagicMock) -> None:
+        assert run_once(_make_run_once_args(nameserver="bad name server")) == 1
+
     @patch("mytools.dns.dnssecvalidation.print_results")
     @patch("mytools.dns.dnssecvalidation.scan_dnssec")
     @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
@@ -699,6 +861,63 @@ class TestRunOnce:
         )
         mock_scan.return_value = result
         assert run_once(_make_run_once_args(output="out.json")) == 0
+        mock_write.assert_called_once()
+
+    @patch("mytools.dns.dnssecvalidation.print_json")
+    @patch("mytools.dns.dnssecvalidation.print_results")
+    @patch("mytools.dns.dnssecvalidation.scan_dnssec")
+    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    def test_json_output(
+        self,
+        mock_init: MagicMock,
+        mock_scan: MagicMock,
+        mock_print: MagicMock,
+        mock_json: MagicMock,
+    ) -> None:
+        result = DnssecResult(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            is_signed=True,
+            has_ds=True,
+            has_dnskey=True,
+            has_rrsig=True,
+            chain_valid=True,
+            algorithm_strength="strong",
+            checks=[],
+            overall_status="secure",
+        )
+        mock_scan.return_value = result
+        assert run_once(_make_run_once_args(json_output=True)) == 0
+        mock_json.assert_called_once()
+
+    @patch("mytools.dns.dnssecvalidation.ensure_output_dir")
+    @patch("mytools.dns.dnssecvalidation.write_output")
+    @patch("mytools.dns.dnssecvalidation.print_results")
+    @patch("mytools.dns.dnssecvalidation.scan_dnssec")
+    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    def test_output_dir(
+        self,
+        mock_init: MagicMock,
+        mock_scan: MagicMock,
+        mock_print: MagicMock,
+        mock_write: MagicMock,
+        mock_ensure: MagicMock,
+    ) -> None:
+        result = DnssecResult(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            is_signed=True,
+            has_ds=True,
+            has_dnskey=True,
+            has_rrsig=True,
+            chain_valid=True,
+            algorithm_strength="strong",
+            checks=[],
+            overall_status="secure",
+        )
+        mock_scan.return_value = result
+        assert run_once(_make_run_once_args(output_dir="reports")) == 0
+        mock_ensure.assert_called_once_with("reports")
         mock_write.assert_called_once()
 
     @patch("mytools.dns.dnssecvalidation.write_output")

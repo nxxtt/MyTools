@@ -20,11 +20,14 @@ from mytools.web.http2abuse import (
     _create_tls_socket,
     _drain_settings,
     _fingerprint_server,
+    _h2_abuse_evidence,
     _parse_url,
     _recv_events,
     _test_h2_downgrade,
     _test_h2_fingerprint,
+    _test_h2_priority_attack,
     _test_h2_push_abuse,
+    _test_h2_reset_attack,
     _test_h2_stream_abuse,
     build_parser,
     main,
@@ -901,6 +904,92 @@ class TestPrintResultsSecureCategory:
 
 
 # ─── run_once / main / guard ────────────────────────────────────────────────
+
+
+class TestAbuseEvidence:
+    def test_evidence_helper_detects_goaway_and_resets(self) -> None:
+        term = h2.events.ConnectionTerminated()
+        term.error_code = 0
+        reset = h2.events.StreamReset(stream_id=1, error_code=8, remote_reset=True)
+        goaway, resets = _h2_abuse_evidence(
+            [term, reset, h2.events.SettingsAcknowledged()]
+        )
+        assert goaway is True
+        assert resets == 1
+
+    def test_evidence_helper_ignores_normal_events(self) -> None:
+        ev = h2.events.ResponseReceived(
+            stream_id=1,
+            headers=[(":status", "200")],  # type: ignore[arg-type]
+        )
+        goaway, resets = _h2_abuse_evidence([ev, h2.events.SettingsAcknowledged()])
+        assert goaway is False
+        assert resets == 0
+
+    @pytest.mark.asyncio
+    async def test_rst_not_vulnerable_without_evidence(self) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_h2_connection") as mock_h2,
+            patch("mytools.web.http2abuse._drain_settings", return_value={}),
+            patch("mytools.web.http2abuse._recv_events", return_value=[]),
+        ):
+            mock_h2.return_value = (MagicMock(), MagicMock())
+            results = await _test_h2_reset_attack(
+                "example.com", 443, "/", 5.0, True, {}
+            )
+        rst = [r for r in results if r.technique == "rst_after_headers"]
+        assert rst and rst[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_rst_vulnerable_on_goaway_evidence(self) -> None:
+        term = h2.events.ConnectionTerminated()
+        term.error_code = 0
+        with (
+            patch("mytools.web.http2abuse._create_h2_connection") as mock_h2,
+            patch("mytools.web.http2abuse._drain_settings", return_value={}),
+            patch("mytools.web.http2abuse._recv_events", return_value=[term]),
+        ):
+            mock_h2.return_value = (MagicMock(), MagicMock())
+            results = await _test_h2_reset_attack(
+                "example.com", 443, "/", 5.0, True, {}
+            )
+        rst = [r for r in results if r.technique == "rst_after_headers"]
+        assert rst and rst[0].vulnerable is True
+
+    @pytest.mark.asyncio
+    async def test_priority_not_vulnerable_without_evidence(self) -> None:
+        with (
+            patch("mytools.web.http2abuse._create_h2_connection") as mock_h2,
+            patch("mytools.web.http2abuse._drain_settings", return_value={}),
+            patch("mytools.web.http2abuse._recv_events", return_value=[]),
+        ):
+            mock_h2.return_value = (MagicMock(), MagicMock())
+            results = await _test_h2_priority_attack(
+                "example.com", 443, "/", 5.0, True, {}
+            )
+        dt = [r for r in results if r.technique == "deep_tree"]
+        assert dt and dt[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_downgrade_never_vulnerable_without_confirmed_fallback(self) -> None:
+        ev = h2.events.ResponseReceived(
+            stream_id=1,
+            headers=[(":status", "200")],  # type: ignore[arg-type]
+        )
+        with (
+            patch("mytools.web.http2abuse._create_tls_socket") as mock_tls,
+            patch("mytools.web.http2abuse._create_h2_connection") as mock_h2,
+            patch("mytools.web.http2abuse._recv_events", return_value=[ev]),
+            patch("mytools.web.http2abuse._drain_settings", return_value={}),
+            patch("httpx.AsyncClient"),
+        ):
+            mock_tls.return_value.selected_alpn_protocol.return_value = "http/1.1"
+            mock_h2.return_value = (MagicMock(), MagicMock())
+            results = await _test_h2_downgrade("example.com", 443, "/", 5.0, True, {})
+        alpn = [r for r in results if r.technique == "alpn_downgrade"]
+        http1 = [r for r in results if r.technique == "http1_on_h2"]
+        assert alpn and alpn[0].vulnerable is False
+        assert http1 and http1[0].vulnerable is False
 
 
 class TestRunOnce:

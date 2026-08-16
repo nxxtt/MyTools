@@ -16,9 +16,10 @@ from mytools.dns.dnstunnel import (
     TunnelIndicator,
     TunnelResult,
     _async_run_once,
-    _generate_synthetic_labels,
+    _generate_candidate_labels,
     _is_base64,
     _is_hex,
+    _query_candidate_labels,
     analyze_labels,
     banner,
     build_parser,
@@ -149,18 +150,24 @@ class TestAnalyzeLabels:
         result = analyze_labels(labels)
         assert result["avg_entropy"] > 3.0
 
+    def test_hex_not_counted_as_base64(self) -> None:
+        labels = ["0123456789abcdef0123456789abcdef0123456789abcdef"]
+        result = analyze_labels(labels)
+        assert result["hex_count"] == 1
+        assert result["base64_count"] == 0
 
-class TestGenerateSyntheticLabels:
-    """Testes da funcao _generate_synthetic_labels."""
+
+class TestGenerateCandidateLabels:
+    """Testes da funcao _generate_candidate_labels."""
 
     def test_count(self) -> None:
-        labels = _generate_synthetic_labels("test.com", 10)
+        labels = _generate_candidate_labels(10)
         assert len(labels) == 10
 
-    def test_domain_not_in_labels(self) -> None:
-        labels = _generate_synthetic_labels("test.com", 5)
-        for label in labels:
-            assert "test.com" not in label
+    def test_mix_of_lengths(self) -> None:
+        labels = _generate_candidate_labels(20)
+        assert any(len(label) > 20 for label in labels)
+        assert any(len(label) <= 12 for label in labels)
 
 
 class TestParser:
@@ -245,10 +252,17 @@ class TestPrintResults:
 class TestScanTunnel:
     """Testes da funcao scan_tunnel com mocks."""
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
-    def test_safe_result(self, mock_analyze: MagicMock, mock_gen: MagicMock) -> None:
+    def test_safe_result(
+        self,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
+    ) -> None:
         mock_gen.return_value = ["www", "mail", "api"]
+        mock_query.return_value = [("www", "answer"), ("mail", "answer")]
         mock_analyze.return_value = {
             "avg_length": 4.0,
             "max_length": 6.0,
@@ -260,13 +274,19 @@ class TestScanTunnel:
         result = scan_tunnel("example.com", num_queries=3)
         assert result.is_tunneling is False
         assert result.overall_severity == "safe"
+        assert result.labels_analyzed == 2
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     def test_tunneling_result(
-        self, mock_analyze: MagicMock, mock_gen: MagicMock
+        self,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_gen.return_value = ["a" * 50] * 3
+        mock_query.return_value = [("a" * 50, "answer")] * 3
         mock_analyze.return_value = {
             "avg_length": 50.0,
             "max_length": 55.0,
@@ -286,16 +306,22 @@ class TestScanTunnel:
 class TestDnsResolution:
     """Testes da logica de resolucao DNS em scan_tunnel."""
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
     def test_dns_resolution_increments_queries(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.return_value = [MagicMock()]
         mock_gen.return_value = ["test"]
+        mock_query.return_value = [("test", "answer")]
         mock_analyze.return_value = {
             "avg_length": 4.0,
             "max_length": 6.0,
@@ -307,16 +333,22 @@ class TestDnsResolution:
         result = scan_tunnel("example.com", num_queries=1)
         assert result.labels_analyzed == 1
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
     def test_nxdomain_increments_count(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
         mock_gen.return_value = ["test"]
+        mock_query.return_value = [("test", "nxdomain")]
         mock_analyze.return_value = {
             "avg_length": 4.0,
             "max_length": 6.0,
@@ -326,18 +358,24 @@ class TestDnsResolution:
             "hex_count": 0,
         }
         result = scan_tunnel("example.com", num_queries=1)
-        assert result.labels_analyzed == 1
+        assert result.nxdomain_ratio == 1.0
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
     def test_no_nameservers_increments_count(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.resolver.NoNameservers()
         mock_gen.return_value = ["test"]
+        mock_query.return_value = [("test", "error")]
         mock_analyze.return_value = {
             "avg_length": 4.0,
             "max_length": 6.0,
@@ -347,18 +385,24 @@ class TestDnsResolution:
             "hex_count": 0,
         }
         result = scan_tunnel("example.com", num_queries=1)
-        assert result.labels_analyzed == 1
+        assert result.labels_analyzed == 0
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
     def test_timeout_increments_count(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.exception.Timeout()
         mock_gen.return_value = ["test"]
+        mock_query.return_value = [("test", "error")]
         mock_analyze.return_value = {
             "avg_length": 4.0,
             "max_length": 6.0,
@@ -368,18 +412,24 @@ class TestDnsResolution:
             "hex_count": 0,
         }
         result = scan_tunnel("example.com", num_queries=1)
-        assert result.labels_analyzed == 1
+        assert result.labels_analyzed == 0
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
     def test_dns_exception_increments_count(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.side_effect = dns.exception.DNSException("boom")
         mock_gen.return_value = ["test"]
+        mock_query.return_value = [("test", "error")]
         mock_analyze.return_value = {
             "avg_length": 4.0,
             "max_length": 6.0,
@@ -389,23 +439,28 @@ class TestDnsResolution:
             "hex_count": 0,
         }
         result = scan_tunnel("example.com", num_queries=1)
-        assert result.labels_analyzed == 1
+        assert result.labels_analyzed == 0
 
 
 class TestTxtRatio:
     """Testes do indicador txt_ratio em scan_tunnel."""
 
-    @patch("mytools.dns.dnstunnel.DEFAULT_RECORD_TYPES", ["TXT", "TXT", "TXT"])
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
-    def test_high_txt_ratio(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+    def test_txt_ratio_below_threshold_with_defaults(
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.return_value = [MagicMock()]
         mock_gen.return_value = ["test"]
+        mock_query.return_value = [("test", "answer")]
         mock_analyze.return_value = {
             "avg_length": 4.0,
             "max_length": 6.0,
@@ -416,22 +471,114 @@ class TestTxtRatio:
         }
         result = scan_tunnel("example.com", num_queries=1)
         indicators = {i.indicator for i in result.indicators}
+        assert "txt_ratio" not in indicators
+
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
+    @patch("mytools.dns.dnstunnel.analyze_labels")
+    @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
+    def test_txt_ratio_above_threshold(
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
+    ) -> None:
+        mock_resolver = MagicMock()
+        mock_resolver_cls.return_value = mock_resolver
+        mock_resolver.resolve.return_value = [MagicMock()]
+        mock_gen.return_value = ["test"]
+        mock_query.return_value = [("test", "answer")]
+        mock_analyze.return_value = {
+            "avg_length": 4.0,
+            "max_length": 6.0,
+            "avg_entropy": 2.0,
+            "max_entropy": 2.5,
+            "base64_count": 0,
+            "hex_count": 0,
+        }
+        with patch(
+            "mytools.dns.dnstunnel.DEFAULT_RECORD_TYPES", ["TXT"]
+        ):
+            result = scan_tunnel("example.com", num_queries=1)
+        indicators = {i.indicator for i in result.indicators}
         assert "txt_ratio" in indicators
+
+
+class TestQueryCandidateLabels:
+    """Testes da funcao _query_candidate_labels."""
+
+    def _resolver(self) -> MagicMock:
+        return MagicMock()
+
+    def test_answer(self) -> None:
+        resolver = self._resolver()
+        resolver.resolve.return_value = MagicMock()
+        result = _query_candidate_labels(resolver, "example.com", ["www"])
+        assert result == [("www", "answer")]
+
+    def test_nxdomain(self) -> None:
+        resolver = self._resolver()
+        resolver.resolve.side_effect = dns.resolver.NXDOMAIN()
+        result = _query_candidate_labels(resolver, "example.com", ["www"])
+        assert result == [("www", "nxdomain")]
+
+    def test_no_answer(self) -> None:
+        resolver = self._resolver()
+        resolver.resolve.side_effect = dns.resolver.NoAnswer()
+        result = _query_candidate_labels(resolver, "example.com", ["www"])
+        assert result == [("www", "noanswer")]
+
+    def test_no_nameservers(self) -> None:
+        resolver = self._resolver()
+        resolver.resolve.side_effect = dns.resolver.NoNameservers()
+        result = _query_candidate_labels(resolver, "example.com", ["www"])
+        assert result == [("www", "error")]
+
+    def test_timeout(self) -> None:
+        resolver = self._resolver()
+        resolver.resolve.side_effect = dns.exception.Timeout()
+        result = _query_candidate_labels(resolver, "example.com", ["www"])
+        assert result == [("www", "error")]
+
+    def test_dns_exception(self) -> None:
+        resolver = self._resolver()
+        resolver.resolve.side_effect = dns.exception.DNSException("boom")
+        result = _query_candidate_labels(resolver, "example.com", ["www"])
+        assert result == [("www", "error")]
+
+    def test_multiple_labels(self) -> None:
+        resolver = self._resolver()
+        resolver.resolve.side_effect = [
+            MagicMock(),
+            dns.resolver.NXDOMAIN(),
+            dns.exception.Timeout(),
+        ]
+        result = _query_candidate_labels(
+            resolver, "example.com", ["a", "b", "c"]
+        )
+        assert result == [("a", "answer"), ("b", "nxdomain"), ("c", "error")]
 
 
 class TestHexLabels:
     """Testes do indicador hex_labels em scan_tunnel."""
 
-    @patch("mytools.dns.dnstunnel._generate_synthetic_labels")
+    @patch("mytools.dns.dnstunnel._query_candidate_labels")
+    @patch("mytools.dns.dnstunnel._generate_candidate_labels")
     @patch("mytools.dns.dnstunnel.analyze_labels")
     @patch("mytools.dns.dnstunnel.dns.resolver.Resolver")
     def test_hex_labels_flagged(
-        self, mock_resolver_cls: MagicMock, mock_analyze: MagicMock, mock_gen: MagicMock
+        self,
+        mock_resolver_cls: MagicMock,
+        mock_analyze: MagicMock,
+        mock_gen: MagicMock,
+        mock_query: MagicMock,
     ) -> None:
         mock_resolver = MagicMock()
         mock_resolver_cls.return_value = mock_resolver
         mock_resolver.resolve.return_value = [MagicMock()]
         mock_gen.return_value = ["a" * 50] * 3
+        mock_query.return_value = [("a" * 50, "answer")] * 3
         mock_analyze.return_value = {
             "avg_length": 50.0,
             "max_length": 55.0,
@@ -594,6 +741,64 @@ class TestAsyncRunOnce:
         ):
             result = await _async_run_once(args)
         assert result == 0
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_json_output(self) -> None:
+        args = _make_args(json_output=True)
+        mock_result = TunnelResult(
+            domain="example.com",
+            indicators=[],
+            overall_severity="safe",
+            is_tunneling=False,
+            confidence=0.0,
+            labels_analyzed=0,
+            avg_label_length=0.0,
+            max_label_length=0.0,
+            avg_entropy=0.0,
+            max_entropy=0.0,
+            txt_ratio=0.0,
+            base64_count=0,
+            hex_count=0,
+            nxdomain_ratio=0.0,
+        )
+        with (
+            patch("mytools.dns.dnstunnel.scan_tunnel", return_value=mock_result),
+            patch("mytools.dns.dnstunnel.print_json") as mock_json,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        mock_json.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_output_dir(self) -> None:
+        args = _make_args(output_dir="reports")
+        mock_result = TunnelResult(
+            domain="example.com",
+            indicators=[],
+            overall_severity="safe",
+            is_tunneling=False,
+            confidence=0.0,
+            labels_analyzed=0,
+            avg_label_length=0.0,
+            max_label_length=0.0,
+            avg_entropy=0.0,
+            max_entropy=0.0,
+            txt_ratio=0.0,
+            base64_count=0,
+            hex_count=0,
+            nxdomain_ratio=0.0,
+        )
+        with (
+            patch("mytools.dns.dnstunnel.scan_tunnel", return_value=mock_result),
+            patch(
+                "mytools.dns.dnstunnel.ensure_output_dir"
+            ) as mock_ensure,
+            patch("mytools.dns.dnstunnel.write_output") as mock_write,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        mock_ensure.assert_called_once_with("reports")
         mock_write.assert_called_once()
 
 

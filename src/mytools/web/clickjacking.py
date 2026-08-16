@@ -281,9 +281,9 @@ async def _test_csp(
             category="csp",
             header_tested="Content-Security-Policy",
             header_value=csp[:100],
-            vulnerable=has_frame_ancestors,
-            details=f"CSP frame-ancestors encontrado: {csp[:50]}"
-            if has_frame_ancestors
+            vulnerable=bool(csp) and not has_frame_ancestors,
+            details=f"CSP presente sem frame-ancestors: {csp[:50]}"
+            if csp and not has_frame_ancestors
             else "",
             error="",
         )
@@ -313,8 +313,10 @@ async def _test_csp(
             category="csp",
             header_tested="Content-Security-Policy",
             header_value=csp[:100],
-            vulnerable=has_self,
-            details=f"CSP frame-ancestors com 'self': {csp[:50]}" if has_self else "",
+            vulnerable=has_frame_ancestors and not has_self,
+            details=f"CSP frame-ancestors sem 'self': {csp[:50]}"
+            if has_frame_ancestors and not has_self
+            else "",
             error="",
         )
     )

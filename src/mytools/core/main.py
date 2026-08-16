@@ -13,6 +13,8 @@ automaticamente. Digite o nome do modulo, do script ou um alias a
 qualquer momento para lancar a ferramenta direto.
 """
 
+import contextlib
+import functools
 import importlib
 import importlib.metadata as im
 import logging
@@ -39,18 +41,7 @@ _CATEGORY_LABELS = {
     "whois": "WHOIS",
 }
 
-_CATEGORY_ORDER = [
-    "config",
-    "core",
-    "dns",
-    "email",
-    "mobile",
-    "network",
-    "osint",
-    "vcs",
-    "web",
-    "whois",
-]
+_CATEGORY_ORDER = list(_CATEGORY_LABELS)
 
 _DISPLAY_NAMES = {
     # CONFIG
@@ -311,12 +302,17 @@ def banner() -> None:
     )()
 
 
+@functools.lru_cache(maxsize=1)
 def _load_tools() -> list[tuple[str, str, str]]:
     """Descobre as ferramentas via entry points.
 
     Retorna lista de (script, categoria, modulo) ordenada por
     (categoria, modulo). Usa importlib.metadata; se vier vazia
     (instalacao sem metadata), le o pyproject.toml como fallback.
+
+    Resultado cacheado (a lista de ferramentas nao muda em runtime);
+    invalide com `_load_tools.cache_clear()` nos testes que mutam os
+    entry points.
     """
     tools: list[tuple[str, str, str]] = []
     try:
@@ -325,7 +321,7 @@ def _load_tools() -> list[tuple[str, str, str]]:
         eps = ()
     for ep in eps:
         name = ep.name
-        if not name.startswith("mytools-") or name == "mytools":
+        if not name.startswith("mytools-"):
             continue
         mod_path = ep.value.partition(":")[0]
         parts = mod_path.split(".")
@@ -357,7 +353,7 @@ def _load_tools_from_pyproject() -> list[tuple[str, str, str]]:
         with pyproject.open("rb") as fh:
             data = tomllib.load(fh)
         for name, value in data.get("project", {}).get("scripts", {}).items():
-            if not name.startswith("mytools-") or name == "mytools":
+            if not name.startswith("mytools-"):
                 continue
             mod_path = value.partition(":")[0]
             parts = mod_path.split(".")
@@ -444,13 +440,19 @@ def help_screen(tools_by_cat: dict[str, list[tuple[str, str]]]) -> None:
         label = _CATEGORY_LABELS.get(cat, cat.upper())
         print(color(f"\n{label}:", Cyber.CYAN))
         for script, _ in items[:4]:
-            print(f"  mytools-{script.removeprefix('mytools-')} --help")
+            print(f"  {script} --help")
     print(color("\nDentro do menu:", Cyber.CYAN))
     print(
         "  escolha uma categoria, depois uma tool, e digite os argumentos como faria depois do nome do script."
     )
     print("  use 'exit' dentro de cada scanner para voltar a selecao de categorias.")
     print("  digite 'n'/'p' para navegar entre paginas e '0' para voltar.\n")
+
+
+def _pause(prompt: str = "Enter para continuar...") -> None:
+    """Pausa aguardando Enter, sem propagar EOFError (stdin fechado)."""
+    with contextlib.suppress(EOFError):
+        input(color(prompt, Cyber.GRAY))
 
 
 def _run_tool(cat: str, mod: str) -> None:
@@ -460,12 +462,12 @@ def _run_tool(cat: str, mod: str) -> None:
     except Exception as error:
         logger.debug("Falha ao importar mytools.%s.%s: %s", cat, mod, error)
         print(color(f"Erro ao carregar o modulo: {error}", Cyber.RED))
-        input(color("Enter para continuar...", Cyber.GRAY))
+        _pause()
         return
     main_fn = getattr(module, "main", None)
     if not callable(main_fn):
         print(color(f"Modulo {mod} nao possui main() callable.", Cyber.RED))
-        input(color("Enter para continuar...", Cyber.GRAY))
+        _pause()
         return
     try:
         main_fn()
@@ -476,7 +478,7 @@ def _run_tool(cat: str, mod: str) -> None:
     except Exception as error:
         logger.debug("Falha em mytools.%s.%s: %s", cat, mod, error)
         print(color(f"Erro: {error}", Cyber.RED))
-        input(color("Enter para continuar...", Cyber.GRAY))
+        _pause()
 
 
 def main() -> int:
@@ -506,7 +508,7 @@ def main() -> int:
             return 0
         if choice in {"h", "help", "ajuda"}:
             help_screen(tools_by_cat)
-            input(color("Enter para voltar...", Cyber.GRAY))
+            _pause("Enter para voltar...")
             clear_console()
             continue
         if choice in {"clear", "limpar", "cls"}:
@@ -519,18 +521,18 @@ def main() -> int:
             if 1 <= idx <= len(_CATEGORY_ORDER):
                 cat = _CATEGORY_ORDER[idx - 1]
         else:
-            for _, name in enumerate(_CATEGORY_ORDER, 1):
-                if choice == _CATEGORY_LABELS.get(name, name).lower() or choice == name:
-                    cat = name
-                    break
-        if cat is None:
             resolved = _resolve_tool(choice)
             if resolved:
                 _run_tool(*resolved)
                 clear_console()
                 continue
+            for name in _CATEGORY_ORDER:
+                if choice == _CATEGORY_LABELS.get(name, name).lower() or choice == name:
+                    cat = name
+                    break
+        if cat is None:
             print(color("Categoria invalida.", Cyber.RED))
-            input(color("Enter para continuar...", Cyber.GRAY))
+            _pause()
             continue
 
         items = tools_by_cat.get(cat, [])
@@ -560,7 +562,7 @@ def main() -> int:
                 continue
             if sub in {"h", "help"}:
                 help_screen(tools_by_cat)
-                input(color("Enter para continuar...", Cyber.GRAY))
+                _pause()
                 continue
             if sub in {"clear", "limpar", "cls"}:
                 continue
@@ -571,17 +573,19 @@ def main() -> int:
                 if 1 <= idx <= len(items[start : start + PAGE_SIZE]):
                     _, mod = items[start + idx - 1]
                     _run_tool(cat, mod)
+                    clear_console()
                     break
                 print(color("Opcao invalida.", Cyber.RED))
-                input(color("Enter para continuar...", Cyber.GRAY))
+                _pause()
                 continue
 
             resolved = _resolve_tool(sub)
             if resolved:
                 _run_tool(*resolved)
+                clear_console()
                 break
             print(color("Opcao invalida.", Cyber.RED))
-            input(color("Enter para continuar...", Cyber.GRAY))
+            _pause()
 
 
 if __name__ == "__main__":

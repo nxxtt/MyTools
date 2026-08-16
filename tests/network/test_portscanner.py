@@ -708,6 +708,25 @@ class TestRunOnce:
             assert run_once(args) == 0
         assert mock_write.call_count == 1
 
+    def test_json_with_output_writes_file(self, capsys, tmp_path):
+        f = Finding(
+            host="127.0.0.1",
+            address="127.0.0.1",
+            port=80,
+            state="open",
+            service="http",
+        )
+        out = tmp_path / "out.json"
+        parser = build_parser()
+        args = parser.parse_args(["127.0.0.1", "-p", "80", "--json", "-o", str(out)])
+        with (
+            patch("mytools.network.portscanner.scan_targets", return_value=[f]),
+            patch("mytools.network.portscanner.write_output") as mock_write,
+        ):
+            assert run_once(args) == 0
+        assert mock_write.call_count == 1
+        assert '"port": 80' in capsys.readouterr().out
+
 
 class TestMainValidate:
     def test_validate_no_targets_raises(self):

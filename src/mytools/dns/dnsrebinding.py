@@ -41,8 +41,10 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -383,6 +385,7 @@ def scan_rebinding(
     wildcard_result = _check_wildcard(domain, resolver)
     if wildcard_result:
         results.append(wildcard_result)
+        return results
 
     flip_result = _check_ip_flip(domain, resolver, queries)
     if flip_result:
@@ -518,6 +521,9 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     if not quiet:
         print_results(all_results)
 
+    if getattr(args, "json_output", False):
+        print_json([asdict(r) for r in all_results])
+
     if args.output:
         write_output(
             args.output,
@@ -525,7 +531,18 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             ["domain", "check", "severity", "detail", "records"],
             quiet=quiet,
         )
-    return 0
+
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir:
+        ensure_output_dir(output_dir)
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(r) for r in all_results],
+            ["domain", "check", "severity", "detail", "records"],
+            quiet=quiet,
+        )
+
+    return 1 if any(r.severity == "critical" for r in all_results) else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

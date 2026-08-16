@@ -19,10 +19,13 @@ Dependencias:
 from __future__ import annotations
 
 import asyncio
+import binascii
+import contextlib
 import logging
 import random
 import secrets
-from typing import ClassVar
+from pathlib import Path
+from typing import Any, ClassVar
 from urllib.parse import quote, urlparse, urlunparse
 
 import httpx
@@ -227,59 +230,147 @@ class TorManager:
         await tor.new_circuit()
     """
 
-    def __init__(self, socks_port: int = 9050, control_port: int = 9051) -> None:
+    def __init__(
+        self,
+        socks_port: int = 9050,
+        control_port: int = 9051,
+        control_auth_cookie: str | Path | None = None,
+    ) -> None:
         self._socks_port = socks_port
         self._control_port = control_port
         self._proxy_url = f"socks5://127.0.0.1:{socks_port}"
         self._current_ip: str | None = None
+        self._control_auth_cookie = control_auth_cookie
+        self._tor_client: httpx.AsyncClient | None = None
+        self._tor_transport: Any = None
 
     async def get_proxy(self) -> str:
         """Retorna URL do proxy SOCKS5 do Tor."""
         return str(self._proxy_url)
 
-    async def get_ip(self) -> str:
-        """Obtem IP atual via Tor (faz request para API de IP)."""
+    async def get_ip(self, timeout: float = 15.0) -> str:
+        """Obtem IP atual via Tor (faz request para API de IP).
+
+        O client/transport HTTP sao reutilizados entre chamadas e so sao
+        recriados quando o client foi fechado ou nunca foi criado.
+        """
         try:
             from httpx_socks import AsyncProxyTransport
 
-            transport = AsyncProxyTransport.from_url(self._proxy_url)
-            async with httpx.AsyncClient(transport=transport, timeout=15) as client:
-                resp = await client.get("https://api.ipify.org?format=json")
-                data = resp.json()
-                self._current_ip = str(data.get("ip", "unknown"))
-                return self._current_ip
+            if self._tor_client is None or getattr(self._tor_client, "is_closed", True):
+                self._tor_transport = AsyncProxyTransport.from_url(self._proxy_url)
+                self._tor_client = httpx.AsyncClient(
+                    transport=self._tor_transport, timeout=timeout
+                )
+            resp = await self._tor_client.get("https://api.ipify.org?format=json")
+            data = resp.json()
+            self._current_ip = str(data.get("ip", "unknown"))
+            return self._current_ip
         except ImportError:
             logger.debug("httpx-socks nao instalado, impossivel usar Tor")
             return "unknown"
         except Exception as error:
             logger.debug("falha ao obter IP via Tor: %s", error)
+            with contextlib.suppress(Exception):
+                assert self._tor_client is not None
+                await self._tor_client.aclose()
+            self._tor_client = None
+            self._tor_transport = None
             return "unknown"
 
-    async def new_circuit(self) -> str | None:
+    def _find_auth_cookie(self) -> bytes | None:
+        """Localiza o control auth cookie do Tor (retorna hex).
+
+        Procura no caminho configurado e, em seguida, nas localizacoes
+        padrao das distribuicoes. None se nenhum cookie for encontrado.
+        """
+        candidates: list[Path] = []
+        if self._control_auth_cookie:
+            candidates.append(Path(self._control_auth_cookie))
+        candidates.extend(
+            [
+                Path("/run/tor/control.authcookie"),
+                Path("/var/lib/tor/control_auth_cookie"),
+                Path("/usr/local/var/run/tor/control.authcookie"),
+                Path("/var/run/tor/control.authcookie"),
+            ]
+        )
+        for path in candidates:
+            try:
+                data = path.read_bytes()
+            except OSError:
+                continue
+            if data:
+                return binascii.hexlify(data)
+        return None
+
+    @staticmethod
+    async def _read_status(reader: asyncio.StreamReader) -> bool:
+        """Le uma linha de resposta do control port ate '\\r\\n'.
+
+        Acumula leituras parciais do stream (o protocolo Tor entrega linhas
+        terminadas em CRLF sobre fluxo TCP) e retorna True se o codigo 250
+        aparecer no inicio da linha.
+        """
+        data = b""
+        try:
+            for _ in range(8):
+                chunk = await reader.read(1024)
+                if not chunk:
+                    break
+                data += chunk
+                if b"\r\n" in data:
+                    break
+        except Exception:
+            return False
+        return data.lstrip().startswith(b"250")
+
+    async def _tor_control_exchange(self) -> bool:
+        """Executa a troca AUTHENTICATE + SIGNAL NEWNYM no control port (async)."""
+        try:
+            reader, writer = await asyncio.open_connection(
+                "127.0.0.1", self._control_port
+            )
+        except Exception as error:
+            logger.debug("falha ao conectar no control port Tor: %s", error)
+            return False
+        try:
+            cookie = self._find_auth_cookie()
+            if cookie:
+                writer.write(b"AUTHENTICATE " + cookie + b"\r\n")
+            else:
+                # Fallback: autenticacao sem credenciais (CookieAuthentication 0)
+                writer.write(b"AUTHENTICATE\r\n")
+            await writer.drain()
+            if not await self._read_status(reader):
+                return False
+            writer.write(b"SIGNAL NEWNYM\r\n")
+            await writer.drain()
+            return await self._read_status(reader)
+        except Exception as error:
+            logger.debug("falha ao renovar circuito Tor: %s", error)
+            return False
+        finally:
+            with contextlib.suppress(Exception):
+                writer.close()
+                await writer.wait_closed()
+
+    async def new_circuit(self, new_circuit_wait: float = 2.0) -> str | None:
         """Solicita novo circuito Tor (via control port).
 
-        Nota: requer Tor ControlPort habilitado e cookie de autenticacao.
+        Usa o control port do Tor, autenticando com o control_auth_cookie
+        quando disponivel (fallback para autenticacao vazia).
         Retorna novo IP ou None se falhar.
         """
         try:
-            import socket
-
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
-            sock.connect(("127.0.0.1", self._control_port))
-            # AUTHENTICATE com cookie
-            sock.send(b"AUTHENTICATE\r\n")
-            response = sock.recv(1024)
-            if b"250" in response:
-                sock.send(b"SIGNAL NEWNYM\r\n")
-                response = sock.recv(1024)
-                if b"250" in response:
-                    await asyncio.sleep(2)
-                    return await self.get_ip()
-            sock.close()
+            ok = await self._tor_control_exchange()
+            if not ok:
+                return None
+            await asyncio.sleep(new_circuit_wait)
+            return await self.get_ip()
         except Exception as error:
             logger.debug("falha ao renovar circuito Tor: %s", error)
-        return None
+            return None
 
     @property
     def proxy_url(self) -> str:
@@ -321,6 +412,8 @@ def fragment_http_headers(headers: dict[str, str], chunk_size: int = 10) -> list
     for name, value in headers.items():
         lines.append(f"{name}: {value}\r\n")
     full = "".join(lines).encode("utf-8")
+    if chunk_size <= 0:
+        chunk_size = max(len(full), 1)
     if len(full) <= chunk_size:
         return [full]
     return [full[i : i + chunk_size] for i in range(0, len(full), chunk_size)]
@@ -336,6 +429,8 @@ def fragment_tcp_request(data: bytes, fragment_size: int = 8) -> list[bytes]:
     Returns:
         Lista de bytes representando os fragmentos.
     """
+    if fragment_size <= 0:
+        fragment_size = max(len(data), 1)
     if len(data) <= fragment_size:
         return [data]
     return [data[i : i + fragment_size] for i in range(0, len(data), fragment_size)]
@@ -367,7 +462,7 @@ def waf_encode_url(url: str) -> str:
                 encoded_parts.append("%2e")
             else:
                 encoded_parts.append(char)
-        elif char.isalpha() and secrets.randbelow(3) == 0:
+        elif char.isascii() and char.isalpha() and secrets.randbelow(3) == 0:
             # Case variation
             encoded_parts.append(char.upper() if char.islower() else char.lower())
         elif char == " ":
@@ -418,7 +513,12 @@ def waf_encode_headers(headers: dict[str, str]) -> dict[str, str]:
                 new_name += char.upper()
             else:
                 new_name += char.lower()
-        encoded[new_name] = value
+        # Headers que diferem apenas em caixa podem colidir (muitos-para-um);
+        # neste caso mantemos o nome original para nao perder dados.
+        if new_name in encoded:
+            encoded[name] = value
+        else:
+            encoded[new_name] = value
     return encoded
 
 
@@ -470,10 +570,12 @@ def pad_headers(headers: dict[str, str], target_count: int = 10) -> dict[str, st
         "en-US,en;q=0.9",
         "gzip, deflate, br",
     ]
+    available = [n for n in fake_header_names if n not in padded]
+    if len(padded) + len(available) < target_count:
+        target_count = len(padded) + len(available)
     while len(padded) < target_count:
-        name = secrets.choice(fake_header_names)
-        if name not in padded:
-            padded[name] = secrets.choice(fake_values)
+        name = available.pop()
+        padded[name] = secrets.choice(fake_values)
     return padded
 
 
@@ -488,4 +590,4 @@ def randomize_source_port() -> int:
     Util para ofuscar fingerprint de ferramentas de scan
     que usam portas padrao previsiveis.
     """
-    return secrets.randbelow(65535 - 1024) + 1024
+    return secrets.randbelow(65535 - 1024 + 1) + 1024

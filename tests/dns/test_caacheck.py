@@ -70,6 +70,12 @@ class TestIdentifyCa:
     def test_with_dot(self) -> None:
         assert _identify_ca("letsencrypt.org.") == "Let's Encrypt"
 
+    def test_subdomain_boundary(self) -> None:
+        assert _identify_ca("sub.sectigo.com") == "Sectigo"
+
+    def test_no_false_positive_on_dot_boundary(self) -> None:
+        assert _identify_ca("evsectigo.com.evil.com") == "evsectigo.com.evil.com"
+
 
 class TestParseCaaRdata:
     """Testes da funcao _parse_caa_rdata."""
@@ -332,6 +338,8 @@ def _make_args(**overrides: object) -> argparse.Namespace:
         "theme": "cyber",
         "severity_override": None,
         "timeout": 5.0,
+        "json_output": False,
+        "output_dir": None,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -359,11 +367,11 @@ class TestAsyncRunOnce:
         ):
             mock_scan.return_value = CaaResult(
                 domain="example.com",
-                records=[],
-                has_caa=False,
-                authorized_cas=[],
+                records=[CaaRecord("issue", "letsencrypt.org", 0)],
+                has_caa=True,
+                authorized_cas=["Let's Encrypt"],
                 has_iodef=False,
-                policy_status="none",
+                policy_status="restrictive",
             )
             result = await _async_run_once(args)
         assert result == 0
@@ -377,11 +385,11 @@ class TestAsyncRunOnce:
         args = _make_args(quiet=True)
         mock_scan_result = CaaResult(
             domain="example.com",
-            records=[],
-            has_caa=False,
-            authorized_cas=[],
+            records=[CaaRecord("issue", "letsencrypt.org", 0)],
+            has_caa=True,
+            authorized_cas=["Let's Encrypt"],
             has_iodef=False,
-            policy_status="none",
+            policy_status="restrictive",
         )
         with (
             patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
@@ -400,14 +408,73 @@ class TestAsyncRunOnce:
         ):
             mock_scan.return_value = CaaResult(
                 domain="example.com",
-                records=[],
-                has_caa=False,
-                authorized_cas=[],
+                records=[CaaRecord("issue", "letsencrypt.org", 0)],
+                has_caa=True,
+                authorized_cas=["Let's Encrypt"],
                 has_iodef=False,
-                policy_status="none",
+                policy_status="restrictive",
             )
             result = await _async_run_once(args)
         assert result == 0
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_caa_returns_vulnerable_exit(self) -> None:
+        args = _make_args()
+        mock_scan_result = CaaResult(
+            domain="example.com",
+            records=[],
+            has_caa=False,
+            authorized_cas=[],
+            has_iodef=False,
+            policy_status="none",
+        )
+        with (
+            patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
+            patch("mytools.dns.caacheck.print_results"),
+        ):
+            result = await _async_run_once(args)
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_open_policy_zero_issue_exit(self) -> None:
+        args = _make_args()
+        mock_scan_result = CaaResult(
+            domain="example.com",
+            records=[CaaRecord("issue", "letsencrypt.org", 0)],
+            has_caa=True,
+            authorized_cas=["Let's Encrypt"],
+            has_iodef=False,
+            policy_status="open",
+        )
+        with (
+            patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
+            patch("mytools.dns.caacheck.print_results"),
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_json_prints_and_still_writes_output_dir(self) -> None:
+        args = _make_args(json_output=True, output_dir="out")
+        mock_scan_result = CaaResult(
+            domain="example.com",
+            records=[CaaRecord("issue", "letsencrypt.org", 0)],
+            has_caa=True,
+            authorized_cas=["Let's Encrypt"],
+            has_iodef=False,
+            policy_status="restrictive",
+        )
+        with (
+            patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
+            patch("mytools.dns.caacheck.print_json") as mock_print_json,
+            patch("mytools.dns.caacheck.ensure_output_dir") as mock_ensure,
+            patch("mytools.dns.caacheck.write_output") as mock_write,
+        ):
+            result = await _async_run_once(args)
+        assert result == 0
+        mock_print_json.assert_called_once()
+        mock_ensure.assert_called_once_with("out")
         mock_write.assert_called_once()
 
 

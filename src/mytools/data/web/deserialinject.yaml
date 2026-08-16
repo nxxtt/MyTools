@@ -84,27 +84,27 @@ php_payloads:
 
 java_payloads:
   - - java_magic_bytes
-    - '\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x11'
-    - - '\\xac\\xed'
+    - {binary_path: web/deserialinject_java_magic_bytes.bin}
+    - - {binary_path: web/deserialinject_magic_java.bin}
       - serialization
       - java
       - object
   - - java_obj_stream
-    - '\\xac\\xed\\x00\\x05\\x74\\x00\\x04test'
-    - - '\\xac\\xed'
+    - {binary_path: web/deserialinject_java_obj_stream.bin}
+    - - {binary_path: web/deserialinject_magic_java.bin}
       - ObjectInputStream
       - readObject
       - java
   - - java_gadget_cc
-    - '\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x3a'
-    - - '\\xac\\xed'
+    - {binary_path: web/deserialinject_java_gadget_cc.bin}
+    - - {binary_path: web/deserialinject_magic_java.bin}
       - gadget
       - Commons
       - Collections
       - RCE
   - - java_gadget_spring
-    - '\\xac\\xed\\x00\\x05\\x73\\x72\\x00\\x2f'
-    - - '\\xac\\xed'
+    - {binary_path: web/deserialinject_java_gadget_spring.bin}
+    - - {binary_path: web/deserialinject_magic_java.bin}
       - Spring
       - gadget
       - RCE
@@ -119,8 +119,8 @@ java_payloads:
 
 python_payloads:
   - - python_pickle
-    - '\\x80\\x04\\x95\\x15\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x04os\\x94\\x8c\\x06system\\x94\\x8c\\x04id\\x94\\x93\\x94.'
-    - - '\\x80\\x04'
+    - {binary_path: web/deserialinject_python_pickle.bin}
+    - - {binary_path: web/deserialinject_magic_pickle.bin}
       - pickle
       - reduce
       - os.system
@@ -140,15 +140,15 @@ python_payloads:
       - yaml
       - deserialize
   - - python_marshal
-    - '\\xe3\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'
-    - - '\\xe3'
+    - {binary_path: web/deserialinject_python_marshal.bin}
+    - - {binary_path: web/deserialinject_magic_marshal.bin}
       - marshal
       - code
       - compile
       - deserialize
   - - python_shelve
-    - '\\x80\\x04\\x95\\x0e\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x04shelve'
-    - - '\\x80\\x04'
+    - {binary_path: web/deserialinject_python_shelve.bin}
+    - - {binary_path: web/deserialinject_magic_pickle.bin}
       - shelve
       - pickle
       - serialize
@@ -240,8 +240,8 @@ ssi_params:
 
 ruby_payloads:
   - - ruby_marshal
-    - "\x04\x08I\x40\x06\x01\x06\x06T\x30\x06\x06n\x06\x10admin"
-    - - "\x04\x08"
+    - {binary_path: web/deserialinject_ruby_marshal.bin}
+    - - {binary_path: web/deserialinject_magic_ruby.bin}
       - Marshal
       - ruby
       - serialize

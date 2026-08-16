@@ -15,6 +15,7 @@ from mytools.web.httpparampollution import (
     _SENSITIVE_PATHS,
     HPPAttempt,
     HPPResult,
+    _build_test_url,
     _check_hpp_response,
     _check_response_content,
     _test_baseline,
@@ -112,6 +113,26 @@ class TestBypassPayloads:
     def test_all_have_payload(self) -> None:
         for _, payload, _, _, _ in _BYPASS_PAYLOADS:
             assert len(payload) > 0
+
+
+# ─── Build Test URL ──────────────────────────────────────────────────────────
+class TestBuildTestUrl:
+    def test_plain_url_gets_question_mark(self) -> None:
+        assert (
+            _build_test_url("https://test.com", "/admin", "id=1&id=2")
+            == "https://test.com/admin?id=1&id=2"
+        )
+
+    def test_url_with_query_uses_ampersand(self) -> None:
+        assert (
+            _build_test_url("https://test.com/page?x=1", "/admin", "id=1&id=2")
+            == "https://test.com/page?x=1/admin&id=1&id=2"
+        )
+
+    def test_no_double_question_mark(self) -> None:
+        url = _build_test_url("https://test.com/page?x=1", "/admin", "id=1&id=2")
+        assert "??" not in url
+        assert url.count("?") == 1
 
 
 # ─── Check HPP Response ─────────────────────────────────────────────────────
@@ -217,7 +238,7 @@ class TestBaseline:
         mock_resp.status_code = 200
         mock_resp.content = b"ok"
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.request = AsyncMock(return_value=mock_resp)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
@@ -225,11 +246,31 @@ class TestBaseline:
         assert result == (200, 2, b"ok")
 
     @pytest.mark.asyncio
+    async def test_baseline_post_method(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.content = b"denied"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        result = await _test_baseline(
+            mock_client,
+            "https://test.com/admin",
+            method="POST",
+            content=b"",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert result == (403, 6, b"denied")
+        assert mock_client.request.call_args[0][0] == "POST"
+
+    @pytest.mark.asyncio
     async def test_baseline_error(self) -> None:
         import httpx
 
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(side_effect=httpx.RequestError("fail"))
+        mock_client.request = AsyncMock(side_effect=httpx.RequestError("fail"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
@@ -293,15 +334,40 @@ class TestQuery:
         assert len(results) == 20
         assert all(r.vulnerable for r in results)
 
+    @pytest.mark.asyncio
+    async def test_existing_query_no_double_question_mark(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        await _test_query(
+            mock_client,
+            "https://test.com/page?id=1",
+            (200, 100, b"ok"),
+        )
+
+        for call in mock_client.get.call_args_list:
+            sent = call.args[0]
+            assert "??" not in sent, f"URL malformada: {sent}"
+            assert sent.count("?") == 1
+
 
 # ─── Test Body ───────────────────────────────────────────────────────────────
 class TestBody:
     @pytest.mark.asyncio
     async def test_vulnerable_body(self) -> None:
+        base_resp = MagicMock()
+        base_resp.status_code = 200
+        base_resp.content = b"ok"
         mock_resp = MagicMock()
         mock_resp.status_code = 403
         mock_resp.content = b"forbidden"
         mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=base_resp)
         mock_client.post = AsyncMock(return_value=mock_resp)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -313,12 +379,14 @@ class TestBody:
         )
         assert len(results) == 20
         assert all(r.category == "body" for r in results)
+        assert all(r.vulnerable for r in results)
 
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         import httpx
 
         mock_client = AsyncMock()
+        mock_client.request = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.post = AsyncMock(side_effect=httpx.RequestError("timeout"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -333,10 +401,14 @@ class TestBody:
 
     @pytest.mark.asyncio
     async def test_content_indicator(self) -> None:
+        base_resp = MagicMock()
+        base_resp.status_code = 200
+        base_resp.content = b"ok"
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.content = b"duplicate parameter detected"
         mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=base_resp)
         mock_client.post = AsyncMock(return_value=mock_resp)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -348,6 +420,29 @@ class TestBody:
         )
         assert len(results) == 20
         assert all(r.vulnerable for r in results)
+
+    @pytest.mark.asyncio
+    async def test_uses_post_baseline_not_get(self) -> None:
+        base_resp = MagicMock()
+        base_resp.status_code = 403
+        base_resp.content = b"denied"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.content = b"denied"
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=base_resp)
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_body(
+            mock_client,
+            "https://test.com",
+            (200, 100, b"ok"),
+        )
+        assert len(results) == 20
+        assert all(not r.vulnerable for r in results)
+        assert mock_client.request.call_args[0][0] == "POST"
 
 
 # ─── Test Header ─────────────────────────────────────────────────────────────
@@ -516,6 +611,27 @@ class TestBypass:
         )
         assert len(results) == 20
         assert all(r.error for r in results)
+
+    @pytest.mark.asyncio
+    async def test_existing_query_no_double_question_mark(self) -> None:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"ok"
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        await _test_bypass(
+            mock_client,
+            "https://test.com/page?x=1",
+            (200, 100, b"ok"),
+        )
+
+        for call in mock_client.get.call_args_list:
+            sent = call.args[0]
+            assert "??" not in sent, f"URL malformada: {sent}"
+            assert sent.count("?") == 1
 
 
 # ─── Print Results ───────────────────────────────────────────────────────────

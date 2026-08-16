@@ -276,7 +276,27 @@ class TestGcpIamBypass:
         async with httpx.AsyncClient(verify=False) as client:
             attempt = await _test_gcp_iam_bypass("https://target.com", 10.0, client)
         assert attempt.vulnerable is True
-        assert "no_403" in attempt.details
+        assert "Bypasses" in attempt.details
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_not_a_bypass_on_non_200(self) -> None:
+        respx.route(method="POST", url__startswith="https://target.com").mock(
+            return_value=httpx.Response(404, text="not found")
+        )
+        async with httpx.AsyncClient(verify=False) as client:
+            attempt = await _test_gcp_iam_bypass("https://target.com", 10.0, client)
+        assert attempt.vulnerable is False
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_empty_body_200_not_a_bypass(self) -> None:
+        respx.route(method="POST", url__startswith="https://target.com").mock(
+            return_value=httpx.Response(200, text="")
+        )
+        async with httpx.AsyncClient(verify=False) as client:
+            attempt = await _test_gcp_iam_bypass("https://target.com", 10.0, client)
+        assert attempt.vulnerable is False
 
     @pytest.mark.asyncio
     @respx.mock

@@ -50,6 +50,7 @@ import time
 from dataclasses import asdict, dataclass, field
 
 import dns.exception
+import dns.name
 import dns.query
 import dns.rdatatype
 import dns.resolver
@@ -60,8 +61,10 @@ from mytools.core.utils import (
     add_base_args,
     color,
     create_banner,
+    ensure_output_dir,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     write_output,
 )
@@ -216,26 +219,15 @@ def try_zone_transfer(
     start = time.monotonic()
 
     try:
-        zone = dns.query.inbound_xfr(
+        zone = dns.zone.Zone(dns.name.from_text(domain))
+        dns.query.inbound_xfr(
             ns_ip,
-            domain,  # pyright: ignore[reportArgumentType]
+            zone,
             timeout=timeout,
             lifetime=timeout,
         )
 
         elapsed = time.monotonic() - start
-
-        if zone is None:
-            return XfrResult(
-                domain=domain,
-                nameserver=ns_hostname,
-                ns_ip=ns_ip,
-                zone_transferred=False,
-                error="nameserver retornou zona vazia",
-                elapsed=elapsed,
-                exploit="",
-                tool="",
-            )
 
         records: list[str] = []
 
@@ -524,7 +516,33 @@ def run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 1 if any(r.zone_transferred for r in results) else 0
+    if getattr(args, "json_output", False):
+        print_json([asdict(r) for r in results])
+
+    output_dir = getattr(args, "output_dir", None)
+
+    if output_dir:
+        ensure_output_dir(output_dir)
+
+        write_output(
+            f"{output_dir}/{domain}.json",
+            [asdict(r) for r in results],
+            [
+                "domain",
+                "nameserver",
+                "ns_ip",
+                "zone_transferred",
+                "record_count",
+                "records",
+                "error",
+                "elapsed",
+            ],
+            quiet=quiet,
+        )
+
+    failed = not results or any(r.error for r in results)
+
+    return 1 if failed or any(r.zone_transferred for r in results) else 0
 
 
 def main() -> int:
@@ -545,7 +563,7 @@ def main() -> int:
         example="example.com -t 15",
         validate_fn=_validate,
         contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -t 15 -o xfr.json\n  Use -l para arquivo com dominios (um por linha)"
+            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -t 15 -o xfr.json"
         ),
     )
 

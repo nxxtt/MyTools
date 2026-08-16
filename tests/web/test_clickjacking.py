@@ -256,7 +256,51 @@ class TestCSP:
         assert len(results) == 5
         fa = [r for r in results if r.technique == "csp_frame_ancestors"]
         assert len(fa) == 1
+        assert fa[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_csp_present_without_frame_ancestors(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_csp(
+            mock_client,
+            "https://test.com",
+            {"content-security-policy": "default-src 'self'"},
+        )
+        fa = [r for r in results if r.technique == "csp_frame_ancestors"]
         assert fa[0].vulnerable is True
+        self_ = [r for r in results if r.technique == "csp_self"]
+        assert self_[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_csp_self_restriction_is_protection(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_csp(
+            mock_client,
+            "https://test.com",
+            {"content-security-policy": "frame-ancestors 'self'"},
+        )
+        self_ = [r for r in results if r.technique == "csp_self"]
+        assert self_[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_csp_frame_ancestors_without_self_is_vulnerable(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        results = await _test_csp(
+            mock_client,
+            "https://test.com",
+            {"content-security-policy": "frame-ancestors https://example.com"},
+        )
+        self_ = [r for r in results if r.technique == "csp_self"]
+        assert self_[0].vulnerable is True
 
 
 # ─── Test Bypass ─────────────────────────────────────────────────────────────

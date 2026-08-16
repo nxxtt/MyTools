@@ -73,11 +73,11 @@ def _parse_dnslytics(body: bytes, domain: str) -> list[DnsHistoryRecord]:
     except ValueError:
         return []
 
-    if data.get("status") != "succeed":
+    if (data or {}).get("status") != "succeed":
         return []
 
     records: list[DnsHistoryRecord] = []
-    nested = data.get("data", {})
+    nested = (data or {}).get("data", {}) or {}
 
     records = [
         DnsHistoryRecord(
@@ -155,7 +155,7 @@ def _parse_securitytrails(body: bytes, domain: str) -> list[DnsHistoryRecord]:
         return []
 
     records: list[DnsHistoryRecord] = []
-    for item in data.get("records", []):
+    for item in (data or {}).get("records", []) or []:
         first = item.get("first_seen")
         last = item.get("last_seen")
         orgs = item.get("organizations", [])
@@ -191,7 +191,9 @@ def _parse_viewdns(body: bytes, domain: str) -> list[DnsHistoryRecord]:
     except ValueError:
         return []
 
-    records: list[DnsHistoryRecord] = [
+    records: list[DnsHistoryRecord] = []
+    response = (data or {}).get("response", {}) or {}
+    records = [
         DnsHistoryRecord(
             record_type="a",
             value=item.get("ip", ""),
@@ -200,7 +202,7 @@ def _parse_viewdns(body: bytes, domain: str) -> list[DnsHistoryRecord]:
             owner=item.get("owner"),
             source="viewdns",
         )
-        for item in data.get("response", {}).get("records", [])
+        for item in response.get("records", []) or []
     ]
 
     return records
@@ -400,7 +402,7 @@ def _print_history(records: list[DnsHistoryRecord]) -> None:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa uma unica consulta de historico DNS."""
-    init_scanner(args)
+    quiet = init_scanner(args)
 
     domain = args.domain.strip().lower()
     sources = getattr(args, "source", None) or ["dnslytics"]
@@ -432,16 +434,18 @@ def run_once(args: argparse.Namespace) -> int:
         record_types=record_types,
         timeout=args.timeout,
     )
+    records = sorted(records, key=lambda r: (r.record_type, r.value))
     elapsed = time.time() - start
 
-    _print_history(records)
+    if not quiet:
+        _print_history(records)
 
     for s in sources:
         if s != "dnslytics" and not api_keys.get(s):
             logger.warning(
                 "%s requer API key (use --%s-api-key)",
                 s,
-                s.replace("securitytrails", "st").replace("viewdns", "viewdns"),
+                s.replace("securitytrails", "st"),
             )
 
     logger.info(
@@ -452,7 +456,7 @@ def run_once(args: argparse.Namespace) -> int:
     )
 
     if getattr(args, "output", None):
-        write_output(args.output, [asdict(r) for r in records])
+        write_output(args.output, [asdict(r) for r in records], quiet=quiet)
         logger.info("Output salvo em: %s", args.output)
 
     return 0
@@ -460,29 +464,23 @@ def run_once(args: argparse.Namespace) -> int:
 
 def main() -> int:
     """Entry point CLI."""
-    parser = build_parser()
-    args = parser.parse_args()
-
-    if not args.domain:
-        return run_main_loop(
-            parser=parser,
-            banner_fn=create_banner(BANNER_ART, "DNS History"),
-            run_fn=run_once,
-            has_target=lambda a: bool(getattr(a, "domain", None)),
-            prompt="dns-history> ",
-            description="Consulta historico de registros DNS de um dominio.",
-            example="example.com",
-            contextual_help=(
-                "Uso: <dominio> [opcoes]\n"
-                "Exemplos:\n"
-                "  example.com\n"
-                "  example.com --source securitytrails --st-api-key KEY\n"
-                "  example.com --record-types a,mx,ns -o history.json\n"
-                "  Use -l para arquivo com dominios (um por linha)"
-            ),
-        )
-
-    return run_once(args)
+    return run_main_loop(
+        parser=build_parser(),
+        banner_fn=create_banner(BANNER_ART, "DNS History"),
+        run_fn=run_once,
+        has_target=lambda a: bool(getattr(a, "domain", None)),
+        prompt="dns-history> ",
+        description="Consulta historico de registros DNS de um dominio.",
+        example="example.com",
+        contextual_help=(
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --source securitytrails --st-api-key KEY\n"
+            "  example.com --record-types a,mx,ns -o history.json\n"
+            "  Use -l para arquivo com dominios (um por linha)"
+        ),
+    )
 
 
 if __name__ == "__main__":
