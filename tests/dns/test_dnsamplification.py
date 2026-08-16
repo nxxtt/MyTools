@@ -391,9 +391,7 @@ class TestAsyncRunOnce:
                 "mytools.dns.dnsamplification.scan_amplification",
                 return_value=mock_result,
             ),
-            patch(
-                "mytools.dns.dnsamplification.ensure_output_dir"
-            ) as mock_ensure,
+            patch("mytools.dns.dnsamplification.ensure_output_dir") as mock_ensure,
             patch("mytools.dns.dnsamplification.write_output") as mock_write,
         ):
             result = await _async_run_once(args)

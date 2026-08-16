@@ -489,41 +489,39 @@ class TestCurlCffiAdapter:
 
 
 def test_verb_wrappers_delegate(monkeypatch):
-        ctx = MagicMock(impersonate="chrome", user_agent_rotate=False, tor=False)
-        monkeypatch.setattr(utils, "get_stealth_ctx", lambda: ctx)
-        calls: list[tuple[str, str, dict]] = []
+    ctx = MagicMock(impersonate="chrome", user_agent_rotate=False, tor=False)
+    monkeypatch.setattr(utils, "get_stealth_ctx", lambda: ctx)
+    calls: list[tuple[str, str, dict]] = []
 
-        class FakeResponse:
-            def __init__(self):
-                self.status_code = 200
-                self.content = b""
-                self.text = ""
-                self.headers = {"server": "nginx"}
+    class FakeResponse:
+        def __init__(self):
+            self.status_code = 200
+            self.content = b""
+            self.text = ""
+            self.headers = {"server": "nginx"}
 
-        class FakeSession:
-            def __init__(self, **kwargs):
-                self.headers = {}
+    class FakeSession:
+        def __init__(self, **kwargs):
+            self.headers = {}
 
-            async def request(self, method, url, **kwargs):
-                calls.append((method, url, kwargs))
-                return FakeResponse()
+        async def request(self, method, url, **kwargs):
+            calls.append((method, url, kwargs))
+            return FakeResponse()
 
-        monkeypatch.setattr("curl_cffi.requests.AsyncSession", FakeSession)
+    monkeypatch.setattr("curl_cffi.requests.AsyncSession", FakeSession)
 
-        import asyncio
+    import asyncio
 
-        client = create_async_client(impersonate="chrome")
-        for verb in ("post", "put", "options", "head"):
-            method = getattr(client, verb)
-            resp = asyncio.run(
-                method("http://x/", follow_redirects=True, data=b"d")
-            )
-            assert isinstance(resp, utils._CurlCffiResponse)
-        methods = [c[0] for c in calls]
-        assert methods == ["POST", "PUT", "OPTIONS", "HEAD"]
-        for _, _, kwargs in calls:
-            assert kwargs["allow_redirects"] is True
-            assert "follow_redirects" not in kwargs
+    client = create_async_client(impersonate="chrome")
+    for verb in ("post", "put", "options", "head"):
+        method = getattr(client, verb)
+        resp = asyncio.run(method("http://x/", follow_redirects=True, data=b"d"))
+        assert isinstance(resp, utils._CurlCffiResponse)
+    methods = [c[0] for c in calls]
+    assert methods == ["POST", "PUT", "OPTIONS", "HEAD"]
+    for _, _, kwargs in calls:
+        assert kwargs["allow_redirects"] is True
+        assert "follow_redirects" not in kwargs
 
 
 class TestResetStealthCtx:

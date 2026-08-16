@@ -654,9 +654,7 @@ class TestCheckNsec:
         assert _zone_uses_nsec("example.com", resolver) is False
 
     @patch("mytools.dns.dnssecvalidation._random_label", return_value="abc")
-    def test_zone_uses_nsec_generic_dns_exception(
-        self, mock_label: MagicMock
-    ) -> None:
+    def test_zone_uses_nsec_generic_dns_exception(self, mock_label: MagicMock) -> None:
         resolver = MagicMock()
         resolver.resolve.side_effect = dns.exception.DNSException("err")
         assert _zone_uses_nsec("example.com", resolver) is False

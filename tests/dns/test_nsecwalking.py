@@ -10,6 +10,7 @@ import dns.flags
 import dns.message
 import dns.name
 import dns.rcode
+import dns.rdatatype
 import dns.resolver
 import dns.rrset
 import pytest
@@ -428,9 +429,7 @@ class TestQueryNsec:
         assert next_name == "HASH123"
 
     @patch("mytools.dns.nsecwalking.dns.resolver.Resolver")
-    def test_nxdomain_authority_no_nsec_falls_back(
-        self, mock_cls: MagicMock
-    ) -> None:
+    def test_nxdomain_authority_no_nsec_falls_back(self, mock_cls: MagicMock) -> None:
         qname = dns.name.from_text("abc.example.com")
         msg = dns.message.make_response(dns.message.make_query(qname, "NSEC"))
         msg.set_rcode(dns.rcode.NXDOMAIN)

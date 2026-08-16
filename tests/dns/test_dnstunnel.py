@@ -497,9 +497,7 @@ class TestTxtRatio:
             "base64_count": 0,
             "hex_count": 0,
         }
-        with patch(
-            "mytools.dns.dnstunnel.DEFAULT_RECORD_TYPES", ["TXT"]
-        ):
+        with patch("mytools.dns.dnstunnel.DEFAULT_RECORD_TYPES", ["TXT"]):
             result = scan_tunnel("example.com", num_queries=1)
         indicators = {i.indicator for i in result.indicators}
         assert "txt_ratio" in indicators
@@ -554,9 +552,7 @@ class TestQueryCandidateLabels:
             dns.resolver.NXDOMAIN(),
             dns.exception.Timeout(),
         ]
-        result = _query_candidate_labels(
-            resolver, "example.com", ["a", "b", "c"]
-        )
+        result = _query_candidate_labels(resolver, "example.com", ["a", "b", "c"])
         assert result == [("a", "answer"), ("b", "nxdomain"), ("c", "error")]
 
 
@@ -791,9 +787,7 @@ class TestAsyncRunOnce:
         )
         with (
             patch("mytools.dns.dnstunnel.scan_tunnel", return_value=mock_result),
-            patch(
-                "mytools.dns.dnstunnel.ensure_output_dir"
-            ) as mock_ensure,
+            patch("mytools.dns.dnstunnel.ensure_output_dir") as mock_ensure,
             patch("mytools.dns.dnstunnel.write_output") as mock_write,
         ):
             result = await _async_run_once(args)

@@ -730,9 +730,7 @@ class TestRunAllFull:
         parser = build_parser()
         args = parser.parse_args(["example.com"])
         stack = _patch_all_modules()
-        stack.enter_context(
-            patch("mytools.core.reconall.ALL_MODULES", ["dnstransfer"])
-        )
+        stack.enter_context(patch("mytools.core.reconall.ALL_MODULES", ["dnstransfer"]))
         with stack:
             result = run_all(args)
         assert result == 0

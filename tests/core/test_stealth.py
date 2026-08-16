@@ -394,9 +394,7 @@ class TestTorManager:
         )
 
         tor = TorManager()
-        monkeypatch.setattr(
-            tor, "get_ip", AsyncMock(side_effect=RuntimeError("boom"))
-        )
+        monkeypatch.setattr(tor, "get_ip", AsyncMock(side_effect=RuntimeError("boom")))
         assert await tor.new_circuit(new_circuit_wait=0) is None
 
 

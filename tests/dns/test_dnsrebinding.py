@@ -695,9 +695,7 @@ class TestAsyncRunOnce:
             patch(
                 "mytools.dns.dnsrebinding.scan_rebinding", return_value=[mock_result]
             ),
-            patch(
-                "mytools.dns.dnsrebinding.ensure_output_dir"
-            ) as mock_ensure,
+            patch("mytools.dns.dnsrebinding.ensure_output_dir") as mock_ensure,
             patch("mytools.dns.dnsrebinding.write_output") as mock_write,
         ):
             result = await _async_run_once(args)

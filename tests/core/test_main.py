@@ -197,9 +197,7 @@ class TestMainFlow:
         main()
         assert fake_run == [("web", "accountabuse")]
 
-    def test_eoferror_in_category_menu(
-        self, monkeypatch, no_clear, no_banner
-    ):
+    def test_eoferror_in_category_menu(self, monkeypatch, no_clear, no_banner):
         calls = {"n": 0}
 
         def _input(*_):

@@ -466,7 +466,10 @@ class TestRunOnce:
             shodan_api_key="sh",
         )
         assert run_once(args) == 0
-        sources, api_keys = mock_passive.call_args.args[1], mock_passive.call_args.args[2]
+        sources, api_keys = (
+            mock_passive.call_args.args[1],
+            mock_passive.call_args.args[2],
+        )
         assert "virustotal" in sources
         assert "securitytrails" in sources
         assert "shodan" in sources
