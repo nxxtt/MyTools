@@ -200,6 +200,24 @@ class TestGroupBWorkspace:
         ws_files = list((tmp_path / "ws").rglob("*.json"))
         assert len(ws_files) == 1
 
+    def test_json_flag(self, capsys):
+        scanner = _FakeScannerB()
+        args = _make_args(
+            scanner,
+            [
+                "https://example.com",
+                "--json",
+            ],
+        )
+
+        code = scanner.run_once(args)
+        assert code == 0
+
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert data["target"] == "https://example.com"
+        assert data["overall_status"] == "secure"
+
 
 # ---------------------------------------------------------------------------
 # Group A integration
@@ -222,6 +240,19 @@ class TestGroupAWorkspace:
         assert scanner._last_output_file is not None
         assert "target.com" in scanner._last_output_file
         assert scanner._last_output_file.endswith(".json")
+
+    def test_output_dir_without_target(self, tmp_path: Path):
+        scanner = _FakeScannerA()
+        args = _make_args(
+            scanner,
+            [
+                "--output-dir",
+                str(tmp_path),
+            ],
+        )
+
+        scanner.run_once(args)
+        assert scanner._last_output_file is None
 
     def test_output_flag_takes_priority(self, tmp_path: Path):
         scanner = _FakeScannerA()

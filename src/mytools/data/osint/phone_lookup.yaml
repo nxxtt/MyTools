@@ -1,0 +1,100 @@
+# Dados locais para Phone Lookup (Brasil).
+# DDD -> UF + cidades principais; carrier_prefixes -> operadora (dados publicos ANATEL).
+# Edite este arquivo para ajustar/ampliar o dataset.
+
+ddd:
+  "11": { uf: "SP", cities: [Sao Paulo, Guarulhos, Osasco, Santo Andre, Sao Bernardo do Campo] }
+  "12": { uf: "SP", cities: [Sao Jose dos Campos, Taubate, Caraguatatuba, Campos do Jordao] }
+  "13": { uf: "SP", cities: [Santos, Sao Vicente, Guaruja, Praia Grande, Bertioga] }
+  "14": { uf: "SP", cities: [Bauru, Marilia, Jau, Botucatu, Lins] }
+  "15": { uf: "SP", cities: [Sorocaba, Itu, Tatuí, Votorantim, Aracariguama] }
+  "16": { uf: "SP", cities: [Ribeirao Preto, Franca, Sao Carlos, Araraquara, Sertaozinho] }
+  "17": { uf: "SP", cities: [Sao Jose do Rio Preto, Catanduva, Votuporanga, Barretos] }
+  "18": { uf: "SP", cities: [Presidente Prudente, Aracatuba, Birigui, Assis, Tupa] }
+  "19": { uf: "SP", cities: [Campinas, Piracicaba, Limeira, Americana, Indaiatuba] }
+  "21": { uf: "RJ", cities: [Rio de Janeiro, Niteroi, Duque de Caxias, Sao Goncalo] }
+  "22": { uf: "RJ", cities: [Campos dos Goytacazes, Macae, Cabo Frio, Buzios, Petropolis] }
+  "24": { uf: "RJ", cities: [Volta Redonda, Barra Mansa, Resende, Itaguai, Angra dos Reis] }
+  "27": { uf: "ES", cities: [Vitoria, Vila Velha, Serra, Cariacica, Guarapari] }
+  "28": { uf: "ES", cities: [Cachoeiro de Itapemirim, Colatina, Sao Mateus, Linhares] }
+  "31": { uf: "MG", cities: [Belo Horizonte, Contagem, Betim, Nova Lima, Sabara] }
+  "32": { uf: "MG", cities: [Juiz de Fora, Ubá, Barbacena, Muriae] }
+  "33": { uf: "MG", cities: [Governador Valadares, Ipatinga, Timoteo, Aimores] }
+  "34": { uf: "MG", cities: [Uberlandia, Uberaba, Araguari, Ituiutaba] }
+  "35": { uf: "MG", cities: [Pocos de Caldas, Varginha, Pouso Alegre, Itajuba, Lavras] }
+  "37": { uf: "MG", cities: [Divinopolis, Formiga, Itauna, Lagoa da Prata] }
+  "38": { uf: "MG", cities: [Montes Claros, Paracatu, Janauba, Pirapora] }
+  "41": { uf: "PR", cities: [Curitiba, Araucaria, Sao Jose dos Pinhais, Pinhais, Colombo] }
+  "42": { uf: "PR", cities: [Ponta Grossa, Guarapuava, Castro, Palmeira] }
+  "43": { uf: "PR", cities: [Londrina, Apucarana, Arapongas, Cambé, Rolândia] }
+  "44": { uf: "PR", cities: [Maringa, Umuarama, Campo Mourao, Cianorte] }
+  "45": { uf: "PR", cities: [Foz do Iguacu, Cascavel, Toledo, Medianeira] }
+  "46": { uf: "PR", cities: [Francisco Beltrao, Pato Branco, Dois Vizinhos] }
+  "47": { uf: "SC", cities: [Joinville, Blumenau, Itajai, Brusque, Jaragua do Sul] }
+  "48": { uf: "SC", cities: [Florianopolis, Sao Jose, Palhoca, Tubarao, Criciuma] }
+  "49": { uf: "SC", cities: [Chapeco, Lages, Concordia, Joacaba] }
+  "51": { uf: "RS", cities: [Porto Alegre, Canoas, Viamao, Novo Hamburgo, Gravatai] }
+  "53": { uf: "RS", cities: [Pelotas, Rio Grande, Bage, Camaqua] }
+  "54": { uf: "RS", cities: [Caxias do Sul, Passo Fundo, Bento Goncalves, Erechim] }
+  "55": { uf: "RS", cities: [Santa Maria, Uruguaiana, Cruz Alta, Santo Angelo] }
+  "61": { uf: "DF", cities: [Brasilia, Taguatinga, Ceilandia, Planaltina, Sobradinho] }
+  "62": { uf: "GO", cities: [Goiania, Aparecida de Goiania, Anapolis, Rio Verde] }
+  "63": { uf: "TO", cities: [Palmas, Araguaina, Gurupi, Porto Nacional] }
+  "64": { uf: "GO", cities: [Rio Verde, Caldas Novas, Ipora, Goiatuba] }
+  "65": { uf: "MT", cities: [Cuiaba, Varzea Grande, Rondonopolis, Sinop] }
+  "66": { uf: "MT", cities: [Rondonopolis, Tangara da Serra, Primavera do Leste] }
+  "67": { uf: "MS", cities: [Campo Grande, Dourados, Corumba, Três Lagoas] }
+  "68": { uf: "AC", cities: [Rio Branco, Cruzeiro do Sul, Sena Madureira] }
+  "69": { uf: "RO", cities: [Porto Velho, Ji-Parana, Ariquemes, Vilhena] }
+  "71": { uf: "BA", cities: [Salvador, Lauro de Freitas, Camaçari, Feira de Santana] }
+  "73": { uf: "BA", cities: [Ilheus, Itabuna, Porto Seguro, Teixeira de Freitas] }
+  "74": { uf: "BA", cities: [Juazeiro, Paulo Afonso, Irecê] }
+  "75": { uf: "BA", cities: [Feira de Santana, Alagoinhas, Santo Antonio de Jesus] }
+  "77": { uf: "BA", cities: [Vitoria da Conquista, Barreiras, Guanambi] }
+  "79": { uf: "SE", cities: [Aracaju, Nossa Senhora do Socorro, Lagarto, Itabaiana] }
+  "81": { uf: "PE", cities: [Recife, Olinda, Jaboatão dos Guararapes, Caruaru] }
+  "82": { uf: "AL", cities: [Maceio, Arapiraca, Palmeira dos Indios, Rio Largo] }
+  "83": { uf: "PB", cities: [Joao Pessoa, Campina Grande, Santa Rita, Patos] }
+  "84": { uf: "RN", cities: [Natal, Mossoro, Parnamirim, Caico] }
+  "85": { uf: "CE", cities: [Fortaleza, Caucaia, Maracanau, Sobral, Juazeiro do Norte] }
+  "86": { uf: "PI", cities: [Teresina, Parnaiba, Campo Maior] }
+  "87": { uf: "PE", cities: [Petrolina, Garanhuns, Serra Talhada, Arcoverde] }
+  "88": { uf: "CE", cities: [Juazeiro do Norte, Crato, Iguatu, Sobral] }
+  "89": { uf: "PI", cities: [Picos, Floriano, Oeiras] }
+  "91": { uf: "PA", cities: [Belem, Ananindeua, Marituba, Barcarena] }
+  "92": { uf: "AM", cities: [Manaus, Parintins, Itacoatiara, Manacapuru] }
+  "93": { uf: "PA", cities: [Santarem, Altamira, Itaituba, Monte Alegre] }
+  "94": { uf: "PA", cities: [Maraba, Redencao, Parauapebas, Tucurui] }
+  "95": { uf: "RR", cities: [Boa Vista, Rorainopolis, Caracarai] }
+  "96": { uf: "AP", cities: [Macapa, Santana, Oiapoque, Laranjal do Jari] }
+  "97": { uf: "AM", cities: [Manaus, Tefe, Coari, Tabatinga] }
+  "98": { uf: "MA", cities: [Sao Luis, Caxias, Imperatriz, Timon] }
+  "99": { uf: "MA", cities: [Imperatriz, Sao Luis, Pinheiro, Codo] }
+
+# Operadoras por prefixo de linha movel (BR: DDD + 9 + NNNN-NNNN).
+# O prefixo da operadora sao os 2 digitos imediatamente apos o "9".
+carrier_prefixes:
+  "96": "Vivo"
+  "97": "Vivo"
+  "98": "Vivo"
+  "99": "Vivo"
+  "91": "Claro"
+  "92": "Claro"
+  "93": "Claro"
+  "94": "Claro"
+  "95": "Claro"
+  "81": "TIM"
+  "82": "TIM"
+  "83": "TIM"
+  "84": "TIM"
+  "85": "TIM"
+  "61": "Oi"
+  "62": "Oi"
+  "63": "Oi"
+  "64": "Oi"
+  "65": "Oi"
+  "71": "Nextel/Sercomtel"
+  "72": "Nextel/Sercomtel"
+  "73": "Nextel/Sercomtel"
+  "74": "Nextel/Sercomtel"
+  "75": "Nextel/Sercomtel"

@@ -85,6 +85,7 @@ _DISPLAY_NAMES = {
     "googledorking": "Google Dorking",
     "ipasninfo": "IP/ASN Info",
     "pasteleak": "Paste Leak Monitor",
+    "phonelookup": "Phone Lookup",
     "socialengrecon": "Social Engineering Recon",
     # VCS
     "vcsleak": "VCS Leak",

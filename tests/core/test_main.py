@@ -61,9 +61,9 @@ def fake_run(monkeypatch):
 
 
 class TestLoadTools:
-    def test_112_tools_from_entry_points(self):
+    def test_114_tools_from_entry_points(self):
         tools = _load_tools()
-        assert len(tools) == 113
+        assert len(tools) == 114
 
     def test_matches_pyproject_scripts(self):
         eps = im.entry_points(group="console_scripts")
@@ -82,7 +82,7 @@ class TestLoadTools:
         assert len(by_cat["email"]) == 8
         assert len(by_cat["mobile"]) == 1
         assert len(by_cat["network"]) == 2
-        assert len(by_cat["osint"]) == 6
+        assert len(by_cat["osint"]) == 7
         assert len(by_cat["vcs"]) == 1
         assert len(by_cat["web"]) == 76
         assert len(by_cat["whois"]) == 1

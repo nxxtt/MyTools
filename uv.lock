@@ -1032,6 +1032,7 @@ dependencies = [
     { name = "lief" },
     { name = "matplotlib" },
     { name = "networkx" },
+    { name = "phonenumbers" },
     { name = "playwright" },
     { name = "protobuf" },
     { name = "pyjwt" },
@@ -1070,6 +1071,7 @@ requires-dist = [
     { name = "lief", specifier = ">=1.0.0" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "networkx", specifier = ">=3.6.1" },
+    { name = "phonenumbers", specifier = ">=9.0.37" },
     { name = "playwright", specifier = ">=1.62.0" },
     { name = "protobuf", specifier = ">=7.35.1" },
     { name = "pyjwt", specifier = ">=2.13.0" },
@@ -1173,6 +1175,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
+]
+
+[[package]]
+name = "phonenumbers"
+version = "9.0.37"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/36/ee5b6d7ccc28cb7848e8dfefce94df9178b6318ed56adab97550b6ba99ec/phonenumbers-9.0.37.tar.gz", hash = "sha256:8923ab413c575b27da2815c9bef48290181aab565398b5e7e23cc7ace212a293", size = 2312364, upload-time = "2026-08-14T05:29:13.533Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/68/544cb901964e8bfc3c8d215d5620e63a009b32437efaec905fdefdf59e26/phonenumbers-9.0.37-py2.py3-none-any.whl", hash = "sha256:55ae8243c1e2fe8ae2548d979e57155d9ae0f6084f8a1d6884050b143aff0a7c", size = 2595712, upload-time = "2026-08-14T05:29:10.464Z" },
 ]
 
 [[package]]
