@@ -4,12 +4,51 @@ from __future__ import annotations
 
 import logging
 import plistlib
+import re
 import zipfile
 from typing import Any
 
 logger = logging.getLogger("mytools.mobile.ipa_analyzer")
 
 __all__ = ["analyze_ipa"]
+
+# Binário principal: exatamente Payload/<app>.app/<bin> (2 segmentos),
+# evita PlugIns/*.appex/* e Watch/*.app/*.
+_MAIN_BINARY_RE = re.compile(r"Payload/[^/]+\.app/[^/]+")
+
+
+def _macho_info(macho: Any) -> dict[str, Any]:
+    """Extrai info de um Mach-O thin ou universal (FatBinary).
+
+    Um FatBinary (binário universal) expõe `.at(i)`/`.size`; cada slice é
+    um Mach-O thin. Faltas em um slice são ignoradas.
+    """
+    is_fat = hasattr(macho, "at") and hasattr(macho, "size")
+    binaries = [macho.at(i) for i in range(macho.size)] if is_fat else [macho]
+    binaries = [b for b in binaries if b is not None]
+
+    info: dict[str, Any] = {
+        "name": getattr(macho, "name", None) or "",
+        "type": "fat_binary"
+        if is_fat
+        else str(getattr(getattr(macho, "header", None), "file_type", "") or ""),
+        "libraries": [],
+        "rpaths": [],
+    }
+    exports = 0
+    symbols = 0
+    for b in binaries:
+        libs = getattr(b, "libraries", None)
+        if libs:
+            info["libraries"].extend(lib.name for lib in libs if lib.name)
+        exports += len(getattr(b, "exported_functions", []) or [])
+        symbols += len(list(getattr(b, "symbols", []) or []))
+        rpaths = getattr(b, "rpaths", None)
+        if rpaths and not info["rpaths"]:
+            info["rpaths"] = [r.path for r in rpaths if r.path]
+    info["exported_count"] = exports
+    info["symbol_count"] = symbols
+    return info
 
 
 def analyze_ipa(file_path: str) -> dict[str, Any]:
@@ -18,7 +57,8 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
     Returns:
         Dict com keys: bundle_id, display_name, version, build,
         min_os_version, bundle_short_version, entitlements,
-        provisioning, macho, url_schemes, file_size.
+        provisioning, macho, url_schemes, ats_settings, file_size.
+        Em falha, dict com a key ``error``.
     """
     result: dict[str, Any] = {
         "bundle_id": "",
@@ -62,21 +102,25 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                     )
 
                     # URL schemes
-                    url_types = plist.get("CFBundleURLTypes", [])
+                    url_types = plist.get("CFBundleURLTypes", []) or []
                     for url_type in url_types:
-                        schemes = url_type.get("CFBundleURLSchemes", [])
-                        result["url_schemes"].extend(schemes)
+                        if not isinstance(url_type, dict):
+                            continue
+                        schemes = url_type.get("CFBundleURLSchemes", []) or []
+                        if isinstance(schemes, list):
+                            result["url_schemes"].extend(schemes)
 
                     # ATS settings
                     ats = plist.get("NSAppTransportSecurity", {})
-                    if ats:
+                    if isinstance(ats, dict) and ats:
+                        exception_domains = ats.get("NSExceptionDomains", {})
                         result["ats_settings"] = {
                             "allows_insecure_http": ats.get(
                                 "NSAllowsArbitraryLoads", False
                             ),
-                            "exception_domains": list(
-                                ats.get("NSExceptionDomains", {}).keys()
-                            ),
+                            "exception_domains": list(exception_domains.keys())
+                            if isinstance(exception_domains, dict)
+                            else [],
                         }
                 except Exception as e:
                     logger.warning("Failed to parse Info.plist: %s", e)
@@ -91,8 +135,6 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                             prov_plist = plistlib.loads(prov_data)
                         except Exception:
                             # Try extracting XML from CMS signed data
-                            import re
-
                             xml_match = re.search(
                                 rb"(<\?xml.*</plist>)", prov_data, re.DOTALL
                             )
@@ -144,54 +186,17 @@ def analyze_ipa(file_path: str) -> dict[str, Any]:
                         continue
                     # Main binary: typically in Payload/*.app/*
                     if (
-                        ".app/" in name
+                        _MAIN_BINARY_RE.fullmatch(name)
                         and not name.endswith(
                             (".plist", ".nib", ".storyboardc", ".strings", ".lproj")
                         )
-                        and "/" in name
                         and "." not in name.split("/")[-1]
                     ):
                         try:
                             binary_data = ipa.read(name)
-                            # lief.parse from binary data
-                            binary = lief.parse(list(binary_data))
-                            if binary is not None and hasattr(binary, "name"):
-                                macho_info: dict[str, Any] = {
-                                    "name": binary.name or name,  # type: ignore[union-attr]
-                                    "type": str(binary.header.file_type)  # type: ignore[union-attr]
-                                    if hasattr(binary, "header")
-                                    else "",
-                                }
-
-                                # Imports
-                                if hasattr(binary, "libraries"):
-                                    macho_info["libraries"] = [
-                                        lib.name  # type: ignore[union-attr]
-                                        for lib in binary.libraries  # type: ignore[union-attr]
-                                        if lib.name  # type: ignore[union-attr]
-                                    ]
-
-                                # Exports
-                                if hasattr(binary, "exported_functions"):
-                                    macho_info["exported_count"] = len(
-                                        binary.exported_functions  # type: ignore[union-attr]
-                                    )  # type: ignore[arg-type]
-
-                                # Symbols
-                                if hasattr(binary, "symbols"):
-                                    macho_info["symbol_count"] = len(
-                                        list(binary.symbols)
-                                    )  # type: ignore[arg-type]
-
-                                # Rpaths
-                                if hasattr(binary, "rpaths"):
-                                    macho_info["rpaths"] = [
-                                        r.path
-                                        for r in binary.rpaths  # type: ignore[attr-defined]
-                                        if r.path
-                                    ]
-
-                                result["macho"] = macho_info
+                            binary = lief.parse(bytes(binary_data))
+                            if binary is not None:
+                                result["macho"] = _macho_info(binary)
                                 break
                         except Exception:
                             continue

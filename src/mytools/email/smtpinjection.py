@@ -43,15 +43,13 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
 
 logger = logging.getLogger("mytools.smtpinjection")
-
-
-DEFAULT_PORTS = [25, 587, 465]
 
 
 _INJECTION_PAYLOADS_DEFAULT = {
@@ -123,6 +121,8 @@ class InjectionResult:
 
     issues: list[str]
 
+    overall_status: str = "secure"
+
     exploit: str = ""
 
     tool: str = ""
@@ -146,7 +146,13 @@ def _connect_smtp(
     except OSError as exc:
         raise ConnectionError(f"Erro de conexao: {exc}") from exc
 
-    result = server.ehlo()
+    try:
+        result = server.ehlo()
+
+    except smtplib.SMTPException as exc:
+        server.close()
+
+        raise ConnectionError(f"Falha no EHLO: {exc}") from exc
 
     banner = result[1].decode("utf-8", errors="replace") if result else ""
 
@@ -178,10 +184,6 @@ def _test_injection(
 
     try:
         server.ehlo()
-
-        server.mail(from_addr)
-
-        server.rcpt(to_addr)
 
         server.sendmail(from_addr, [to_addr], raw_email.encode("utf-8"))
 
@@ -283,6 +285,7 @@ def scan_smtp_injection(
             attempts=[],
             vulnerable_fields=[],
             issues=issues,
+            overall_status="error",
             exploit="",
         )
 
@@ -314,8 +317,21 @@ def scan_smtp_injection(
 
     vulnerable_fields = sorted({a.field for a in attempts if a.status == "injected"})
 
+    errored = [a for a in attempts if a.status == "timeout"]
+
     if not vulnerable_fields:
-        issues.append("Nenhuma injecao detectada — servidor parece seguro")
+        if attempts and len(errored) == len(attempts):
+            issues.append("Nenhum payload pôde ser testado (erros/timeouts de conexao)")
+        else:
+            issues.append("Nenhuma injecao detectada — servidor parece seguro")
+
+    overall = (
+        "vulnerable"
+        if vulnerable_fields
+        else "warning"
+        if attempts and len(errored) == len(attempts)
+        else "secure"
+    )
 
     return InjectionResult(
         target=target,
@@ -326,6 +342,7 @@ def scan_smtp_injection(
         attempts=attempts,
         vulnerable_fields=vulnerable_fields,
         issues=issues,
+        overall_status=overall,
         exploit="smtp_header_injection_payload" if vulnerable_fields else "",
         tool="swaks",
     )
@@ -527,18 +544,21 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         fields=fields,
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
         write_output(
             args.output,
             [asdict(result)],
-            ["target", "port", "tls", "vulnerable_fields", "issues"],
+            ["target", "port", "overall_status", "tls", "vulnerable_fields", "issues"],
             quiet=quiet,
         )
 
-    return 0
+    return 0 if result.overall_status == "secure" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

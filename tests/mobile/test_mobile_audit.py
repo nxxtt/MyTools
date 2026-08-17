@@ -257,6 +257,7 @@ class TestRunScanChecks:
                 return_value={
                     "warnings": ["INFO: Symmetric algorithm HS256"],
                     "header": {"alg": "HS256"},
+                    "is_expired": True,
                 },
             ),
         ):
@@ -267,7 +268,7 @@ class TestRunScanChecks:
                 client_id="cid",
                 jwt_token="token",
             )
-        assert len(result.attempts) == 6
+        assert len(result.attempts) == 4
         assert result.overall_status == "vulnerable"
 
     @pytest.mark.asyncio
@@ -282,7 +283,7 @@ class TestRunScanChecks:
             result = await s.run_scan(file_path=str(p), checks=["apk_metadata"])
         assert result.attempts == []
         assert any("boom" in issue for issue in result.issues)
-        assert result.overall_status == "secure"
+        assert result.overall_status == "error"
 
     @pytest.mark.asyncio
     async def test_run_scan_attempt_error_collected(self, tmp_path) -> None:
@@ -292,9 +293,9 @@ class TestRunScanChecks:
         result = await s.run_scan(
             file_path=str(p), checks=["oauth2_test"], idp=None, client_id=None
         )
-        assert len(result.attempts) == 2  # oauth2_test appended twice
+        assert len(result.attempts) == 1
         assert any("Requires" in issue for issue in result.issues)
-        assert result.overall_status == "secure"
+        assert result.overall_status == "error"
 
 
 class TestPrintResults:
@@ -533,6 +534,174 @@ class TestRunCheck:
                 "jwt_validate", str(p), "oauth2", None, None, "", "token"
             )
         assert "invalid token" in attempt.error
+
+
+class TestRunCheckErrorBranches:
+    """Cobre os ramos `if \"error\" in data` de cada handler do _run_check."""
+
+    @staticmethod
+    def _path(tmp_path, name: str, data: bytes = b"fake") -> str:
+        p = tmp_path / name
+        p.write_bytes(data)
+        return str(p)
+
+    def test_apk_pinning_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.apk")
+        with patch(
+            "mytools.mobile.apk_pinning.detect_pinning", return_value={"error": "boom"}
+        ):
+            attempt = _run_check("apk_pinning", path, "android", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_apk_endpoints_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.apk")
+        with patch(
+            "mytools.mobile.apk_endpoints.extract_endpoints",
+            return_value={"error": "boom"},
+        ):
+            attempt = _run_check("apk_endpoints", path, "android", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_apk_secrets_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.apk")
+        with patch(
+            "mytools.mobile.apk_secrets.detect_secrets", return_value={"error": "boom"}
+        ):
+            attempt = _run_check("apk_secrets", path, "android", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_apk_nsc_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.apk")
+        with patch(
+            "mytools.mobile.apk_nsc.analyze_nsc", return_value={"error": "boom"}
+        ):
+            attempt = _run_check("apk_nsc", path, "android", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_apk_sdk_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.apk")
+        with patch(
+            "mytools.mobile.apk_analyzer.analyze_apk", return_value={"error": "boom"}
+        ):
+            attempt = _run_check("apk_sdk", path, "android", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_ipa_metadata_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.ipa")
+        with patch(
+            "mytools.mobile.ipa_analyzer.analyze_ipa", return_value={"error": "boom"}
+        ):
+            attempt = _run_check("ipa_metadata", path, "ios", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_ipa_provisioning_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.ipa")
+        with patch(
+            "mytools.mobile.ipa_analyzer.analyze_ipa", return_value={"error": "boom"}
+        ):
+            attempt = _run_check("ipa_provisioning", path, "ios", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_ipa_macho_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.ipa")
+        with patch(
+            "mytools.mobile.ipa_analyzer.analyze_ipa", return_value={"error": "boom"}
+        ):
+            attempt = _run_check("ipa_macho", path, "ios", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+    def test_ipa_secrets_error(self, tmp_path) -> None:
+        path = self._path(tmp_path, "app.ipa")
+        with patch(
+            "mytools.mobile.ipa_secrets.detect_ipa_secrets",
+            return_value={"error": "boom"},
+        ):
+            attempt = _run_check("ipa_secrets", path, "ios", None, None, "", None)
+        assert attempt.error == "boom"
+        assert attempt.vulnerable is False
+
+
+class TestRunScanCacheAndSecure:
+    APK_DATA: ClassVar[dict[str, object]] = {
+        "package": "com.test",
+        "version_name": "1.0",
+        "version_code": "1",
+        "target_sdk": "33",
+        "min_sdk": "21",
+        "permissions_count": 3,
+        "activities": [],
+        "services": [],
+        "sdk_fingerprints": [],
+    }
+
+    @pytest.mark.asyncio
+    async def test_run_scan_secure_overall(self, tmp_path) -> None:
+        p = tmp_path / "app.apk"
+        p.write_bytes(b"fake apk")
+        s = MobileAuditScanner()
+        with patch(
+            "mytools.mobile.apk_analyzer.analyze_apk", return_value=self.APK_DATA
+        ):
+            result = await s.run_scan(file_path=str(p), checks=["apk_metadata"])
+        assert result.overall_status == "secure"
+        assert result.attempts[0].vulnerable is False
+
+    @pytest.mark.asyncio
+    async def test_run_scan_apk_shared_cache_reuse(self, tmp_path) -> None:
+        p = tmp_path / "app.apk"
+        p.write_bytes(b"fake apk")
+        s = MobileAuditScanner()
+        with patch(
+            "mytools.mobile.apk_analyzer.analyze_apk", return_value=self.APK_DATA
+        ) as mock_apk:
+            result = await s.run_scan(
+                file_path=str(p), checks=["apk_sdk", "apk_metadata", "apk_sdk"]
+            )
+        assert len(result.attempts) == 3
+        assert mock_apk.call_count == 1
+        assert result.overall_status == "secure"
+
+    @pytest.mark.asyncio
+    async def test_run_scan_ipa_shared_cache_reuse(self, tmp_path) -> None:
+        p = tmp_path / "app.ipa"
+        p.write_bytes(b"fake ipa")
+        s = MobileAuditScanner()
+        ipa_data = {
+            "bundle_id": "com.test",
+            "display_name": "Test",
+            "version": "1.0",
+            "build": "42",
+            "min_os_version": "14",
+            "url_schemes": [],
+            "ats_settings": {"allows_insecure_http": False},
+            "provisioning": {},
+            "entitlements": {},
+            "macho": {
+                "name": "",
+                "libraries": [],
+                "rpaths": [],
+                "exported_count": 0,
+                "symbol_count": 0,
+            },
+        }
+        with patch(
+            "mytools.mobile.ipa_analyzer.analyze_ipa", return_value=ipa_data
+        ) as mock_ipa:
+            result = await s.run_scan(
+                file_path=str(p),
+                checks=["ipa_macho", "ipa_metadata", "ipa_provisioning"],
+            )
+        assert len(result.attempts) == 3
+        assert mock_ipa.call_count == 1
+        assert result.overall_status == "secure"
 
 
 class TestMainGuard:

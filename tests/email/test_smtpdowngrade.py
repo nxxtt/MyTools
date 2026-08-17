@@ -126,6 +126,12 @@ class TestGetBanner:
         result = _get_banner(server)
         assert result == ""
 
+    def test_os_error(self) -> None:
+        server = MagicMock()
+        server.ehlo.side_effect = OSError("timeout")
+        result = _get_banner(server)
+        assert result == ""
+
 
 class TestCheckStarttls:
     def test_ok(self) -> None:
@@ -171,6 +177,23 @@ class TestTestPlaintextMail:
         accepted, details = _test_plaintext_mail(server, "a@b.com", "c@d.com")
         assert accepted is False
         assert details == "boom"
+
+    def test_partial_accepted(self) -> None:
+        server = MagicMock()
+        server.ehlo.return_value = (250, b"OK")
+        server.mail.return_value = (250, b"OK")
+        server.rcpt.return_value = (550, b"Rejected")
+        accepted, details = _test_plaintext_mail(server, "a@b.com", "c@d.com")
+        assert accepted is False
+        assert "RCPT TO=550" in details
+
+    def test_os_error(self) -> None:
+        server = MagicMock()
+        server.ehlo.return_value = (250, b"OK")
+        server.mail.side_effect = OSError("timeout")
+        accepted, details = _test_plaintext_mail(server, "a@b.com", "c@d.com")
+        assert accepted is False
+        assert details == "timeout"
 
 
 class TestTestHeloDowngrade:
@@ -343,6 +366,54 @@ class TestScanSmtpDowngrade:
         ):
             result = scan_smtp_downgrade("mail.test.com", 25, from_addr="a@b.com")
             assert result.port == 25
+
+    def test_plaintext_connection_failure(self) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"220 mail")
+        mock_server.docmd.side_effect = smtpdowngrade.smtplib.SMTPException("fail")
+
+        with (
+            patch(
+                "mytools.email.smtpdowngrade._connect_smtp",
+                side_effect=[mock_server, ConnectionError("refused")],
+            ),
+            patch("mytools.email.smtpdowngrade._get_banner", return_value="220 mail"),
+        ):
+            result = scan_smtp_downgrade("mail.test.com", 587)
+            assert result.overall_status == "error"
+            assert any("teste plaintext" in i for i in result.issues)
+            assert result.plaintext_accepted is False
+
+    def test_auth_connection_failure(self) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"220 mail")
+        mock_server.mail.return_value = (250, b"OK")
+        mock_server.rcpt.return_value = (250, b"OK")
+        mock_server.docmd.side_effect = smtpdowngrade.smtplib.SMTPException("fail")
+
+        with (
+            patch(
+                "mytools.email.smtpdowngrade._connect_smtp",
+                side_effect=[
+                    mock_server,
+                    mock_server,
+                    ConnectionError("refused"),
+                ],
+            ),
+            patch("mytools.email.smtpdowngrade._get_banner", return_value="220 mail"),
+            patch(
+                "mytools.email.smtpdowngrade._test_plaintext_mail",
+                return_value=(True, "250"),
+            ),
+            patch(
+                "mytools.email.smtpdowngrade._test_helo_downgrade",
+                return_value=(False, "fail"),
+            ),
+        ):
+            result = scan_smtp_downgrade("mail.test.com", 587)
+            assert result.overall_status == "error"
+            assert any("teste AUTH" in i for i in result.issues)
+            assert result.auth_without_tls is False
 
 
 class TestPrintResults:
@@ -540,6 +611,33 @@ class TestAsyncRunOnce:
         ):
             code = asyncio.run(_async_run_once(args))
         assert code == 0
+
+    def test_json_output(self) -> None:
+        result = DowngradeResult(
+            target="mail.test.com",
+            port=587,
+            banner="",
+            ehlo_advertises_starttls=False,
+            supports_starttls=False,
+            requires_starttls=True,
+            plaintext_accepted=False,
+            helo_downgrade_accepted=False,
+            auth_without_tls=False,
+            tests=[],
+            issues=[],
+            overall_status="secure",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--json"])
+        with (
+            patch(
+                "mytools.email.smtpdowngrade.scan_smtp_downgrade",
+                return_value=result,
+            ),
+            patch("mytools.email.smtpdowngrade.print_json") as mock_print,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_print.assert_called_once()
 
 
 class TestMain:

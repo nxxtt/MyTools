@@ -55,15 +55,13 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
 
 logger = logging.getLogger("mytools.emailtemplateinject")
-
-
-DEFAULT_PORTS = [25, 587]
 
 
 _TEMPLATE_PAYLOADS_DEFAULT: dict[str, str] = {
@@ -258,7 +256,7 @@ def _detect_engine_from_response(
         "jinja2": ["jinja", "templateerror", "undefined", "sandbox"],
         "handlebars": ["handlebars", "mustache", "helper"],
         "mako": ["mako", "syntaxerror", "runtime"],
-        "tornado": ["tornado", "template", "escape"],
+        "tornado": ["tornado", "escape"],
         "freemarker": ["freemarker", "templateexception"],
     }
 
@@ -271,7 +269,11 @@ def _detect_engine_from_response(
     if detected_engines:
         return True, ",".join(detected_engines)
 
-    if "499" in response or "550" in response or "rejected" in response_lower:
+    if (
+        response.startswith("499")
+        or response.startswith("550")
+        or "rejected" in response_lower
+    ):
         return False, "blocked"
 
     return False, "unknown"
@@ -382,6 +384,8 @@ def scan_email_template_injection(
 
     accepted_probes = [p for p in probes if p.status in ("detected", "not_detected")]
 
+    errored_probes = [p for p in probes if p.status == "error"]
+
     if detected_probes:
         overall = "vulnerable"
 
@@ -393,6 +397,11 @@ def scan_email_template_injection(
         overall = "unknown"
 
         issues.append("Payloads aceitos mas engines nao identificados")
+
+    elif errored_probes:
+        overall = "warning"
+
+        issues.append("Nenhum payload pôde ser testado (erros de conexao)")
 
     else:
         overall = "safe"
@@ -593,7 +602,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         timeout=args.timeout,
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
@@ -604,7 +616,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 0
+    return 0 if result.overall_status == "safe" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

@@ -35,14 +35,22 @@ _PINNING_PATTERNS: dict[str, str] = {
     "CertificateFactory": r"CertificateFactory.*generate",
 }
 
-# Network Security Config XML indicators
+# Técnicas que indicam validação customizada/possivelmente insegura da cadeia
+# de confiança (TrustManager/verifier/socket customizados podem aceitar
+# qualquer certificado). Demais técnicas são controles informativos.
+_RISKY_TECHNIQUES = {
+    "TrustManager (custom)",
+    "TrustManager (checkClientTrusted)",
+    "HostnameVerifier (custom)",
+    "WebViewClient onReceivedSslError",
+    "OkHttp Builder sslSocketFactory",
+    "CertificateFactory",
+}
+
+# Network Security Config XML indicators (controles, nunca vulnerabilizam)
 _NSC_PINNING_PATTERNS = [
     "pin-set",
-    "pin",
-    "expiration",
     "trust-anchors",
-    "certificates",
-    "cleartextTrafficPermitted",
     "domain-config",
 ]
 
@@ -52,21 +60,19 @@ def detect_pinning(file_path: str) -> dict[str, Any]:
 
     Returns:
         Dict com keys: techniques (lista de strings encontradas),
-        nsc_config (indicadores de NSC XML), total_indicators.
+        nsc_indicators (indicadores de NSC XML), total_indicators,
+        vulnerable (True apenas se uma tecnica arriscada foi encontrada).
     """
     try:
         import zipfile
 
         techniques: list[str] = []
-        nsc_indicators: list[str] = []
+        nsc_indicators: set[str] = set()
 
         with zipfile.ZipFile(file_path, "r") as apk:
             dex_files = [n for n in apk.namelist() if n.endswith(".dex")]
             xml_files = [
-                n
-                for n in apk.namelist()
-                if "network_security_config" in n.lower()
-                or n.endswith("network_security_config.xml")
+                n for n in apk.namelist() if "network_security_config" in n.lower()
             ]
 
             # Scan DEX files for pinning patterns
@@ -86,7 +92,7 @@ def detect_pinning(file_path: str) -> dict[str, Any]:
             for xml_name in xml_files:
                 try:
                     nsc_data = apk.read(xml_name)
-                    nsc_indicators.extend(
+                    nsc_indicators.update(
                         indicator
                         for indicator in _NSC_PINNING_PATTERNS
                         if indicator.encode() in nsc_data
@@ -100,15 +106,15 @@ def detect_pinning(file_path: str) -> dict[str, Any]:
                 try:
                     manifest_data = apk.read(manifest_name)
                     if b"networkSecurityConfig" in manifest_data:
-                        nsc_indicators.append("manifest_networkSecurityConfig_ref")
+                        nsc_indicators.add("manifest_networkSecurityConfig_ref")
                 except Exception:
                     pass
 
         return {
             "techniques": techniques,
-            "nsc_indicators": nsc_indicators,
+            "nsc_indicators": sorted(nsc_indicators),
             "total_indicators": len(techniques) + len(nsc_indicators),
-            "vulnerable": len(techniques) > 0 or len(nsc_indicators) > 0,
+            "vulnerable": any(t in _RISKY_TECHNIQUES for t in techniques),
         }
 
     except Exception as e:

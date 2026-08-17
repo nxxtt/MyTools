@@ -50,15 +50,20 @@ class TestPkceFlow:
         assert len(result["state"]) > 0
 
     def test_custom_params(self) -> None:
+        from urllib.parse import parse_qs, urlparse
+
         result = generate_pkce_flow(
             "https://idp.test.com",
             "my_client",
             redirect_uri="myapp://callback",
             scope="openid email",
         )
-        assert "myapp://callback" in result["auth_url"]
-        # Scope is URL-encoded with + for spaces in query string
-        assert "scope=" in result["auth_url"]
+        parsed = urlparse(result["auth_url"])
+        params = parse_qs(parsed.query)
+        assert params["redirect_uri"] == ["myapp://callback"]
+        assert params["scope"] == ["openid email"]
+        assert params["client_id"] == ["my_client"]
+        assert params["code_challenge_method"] == ["S256"]
 
 
 class TestClientCredentials:

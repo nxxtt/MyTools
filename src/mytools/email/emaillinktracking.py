@@ -37,14 +37,13 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
 
 logger = logging.getLogger("mytools.emaillinktracking")
-
-DEFAULT_PORTS = [25, 587, 465]
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "pixel": ["pixel_1x1", "pixel_css", "web_beacon"],
@@ -371,6 +370,23 @@ _DETECTOR_MAP: dict[str, tuple[str, str, Callable[..., tuple[str, str]]]] = {
     ),
 }
 
+# Detectores que analisam o body do email enviado. O SMTP nao reflete o body,
+# entao essas tecnicas sao apenas informativas e nunca afetam o overall_status.
+_BODY_BASED_DETECTORS = {
+    "pixel_1x1",
+    "pixel_css",
+    "web_beacon",
+    "utm_params",
+    "redirect_chain",
+    "url_shortener",
+    "hidden_element",
+    "css_tracking",
+    "font_fingerprint",
+}
+
+# Detectores baseados na resposta SMTP — os unicos que decidem o overall_status.
+_RESPONSE_BASED_DETECTORS = {"link_rewrite", "read_receipt", "message_id_tracking"}
+
 
 def scan_link_tracking(
     target: str,
@@ -459,7 +475,13 @@ def scan_link_tracking(
                 else:
                     status, details = "not_detected", "Detector nao implementado"
 
-                if status == "detected":
+                if name in _BODY_BASED_DETECTORS:
+                    status = "info"
+                    details = (
+                        "Informativo: payload de tracking presente no email de teste; "
+                        "servidor SMTP nao reflete o body, deteccao via resposta indisponivel"
+                    )
+                elif status == "detected" and name in _RESPONSE_BASED_DETECTORS:
                     issues.append(f"Tracking detectado: {label}")
 
                 attempts.append(
@@ -489,6 +511,8 @@ def scan_link_tracking(
 
     if detected:
         overall = "tracking_detected"
+    elif not server_response.strip():
+        overall = "warning"
     elif clean:
         overall = "clean"
     else:
@@ -542,6 +566,7 @@ def print_results(result: TrackingResult) -> None:
         "not_detected": color("[+]", Cyber.GREEN),
         "blocked": color("[+]", Cyber.GREEN),
         "error": color("[-]", Cyber.YELLOW),
+        "info": color("[i]", Cyber.CYAN),
     }
 
     print(color("  Tecnicas analisadas:", Cyber.CYAN, Cyber.BOLD))
@@ -550,6 +575,8 @@ def print_results(result: TrackingResult) -> None:
         print(f"    {icon} {a.technique}")
         if a.status == "detected":
             print(f"      Detalhes: {a.details[:80]}")
+        elif a.status == "info":
+            print(f"      Info: {a.details[:80]}")
         elif a.status == "error":
             print(f"      Erro: {a.error[:80]}")
         print()
@@ -668,7 +695,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         category=getattr(args, "category", None),
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
@@ -678,7 +708,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             ["target", "port", "overall_status", "detected_techniques", "issues"],
             quiet=quiet,
         )
-    return 0
+    return 0 if result.overall_status == "clean" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

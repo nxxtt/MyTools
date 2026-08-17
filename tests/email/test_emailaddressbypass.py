@@ -382,6 +382,28 @@ class TestScanAddressBypass:
         assert isinstance(result.banner, str)
 
     @patch("mytools.email.emailaddressbypass._connect_smtp")
+    def test_unknown_technique_in_payload(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_conn.return_value = (mock_server, False)
+
+        with (
+            patch(
+                "mytools.email.emailaddressbypass._CATEGORY_MAP",
+                {"quoted": ["nonexistent_name"]},
+            ),
+            patch(
+                "mytools.email.emailaddressbypass._test_address",
+                return_value=(False, "550 Rejected"),
+            ),
+        ):
+            result = scan_address_bypass("mail.test.com", 587, category="quoted")
+        assert any("Tecnica desconhecida no YAML" in i for i in result.issues)
+        assert result.attempts[0].technique == "nonexistent_name"
+        assert result.attempts[0].status == "error"
+        assert "Payload inexistente: nonexistent_name" in result.attempts[0].error
+
+    @patch("mytools.email.emailaddressbypass._connect_smtp")
     @patch("mytools.email.emailaddressbypass._test_address")
     def test_custom_domain(self, mock_test: MagicMock, mock_conn: MagicMock) -> None:
         mock_server = MagicMock()
@@ -558,7 +580,7 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
         import json
 
         data = json.loads(capsys.readouterr().out)
@@ -582,7 +604,7 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
 
     def test_output_flag(self, tmp_path) -> None:
         result = AddressResult(
@@ -606,7 +628,7 @@ class TestAsyncRunOnce:
             patch("mytools.email.emailaddressbypass.write_output") as mock_write,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
         mock_write.assert_called_once()
 
     def test_quiet(self) -> None:
@@ -627,7 +649,7 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
 
 
 class TestMain:

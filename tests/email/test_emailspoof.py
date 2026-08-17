@@ -506,6 +506,29 @@ class TestAsyncRunOnce:
             code = asyncio.run(_async_run_once(args))
         assert code == 0
 
+    def test_json_output(self) -> None:
+        result = SpoofResult(
+            domain="example.com",
+            risk_score="none",
+            vectors=[],
+            issues=[],
+            spf_status="strict",
+            dmarc_status="reject",
+            dkim_status="present",
+            overall_protection="protected",
+        )
+        args = build_parser().parse_args(["example.com", "--json"])
+        with (
+            patch(
+                "mytools.email.emailspoof.analyze_spoofing",
+                return_value=result,
+            ),
+            patch("mytools.email.emailspoof.print_json") as mock_print,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_print.assert_called_once()
+
 
 class TestMain:
     def test_main(self) -> None:

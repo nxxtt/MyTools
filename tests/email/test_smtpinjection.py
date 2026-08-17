@@ -151,6 +151,17 @@ class TestConnectSmtp:
         assert server is mock_server
         assert "[STARTTLS]" not in banner
 
+    @patch("mytools.email.smtpinjection.smtplib.SMTP")
+    def test_connect_ehlo_failure(self, mock_smtp: MagicMock) -> None:
+        import smtplib
+
+        mock_server = MagicMock()
+        mock_server.ehlo.side_effect = smtplib.SMTPException("EHLO failed")
+        mock_smtp.return_value = mock_server
+        with pytest.raises(ConnectionError, match="Falha no EHLO"):
+            _connect_smtp("mail.test.com", 587, 10.0, False)
+        mock_server.close.assert_called_once()
+
 
 class TestTestInjection:
     def _make_server(self, sendmail_exc: Exception | None = None) -> MagicMock:
@@ -305,6 +316,23 @@ class TestScanSmtpInjection:
         mock_connect.return_value = (mock_server, "banner", "ehlo")
         result = scan_smtp_injection("host.com", 587, fields=["Subject"])
         assert result.port == 587
+
+    @patch("mytools.email.smtpinjection._test_injection")
+    @patch("mytools.email.smtpinjection._connect_smtp")
+    def test_all_timeout(self, mock_connect: MagicMock, mock_inject: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_connect.return_value = (mock_server, "banner", "ehlo")
+        mock_inject.return_value = InjectionAttempt(
+            field="To",
+            payload_name="crlf",
+            payload="x",
+            status="timeout",
+            server_response="",
+            error="timed out",
+        )
+        result = scan_smtp_injection("slow.host", 587)
+        assert result.overall_status == "warning"
+        assert any("erros/timeouts de conexao" in i for i in result.issues)
 
 
 class TestPrintResults:
@@ -478,6 +506,29 @@ class TestAsyncRunOnce:
         ):
             code = asyncio.run(_async_run_once(args))
         assert code == 0
+
+    def test_json_output(self) -> None:
+        result = InjectionResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="ESMTP",
+            ehlo_response="250",
+            attempts=[],
+            vulnerable_fields=[],
+            issues=["Nenhuma injecao detectada"],
+        )
+        args = build_parser().parse_args(["mail.test.com", "--json"])
+        with (
+            patch(
+                "mytools.email.smtpinjection.scan_smtp_injection",
+                return_value=result,
+            ),
+            patch("mytools.email.smtpinjection.print_json") as mock_print,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_print.assert_called_once()
 
 
 class TestMain:

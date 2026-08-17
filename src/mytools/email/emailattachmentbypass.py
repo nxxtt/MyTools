@@ -56,15 +56,13 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
 
 logger = logging.getLogger("mytools.emailattachmentbypass")
-
-
-DEFAULT_PORTS = [25, 587, 465]
 
 
 _ATTACH_BYPASS_PAYLOADS: dict[str, tuple[str, str, bytes]] = {
@@ -375,15 +373,18 @@ def scan_attachment_bypass(
 
     accepted = [a.technique for a in attempts if a.status == "accepted"]
 
-    blocked = [
-        a.technique for a in attempts if a.status in ("rejected", "blocked", "error")
-    ]
+    blocked = [a.technique for a in attempts if a.status in ("rejected", "blocked")]
+
+    errored = [a.technique for a in attempts if a.status == "error"]
 
     if accepted:
         overall = "vulnerable"
 
-    elif blocked and not accepted:
+    elif blocked:
         overall = "secure"
+
+    elif errored:
+        overall = "warning"
 
     else:
         overall = "warning"
@@ -596,7 +597,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         category=getattr(args, "category", None),
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
@@ -607,7 +611,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 0
+    return 0 if result.overall_status == "secure" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

@@ -311,6 +311,19 @@ class TestPrintResults:
         out = capsys.readouterr().out
         assert "mailto:d@example.com" in out
 
+    def test_error(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = EmailSecurityResult(
+            domain="err.com",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="error",
+            issues=["Erro DNS"],
+        )
+        print_results(result)
+        out = capsys.readouterr().out
+        assert "Erro DNS" in out
+
 
 class TestScanEmailSecurity:
     """Testes da funcao scan_email_security com mocks."""
@@ -506,7 +519,7 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
 
     def test_output_flag(self, tmp_path) -> None:
         result = EmailSecurityResult(
@@ -527,7 +540,7 @@ class TestAsyncRunOnce:
             patch("mytools.email.emailsecurity.write_output") as mock_write,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
         mock_write.assert_called_once()
 
     def test_quiet(self) -> None:
@@ -545,7 +558,28 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
+
+    def test_json_output(self) -> None:
+        result = EmailSecurityResult(
+            domain="example.com",
+            spf=None,
+            dkim_selectors=[],
+            dmarc=None,
+            overall_status="warning",
+            issues=[],
+        )
+        args = build_parser().parse_args(["example.com", "--json"])
+        with (
+            patch(
+                "mytools.email.emailsecurity.scan_email_security",
+                return_value=result,
+            ),
+            patch("mytools.email.emailsecurity.print_json") as mock_print,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 1
+        mock_print.assert_called_once()
 
 
 class TestMain:

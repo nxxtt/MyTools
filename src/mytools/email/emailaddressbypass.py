@@ -58,7 +58,6 @@ Fluxo:
 
 import argparse
 import contextlib
-import logging
 import smtplib
 from dataclasses import asdict, dataclass
 
@@ -74,12 +73,6 @@ from mytools.core.utils import (
     safe_asyncio_run,
     write_output,
 )
-
-logger = logging.getLogger("mytools.emailaddressbypass")
-
-
-DEFAULT_PORTS = [25, 587, 465]
-
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
     "quoted": [
@@ -318,7 +311,22 @@ def scan_address_bypass(
             selected_names = list(payloads.keys())
 
         for name in selected_names:
-            email_addr = payloads[name]
+            email_addr = payloads.get(name)
+
+            if email_addr is None:
+                issues.append(f"Tecnica desconhecida no YAML: {name}")
+
+                attempts.append(
+                    AddressAttempt(
+                        technique=name,
+                        email_address="",
+                        status="error",
+                        server_response="",
+                        error=f"Payload inexistente: {name}",
+                    )
+                )
+
+                continue
 
             try:
                 accepted, details = _test_address(server, from_addr, email_addr)
@@ -355,13 +363,18 @@ def scan_address_bypass(
 
     accepted = [a.technique for a in attempts if a.status == "accepted"]
 
-    blocked = [a.technique for a in attempts if a.status in ("rejected", "error")]
+    blocked = [a.technique for a in attempts if a.status == "rejected"]
+
+    errored = [a.technique for a in attempts if a.status == "error"]
 
     if accepted:
         overall = "vulnerable"
 
     elif blocked:
         overall = "secure"
+
+    elif errored:
+        overall = "warning"
 
     else:
         overall = "warning"
@@ -587,10 +600,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         category=getattr(args, "category", None),
     )
 
-    if not quiet:
-        if getattr(args, "json_output", False):
-            print_json(asdict(result))
-            return 0
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
@@ -601,7 +614,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 0
+    return 0 if result.overall_status == "secure" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

@@ -29,6 +29,7 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
@@ -63,8 +64,8 @@ def _load_dkim_selectors() -> list[str]:
 DEFAULT_SELECTORS = _load_dkim_selectors()
 
 SPF_ALL_PATTERN = re.compile(r"\+all|~all|\-all|\?all|all")
-DMARC_POLICY_PATTERN = re.compile(r"p=(none|quarantine|reject)")
-DMARC_SP_PATTERN = re.compile(r"sp=(none|quarantine|reject)")
+DMARC_POLICY_PATTERN = re.compile(r"(?:^|;)\s*p=(none|quarantine|reject)\b")
+DMARC_SP_PATTERN = re.compile(r"(?:^|;)\s*sp=(none|quarantine|reject)\b")
 DMARC_PCT_PATTERN = re.compile(r"pct=(\d+)")
 DMARC_RUA_PATTERN = re.compile(r"rua=([^;\s]+)")
 
@@ -197,10 +198,12 @@ def scan_email_security(
     resolver.lifetime = timeout
 
     issues: list[str] = []
+    dns_error = False
 
     spf_raw = _query_txt(domain, resolver)
     spf = None
     if spf_raw == DNS_ERROR:
+        dns_error = True
         issues.append("Erro DNS ao consultar SPF")
     elif spf_raw and "v=spf1" in spf_raw.lower():
         spf = _parse_spf(spf_raw)
@@ -216,8 +219,9 @@ def scan_email_security(
     dmarc_raw = _query_txt(f"_dmarc.{domain}", resolver)
     dmarc = None
     if dmarc_raw == DNS_ERROR:
+        dns_error = True
         issues.append("Erro DNS ao consultar DMARC")
-    elif dmarc_raw and "v=DMARC1" in dmarc_raw:
+    elif dmarc_raw and "V=DMARC1" in dmarc_raw.upper():
         dmarc = _parse_dmarc(dmarc_raw)
         if dmarc.policy == "none":
             issues.append("DMARC p=none — nao rejeita emails falhos (fraco)")
@@ -234,8 +238,10 @@ def scan_email_security(
     for sel in selectors or DEFAULT_SELECTORS:
         dkim_raw = _query_txt(f"{sel}._domainkey.{domain}", resolver)
         if dkim_raw == DNS_ERROR or dkim_raw is None:
+            if dkim_raw == DNS_ERROR:
+                dns_error = True
             continue
-        if "v=DKIM1" in dkim_raw or "p=" in dkim_raw:
+        if "v=DKIM1" in dkim_raw:
             dkim_selectors.append(sel)
 
     if not dkim_selectors:
@@ -246,7 +252,9 @@ def scan_email_security(
         )
 
     # Critico: ausencia total, SPF +all, ou DMARC none sem SPF
-    if (
+    if dns_error:
+        status = "error"
+    elif (
         (not spf and not dmarc and not dkim_selectors)
         or (spf and spf.has_all and spf.all_qualifier == "+")
         or (dmarc and dmarc.policy == "none" and not spf)
@@ -254,9 +262,7 @@ def scan_email_security(
         status = "critical"
     elif dmarc and dmarc.policy == "malformed":
         status = "warning"
-        # "DMARC invalido" so e adicionada aos issues nesta linha abaixo
-        if not any("DMARC invalido" in i for i in issues):  # pragma: no cover
-            issues.append("Registro DMARC invalido — tag p= ausente")
+        issues.append("Registro DMARC invalido — tag p= ausente")
     elif dmarc and dmarc.policy == "reject" and spf and dkim_selectors:
         status = "secure"
     elif dmarc and dmarc.policy in ("quarantine", "reject") and spf:
@@ -297,6 +303,7 @@ def print_results(result: EmailSecurityResult) -> None:
         "good": (Cyber.GREEN, ""),
         "warning": (Cyber.YELLOW, ""),
         "critical": (Cyber.RED, Cyber.BOLD),
+        "error": (Cyber.YELLOW, ""),
         "missing": (Cyber.RED, ""),
     }
     sc = status_colors.get(result.overall_status, (Cyber.WHITE, ""))
@@ -368,6 +375,13 @@ def print_results(result: EmailSecurityResult) -> None:
                 Cyber.BOLD,
             )
         )
+    elif result.overall_status == "error":
+        print(
+            color(
+                "  [-] Erro DNS — nao foi possivel verificar email security",
+                Cyber.YELLOW,
+            )
+        )
     else:
         print(color("  [-] Nenhum registro de email security encontrado", Cyber.RED))
 
@@ -435,7 +449,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         timeout=args.query_timeout,
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
@@ -445,7 +462,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             ["domain", "overall_status", "issues"],
             quiet=quiet,
         )
-    return 0
+    return 0 if result.overall_status == "secure" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

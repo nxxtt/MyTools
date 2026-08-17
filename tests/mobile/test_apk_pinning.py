@@ -57,7 +57,7 @@ class TestDetectPinning:
             )
         result = detect_pinning(str(apk_path))
         assert "manifest_networkSecurityConfig_ref" in result["nsc_indicators"]
-        assert result["vulnerable"] is True
+        assert result["vulnerable"] is False
 
     def test_dex_read_error_skipped(self, tmp_path) -> None:
         apk_path = tmp_path / "baddex.apk"

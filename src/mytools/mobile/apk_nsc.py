@@ -3,32 +3,29 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 __all__ = ["analyze_nsc"]
 
 logger = logging.getLogger("mytools.mobile.apk_nsc")
 
-# NSC XML indicators (binary XML patterns)
+# NSC XML indicators (padrões simples por substring em string pools)
 _NSC_BINARY_PATTERNS: dict[str, bytes] = {
-    "cleartext_permitted": b"cleartextTrafficPermitted",
     "pin_set": b"pin-set",
-    "pin_element": b"<pin",
-    "trust_anchors": b"trust-anchors",
-    "certificates": b"certificates",
-    "domain_config": b"domain-config",
-    "base_config": b"base-config",
     "debug_overrides": b"debug-overrides",
-    "certificates_user": b"user",
-    "certificates_system": b"system",
-    "include_subdomains": b"includeSubdomains",
 }
 
-# Manifest indicators for NSC reference
+# Padrões com adjacência/valor para evitar FP em string pools (plain XML)
+_CLEARTEXT_PATTERN = re.compile(rb'cleartextTrafficPermitted(?!\s*=\s*"false")')
+_TRUST_USER_PATTERN = re.compile(rb'certificates[^>]*src\s*=\s*"user"')
+_TRUST_SYSTEM_PATTERN = re.compile(rb'certificates[^>]*src\s*=\s*"system"')
+
+# Manifest indicators for NSC reference (binary AXML: nomes sem prefixo)
 _MANIFEST_PATTERNS: dict[str, bytes] = {
     "network_security_config_ref": b"networkSecurityConfig",
     "uses_cleartext_traffic": b"usesCleartextTraffic",
-    "debuggable": b"android:debuggable",
+    "debuggable": b"debuggable",
 }
 
 
@@ -37,7 +34,7 @@ def analyze_nsc(file_path: str) -> dict[str, Any]:
 
     Returns:
         Dict com keys: has_nsc, has_pins, has_cleartext, debug_overrides,
-        trust_user_ca, trust_system_ca, findings.
+        trust_user_ca, trust_system_ca, risk_score, findings.
     """
     try:
         import zipfile
@@ -79,21 +76,21 @@ def analyze_nsc(file_path: str) -> dict[str, Any]:
         if nsc_content:
             for indicator, pattern in _NSC_BINARY_PATTERNS.items():
                 if pattern in nsc_content:
-                    if indicator == "pin_set" or indicator == "pin_element":
+                    if indicator == "pin_set":
                         has_pins = True
                         findings.append("NSC: pin-set detected")
-                    elif indicator == "cleartext_permitted":
-                        has_cleartext = True
-                        findings.append("NSC: cleartext traffic permitted")
                     elif indicator == "debug_overrides":
                         debug_overrides = True
                         findings.append("NSC: debug-overrides present")
-                    elif indicator == "certificates_user":
-                        trust_user_ca = True
-                        findings.append("NSC: trusts user CA certificates")
-                    elif indicator == "certificates_system":
-                        trust_system_ca = True
-                        findings.append("NSC: trusts system CA certificates")
+            if _CLEARTEXT_PATTERN.search(nsc_content):
+                has_cleartext = True
+                findings.append("NSC: cleartext traffic permitted")
+            if _TRUST_USER_PATTERN.search(nsc_content):
+                trust_user_ca = True
+                findings.append("NSC: trusts user CA certificates")
+            if _TRUST_SYSTEM_PATTERN.search(nsc_content):
+                trust_system_ca = True
+                findings.append("NSC: trusts system CA certificates")
 
         return {
             "has_nsc": has_nsc,
@@ -108,7 +105,6 @@ def analyze_nsc(file_path: str) -> dict[str, Any]:
                     2 if has_cleartext else 0,
                     2 if debug_overrides else 0,
                     3 if trust_user_ca else 0,
-                    1 if has_pins else 0,
                 ]
             ),
         }

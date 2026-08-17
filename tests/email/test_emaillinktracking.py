@@ -505,17 +505,31 @@ class TestScanLinkTracking:
         with patch(
             "mytools.email.emaillinktracking._DETECTOR_MAP",
             {
-                "utm_params": (
-                    "utm_params",
-                    "UTM parameter injection",
-                    lambda email_body: ("detected", "UTM params found"),
+                "link_rewrite": (
+                    "link_rewrite",
+                    "Link rewrite",
+                    lambda _original, _response, _body: (
+                        "detected",
+                        "Link rewrite detected",
+                    ),
                 )
             },
         ):
             result = scan_link_tracking("mail.test.com", 587, category="link")
         assert result.overall_status == "tracking_detected"
-        assert "utm_params" in result.detected_techniques
+        assert "link_rewrite" in result.detected_techniques
         assert any("Tracking detectado" in i for i in result.issues)
+
+    @patch("mytools.email.emaillinktracking._connect_smtp")
+    def test_warning_empty_server_response(self, mock_conn: MagicMock) -> None:
+        mock_server = MagicMock()
+        mock_server.ehlo.return_value = (250, b"250 OK")
+        mock_server.data.return_value = (250, b"")
+        mock_conn.return_value = (mock_server, False)
+
+        result = scan_link_tracking("mail.test.com", 587)
+        assert result.overall_status == "warning"
+        assert result.detected_techniques == []
 
     @patch("mytools.email.emaillinktracking._connect_smtp")
     def test_detector_exception(self, mock_conn: MagicMock) -> None:
@@ -604,6 +618,29 @@ class TestPrintResults:
         print_results(result)
         captured = capsys.readouterr()
         assert "ERROR" in captured.out
+
+    def test_print_info(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = TrackingResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[
+                TrackingAttempt(
+                    technique="pixel_1x1",
+                    status="info",
+                    details="Informativo: tracking presente no body",
+                    error="",
+                )
+            ],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=[],
+            overall_status="warning",
+        )
+        print_results(result)
+        captured = capsys.readouterr()
+        assert "Informativo" in captured.out
 
     def test_print_with_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = TrackingResult(
@@ -731,6 +768,30 @@ class TestAsyncRunOnce:
         ):
             code = asyncio.run(_async_run_once(args))
         assert code == 0
+
+    def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = TrackingResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            detected_techniques=[],
+            clean_techniques=[],
+            issues=[],
+            overall_status="clean",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--json"])
+        with (
+            patch(
+                "mytools.email.emaillinktracking.scan_link_tracking",
+                return_value=result,
+            ),
+            patch("mytools.email.emaillinktracking.print_json") as mock_print,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 0
+        mock_print.assert_called_once()
 
 
 class TestMain:

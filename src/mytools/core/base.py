@@ -26,6 +26,7 @@ from mytools.core.utils import (
     create_banner,
     ensure_output_dir,
     init_scanner,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     workspace_path,
@@ -138,13 +139,16 @@ class BaseScanner(ABC):
 
     def _run_once_b(self, args: argparse.Namespace) -> int:
         """Grupo B: scan retorna Result, output gerenciado em run_once."""
-        init_scanner(args)
+        quiet = init_scanner(args)
         kwargs = self._build_run_once_kwargs(args)
         if not self._get_target(args):
             print(color("Especifique um alvo.", Cyber.RED))
             return 1
         result = safe_asyncio_run(self.run_scan(**kwargs))
-        self.print_results(result)
+        if getattr(args, "json_output", False):
+            print_json(asdict(result))
+        elif not quiet:
+            self.print_results(result)
         payload = asdict(result)
         output_path = getattr(args, "output", None)
         if output_path:

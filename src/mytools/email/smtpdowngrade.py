@@ -45,15 +45,13 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
 
 logger = logging.getLogger("mytools.smtpdowngrade")
-
-
-DEFAULT_PORTS = [25, 587]
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +130,9 @@ def _get_banner(server: smtplib.SMTP) -> str:
     except smtplib.SMTPException:
         return ""
 
+    except OSError:
+        return ""
+
 
 def _check_starttls(server: smtplib.SMTP) -> bool:
     """Verifica se o servidor suporta STARTTLS."""
@@ -146,7 +147,7 @@ def _check_starttls(server: smtplib.SMTP) -> bool:
     except smtplib.SMTPNotSupportedError:
         return False
 
-    except smtplib.SMTPException:
+    except smtplib.SMTPException, OSError, EOFError:
         return False
 
 
@@ -166,12 +167,17 @@ def _test_plaintext_mail(
 
         server.rset()
 
-        return True, f"MAIL FROM={code1} RCPT TO={code2}"
+        accepted = code1 in (250, 251) and code2 in (250, 251)
+
+        return accepted, f"MAIL FROM={code1} RCPT TO={code2}"
 
     except smtplib.SMTPResponseException as exc:
         return False, f"{exc.smtp_code} {exc.smtp_error}"
 
     except smtplib.SMTPException as exc:
+        return False, str(exc)
+
+    except OSError as exc:
         return False, str(exc)
 
 
@@ -250,6 +256,8 @@ def scan_smtp_downgrade(
 
         advertises_starttls = "STARTTLS" in banner
 
+        requires_starttls = advertises_starttls
+
         tests.append(
             DowngradeTest(
                 name="EHLO STARTTLS Advertisement",
@@ -275,7 +283,28 @@ def scan_smtp_downgrade(
 
         # Test 3: Plaintext fallback — test if server accepts mail without TLS
 
-        server2 = _connect_smtp(target, port, timeout)
+        try:
+            server2 = _connect_smtp(target, port, timeout)
+
+        except ConnectionError as exc:
+            issues.append(f"Falha de conexao (teste plaintext): {exc}")
+
+            return DowngradeResult(
+                target=target,
+                port=port,
+                banner=banner[:200],
+                ehlo_advertises_starttls=advertises_starttls,
+                supports_starttls=supports_starttls,
+                requires_starttls=True,
+                plaintext_accepted=False,
+                helo_downgrade_accepted=False,
+                auth_without_tls=False,
+                tests=tests,
+                issues=issues,
+                overall_status="error",
+                exploit="",
+                tool="",
+            )
 
         try:
             accepted, details = _test_plaintext_mail(server2, from_addr, to_addr)
@@ -329,17 +358,38 @@ def scan_smtp_downgrade(
         tests.append(
             DowngradeTest(
                 name="HELO Downgrade",
-                status="fail" if helo_ok else "pass",
-                description="Servidor aceita HELO (downgrade de EHLO)"
+                status="info",
+                description="Servidor aceita HELO (RFC 5321, sem impacto de seguranca)"
                 if helo_ok
-                else "Servidor nao aceita HELO",
+                else "Servidor nao aceita HELO (configuracao restritiva)",
                 details=helo_details,
             )
         )
 
         # Test 5: Auth without TLS
 
-        server3 = _connect_smtp(target, port, timeout)
+        try:
+            server3 = _connect_smtp(target, port, timeout)
+
+        except ConnectionError as exc:
+            issues.append(f"Falha de conexao (teste AUTH): {exc}")
+
+            return DowngradeResult(
+                target=target,
+                port=port,
+                banner=banner[:200],
+                ehlo_advertises_starttls=advertises_starttls,
+                supports_starttls=supports_starttls,
+                requires_starttls=True,
+                plaintext_accepted=plaintext_accepted,
+                helo_downgrade_accepted=helo_downgrade_accepted,
+                auth_without_tls=False,
+                tests=tests,
+                issues=issues,
+                overall_status="error",
+                exploit="",
+                tool="",
+            )
 
         try:
             server3.ehlo()
@@ -474,6 +524,7 @@ def print_results(result: DowngradeResult) -> None:
             status_icons = {
                 "pass": color("[+]", Cyber.GREEN),
                 "fail": color("[!]", Cyber.YELLOW),
+                "info": color("[i]", Cyber.CYAN),
                 "vulnerable": color("[!]", Cyber.RED, Cyber.BOLD),
                 "error": color("[-]", Cyber.RED),
             }
@@ -486,7 +537,7 @@ def print_results(result: DowngradeResult) -> None:
 
             print()
 
-            print_exploit_info(result.exploit, result.tool)
+        print_exploit_info(result.exploit, result.tool)
 
         print()
 
@@ -613,7 +664,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         timeout=args.timeout,
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
@@ -624,7 +678,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 0
+    return 0 if result.overall_status == "secure" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

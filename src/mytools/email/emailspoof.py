@@ -37,11 +37,12 @@ from mytools.core.utils import (
     create_banner,
     init_scanner,
     print_exploit_info,
+    print_json,
     run_main_loop,
     safe_asyncio_run,
     write_output,
 )
-from mytools.email.emailsecurity import scan_email_security
+from mytools.email.emailsecurity import DEFAULT_SELECTORS, scan_email_security
 
 logger = logging.getLogger("mytools.emailspoof")
 
@@ -478,8 +479,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--selectors",
-        default="default,google,selector1,selector2,s1,s2,dkim,mail",
-        help="Seletores DKIM (separados por virgula). Padrao: default,google,selector1,...",
+        default=",".join(DEFAULT_SELECTORS),
+        help=f"Seletores DKIM (separados por virgula). Padrao: {','.join(DEFAULT_SELECTORS)}",
     )
 
     parser.add_argument(
@@ -526,7 +527,10 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         timeout=args.query_timeout,
     )
 
-    if not quiet:
+    if getattr(args, "json_output", False):
+        print_json(asdict(result))
+
+    elif not quiet:
         print_results(result)
 
     if args.output:
@@ -537,7 +541,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    return 0
+    return 0 if result.overall_protection == "protected" else 1
 
 
 def run_once(args: argparse.Namespace) -> int:

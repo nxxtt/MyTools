@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import logging
 from typing import Any
 
 from anyio import Path
@@ -11,8 +10,6 @@ from anyio import Path
 from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import Cyber, color, create_banner
 from mytools.mobile._common import MobileAttempt, MobileResult
-
-logger = logging.getLogger("mytools.mobile")
 
 _BANNER_TEXT = (
     "  __  __ _       _                \n"
@@ -82,7 +79,7 @@ class MobileAuditScanner(BaseScanner):
             "idp": getattr(args, "idp", None),
             "client_id": getattr(args, "client_id", None),
             "client_secret": getattr(args, "client_secret", ""),
-            "jwt": getattr(args, "jwt", None),
+            "jwt_token": getattr(args, "jwt", None),
         }
 
     async def run_scan(
@@ -153,19 +150,21 @@ class MobileAuditScanner(BaseScanner):
                 "ipa_secrets",
             ]
 
-        checks_to_run = checks if checks else default_checks
-
-        # Add oauth2/jwt checks if requested
-        if "oauth2_test" in (checks or []):
-            checks_to_run.append("oauth2_test")
-        if "jwt_validate" in (checks or []):
-            checks_to_run.append("jwt_validate")
+        checks_to_run = list(checks) if checks else default_checks
 
         # Run checks
+        shared: dict[str, Any] = {}
         for check in checks_to_run:
             try:
                 attempt = _run_check(
-                    check, file_path, platform, idp, client_id, client_secret, jwt_token
+                    check,
+                    file_path,
+                    platform,
+                    idp,
+                    client_id,
+                    client_secret,
+                    jwt_token,
+                    shared,
                 )
                 all_attempts.append(attempt)
                 if attempt.error:
@@ -175,7 +174,12 @@ class MobileAuditScanner(BaseScanner):
 
         # Classify
         vuln_count = sum(1 for a in all_attempts if a.vulnerable)
-        overall = "vulnerable" if vuln_count > 0 else "secure"
+        if vuln_count > 0:
+            overall = "vulnerable"
+        elif any(a.error for a in all_attempts) or issues:
+            overall = "error"
+        else:
+            overall = "secure"
 
         return MobileResult(
             target=file_path,
@@ -262,12 +266,22 @@ def _run_check(
     client_id: str | None,
     client_secret: str,
     jwt_token: str | None,
+    shared: dict[str, Any] | None = None,
 ) -> MobileAttempt:
-    """Executa um check individual."""
+    """Executa um check individual.
+
+    ``shared`` é um cache de parse (apk_data/ipa_data) para evitar
+    re-analisar o mesmo arquivo em vários checks.
+    """
+    if shared is None:
+        shared = {}
     if check == "apk_metadata":
         from mytools.mobile.apk_analyzer import analyze_apk
 
-        data = analyze_apk(file_path)
+        data = shared.get("apk_data")
+        if data is None:
+            data = analyze_apk(file_path)
+            shared["apk_data"] = data
         findings = []
         if "error" in data:
             return MobileAttempt(
@@ -286,7 +300,7 @@ def _run_check(
         findings.append(f"Min SDK: {data.get('min_sdk', '')}")
         findings.append(f"Permissions: {data.get('permissions_count', 0)}")
         findings.append(
-            f"Exported: {len(data.get('activities', []))} activities, {len(data.get('services', []))} services"
+            f"Exported: {len(data.get('exported_activities', []))} activities, {len(data.get('exported_services', []))} services"
         )
         if data.get("sdk_fingerprints"):
             findings.append(f"SDKs: {', '.join(data['sdk_fingerprints'])}")
@@ -303,6 +317,15 @@ def _run_check(
         from mytools.mobile.apk_pinning import detect_pinning
 
         data = detect_pinning(file_path)
+        if "error" in data:
+            return MobileAttempt(
+                technique="pinning",
+                platform="android",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         techniques = data.get("techniques", [])
         findings = [f"Technique: {t}" for t in techniques]
         if data.get("nsc_indicators"):
@@ -321,6 +344,15 @@ def _run_check(
         from mytools.mobile.apk_endpoints import extract_endpoints
 
         data = extract_endpoints(file_path)
+        if "error" in data:
+            return MobileAttempt(
+                technique="endpoints",
+                platform="android",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         findings = []
         for url in data.get("urls", [])[:20]:
             findings.append(f"URL: {url}")
@@ -344,6 +376,15 @@ def _run_check(
         from mytools.mobile.apk_secrets import detect_secrets
 
         data = detect_secrets(file_path)
+        if "error" in data:
+            return MobileAttempt(
+                technique="secrets",
+                platform="android",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         findings = [
             f"{f['pattern']}: {f['value'][:40]}..."
             if len(f["value"]) > 40
@@ -364,6 +405,15 @@ def _run_check(
         from mytools.mobile.apk_nsc import analyze_nsc
 
         data = analyze_nsc(file_path)
+        if "error" in data:
+            return MobileAttempt(
+                technique="nsc",
+                platform="android",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         findings = data.get("findings", [])
         return MobileAttempt(
             technique="nsc",
@@ -378,7 +428,19 @@ def _run_check(
     if check == "apk_sdk":
         from mytools.mobile.apk_analyzer import analyze_apk
 
-        data = analyze_apk(file_path)
+        data = shared.get("apk_data")
+        if data is None:
+            data = analyze_apk(file_path)
+            shared["apk_data"] = data
+        if "error" in data:
+            return MobileAttempt(
+                technique="sdk",
+                platform="android",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         sdks = data.get("sdk_fingerprints", [])
         findings = [f"SDK: {s}" for s in sdks]
         return MobileAttempt(
@@ -463,7 +525,19 @@ def _run_check(
     if check == "ipa_metadata":
         from mytools.mobile.ipa_analyzer import analyze_ipa
 
-        data = analyze_ipa(file_path)
+        data = shared.get("ipa_data")
+        if data is None:
+            data = analyze_ipa(file_path)
+            shared["ipa_data"] = data
+        if "error" in data:
+            return MobileAttempt(
+                technique="metadata",
+                platform="ios",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         findings = []
         if data.get("bundle_id"):
             findings.append(f"Bundle ID: {data['bundle_id']}")
@@ -489,7 +563,19 @@ def _run_check(
     if check == "ipa_provisioning":
         from mytools.mobile.ipa_analyzer import analyze_ipa
 
-        data = analyze_ipa(file_path)
+        data = shared.get("ipa_data")
+        if data is None:
+            data = analyze_ipa(file_path)
+            shared["ipa_data"] = data
+        if "error" in data:
+            return MobileAttempt(
+                technique="provisioning",
+                platform="ios",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         prov = data.get("provisioning", {})
         findings = []
         if prov.get("name"):
@@ -515,7 +601,19 @@ def _run_check(
     if check == "ipa_macho":
         from mytools.mobile.ipa_analyzer import analyze_ipa
 
-        data = analyze_ipa(file_path)
+        data = shared.get("ipa_data")
+        if data is None:
+            data = analyze_ipa(file_path)
+            shared["ipa_data"] = data
+        if "error" in data:
+            return MobileAttempt(
+                technique="macho",
+                platform="ios",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         macho = data.get("macho", {})
         findings = []
         if macho.get("name"):
@@ -539,6 +637,15 @@ def _run_check(
         from mytools.mobile.ipa_secrets import detect_ipa_secrets
 
         data = detect_ipa_secrets(file_path)
+        if "error" in data:
+            return MobileAttempt(
+                technique="secrets",
+                platform="ios",
+                check=check,
+                file_path=file_path,
+                vulnerable=False,
+                error=data["error"],
+            )
         findings = [
             f"{f['pattern']}: {f['value'][:40]}..."
             if len(f["value"]) > 40
@@ -568,7 +675,7 @@ def _run_check(
         from mytools.mobile.oauth2_flows import generate_pkce_flow
 
         data = generate_pkce_flow(idp, client_id)
-        findings = [f"{k}: {v[:60]}" for k, v in data.items() if k != "instructions"]
+        findings = [f"{k}: {v}" for k, v in data.items() if k != "instructions"]
         return MobileAttempt(
             technique="pkce",
             platform="oauth2",
@@ -608,7 +715,8 @@ def _run_check(
             platform="oauth2",
             check=check,
             file_path=file_path,
-            vulnerable=bool(data.get("warnings")),
+            vulnerable=bool(data.get("is_expired"))
+            or data.get("header", {}).get("alg") == "none",
             findings=findings,
         )
 

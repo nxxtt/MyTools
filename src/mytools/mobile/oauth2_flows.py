@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import logging
 import secrets
 from typing import Any
-
-logger = logging.getLogger("mytools.mobile.oauth2_flows")
+from urllib.parse import urlencode
 
 __all__ = [
     "_make_pkce_pair",
@@ -47,15 +45,16 @@ def generate_pkce_flow(
     verifier, challenge = _make_pkce_pair()
     state = secrets.token_urlsafe(32)
 
-    auth_url = (
-        f"{idp_url}/authorize?"
-        f"client_id={client_id}"
-        f"&response_type=code"
-        f"&redirect_uri={redirect_uri}"
-        f"&scope={scope}"
-        f"&state={state}"
-        f"&code_challenge={challenge}"
-        f"&code_challenge_method=S256"
+    auth_url = f"{idp_url}/authorize?" + urlencode(
+        {
+            "client_id": client_id,
+            "response_type": "code",
+            "redirect_uri": redirect_uri,
+            "scope": scope,
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        }
     )
 
     return {
@@ -217,13 +216,15 @@ def validate_jwt(token: str) -> dict[str, Any]:
         import time
 
         exp = unverified.get("exp", 0)
-        is_expired = exp < time.time() if exp else False
+        is_expired = False
+        if isinstance(exp, (int, float)) and exp:
+            is_expired = exp < time.time()
         if is_expired:
             warnings.append("Token is EXPIRED")
 
         # Check iat
         iat = unverified.get("iat", 0)
-        if iat and iat > time.time():
+        if isinstance(iat, (int, float)) and iat > time.time():
             warnings.append("Token issued in the FUTURE")
 
         return {

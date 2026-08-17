@@ -49,13 +49,6 @@ _SDK_FINGERPRINTS: dict[str, str] = {
 
 _NS = "{http://schemas.android.com/apk/res/android}"
 
-_EXPORTED_TAG_MAP = {
-    "activity": "activity",
-    "service": "service",
-    "receiver": "receiver",
-    "provider": "provider",
-}
-
 
 def _is_exported(element: Any) -> bool:
     """Verifica se um componente Android esta exportado.

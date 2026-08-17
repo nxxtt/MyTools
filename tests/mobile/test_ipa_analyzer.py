@@ -43,6 +43,28 @@ class TestAnalyzeIpa:
         assert result["build"] == "42"
         assert result["min_os_version"] == "14.0"
 
+    def test_url_schemes_non_dict_entry(self, tmp_path) -> None:
+        ipa_path = tmp_path / "nondict.ipa"
+        plist_dict = {
+            "CFBundleIdentifier": "com.test",
+            "CFBundleURLTypes": ["not-a-dict", {"CFBundleURLSchemes": ["kept"]}],
+        }
+        with zipfile.ZipFile(str(ipa_path), "w") as zf:
+            zf.writestr("Payload/Test.app/Info.plist", plistlib.dumps(plist_dict))
+        result = analyze_ipa(str(ipa_path))
+        assert result["url_schemes"] == ["kept"]
+
+    def test_url_schemes_schemes_not_list(self, tmp_path) -> None:
+        ipa_path = tmp_path / "notlist.ipa"
+        plist_dict = {
+            "CFBundleIdentifier": "com.test",
+            "CFBundleURLTypes": [{"CFBundleURLSchemes": "myapp"}],
+        }
+        with zipfile.ZipFile(str(ipa_path), "w") as zf:
+            zf.writestr("Payload/Test.app/Info.plist", plistlib.dumps(plist_dict))
+        result = analyze_ipa(str(ipa_path))
+        assert result["url_schemes"] == []
+
     def test_url_schemes(self, tmp_path) -> None:
         ipa_path = tmp_path / "schemes.ipa"
         plist_dict = {
@@ -212,10 +234,10 @@ class TestMachoAnalysis:
             result = analyze_ipa(str(ipa_path))
         assert result["macho"]["name"] == "Test"
         assert "Mach-O" in result["macho"]["type"]
-        assert "libraries" not in result["macho"]
-        assert "exported_count" not in result["macho"]
-        assert "symbol_count" not in result["macho"]
-        assert "rpaths" not in result["macho"]
+        assert result["macho"]["libraries"] == []
+        assert result["macho"]["exported_count"] == 0
+        assert result["macho"]["symbol_count"] == 0
+        assert result["macho"]["rpaths"] == []
 
     def test_macho_parse_error(self, tmp_path) -> None:
         ipa_path = tmp_path / "machoerr.ipa"

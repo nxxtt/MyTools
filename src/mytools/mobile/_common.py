@@ -26,8 +26,10 @@ MOBILE_SECRET_PATTERNS: dict[str, re.Pattern[bytes]] = {
     "Private Key Block": re.compile(rb"-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----"),
     "JWT Token": re.compile(rb"eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*"),
     "OAuth Token": re.compile(rb"ya29\.[0-9A-Za-z_-]+"),
-    "Bearer Token": re.compile(rb"(?i)bearer\s+[a-zA-Z0-9\-._~+/]+=*"),
-    "Basic Auth": re.compile(rb"(?i)basic\s+[A-Za-z0-9+/]+=*"),
+    "Bearer Token": re.compile(rb"(?i)\bbearer\s+[a-zA-Z0-9\-._~+/]{20,}=*"),
+    "Basic Auth": re.compile(
+        rb"(?i)\bbasic\s+(?=[A-Za-z0-9+/]*[0-9+/=])([A-Za-z0-9+/]{12,}={0,2})"
+    ),
     "Heroku API Key": re.compile(
         rb"(?i)heroku.*api[_-]?key\s*[=:]\s*['\"]?([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})"
     ),

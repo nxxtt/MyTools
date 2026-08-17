@@ -337,7 +337,7 @@ class TestScanEmailTemplateInjection:
         ):
             result = scan_email_template_injection("mail.test.com", 587)
             assert all(p.status == "error" for p in result.probes)
-            assert result.overall_status == "safe"
+            assert result.overall_status == "warning"
 
 
 class TestPrintResults:
@@ -481,7 +481,7 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
 
     def test_output_flag(self, tmp_path) -> None:
         result = TemplateInjectionResult(
@@ -503,7 +503,7 @@ class TestAsyncRunOnce:
             patch("mytools.email.emailtemplateinject.write_output") as mock_write,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
         mock_write.assert_called_once()
 
     def test_quiet(self) -> None:
@@ -522,7 +522,29 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
+
+    def test_json_output(self) -> None:
+        result = TemplateInjectionResult(
+            target="mail.test.com",
+            port=587,
+            banner="220",
+            engines_detected=[],
+            probes=[],
+            issues=[],
+            overall_status="unknown",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--json"])
+        with (
+            patch(
+                "mytools.email.emailtemplateinject.scan_email_template_injection",
+                return_value=result,
+            ),
+            patch("mytools.email.emailtemplateinject.print_json") as mock_print,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 1
+        mock_print.assert_called_once()
 
 
 class TestMain:

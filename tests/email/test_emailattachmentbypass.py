@@ -580,7 +580,7 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
 
     def test_output_flag(self, tmp_path) -> None:
         result = BypassResult(
@@ -604,8 +604,32 @@ class TestAsyncRunOnce:
             patch("mytools.email.emailattachmentbypass.write_output") as mock_write,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
         mock_write.assert_called_once()
+
+    def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        result = BypassResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="warning",
+        )
+        args = build_parser().parse_args(["mail.test.com", "--json"])
+        with (
+            patch(
+                "mytools.email.emailattachmentbypass.scan_attachment_bypass",
+                return_value=result,
+            ),
+            patch("mytools.email.emailattachmentbypass.print_json") as mock_print,
+        ):
+            code = asyncio.run(_async_run_once(args))
+        assert code == 1
+        mock_print.assert_called_once()
 
     def test_quiet(self) -> None:
         result = BypassResult(
@@ -625,7 +649,7 @@ class TestAsyncRunOnce:
             return_value=result,
         ):
             code = asyncio.run(_async_run_once(args))
-        assert code == 0
+        assert code == 1
 
 
 class TestMain:
