@@ -164,7 +164,8 @@ def parse_number(raw: str, region: str = "BR") -> PhoneResult:
             num, phonenumbers.PhoneNumberFormat.INTERNATIONAL
         ),
         country_code=cc,
-        country_name=_COUNTRY_NAMES.get(cc, ""),
+        country_name=_COUNTRY_NAMES.get(cc, "")
+        or (phonenumbers.geocoder.country_name_for_number(num, "pt") or ""),
         region=phonenumbers.geocoder.description_for_number(num, "pt") or "",
         timezone=", ".join(phonenumbers.timezone.time_zones_for_number(num)),
         is_valid=valid,
@@ -189,14 +190,17 @@ def _lookup_br(result: PhoneResult, num: phonenumbers.PhoneNumber) -> PhoneResul
     uf = info.get("uf", "") if isinstance(info, dict) else ""
     carrier = ""
     if mobile and len(ns) >= 5:
-        carrier = _CARRIER_MAP.get(ns[2:4], "")
+        carrier = _CARRIER_MAP.get(ns[3:5], "")
+    new_type = "movel" if mobile else "linha fixa"
+    if result.line_type not in ("fixa/movel", "desconhecido"):
+        new_type = result.line_type
     return replace(
         result,
         ddd=ddd,
         uf=uf,
         cities=cities,
         carrier_local=carrier,
-        line_type="movel" if mobile else "linha fixa",
+        line_type=new_type,
     )
 
 
@@ -318,6 +322,9 @@ async def run_scan(
     if not result.is_valid:
         return result
 
+    if not (numlookup_key or ipqs_key):
+        return result
+
     client = create_async_client(
         user_agent=user_agent, proxy=proxy, timeout=timeout, verify=verify
     )
@@ -332,6 +339,8 @@ async def run_scan(
                 sources.append("numlookup")
                 if "error" in data:
                     issues.append(f"NumLookup: {data['error']}")
+                elif data.get("valid") is False:
+                    issues.append("NumLookup: numero invalido")
                 result = replace(result, numlookup=data, sources=sources, issues=issues)
         if ipqs_key:
             data = await _ipqs(
@@ -341,6 +350,9 @@ async def run_scan(
                 sources.append("ipqs")
                 if "error" in data:
                     issues.append(f"IPQS: {data['error']}")
+                elif data.get("success") is False:
+                    message = data.get("message") or "numero invalido"
+                    issues.append(f"IPQS: {message}")
                 result = replace(result, ipqs=data, sources=sources, issues=issues)
     finally:
         await client.aclose()
@@ -357,9 +369,8 @@ def print_results(result: PhoneResult) -> None:
             print(f"      {color('[i]', Cyber.RED)} {issue}")
         return
 
-    status = "valido" if result.is_valid else "invalido"
     print(
-        f"  Validade: {color(status, Cyber.GREEN)}  |  "
+        f"  Validade: {color('valido', Cyber.GREEN)}  |  "
         f"Tipo: {color(result.line_type or '-', Cyber.YELLOW)}"
     )
     print(f"  E.164: {color(result.e164, Cyber.GREEN)}")
@@ -502,14 +513,16 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         print_results(result)
 
     if getattr(args, "output_dir", None):
-        out_path = f"{args.output_dir}/phone.json"
+        safe = "".join(c for c in result.raw_number if c.isalnum()) or "phone"
+        out_path = f"{args.output_dir}/phone_{safe}.json"
         ensure_output_dir(args.output_dir)
         write_output(out_path, asdict(result), quiet=quiet)
 
     if getattr(args, "output", None):
         write_output(args.output, asdict(result), quiet=quiet)
 
-    return 0 if result.is_valid else 1
+    api_error = any(i.startswith(("NumLookup:", "IPQS:")) for i in result.issues)
+    return 1 if (not result.is_valid) or api_error else 0
 
 
 def run_once(args: argparse.Namespace) -> int:

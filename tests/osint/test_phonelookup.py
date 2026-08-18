@@ -2,6 +2,7 @@
 
 import argparse
 import runpy
+from dataclasses import replace
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -38,7 +39,7 @@ def test_parse_br_mobile() -> None:
     assert r.ddd == "61"
     assert r.uf == "DF"
     assert r.cities
-    assert r.carrier_local == "Vivo"
+    assert r.carrier_local == "TIM"
     assert r.line_type == "movel"
     assert "America/Sao_Paulo" in r.timezone
 
@@ -74,6 +75,14 @@ def test_parse_region_none_fallback() -> None:
     assert r.country_code == "US"
 
 
+def test_parse_country_name_geocoder_fallback() -> None:
+    with patch.dict("mytools.osint.phonelookup._COUNTRY_NAMES", {}, clear=True):
+        r = parse_number("+81312345678")
+    assert r.is_valid is True
+    assert r.country_code == "JP"
+    assert "Jap" in r.country_name
+
+
 # ── _lookup_br ──────────────────────────────────────────────────────────────
 
 
@@ -85,6 +94,7 @@ def _base_result() -> PhoneResult:
         international_format="",
         country_code="BR",
         country_name="Brasil",
+        line_type="fixa/movel",
     )
 
 
@@ -116,6 +126,29 @@ def test_lookup_br_unknown_ddd_and_carrier() -> None:
     assert r.uf == ""
     assert r.cities == []
     assert r.carrier_local == ""
+
+
+def test_lookup_br_preserves_special_types() -> None:
+    for special_type, ns in (
+        ("0800", "08001234567"),
+        ("voip", "61998128004"),
+    ):
+        base = PhoneResult(
+            raw_number=BR_MOBILE,
+            e164=BR_MOBILE,
+            local_format="",
+            international_format="",
+            country_code="BR",
+            country_name="Brasil",
+            line_type=special_type,
+        )
+        with patch(
+            "mytools.osint.phonelookup.phonenumbers.national_significant_number",
+            return_value=ns,
+        ):
+            r = _lookup_br(base, phonenumbers.parse("61", "BR"))
+        assert r.line_type == special_type
+        assert r.ddd == ns[:2]
 
 
 # ── _numlookup ──────────────────────────────────────────────────────────────
@@ -387,6 +420,48 @@ async def test_run_scan_keys_return_none() -> None:
     assert r.issues == []
 
 
+@pytest.mark.asyncio
+async def test_run_scan_no_keys_skips_client() -> None:
+    with patch(
+        "mytools.osint.phonelookup.create_async_client",
+        new=AsyncMock(),
+    ) as mock_client:
+        r = await run_scan(BR_MOBILE)
+    assert r.is_valid is True
+    assert r.sources == ["local"]
+    mock_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_scan_numlookup_valid_false() -> None:
+    with patch(
+        "mytools.osint.phonelookup._numlookup",
+        new=AsyncMock(return_value={"valid": False}),
+    ):
+        r = await run_scan(BR_MOBILE, numlookup_key="K")
+    assert any("NumLookup: numero invalido" in i for i in r.issues)
+
+
+@pytest.mark.asyncio
+async def test_run_scan_ipqs_success_false() -> None:
+    with patch(
+        "mytools.osint.phonelookup._ipqs",
+        new=AsyncMock(return_value={"success": False, "message": "Invalid number"}),
+    ):
+        r = await run_scan(BR_MOBILE, ipqs_key="K")
+    assert any("IPQS: Invalid number" in i for i in r.issues)
+
+
+@pytest.mark.asyncio
+async def test_run_scan_ipqs_success_false_no_message() -> None:
+    with patch(
+        "mytools.osint.phonelookup._ipqs",
+        new=AsyncMock(return_value={"success": False}),
+    ):
+        r = await run_scan(BR_MOBILE, ipqs_key="K")
+    assert any("IPQS: numero invalido" in i for i in r.issues)
+
+
 # ── print_results ───────────────────────────────────────────────────────────
 
 
@@ -641,6 +716,17 @@ def test_async_run_once_invalid_exit1() -> None:
     assert code == 1
 
 
+def test_async_run_once_api_error_exit1() -> None:
+    args = build_parser().parse_args([BR_MOBILE])
+    result = replace(_valid_result(), issues=["NumLookup: chave invalida"])
+    with patch(
+        "mytools.osint.phonelookup.run_scan",
+        new=AsyncMock(return_value=result),
+    ):
+        code = _async_run_once_run(args)
+    assert code == 1
+
+
 def test_async_run_once_no_number() -> None:
 
     args = build_parser().parse_args([""])
@@ -671,7 +757,7 @@ def test_async_run_once_output_dir(tmp_path) -> None:
     ):
         code = _async_run_once_run(args)
     assert code == 0
-    assert (tmp_path / "phone.json").exists()
+    assert (tmp_path / "phone_5561981280041.json").exists()
 
 
 def test_async_run_once_output(tmp_path) -> None:

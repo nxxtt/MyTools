@@ -72,7 +72,8 @@ ddd:
   "99": { uf: "MA", cities: [Imperatriz, Sao Luis, Pinheiro, Codo] }
 
 # Operadoras por prefixo de linha movel (BR: DDD + 9 + NNNN-NNNN).
-# O prefixo da operadora sao os 2 digitos imediatamente apos o "9".
+# O prefixo da operadora sao os 2 digitos imediatamente apos o "9"
+# (esquema atual de 11 digitos; apenas prefixos 81-99 se aplicam).
 carrier_prefixes:
   "96": "Vivo"
   "97": "Vivo"
@@ -88,13 +89,3 @@ carrier_prefixes:
   "83": "TIM"
   "84": "TIM"
   "85": "TIM"
-  "61": "Oi"
-  "62": "Oi"
-  "63": "Oi"
-  "64": "Oi"
-  "65": "Oi"
-  "71": "Nextel/Sercomtel"
-  "72": "Nextel/Sercomtel"
-  "73": "Nextel/Sercomtel"
-  "74": "Nextel/Sercomtel"
-  "75": "Nextel/Sercomtel"
