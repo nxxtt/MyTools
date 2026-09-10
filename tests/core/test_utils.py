@@ -23,6 +23,8 @@ from mytools.core.utils import (
     ensure_output_dir,
     extract_hostname,
     extract_title,
+    fetch,
+    get_dry_run,
     header_get,
     normalize_url,
     override_severity,
@@ -35,6 +37,7 @@ from mytools.core.utils import (
     resolve_cred,
     resolve_target_urls,
     set_color,
+    set_dry_run,
     setup_logging,
     severity_color,
     status_color,
@@ -1064,6 +1067,136 @@ class TestDryRunFlag:
         add_base_args(parser)
         args = parser.parse_args([])
         assert args.dry_run is False
+
+    def test_set_get_dry_run(self):
+        set_dry_run(True)
+        try:
+            assert get_dry_run() is True
+        finally:
+            set_dry_run(False)
+        assert get_dry_run() is False
+
+    @pytest.mark.asyncio
+    async def test_fetch_returns_synthetic_when_dry_run(self):
+        set_dry_run(True)
+        try:
+            client = create_async_client()
+            status, headers, body, raw = await fetch(client, "http://example.com/test")
+            assert status == 0
+            assert headers == {}
+            assert body == b""
+            assert raw == {}
+            await client.aclose()
+        finally:
+            set_dry_run(False)
+
+    @pytest.mark.asyncio
+    async def test_fetch_dry_run_no_http_call(self):
+        set_dry_run(True)
+        try:
+            with respx.mock:
+                respx.get("http://example.com/test").mock(
+                    return_value=httpx.Response(200, text="should not be called")
+                )
+                client = create_async_client()
+                status, _, body, _ = await fetch(client, "http://example.com/test")
+                assert status == 0
+                assert body == b""
+                assert not respx.calls.called
+                await client.aclose()
+        finally:
+            set_dry_run(False)
+
+    @pytest.mark.asyncio
+    async def test_dry_run_client_get_returns_dummy(self):
+        set_dry_run(True)
+        try:
+            client = create_async_client()
+            resp = await client.get("http://example.com/test")
+            assert resp.status_code == 0
+            assert resp.content == b""
+            assert resp.text == ""
+            await client.aclose()
+        finally:
+            set_dry_run(False)
+
+    @pytest.mark.asyncio
+    async def test_dry_run_client_post_returns_dummy(self):
+        set_dry_run(True)
+        try:
+            client = create_async_client()
+            resp = await client.post("http://example.com/api", json={"k": "v"})
+            assert resp.status_code == 0
+            assert resp.headers == {}
+            await client.aclose()
+        finally:
+            set_dry_run(False)
+
+    @pytest.mark.asyncio
+    async def test_dry_run_client_no_http_call(self):
+        set_dry_run(True)
+        try:
+            with respx.mock:
+                respx.get("http://example.com/test").mock(
+                    return_value=httpx.Response(200, text="fail")
+                )
+                client = create_async_client()
+                resp = await client.get("http://example.com/test")
+                assert resp.status_code == 0
+                assert not respx.calls.called
+                await client.aclose()
+        finally:
+            set_dry_run(False)
+
+    @pytest.mark.asyncio
+    async def test_dry_run_client_request_methods(self):
+        set_dry_run(True)
+        try:
+            client = create_async_client()
+            for method in ("GET", "POST", "PUT", "OPTIONS", "HEAD", "PATCH", "DELETE"):
+                resp = await client.request(method, "http://example.com/x")
+                assert resp.status_code == 0
+            await client.aclose()
+        finally:
+            set_dry_run(False)
+
+    @pytest.mark.asyncio
+    async def test_dry_run_client_aclose_noop(self):
+        set_dry_run(True)
+        try:
+            client = create_async_client()
+            await client.aclose()  # should not raise
+        finally:
+            set_dry_run(False)
+
+    def test_dry_run_response_per_instance_headers(self):
+        from mytools.core.utils import _DryRunResponse
+
+        r1 = _DryRunResponse()
+        r2 = _DryRunResponse()
+        r1.headers["X-Test"] = "foo"
+        assert "X-Test" not in r2.headers
+
+    def test_dry_run_response_json_returns_empty_dict(self):
+        from mytools.core.utils import _DryRunResponse
+
+        r = _DryRunResponse()
+        assert r.json() == {}
+
+    def test_dry_run_response_getattr_returns_none_for_unknown(self):
+        from mytools.core.utils import _DryRunResponse
+
+        r = _DryRunResponse()
+        assert r.something_random() is None
+
+    def test_dry_run_response_attributes(self):
+        from mytools.core.utils import _DryRunResponse
+
+        r = _DryRunResponse()
+        assert r.status_code == 0
+        assert r.headers == {}
+        assert r.content == b""
+        assert r.text == ""
 
 
 class TestSafeAsyncioRun:

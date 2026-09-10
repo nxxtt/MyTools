@@ -436,6 +436,7 @@ async def _test_error(
     params: list[str],
     baseline: Baseline,
     payloads: list[str] | None = None,
+    confirm: bool = True,
 ) -> list[SQLiAttempt]:
     """Error-based SQL injection detection."""
     attempts: list[SQLiAttempt] = []
@@ -480,7 +481,7 @@ async def _test_error(
             # Second-order verification for error-based detection
             if db:
                 verify = get_verify_payload("sqliscan", "error")
-                if verify:
+                if confirm and verify:
                     v_payload, v_indicators = verify
                     v_url = _build_inject_url(url, param, v_payload)
                     confirmed, v_found = await verify_positive(
@@ -824,6 +825,7 @@ async def run_scan(
     time_threshold: float = 1.5,
     output_file: str | None = None,
     json_output: bool = False,
+    confirm: bool = True,
 ) -> SQLiResult:
     """Executa o scan de SQL Injection contra a URL alvo."""
     parsed = urlparse(url)
@@ -875,7 +877,7 @@ async def run_scan(
         coros = []
 
         if category in ("all", "error"):
-            coros.append(_test_error(client, url, params, baseline))
+            coros.append(_test_error(client, url, params, baseline, confirm=confirm))
         if category in ("all", "blind"):
             coros.append(_test_boolean_blind(client, url, params, baseline))
             coros.append(
@@ -1049,6 +1051,13 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan SQLi a partir de argumentos parseados."""
     init_scanner(args)
+
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-sqli \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
     logger.info("SQLi scan iniciado para %s", args.url)
 
     result = safe_asyncio_run(
@@ -1060,6 +1069,7 @@ def run_once(args: argparse.Namespace) -> int:
             time_threshold=getattr(args, "time_threshold", 1.5),
             output_file=getattr(args, "output", None),
             json_output=getattr(args, "json_output", False),
+            confirm=getattr(args, "confirm", True),
         ),
     )
 

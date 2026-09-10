@@ -339,6 +339,7 @@ async def _test_param_ssti(
     client: httpx.AsyncClient,
     base_url: str,
     baseline: tuple[int, int, bytes],
+    confirm: bool = True,
 ) -> list[SSTIAttempt]:
     """Testa SSTI em parametros GET/POST."""
 
@@ -382,7 +383,7 @@ async def _test_param_ssti(
                 )
                 if detected:
                     verify = get_verify_payload("sstidetect", "detect")
-                    if verify:
+                    if confirm and verify:
                         v_payload, v_indicators = verify
                         new_v_params = dict(new_params)
                         new_v_params[param] = v_payload
@@ -448,6 +449,7 @@ async def _test_header_ssti(
     client: httpx.AsyncClient,
     base_url: str,
     baseline: tuple[int, int, bytes],
+    confirm: bool = True,
 ) -> list[SSTIAttempt]:
     """Testa SSTI em headers HTTP."""
 
@@ -480,7 +482,7 @@ async def _test_header_ssti(
                 )
                 if detected:
                     verify = get_verify_payload("sstidetect", "detect")
-                    if verify:
+                    if confirm and verify:
                         v_payload, v_indicators = verify
                         try:
                             v_resp = await client.get(
@@ -555,6 +557,7 @@ async def _test_body_ssti(
     client: httpx.AsyncClient,
     base_url: str,
     baseline: tuple[int, int, bytes],
+    confirm: bool = True,
 ) -> list[SSTIAttempt]:
     """Testa SSTI em bodies (JSON, form, XML)."""
 
@@ -586,7 +589,7 @@ async def _test_body_ssti(
             details = f"JSON: {name}" + (f" -> ENGINE={engine}" if detected else "")
             if detected:
                 verify = get_verify_payload("sstidetect", "detect")
-                if verify:
+                if confirm and verify:
                     v_payload, v_indicators = verify
                     try:
                         v_resp = await client.post(
@@ -682,7 +685,7 @@ async def _test_body_ssti(
             details = f"Form: {name}" + (f" -> ENGINE={engine}" if detected else "")
             if detected:
                 verify = get_verify_payload("sstidetect", "detect")
-                if verify:
+                if confirm and verify:
                     v_payload, v_indicators = verify
                     try:
                         v_resp = await client.post(
@@ -1001,6 +1004,7 @@ async def run_scan(
     verbose: bool,
     proxy: str | None = None,
     json_output: bool = False,
+    confirm: bool = True,
 ) -> int:
     """Executa o scan SSTI."""
 
@@ -1028,13 +1032,17 @@ async def run_scan(
 
         for cat in run_categories:
             if cat == "detect":
-                coros.append(_test_param_ssti(client, target, baseline))
+                coros.append(
+                    _test_param_ssti(client, target, baseline, confirm=confirm)
+                )
 
             elif cat == "header":
-                coros.append(_test_header_ssti(client, target, baseline))
+                coros.append(
+                    _test_header_ssti(client, target, baseline, confirm=confirm)
+                )
 
             elif cat == "body":
-                coros.append(_test_body_ssti(client, target, baseline))
+                coros.append(_test_body_ssti(client, target, baseline, confirm=confirm))
 
             elif cat == "bypass":
                 coros.append(_test_bypass(client, target, baseline))
@@ -1161,6 +1169,15 @@ def run_once(args: argparse.Namespace) -> int:
 
     init_scanner(args)
 
+    if getattr(args, "dry_run", False) is True:
+        print(
+            "[DRY-RUN] mytools-sstdetect \u2014 nenhuma requisi\u00e7\u00e3o executada."
+        )
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
+
     logger.info("SSTI scan iniciado para %s", args.url)
 
     categories: list[str] = []
@@ -1178,6 +1195,7 @@ def run_once(args: argparse.Namespace) -> int:
             verbose=getattr(args, "verbose", False),
             proxy=getattr(args, "proxy", None),
             json_output=getattr(args, "json_output", False),
+            confirm=getattr(args, "confirm", True),
         ),
     )
 

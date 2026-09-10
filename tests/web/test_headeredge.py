@@ -203,11 +203,14 @@ class TestBuildRequest:
 
 class TestCreateConnection:
     def test_creates_tcp_socket(self) -> None:
+        from mytools.core.stealth import FragmentedSocket
+
         with patch("mytools.web.headeredge.socket.create_connection") as mock_conn:
             mock_sock = MagicMock()
             mock_conn.return_value = mock_sock
             result = _create_connection("example.com", 80, 5.0, tls=False)
-            assert result == mock_sock
+            assert isinstance(result, FragmentedSocket)
+            assert result._sock is mock_sock
             mock_conn.assert_called_once_with(("example.com", 80), timeout=5.0)
 
     def test_creates_tls_socket(self) -> None:

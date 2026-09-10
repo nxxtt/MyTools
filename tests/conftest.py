@@ -36,6 +36,20 @@ def base_ns():
 
 
 @pytest.fixture(autouse=True)
+def _reset_dry_run():
+    """Reseta o estado dry_run entre testes.
+
+    O thread-local _dry_run_local pode vazar entre testes quando
+    test_utils.py chama set_dry_run(True) e nao reseta.
+    """
+    from mytools.core.utils import set_dry_run
+
+    set_dry_run(False)
+    yield
+    set_dry_run(False)
+
+
+@pytest.fixture(autouse=True)
 def _clear_fetch_cache():
     """Limpa o cache de fetch() entre testes para evitar contaminacao."""
     _fetch_cache.clear()

@@ -126,11 +126,14 @@ def _create_connection(
     """Cria conexao TCP (ou TLS) com o alvo."""
     sock = socket.create_connection((host, port), timeout=timeout)
     if tls:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        sock = ctx.wrap_socket(sock, server_hostname=host)
-    return sock
+        ctx_ssl = ssl.create_default_context()
+        ctx_ssl.check_hostname = False
+        ctx_ssl.verify_mode = ssl.CERT_NONE
+        sock = ctx_ssl.wrap_socket(sock, server_hostname=host)
+    from mytools.core.stealth import FragmentedSocket
+    from mytools.core.utils import get_stealth_ctx
+
+    return FragmentedSocket.from_context(sock, get_stealth_ctx())  # type: ignore[return-value]
 
 
 def _send_raw(
@@ -1033,6 +1036,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_once(args: argparse.Namespace) -> int:
     """Executa scan uma vez."""
+
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-headeredge — nenhuma requisição executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
     result = safe_asyncio_run(
         run_scan(
             target=args.url,

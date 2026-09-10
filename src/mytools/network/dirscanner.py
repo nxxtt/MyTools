@@ -634,7 +634,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         unicode_norm=getattr(args, "unicode_norm", False),
     )
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(

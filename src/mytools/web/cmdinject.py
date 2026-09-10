@@ -324,6 +324,7 @@ async def _test_os_command(
     url: str,
     params: list[str],
     baseline: tuple[int, int, bytes, float],
+    confirm: bool = True,
 ) -> list[CmdInjectAttempt]:
     """Testa payloads de OS command injection em cada parametro."""
     attempts: list[CmdInjectAttempt] = []
@@ -355,7 +356,7 @@ async def _test_os_command(
                 # Second-order verification for content-based detection
                 if content_match:
                     verify = get_verify_payload("cmdinject", "os_command")
-                    if verify:
+                    if confirm and verify:
                         v_payload, v_indicators = verify
                         v_url = _make_inject_url(url, param, v_payload)
                         confirmed, v_found = await verify_positive(
@@ -510,6 +511,7 @@ async def _test_bypass(
     url: str,
     params: list[str],
     baseline: tuple[int, int, bytes, float],
+    confirm: bool = True,
 ) -> list[CmdInjectAttempt]:
     """Testa payloads de bypass de command injection."""
     attempts: list[CmdInjectAttempt] = []
@@ -534,7 +536,7 @@ async def _test_bypass(
                 # Second-order verification for content-based detection
                 if content_match:
                     verify = get_verify_payload("cmdinject", "bypass")
-                    if verify:
+                    if confirm and verify:
                         v_payload, v_indicators = verify
                         v_url = _make_inject_url(url, param, v_payload)
                         confirmed, v_found = await verify_positive(
@@ -607,6 +609,7 @@ async def run_scan(
     timeout: float = 10.0,
     concurrency: int = 5,
     output_file: str | None = None,
+    confirm: bool = True,
 ) -> CmdInjectResult:
     """Executa o scan de command injection contra a URL alvo."""
     parsed = urlparse(url)
@@ -645,11 +648,13 @@ async def run_scan(
         coros = []
 
         if category in ("all", "os_command"):
-            coros.append(_test_os_command(client, url, params, baseline))
+            coros.append(
+                _test_os_command(client, url, params, baseline, confirm=confirm)
+            )
         if category in ("all", "blind"):
             coros.append(_test_blind(client, url, params, baseline))
         if category in ("all", "bypass"):
-            coros.append(_test_bypass(client, url, params, baseline))
+            coros.append(_test_bypass(client, url, params, baseline, confirm=confirm))
 
         if category not in ("all", "os_command", "blind", "bypass"):
             return CmdInjectResult(
@@ -812,6 +817,13 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan de command injection a partir de argumentos parseados."""
     init_scanner(args)
+
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-cmd \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
     logger.info("Command injection scan iniciado para %s", args.url)
 
     result = safe_asyncio_run(
@@ -821,6 +833,7 @@ def run_once(args: argparse.Namespace) -> int:
             timeout=getattr(args, "timeout", 10.0),
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
+            confirm=getattr(args, "confirm", True),
         ),
     )
 

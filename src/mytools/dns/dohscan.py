@@ -431,6 +431,10 @@ def main() -> int:
 
 def _safe_run(args: argparse.Namespace) -> int:
     quiet = init_scanner(args)
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-doh \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+        print(f"[DRY-RUN] Alvo: {getattr(args, 'domain', None) or '(nenhum alvo)'}")
+        return 0
     result = safe_asyncio_run(_run_scan(args))
     if not quiet:
         print_results(result)

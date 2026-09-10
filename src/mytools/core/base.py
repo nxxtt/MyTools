@@ -12,6 +12,7 @@ Logger fica module-level em cada arquivo (compativel com codigo existente).
 from __future__ import annotations
 
 import argparse
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import asdict
@@ -25,6 +26,7 @@ from mytools.core.utils import (
     color,
     create_banner,
     ensure_output_dir,
+    get_dry_run,
     init_scanner,
     print_json,
     run_main_loop,
@@ -34,6 +36,8 @@ from mytools.core.utils import (
 )
 
 __all__ = ["BaseScanner", "ScanGroup"]
+
+logger = logging.getLogger("mytools.base")
 
 
 class ScanGroup(Enum):
@@ -119,6 +123,8 @@ class BaseScanner(ABC):
     def _run_once_a(self, args: argparse.Namespace) -> int:
         """Grupo A: run_scan retorna int, output gerenciado internamente."""
         init_scanner(args)
+        if get_dry_run():
+            return self._describe_plan(args)
         target = self._get_target(args)
         output_file = getattr(args, "output", None)
         if not output_file:
@@ -141,6 +147,8 @@ class BaseScanner(ABC):
     def _run_once_b(self, args: argparse.Namespace) -> int:
         """Grupo B: scan retorna Result, output gerenciado em run_once."""
         quiet = init_scanner(args)
+        if get_dry_run():
+            return self._describe_plan(args)
         kwargs = self._build_run_once_kwargs(args)
         if not self._get_target(args):
             print(color("Especifique um alvo.", Cyber.RED))
@@ -174,6 +182,7 @@ class BaseScanner(ABC):
             "user_agent": getattr(args, "user_agent", None),
             "proxy": getattr(args, "proxy", None),
             "verify": getattr(args, "verify", False),
+            "confirm": getattr(args, "confirm", True),
             "category": getattr(args, "category", None),
             "concurrency": getattr(args, "concurrency", 5),
         }
@@ -182,6 +191,17 @@ class BaseScanner(ABC):
         """Extrai lista de categorias de args.category."""
         cat = getattr(args, "category", None)
         return [cat] if cat and cat != "all" else []
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        """Descreve o plano de execucao quando --dry-run esta ativo.
+
+        Sobrescrever em subclasses para gerar saida detalhada.
+        Retorna 0 (sucesso) — nenhuma requisicao e enviada.
+        """
+        target = self._get_target(args) or "(nenhum alvo)"
+        logger.warning("[DRY-RUN] %s — nenhuma requisicao executada", self.prog)
+        logger.info("[DRY-RUN] Alvo: %s", target)
+        return 0
 
     def _get_return_code(self, result: object) -> int:
         """Codigo de saida: 0 somente se o scan reportou 'secure'.

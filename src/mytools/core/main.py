@@ -21,6 +21,7 @@ import logging
 import sys
 import tomllib
 from pathlib import Path
+from typing import Any
 
 from mytools.core.utils import Cyber, __version__, clear_console, color, create_banner
 
@@ -29,12 +30,16 @@ logger = logging.getLogger("mytools.main")
 PAGE_SIZE = 10
 
 _CATEGORY_LABELS = {
+    "binary": "BINARY",
     "config": "CONFIG",
     "core": "CORE",
     "dns": "DNS",
     "email": "EMAIL",
+    "iac": "IAC",
+    "llm": "LLM",
     "mobile": "MOBILE",
     "network": "NETWORK",
+    "secret": "SECRET",
     "osint": "OSINT",
     "vcs": "VCS",
     "web": "WEB",
@@ -44,6 +49,8 @@ _CATEGORY_LABELS = {
 _CATEGORY_ORDER = list(_CATEGORY_LABELS)
 
 _DISPLAY_NAMES = {
+    # BINARY
+    "binary_scan": "Binary Analysis",
     # CONFIG
     "backupfiledetect": "Backup File Detect",
     "configfiledetect": "Config File Detect",
@@ -76,8 +83,15 @@ _DISPLAY_NAMES = {
     "smtpinjection": "SMTP Injection",
     # MOBILE
     "mobile_audit": "Mobile Audit",
+    # IAC
+    "iac_scan": "IaC Static Scan",
+    # LLM
+    "llm_audit": "LLM Security Audit",
+    # SECRET
+    "secret_scan": "Secret Scanner",
     # NETWORK
     "dirscanner": "Directory Scanner",
+    "pcapanalysis": "PCAP Analysis",
     "portscanner": "Port Scanner",
     # OSINT
     "darkwebmonitor": "Dark Web Monitor",
@@ -171,6 +185,12 @@ _DISPLAY_NAMES = {
 }
 
 _ALIASES = {
+    "binary": "binary_scan",
+    "elf": "binary_scan",
+    "pe": "binary_scan",
+    "macho": "binary_scan",
+    "pcap": "pcapanalysis",
+    "capture": "pcapanalysis",
     "port": "portscanner",
     "ports": "portscanner",
     "dir": "dirscanner",
@@ -283,6 +303,24 @@ _ALIASES = {
     "apifuzz": "restapifuzz",
     "all": "reconall",
     "full": "reconall",
+    "iac": "iac_scan",
+    "terraform": "iac_scan",
+    "kubernetes": "iac_scan",
+    "k8s": "iac_scan",
+    "dockerfile": "iac_scan",
+    "helm": "iac_scan",
+    "cloudformation": "iac_scan",
+    "cfn": "iac_scan",
+    "llm": "llm_audit",
+    "ai": "llm_audit",
+    "prompt": "llm_audit",
+    "gpt": "llm_audit",
+    "chatgpt": "llm_audit",
+    "llama": "llm_audit",
+    "secret": "secret_scan",
+    "secrets": "secret_scan",
+    "scan-secrets": "secret_scan",
+    "leaked": "secret_scan",
 }
 
 
@@ -433,7 +471,11 @@ def menu_category(
 
 def help_screen(tools_by_cat: dict[str, list[tuple[str, str]]]) -> None:
     """Exibe exemplos rapidos gerados a partir das ferramentas."""
-    print(color("\nExemplos:", Cyber.WHITE, Cyber.BOLD))
+    print(color("\nComandos do menu:", Cyber.WHITE, Cyber.BOLD))
+    print(f"  {color('h', Cyber.GREEN)}          Exibir esta ajuda")
+    print(f"  {color('s <termo>', Cyber.GREEN)}    Buscar ferramenta por palavra-chave")
+    print(f"  {color('0/q', Cyber.GREEN)}          Sair")
+    print(color("\nExemplos por categoria:", Cyber.WHITE, Cyber.BOLD))
     for cat in _CATEGORY_ORDER:
         items = tools_by_cat.get(cat, [])
         if not items:
@@ -454,6 +496,103 @@ def _pause(prompt: str = "Enter para continuar...") -> None:
     """Pausa aguardando Enter, sem propagar EOFError (stdin fechado)."""
     with contextlib.suppress(EOFError):
         input(color(prompt, Cyber.GRAY))
+
+
+def _setup_hub_readline(tools_by_cat: dict[str, list[tuple[str, str]]]) -> None:
+    """Configura tab completion no menu principal.
+
+    Completa nomes de ferramentas, scripts, aliases, categorias
+    e comandos built-in (h, clear, exit, 0, q).
+    """
+    _readline: Any = None
+    try:
+        import readline
+
+        _readline = readline
+    except ModuleNotFoundError:
+        try:
+            import pyreadline3
+
+            _readline = pyreadline3
+        except ModuleNotFoundError:
+            return
+
+    all_values: list[str] = []
+    for script, _cat, mod in _load_tools():
+        if script not in all_values:
+            all_values.append(script)
+        short = script.removeprefix("mytools-")
+        if short not in all_values:
+            all_values.append(short)
+        if mod not in all_values:
+            all_values.append(mod)
+    for alias in _ALIASES:
+        if alias not in all_values:
+            all_values.append(alias)
+    for cat_name in _CATEGORY_LABELS:
+        if cat_name not in all_values:
+            all_values.append(cat_name)
+        label = _CATEGORY_LABELS[cat_name].lower()
+        if label not in all_values:
+            all_values.append(label)
+    builtins = [
+        "h",
+        "help",
+        "ajuda",
+        "clear",
+        "limpar",
+        "cls",
+        "0",
+        "q",
+        "quit",
+        "exit",
+        "n",
+        "p",
+    ]
+    for b in builtins:
+        if b not in all_values:
+            all_values.append(b)
+
+    def completer(text: str, state: int) -> str | None:
+        if state == 0:
+            completer.matches = [v for v in all_values if v.startswith(text)]  # type: ignore[attr-defined]
+        matches = getattr(completer, "matches", [])
+        return matches[state] if state < len(matches) else None
+
+    _readline.set_completer(completer)
+    _readline.set_completer_delims(" \t")
+    with contextlib.suppress(Exception):
+        _readline.parse_and_bind("tab: complete")
+
+
+def help_search(
+    query: str,
+    tools_by_cat: dict[str, list[tuple[str, str]]],
+) -> None:
+    """Busca ferramentas por palavra-chave e exibe resultados."""
+    query = query.strip().lower()
+    if not query:
+        print(color("Uso: s <palavra-chave>", Cyber.YELLOW))
+        return
+    results: list[tuple[str, str, str]] = []
+    for cat, items in tools_by_cat.items():
+        for script, mod in items:
+            name = _display_name(mod).lower()
+            alias_matches = any(query in a for a in _ALIASES if _ALIASES[a] == mod)
+            if query in mod or query in script or query in name or alias_matches:
+                results.append((cat, script, mod))
+    if not results:
+        print(color(f"Nenhuma ferramenta encontrada para '{query}'.", Cyber.RED))
+        return
+    print(color(f"\nResultados para '{query}':", Cyber.WHITE, Cyber.BOLD))
+    for cat, script, mod in results:
+        label = _CATEGORY_LABELS.get(cat, cat.upper())
+        print(
+            f"  {color(label, Cyber.CYAN)}  "
+            f"{color(_display_name(mod), Cyber.WHITE)}  "
+            f"{color(f'({script})', Cyber.GRAY)}"
+        )
+    print()
 
 
 def _run_tool(cat: str, mod: str) -> None:
@@ -493,6 +632,8 @@ def main() -> int:
         print(color("Nenhuma ferramenta encontrada nos entry points.", Cyber.RED))
         return 1
 
+    _setup_hub_readline(tools_by_cat)
+
     while True:
         banner()
         menu_root(tools_by_cat)
@@ -513,6 +654,12 @@ def main() -> int:
             clear_console()
             continue
         if choice in {"clear", "limpar", "cls"}:
+            clear_console()
+            continue
+        if choice.startswith("s ") or choice.startswith("search "):
+            query = choice.split(None, 1)[1] if len(choice.split(None, 1)) > 1 else ""
+            help_search(query, tools_by_cat)
+            _pause("Enter para voltar...")
             clear_console()
             continue
 

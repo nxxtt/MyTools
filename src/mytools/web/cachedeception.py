@@ -863,6 +863,13 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan Web Cache Deception a partir de argumentos parseados."""
 
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-cachedec — nenhuma requisição executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
+
     logger.info("Web Cache Deception scan iniciado para %s", args.url)
 
     categories: list[str] = []

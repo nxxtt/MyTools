@@ -1174,7 +1174,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     output_dir = getattr(args, "output_dir", None)
     ensure_output_dir(output_dir)
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         print(
             color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
             "Nenhuma requisicao HTTP sera enviada.",

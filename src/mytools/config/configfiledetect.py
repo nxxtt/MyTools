@@ -654,7 +654,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     quiet = init_scanner(args)
     urls = resolve_target_urls(args)
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for url in urls:
             base_url = normalize_url(

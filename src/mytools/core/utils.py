@@ -231,6 +231,7 @@ def init_scanner(args: argparse.Namespace) -> bool:
             if "=" in pair:
                 sev, cname = pair.split("=", 1)
                 override_severity(sev.strip(), cname.strip())
+    set_dry_run(getattr(args, "dry_run", False))
     _stealth_local.ctx = StealthContext.from_args(args)
     return quiet
 
@@ -532,6 +533,9 @@ class StealthContext:
     tor: bool = False
     waf_evasion: bool = False
     pad_headers: int = 0
+    fragment: int = 0
+    fragment_tcp: int = 0
+    src_port_random: bool = False
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> StealthContext | None:
@@ -547,6 +551,9 @@ class StealthContext:
             "tor": getattr(args, "tor", False),
             "waf_evasion": getattr(args, "waf_evasion", False),
             "pad_headers": getattr(args, "pad_headers", 0),
+            "fragment": getattr(args, "fragment", 0),
+            "fragment_tcp": getattr(args, "fragment_tcp", 0),
+            "src_port_random": getattr(args, "src_port_random", False),
         }
         if not any(v and v != 0.0 and v != 0 for v in fields.values()):
             return None
@@ -555,6 +562,19 @@ class StealthContext:
 
 #: Estado stealth por thread — cada worker do batch (-p) tem o proprio.
 _stealth_local = threading.local()
+
+#: Estado dry-run por thread — batch workers herdam o contexto do thread principal.
+_dry_run_local = threading.local()
+
+
+def set_dry_run(enabled: bool) -> None:
+    """Ativa/desativa dry-run para a thread atual."""
+    _dry_run_local.dry_run = enabled
+
+
+def get_dry_run() -> bool:
+    """Retorna True se dry-run esta ativo na thread atual."""
+    return getattr(_dry_run_local, "dry_run", False)
 
 
 def get_stealth_ctx() -> StealthContext | None:
@@ -630,6 +650,67 @@ class _CurlCffiClient:
         await self._session.close()
 
 
+class _DryRunResponse:
+    """Resposta dummy quando dry-run esta ativo."""
+
+    def __init__(self) -> None:
+        self.status_code: int = 0
+        self.headers: dict[str, str] = {}
+        self.content: bytes = b""
+        self.text: str = ""
+
+    def __getattr__(self, name: str) -> Any:
+        if name in ("status_code", "headers", "content", "text"):
+            raise AttributeError(name)
+        return lambda *_a, **_kw: {} if name == "json" else None
+
+
+class _DryRunClient:
+    """Intercepta chamadas HTTP e retorna dummy quando dry-run esta ativo.
+
+    Protege modulos que usam client.get()/post() diretamente, bypassando fetch().
+    """
+
+    def __init__(self, real: Any) -> None:
+        self._real = real
+
+    @property
+    def headers(self) -> Any:
+        return self._real.headers
+
+    @property
+    def cookies(self) -> Any:
+        return getattr(self._real, "cookies", {})
+
+    async def request(self, method: str, url: str, **kwargs: Any) -> _DryRunResponse:
+        logger.warning("[DRY-RUN] %s %s — requisicao nao executada", method, url)
+        return _DryRunResponse()
+
+    async def get(self, url: str, **kwargs: Any) -> _DryRunResponse:
+        return await self.request("GET", url, **kwargs)
+
+    async def post(self, url: str, **kwargs: Any) -> _DryRunResponse:
+        return await self.request("POST", url, **kwargs)
+
+    async def put(self, url: str, **kwargs: Any) -> _DryRunResponse:
+        return await self.request("PUT", url, **kwargs)
+
+    async def options(self, url: str, **kwargs: Any) -> _DryRunResponse:
+        return await self.request("OPTIONS", url, **kwargs)
+
+    async def head(self, url: str, **kwargs: Any) -> _DryRunResponse:
+        return await self.request("HEAD", url, **kwargs)
+
+    async def patch(self, url: str, **kwargs: Any) -> _DryRunResponse:
+        return await self.request("PATCH", url, **kwargs)
+
+    async def delete(self, url: str, **kwargs: Any) -> _DryRunResponse:
+        return await self.request("DELETE", url, **kwargs)
+
+    async def aclose(self) -> None:
+        pass
+
+
 def create_async_client(
     user_agent: str | None = f"MyTools/{__version__}",
     proxy: str | None = None,
@@ -662,7 +743,31 @@ def create_async_client(
 
     headers = {"User-Agent": effective_ua}
 
+    if ctx is not None:
+        _pad = getattr(ctx, "pad_headers", 0)
+        if isinstance(_pad, (int, float)) and _pad > 0:
+            from mytools.core.stealth import pad_headers as apply_pad_headers
+
+            headers = apply_pad_headers(headers, int(_pad))
+
+    local_addr: str | tuple[str, int] | None = None
+    _spr = getattr(ctx, "src_port_random", False) if ctx is not None else False
+    if isinstance(_spr, bool) and _spr:
+        from mytools.core.stealth import randomize_source_port
+
+        local_addr = ("127.0.0.1", randomize_source_port())
+        logger.debug("stealth: src_port_random local_addr=%s", local_addr)
+
     if effective_impersonate:
+        _frag_early = int(getattr(ctx, "fragment", 0) or 0) if ctx is not None else 0
+        _frag_tcp_early = (
+            int(getattr(ctx, "fragment_tcp", 0) or 0) if ctx is not None else 0
+        )
+        if _frag_early > 0 or _frag_tcp_early > 0:
+            logger.warning(
+                "fragmentacao e impersonate nao combinaveis"
+                " via curl-cffi; fragmentacao ignorada"
+            )
         try:
             from curl_cffi.requests import AsyncSession
 
@@ -671,22 +776,47 @@ def create_async_client(
                 verify=verify,
                 timeout=timeout,
                 proxy=effective_proxy,
+                local_address=local_addr,  # type: ignore[reportCallIssue]
             )
             client = _CurlCffiClient(session)
             client.headers.update(headers)
+            if get_dry_run():
+                return _DryRunClient(client)
             return client
         except ImportError:
             logger.debug("curl-cffi nao instalado, usando httpx padrao")
         except Exception as error:
             logger.debug("falha ao criar cliente curl-cffi: %s", error)
 
-    return httpx.AsyncClient(
+    transport: httpx.AsyncBaseTransport | None = None
+    _frag = getattr(ctx, "fragment", 0) if ctx is not None else 0
+    _frag_tcp = getattr(ctx, "fragment_tcp", 0) if ctx is not None else 0
+    _frag_int = int(_frag) if isinstance(_frag, (int, float)) else 0
+    _frag_tcp_int = int(_frag_tcp) if isinstance(_frag_tcp, (int, float)) else 0
+    if _frag_int > 0 or _frag_tcp_int > 0:
+        from mytools.core.stealth import build_fragmented_transport
+
+        transport = build_fragmented_transport(
+            fragment=_frag_int,
+            fragment_tcp=_frag_tcp_int,
+            verify=verify,
+            local_address=local_addr,  # type: ignore[arg-type]
+            proxy=effective_proxy,
+        )
+    elif local_addr is not None:
+        transport = httpx.AsyncHTTPTransport(local_address=local_addr)  # type: ignore[arg-type]
+
+    client = httpx.AsyncClient(
         headers=headers,
         proxy=effective_proxy,
         timeout=timeout,
         follow_redirects=False,
         verify=verify,
+        transport=transport,
     )
+    if get_dry_run():
+        return _DryRunClient(client)
+    return client
 
 
 def _extract_raw_headers(response: httpx.Response) -> dict[str, list[str]]:
@@ -736,6 +866,9 @@ async def fetch(
     todos os valores, preservando headers duplicados como Set-Cookie.
     """
     ctx = get_stealth_ctx()
+    if get_dry_run():
+        logger.warning("[DRY-RUN] %s %s — requisicao nao executada", method, url)
+        return 0, {}, b"", {}
     # A chave inclui id(client) e o contexto stealth: impede que uma resposta
     # obtida via Tor/proxy/impersonate seja servida a um cliente direto e
     # vice-versa (evita vazamento de IP).
@@ -766,6 +899,9 @@ async def fetch(
                 waf_encode_headers,
                 waf_encode_url,
             )
+            from mytools.core.stealth import (
+                pad_headers as apply_pad_headers,
+            )
 
             if ctx.random_delay or ctx.jitter > 0:
                 import random as _random
@@ -776,6 +912,11 @@ async def fetch(
                 effective_url = waf_encode_url(url)
                 if effective_headers:
                     effective_headers = waf_encode_headers(effective_headers)
+            _pad = getattr(ctx, "pad_headers", 0)
+            if isinstance(_pad, (int, float)) and _pad > 0:
+                if effective_headers is None:
+                    effective_headers = {}
+                effective_headers = apply_pad_headers(effective_headers, int(_pad))
             if ctx.user_agent_rotate:
                 from mytools.core.stealth import random_user_agent
 
@@ -1230,6 +1371,18 @@ def add_base_args(
         help="Desabilita verificacao de certificados SSL/TLS (padrao).",
     )
     parser.add_argument(
+        "--confirm",
+        action="store_true",
+        default=True,
+        help="Habilita verificacao de segunda ordem para reduzir falsos positivos (padrao).",
+    )
+    parser.add_argument(
+        "--no-confirm",
+        action="store_false",
+        dest="confirm",
+        help="Desabilita verificacao de segunda ordem (aceita achados sem confirmacao).",
+    )
+    parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
@@ -1367,14 +1520,22 @@ def add_stealth_args(
             "--fragment",
             type=int,
             default=0,
-            help="Fragmenta headers HTTP em chunks (evasao L7, raw socket; nao integrado). Valor: tamanho do chunk.",
+            help=(
+                "Fragmenta headers HTTP em chunks (evasao L7)."
+                " Valor: tamanho do chunk."
+                " Nota: requer raw socket quando nao usa curl-cffi."
+            ),
         )
     if "fragment-tcp" in compat:
         parser.add_argument(
             "--fragment-tcp",
             type=int,
             default=0,
-            help="Fragmenta payload TCP em chunks (evasao L4, raw socket; nao integrado). Valor: tamanho do chunk.",
+            help=(
+                "Fragmenta payload TCP em chunks (evasao L4)."
+                " Valor: tamanho do chunk."
+                " Nota: requer raw socket quando nao usa curl-cffi."
+            ),
         )
     if "tor" in compat:
         parser.add_argument(
@@ -1391,13 +1552,13 @@ def add_stealth_args(
             "--pad-headers",
             type=int,
             default=0,
-            help="Adiciona headers padding (minimo total; nao integrado). Valor: count minimo.",
+            help="Adiciona headers padding (minimo total). Valor: count minimo.",
         )
     if "src-port-random" in compat:
         parser.add_argument(
             "--src-port-random",
             action="store_true",
-            help="Randomiza porta de origem TCP (raw socket; nao integrado).",
+            help="Randomiza porta de origem TCP.",
         )
     if "rate-limit" in compat:
         parser.add_argument(

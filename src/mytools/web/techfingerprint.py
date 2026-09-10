@@ -611,7 +611,7 @@ def run_once(args: argparse.Namespace) -> int:
         )
         return 1
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         print(
             color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhum scan sera realizado."
         )

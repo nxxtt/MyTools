@@ -419,7 +419,7 @@ def run_once(args: argparse.Namespace) -> int:
         "viewdns": getattr(args, "viewdns_key", None),
     }
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         logger.warning("Nenhuma consulta sera realizada.")
         logger.info("Dominio: %s", domain)
         logger.info("Fontes: %s", ", ".join(sources))

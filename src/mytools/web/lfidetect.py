@@ -269,6 +269,7 @@ async def _test_lfi(
     url: str,
     params: list[str],
     baseline: tuple[int, int, bytes],
+    confirm: bool = True,
 ) -> list[LFIAttempt]:
     """Testa payloads LFI em cada parametro detectado."""
     attempts: list[LFIAttempt] = []
@@ -298,7 +299,7 @@ async def _test_lfi(
                 )
                 if leak_detected:
                     verify = get_verify_payload("lfidetect", "lfi")
-                    if verify:
+                    if confirm and verify:
                         v_payload, v_indicators = verify
                         v_url = _make_lfi_url(url, param, v_payload)
                         confirmed, v_found = await verify_positive(
@@ -372,6 +373,7 @@ async def _test_rfi(
     url: str,
     params: list[str],
     baseline: tuple[int, int, bytes],
+    confirm: bool = True,
 ) -> list[LFIAttempt]:
     """Testa payloads RFI em cada parametro detectado."""
     attempts: list[LFIAttempt] = []
@@ -406,7 +408,7 @@ async def _test_rfi(
                 )
                 if leak_detected:
                     verify = get_verify_payload("lfidetect", "rfi")
-                    if verify:
+                    if confirm and verify:
                         v_payload, v_indicators = verify
                         v_payload = v_payload.replace("httpbin.org", host)
                         v_url = _make_lfi_url(url, param, v_payload)
@@ -482,6 +484,7 @@ async def run_scan(
     timeout: float = 10.0,
     concurrency: int = 5,
     output_file: str | None = None,
+    confirm: bool = True,
 ) -> LFIFindings:
     """Executa o scan de LFI/RFI contra a URL alvo."""
     parsed = urlparse(url)
@@ -520,9 +523,9 @@ async def run_scan(
         coros = []
 
         if category in ("all", "lfi"):
-            coros.append(_test_lfi(client, url, params, baseline))
+            coros.append(_test_lfi(client, url, params, baseline, confirm=confirm))
         if category in ("all", "rfi"):
-            coros.append(_test_rfi(client, url, params, baseline))
+            coros.append(_test_rfi(client, url, params, baseline, confirm=confirm))
 
         if category not in ("all", "lfi", "rfi"):
             return LFIFindings(
@@ -674,6 +677,13 @@ def build_parser() -> argparse.ArgumentParser:
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan LFI/RFI a partir de argumentos parseados."""
     init_scanner(args)
+
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-lfi \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
     logger.info("LFI/RFI scan iniciado para %s", args.url)
 
     result = safe_asyncio_run(
@@ -683,6 +693,7 @@ def run_once(args: argparse.Namespace) -> int:
             timeout=getattr(args, "timeout", 10.0),
             concurrency=getattr(args, "concurrency", 5),
             output_file=getattr(args, "output", None),
+            confirm=getattr(args, "confirm", True),
         ),
     )
 

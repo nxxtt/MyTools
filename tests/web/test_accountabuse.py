@@ -540,6 +540,7 @@ def test_run_once_returns_1_when_vulnerable() -> None:
     args.category = "coupon"
     args.timeout = 10
     args.output = None
+    args.dry_run = False
     result = _result(vulnerable_techniques=["enumeration"])
     with patch(
         "mytools.web.accountabuse.run_scan", new=AsyncMock(return_value=result)

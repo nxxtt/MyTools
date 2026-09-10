@@ -333,6 +333,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_once(args: argparse.Namespace) -> int:
+
+    if getattr(args, "dry_run", False) is True:
+        print(
+            "[DRY-RUN] mytools-analysis \u2014 nenhuma requisi\u00e7\u00e3o executada."
+        )
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
     findings_file = Path(args.findings_file)
     if not findings_file.exists():
         logger.error("arquivo não encontrado: %s", findings_file)

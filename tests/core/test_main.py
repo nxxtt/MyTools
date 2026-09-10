@@ -25,6 +25,7 @@ from mytools.core.main import (
     _tools_by_category,
     banner,
     help_screen,
+    help_search,
     main,
     menu_category,
     menu_root,
@@ -61,9 +62,9 @@ def fake_run(monkeypatch):
 
 
 class TestLoadTools:
-    def test_114_tools_from_entry_points(self):
+    def test_119_tools_from_entry_points(self):
         tools = _load_tools()
-        assert len(tools) == 114
+        assert len(tools) == 119
 
     def test_matches_pyproject_scripts(self):
         eps = im.entry_points(group="console_scripts")
@@ -76,13 +77,17 @@ class TestLoadTools:
     def test_categories_match_expected_order(self):
         by_cat = _tools_by_category()
         assert set(by_cat) == set(_CATEGORY_ORDER)
+        assert len(by_cat["binary"]) == 1
         assert len(by_cat["config"]) == 2
         assert len(by_cat["core"]) == 4
         assert len(by_cat["dns"]) == 12
         assert len(by_cat["email"]) == 8
+        assert len(by_cat["iac"]) == 1
+        assert len(by_cat["llm"]) == 1
         assert len(by_cat["mobile"]) == 1
-        assert len(by_cat["network"]) == 2
+        assert len(by_cat["network"]) == 3
         assert len(by_cat["osint"]) == 7
+        assert len(by_cat["secret"]) == 1
         assert len(by_cat["vcs"]) == 1
         assert len(by_cat["web"]) == 76
         assert len(by_cat["whois"]) == 1
@@ -192,7 +197,7 @@ class TestMainFlow:
     def test_dispatch_by_category_and_number(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["9", "1", "q"])
+        inputs = iter(["13", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "accountabuse")]
@@ -212,7 +217,7 @@ class TestMainFlow:
     def test_dispatch_by_category_and_name(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["9", "blindxss", "q"])
+        inputs = iter(["13", "blindxss", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "blindxss")]
@@ -234,13 +239,13 @@ class TestMainFlow:
     def test_category_back_returns_root(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["9", "0", "3", "0", "q"])
+        inputs = iter(["13", "0", "3", "0", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == []
 
     def test_pagination_next_prev(self, monkeypatch, no_clear, no_banner, fake_run):
-        inputs = iter(["9", "n", "p", "2", "q"])
+        inputs = iter(["13", "n", "p", "2", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "attackanalysis")]
@@ -248,13 +253,13 @@ class TestMainFlow:
     def test_pagination_reaches_second_page(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["9", "n", "1", "q"])
+        inputs = iter(["13", "n", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "clickjacking")]
 
     def test_invalid_choice_ignored(self, monkeypatch, no_clear, no_banner, fake_run):
-        inputs = iter(["9", "zzz", "", "2", "q"])
+        inputs = iter(["13", "zzz", "", "2", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "attackanalysis")]
@@ -272,7 +277,7 @@ class TestMainFlow:
     def test_exit_tool_returns_to_categories(
         self, monkeypatch, no_clear, no_banner, fake_run
     ):
-        inputs = iter(["9", "1", "3", "q"])
+        inputs = iter(["13", "1", "3", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "accountabuse")]
@@ -282,7 +287,7 @@ class TestMainFlow:
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         out = capsys.readouterr().out
-        assert "Exemplos:" in out
+        assert "Exemplos por categoria:" in out
 
 
 class TestHelpScreen:
@@ -290,7 +295,7 @@ class TestHelpScreen:
         by_cat = _tools_by_category()
         help_screen(by_cat)
         out = capsys.readouterr().out
-        assert "Exemplos:" in out
+        assert "Exemplos por categoria:" in out
         assert "mytools-port --help" in out
         assert "mytools-bak --help" in out
 
@@ -457,7 +462,7 @@ class TestHelpScreenEdgeCases:
     def test_empty_categories_skipped(self, capsys):
         help_screen({})
         out = capsys.readouterr().out
-        assert "Exemplos:" in out
+        assert "Exemplos por categoria:" in out
 
 
 class TestRunTool:
@@ -581,13 +586,13 @@ class TestMainEdgeCases:
         assert main() == 0
 
     def test_help_in_category(self, monkeypatch, no_clear, no_banner, capsys, fake_run):
-        inputs = iter(["9", "h", "", "2", "q"])
+        inputs = iter(["13", "h", "", "2", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         assert ("web", "attackanalysis") in fake_run
 
     def test_clear_in_category(self, monkeypatch, no_clear, no_banner, fake_run):
-        inputs = iter(["9", "clear", "1", "q"])
+        inputs = iter(["13", "clear", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         assert fake_run == [("web", "accountabuse")]
@@ -595,7 +600,7 @@ class TestMainEdgeCases:
     def test_prev_page_in_category(
         self, monkeypatch, no_clear, no_banner, capsys, fake_run
     ):
-        inputs = iter(["9", "p", "q"])
+        inputs = iter(["13", "p", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         out = capsys.readouterr().out
@@ -605,7 +610,7 @@ class TestMainEdgeCases:
     def test_invalid_number_in_category(
         self, monkeypatch, no_clear, no_banner, capsys, fake_run
     ):
-        inputs = iter(["9", "999", "", "1", "q"])
+        inputs = iter(["13", "999", "", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         assert main() == 0
         out = capsys.readouterr().out
@@ -658,8 +663,178 @@ class TestMainFixes:
             cleared.append(1)
 
         monkeypatch.setattr(main_mod, "clear_console", _clear)
-        inputs = iter(["9", "1", "q"])
+        inputs = iter(["13", "1", "q"])
         monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
         main()
         assert fake_run == [("web", "accountabuse")]
         assert cleared  # clear_console chamado apos rodar a tool
+
+
+class TestHelpSearch:
+    def test_search_by_module_name(self, capsys):
+        by_cat = _tools_by_category()
+        help_search("portscanner", by_cat)
+        out = capsys.readouterr().out
+        assert "portscanner" in out
+        assert "NETWORK" in out
+
+    def test_search_by_alias(self, capsys):
+        by_cat = _tools_by_category()
+        help_search("cmd", by_cat)
+        out = capsys.readouterr().out
+        assert "cmd" in out
+
+    def test_search_by_display_name(self, capsys):
+        by_cat = _tools_by_category()
+        help_search("sql injection", by_cat)
+        out = capsys.readouterr().out
+        assert "SQL Injection" in out
+
+    def test_search_no_results(self, capsys):
+        by_cat = _tools_by_category()
+        help_search("zzz_nonexistent_xyz", by_cat)
+        out = capsys.readouterr().out
+        assert "Nenhuma ferramenta encontrada" in out
+
+    def test_search_empty_query(self, capsys):
+        by_cat = _tools_by_category()
+        help_search("", by_cat)
+        out = capsys.readouterr().out
+        assert "Uso: s <palavra-chave>" in out
+
+    def test_search_case_insensitive(self, capsys):
+        by_cat = _tools_by_category()
+        help_search("DNS", by_cat)
+        out = capsys.readouterr().out
+        assert "dnstransfer" in out or "DNS" in out
+
+    def test_search_via_main_menu(self, monkeypatch, no_clear, no_banner, capsys):
+        inputs = iter(["s portscanner", "", "q"])
+        monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
+        main()
+        out = capsys.readouterr().out
+        assert "portscanner" in out
+
+
+class TestHubReadline:
+    def test_setup_hub_readline_builds_completer(self):
+        by_cat = _tools_by_category()
+        from mytools.core import main as _main_mod
+
+        try:
+            import readline
+
+            _readline = readline
+        except ModuleNotFoundError:
+            try:
+                import pyreadline3
+
+                _readline = pyreadline3
+            except ModuleNotFoundError:
+                pytest.skip("no readline available")
+
+        _main_mod._setup_hub_readline(by_cat)
+        completer_fn = _readline.get_completer()  # pyright: ignore[reportAttributeAccessIssue]
+        assert completer_fn is not None
+        matches_0 = completer_fn("port", 0)
+        assert matches_0 is not None
+        assert "port" in matches_0 or "portscanner" in matches_0
+
+    def test_setup_hub_readline_completes_aliases(self):
+        by_cat = _tools_by_category()
+        from mytools.core import main as _main_mod
+
+        try:
+            import readline
+
+            _readline = readline
+        except ModuleNotFoundError:
+            try:
+                import pyreadline3
+
+                _readline = pyreadline3
+            except ModuleNotFoundError:
+                pytest.skip("no readline available")
+
+        _main_mod._setup_hub_readline(by_cat)
+        completer_fn = _readline.get_completer()  # pyright: ignore[reportAttributeAccessIssue]
+        assert completer_fn is not None
+        result = completer_fn("help", 0)
+        assert result is not None
+
+    def test_setup_hub_readline_completes_categories(self):
+        by_cat = _tools_by_category()
+        from mytools.core import main as _main_mod
+
+        try:
+            import readline
+
+            _readline = readline
+        except ModuleNotFoundError:
+            try:
+                import pyreadline3
+
+                _readline = pyreadline3
+            except ModuleNotFoundError:
+                pytest.skip("no readline available")
+
+        _main_mod._setup_hub_readline(by_cat)
+        completer_fn = _readline.get_completer()  # pyright: ignore[reportAttributeAccessIssue]
+        result = completer_fn("web", 0)  # pyright: ignore[reportOptionalCall]
+        assert result is not None
+
+    def test_hub_readline_called_in_main(self, monkeypatch, no_clear, no_banner):
+        calls = []
+        original = main_mod._setup_hub_readline
+
+        def _spy(tbc):
+            calls.append(tbc)
+            original(tbc)
+
+        monkeypatch.setattr(main_mod, "_setup_hub_readline", _spy)
+        inputs = iter(["q"])
+        monkeypatch.setattr("builtins.input", lambda *_: next(inputs))
+        main()
+
+
+class TestRunOnceDocstrings:
+    """Regression: docstrings must appear before code, not after dry-run guards."""
+
+    def test_run_once_docstrings_before_code(self):
+        import ast
+        import pathlib
+
+        web_dir = (
+            pathlib.Path(__file__).resolve().parent.parent.parent
+            / "src"
+            / "mytools"
+            / "web"
+        )
+        violations: list[str] = []
+        for py_file in sorted(web_dir.glob("*.py")):
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.FunctionDef):
+                    continue
+                if node.name != "run_once":
+                    continue
+                body = node.body
+                if not body:
+                    continue
+                first = body[0]
+                if isinstance(first, ast.Expr) and isinstance(
+                    first.value, ast.Constant
+                ):
+                    continue
+                has_dry_guard = any(
+                    isinstance(s, ast.If) and isinstance(s.test, ast.Call)
+                    for s in body[:3]
+                )
+                if has_dry_guard:
+                    violations.append(f"{py_file.name}:{node.lineno}")
+        assert violations == [], (
+            f"run_once without docstring before guard: {violations}"
+        )

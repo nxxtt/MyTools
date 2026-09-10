@@ -618,6 +618,8 @@ class TestRunScan:
 
 class TestCreateTlsSocket:
     def test_creates_wrapped_socket(self) -> None:
+        from mytools.core.stealth import FragmentedSocket
+
         mock_sock = MagicMock()
         mock_wrapped = MagicMock()
         mock_ctx = MagicMock()
@@ -635,7 +637,8 @@ class TestCreateTlsSocket:
             result = _create_tls_socket("example.com", 443, 5.0)
         mock_cc.assert_called_once_with(("example.com", 443), timeout=5.0)
         mock_ctx.set_alpn_protocols.assert_called_once_with(["h2", "http/1.1"])
-        assert result is mock_wrapped
+        assert isinstance(result, FragmentedSocket)
+        assert result._sock is mock_wrapped
 
 
 # ─── Dispatcher Detail Tests ─────────────────────────────────────────────────

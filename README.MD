@@ -4,7 +4,7 @@
 
 Suite de ferramentas de auditoria e reconhecimento web/network para ambientes de laboratório e alvos autorizados.
 
-> **Qualidade:** 9074 testes passando · 100% de cobertura de código (statements + branches) · `ruff check`/`ruff format` limpos · `basedpyright` com 0 erros.
+> **Qualidade:** 9074+ testes passando · 100% de cobertura de código (statements + branches) · `ruff check`/`ruff format` limpos · `basedpyright` com 0 erros.
 
 > **AVISO:** Este projeto é destinado exclusivamente para fins educacionais e de teste em ambientes autorizados. O uso irresponsável pode ser ilegal. Use com responsabilidade.
 
@@ -169,11 +169,16 @@ Isso instala os comandos CLI:
 | `mytools-cred` | Gerenciador de credenciais |
 | `mytools-reconall` | Recon completo (todos os módulos) |
 | `mytools-report` | HTML Report Generator (findings, timeline, diff) |
+| `mytools-binary` | Binary Analysis (ELF/PE, Capa, YARA, strings) |
+| `mytools-iac` | IaC Static Scan (Terraform, CloudFormation, Dockerfile) |
+| `mytools-llm` | LLM/AI Security Testing (prompt injection, model extraction) |
+| `mytools-secret` | Secret Scanning (hardcoded credentials, API keys, tokens) |
+| `mytools-pcap` | PCAP Network Analysis (traffic parsing, protocol inspection) |
 
 > **Nota:** Após instalar, abra um novo terminal. Se o comando não for encontrado, adicione o diretório `Scripts` do Python ao PATH.
 
 ### Execução direta (sem instalar)
-Todos os 115 módulos podem ser executados via `python -m`:
+Todos os 119 módulos podem ser executados via `python -m`:
 ```bash
 python -m mytools.core.main                  # Painel unificado
 python -m mytools.web.attackaudit --help     # Ajuda individual
@@ -186,7 +191,7 @@ python -m mytools.mobile.mobile_audit --help # Mobile API Testing
 # Build
 docker build -t mytools .
 
-# Subcomando direto (115 comandos disponíveis)
+# Subcomando direto (119 comandos disponíveis)
 docker run --rm mytools mytools-recon https://example.com
 docker run --rm mytools mytools-port 192.168.1.1 -p 80
 docker run --rm mytools mytools-cors https://example.com
@@ -1464,6 +1469,56 @@ mytools-report -d outputs/ --json                   # Dados normalizados (debug)
 
 O diff compara findings por fingerprint (multiset), mostrando vulnerabilidades novas (Added), corrigidas (Removed) e inalteradas (Unchanged) entre scans consecutivos.
 
+### 116. Binary Analysis (`mytools-binary`)
+Análise de binários ELF/PE: strings, imports/exports, sections, simbols, Capa capability detection, YARA rules, entropy analysis.
+
+```bash
+mytools-binary analyze /path/to/binary
+mytools-binary analyze /path/to/binary --capa --yara
+mytools-binary analyze /path/to/binary --strings --entropy
+mytools-binary analyze /path/to/binary -o binary.json
+```
+
+### 117. IaC Static Scan (`mytools-iac`)
+Static analysis de Infrastructure-as-Code: Terraform, CloudFormation, Dockerfile, docker-compose. Detecta configurações inseguras, secrets hardcoded, práticas ruins.
+
+```bash
+mytools-iac scan terraform/
+mytools-iac scan cloudformation/ --format json
+mytools-iac scan Dockerfile --severity high critical
+mytools-iac scan docker-compose.yml -o iac.json
+```
+
+### 118. LLM/AI Security Testing (`mytools-llm`)
+Teste de segurança de aplicações LLM: prompt injection, model extraction, data leakage, adversarial inputs.
+
+```bash
+mytools-llm test https://chat.example.com
+mytools-llm test https://chat.example.com -c prompt_injection
+mytools-llm test https://chat.example.com -c model_extraction data_leakage
+mytools-llm test https://chat.example.com -o llm.json
+```
+
+### 119. Secret Scanning (`mytools-secret`)
+Scan de código-fonte e repositórios por credenciais hardcoded: API keys, tokens, passwords, private keys. Suporta AWS, GCP, Azure, GitHub, Slack, Stripe e 100+ patterns.
+
+```bash
+mytools-secret scan /path/to/repo
+mytools-secret scan /path/to/repo --category aws,gcp,azure
+mytools-secret scan /path/to/repo --severity high critical
+mytools-secret scan /path/to/repo -o secrets.json
+```
+
+### 120. PCAP Network Analysis (`mytools-pcap`)
+Análise de captures de rede (PCAP): parse de protocolos, extração de fluxos, detecção de anomalias, extrção de arquivos.
+
+```bash
+mytools-pcap analyze capture.pcap
+mytools-pcap analyze capture.pcap --protocol http,dns
+mytools-pcap analyze capture.pcap --extract-files
+mytools-pcap analyze capture.pcap -o pcap.json
+```
+
 ---
 
 ## Flags
@@ -1484,6 +1539,8 @@ Adicionadas por `add_base_args()` — disponíveis em **todos** os módulos:
 | `--theme` | `choice` | `"cyber"` | Tema de cores: `cyber`, `dracula`, `solarized`, `high-contrast` |
 | `--retries` | `int` | `3` | Número de tentativas em falha HTTP |
 | `--dry-run` | `flag` | `False` | Mostra o que faria sem executar |
+| `--confirm` | `flag` | `False` | Solicita confirmação antes de executar módulos de alto impacto |
+| `--no-confirm` | `flag` | `False` | Desativa confirmação (override de `--confirm`) |
 | `--verify` | `flag` | `False` | Verifica certificados SSL/TLS |
 | `--no-verify` | `flag` | `False` | Desativa verificação SSL/TLS |
 | `--version` | `version` | — | Mostra versão e sai |
@@ -1517,8 +1574,8 @@ Adicionadas por `add_stealth_args()` — compatibilidade varia por tipo de módu
 | `--jitter` | `float` | `0.0` | web, dns, email, osint, network, vcs, config | Variação aleatória no delay (0.0-1.0). Ex: 0.2 = +/-20% |
 | `--user-agent-rotate` | `flag` | `False` | web, osint | Rotaciona User-Agent a cada request |
 | `--impersonate` | `choice` | `None` | web | TLS fingerprint de browser real (requer curl-cffi). Opções: `chrome`, `firefox`, `safari`, `edge` |
-| `--fragment` | `int` | `0` | web, email | Fragmenta headers HTTP em chunks (evasão L7, raw socket). Valor = tamanho do chunk |
-| `--fragment-tcp` | `int` | `0` | network | Fragmenta payload TCP em chunks (evasão L4, raw socket). Valor = tamanho do chunk |
+| `--fragment` | `int` | `0` | web, email | Fragmenta headers HTTP em chunks (evasão L7). Valor = tamanho do chunk. Via httpx (async) ou raw socket |
+| `--fragment-tcp` | `int` | `0` | network | Fragmenta payload TCP em chunks (evasão L4). Valor = tamanho do chunk. Via raw socket |
 | `--tor` | `flag` | `False` | web, dns, email, osint, network, vcs, config | Roteia requests via Tor (SOCKS5) |
 | `--waf-evasion` | `flag` | `False` | web, email | Aplica encoding anti-WAF em URLs e headers |
 | `--pad-headers` | `int` | `0` | web, email | Adiciona padding headers (mínimo total). Valor = contagem mínima |
@@ -1799,13 +1856,13 @@ Disponíveis em módulos que suportam `-l`/`--list`:
 ```bash
 mytools
 ```
-O menu é gerado dinamicamente a partir dos entry points instalados e cobre **todas as 115 ferramentas** em 10 categorias (CONFIG, CORE, DNS, EMAIL, MOBILE, NETWORK, OSINT, VCS, WEB, WHOIS):
+O menu é gerado dinamicamente a partir dos entry points instalados e cobre **todas as 119 ferramentas** em 14 categorias (BINARY, CONFIG, CORE, DNS, EMAIL, IAC, LLM, MOBILE, NETWORK, OSINT, SECRET, VCS, WEB, WHOIS):
 
 1. Nível 1 — escolha uma categoria pelo número ou nome.
 2. Nível 2 — os módulos da categoria, paginados (10 por página). Navegue com `n` (próxima) e `p` (anterior); `0` volta às categorias; `q` sai.
 3. Em qualquer nível, digite o nome do módulo, o script (`mytools-cmd`) ou um alias para abrir a ferramenta direto.
 
-Aliases disponíveis: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `lfi`, `rtlo`, `overlong`, `cmd`, `bominject`, `charsetbypass`, `csrf`, `sqli`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `bruteforce`, `bucket`, `subtakeover`, `batch`, `restfuzz`, `analysis`, `cred`, `reconall`.
+Aliases disponíveis: `port`, `dir`, `recon`, `audit`, `dns/xfer`, `sub/subenum`, `dns-history`, `whois-history`, `ip-asn`, `tech`, `oas`, `gql`, `sourcemap`, `vcs`, `cfg`, `bak`, `dork`, `breach`, `soceng`, `leak`, `dark`, `rebind`, `dwt`, `amp`, `tunnel`, `dnssec`, `nsec`, `caa`, `doh`, `dot`, `secemail`, `spoof`, `smtpinject`, `smtpdown`, `templeti`, `attachbypass`, `addrbypass`, `linktrack`, `nullbyte`, `dblurl`, `ptraversal`, `lfi`, `rtlo`, `overlong`, `cmd`, `bominject`, `charsetbypass`, `csrf`, `sqli`, `openredirect`, `crlfinject`, `sstdetect`, `ssrfdetect`, `xxedetect`, `nosqli`, `ldapi`, `xpathi`, `ssiinject`, `protopoll`, `deserial`, `cachepoison`, `cachedec`, `methodoverride`, `hpp`, `blindxss`, `cors`, `clickjack`, `hostinject`, `headerinject`, `loginjection`, `log4shell`, `cookieboundary`, `domclob`, `mxss`, `cssinject`, `xssvectors`, `fileupload`, `jwt`, `oauth`, `saml`, `oidc`, `bizlogic`, `accountabuse`, `multitenant`, `smuggle`, `http2abuse`, `headeredge`, `wsattack`, `tlsfp`, `certcheck`, `gqlattack`, `grpc`, `thrift`, `timing`, `lambda`, `edge`, `serverless`, `k8s`, `docker`, `infra`, `iot`, `bruteforce`, `bucket`, `subtakeover`, `batch`, `restfuzz`, `analysis`, `cred`, `reconall`, `binary`, `iac`, `llm`, `secret`, `pcap`.
 
 Ao sair de uma ferramenta (`exit`) você sempre volta à seleção de categorias.
 
@@ -2103,6 +2160,32 @@ src/mytools/                    # Pacote principal
     __init__.py                 # Package marker
     configfiledetect.py         # Config File Detection
     backupfiledetect.py         # Backup File Detection
+  binary/                       # Binary Analysis
+    __init__.py                 # Package marker
+    binaryanalysis.py           # ELF/PE analysis, strings, imports/exports, entropy
+    _capa_rules.py              # Capa capability detection rules
+    _yara_rules.py              # YARA rule scanner
+  iac/                          # Infrastructure as Code
+    __init__.py                 # Package marker
+    iacscan.py                  # IaC static analysis (Terraform, CloudFormation, Docker)
+    _terraform.py               # Terraform plan/parser
+    _cloudformation.py          # CloudFormation template parser
+  llm/                          # LLM/AI Security
+    __init__.py                 # Package marker
+    llmsecurity.py              # LLM prompt injection, model extraction, data leakage
+    _common.py                  # Shared types and utilities
+    _payloads.py                # Attack payloads for LLM testing
+  secret/                       # Secret Scanning
+    __init__.py                 # Package marker
+    secretscan.py               # Hardcoded credential scanner
+    _rules.py                   # 100+ secret detection rules
+    _common.py                  # Shared types and utilities
+  network/                      # Rede e portas
+    __init__.py                 # Package marker
+    portscanner.py              # Scanner de portas TCP
+    dirscanner.py               # Scanner de diretórios HTTP
+    pcapanalysis.py             # PCAP Network Analysis
+    _pcap_common.py             # PCAP parsing utilities
   data/                         # Payloads e wordlists externos (YAML)
     __init__.py                 # Re-exporta load_payloads, dump_registry
     loader.py                   # Carregador YAML/JSON com cache e fallback
@@ -2191,7 +2274,7 @@ src/mytools/                    # Pacote principal
     oauth2_flows.py             # OAuth2 PKCE, Client Credentials, JWT validation
     mobile_audit.py             # BaseScanner CLI: run_scan + colored output
 
-tests/                          # Testes unitários (9074 testes, 100% de cobertura)
+tests/                          # Testes unitários (9074+ testes, 100% de cobertura)
   __init__.py                   # Package marker
   conftest.py                   # Fixtures compartilhadas
   fixtures/                     # Arquivos de teste (SportzX_3.0v.apk)
@@ -2217,7 +2300,7 @@ pyproject.toml                  # Configuração do projeto
 
 ### Rodar testes
 ```bash
-uv run pytest tests/                                  # Suite completa (9074 testes, xdist)
+uv run pytest tests/                                  # Suite completa (9074+ testes, xdist)
 uv run pytest tests/ -m smoke                        # Testes rápidos
 uv run pytest tests/ -m integration                  # Testes de integração (HTTP real)
 uv run pytest tests/ -m "not real_sleep"             # Excluir testes com sleep real
@@ -2270,6 +2353,7 @@ uv lock                  # Atualizar o lockfile
 - `jinja2>=3.1.6` — Template engine (mytools-report)
 - `playwright>=1.62.0` — Headless Browser (navegação, screenshots)
 - `phonenumbers>=9.0.37` — Validação/formatação de números de telefone (mytools-phone)
+- `dpkt>=1.9.8` — PCAP parsing (mytools-pcap)
 
 ### Dev
 - `pytest>=9.1.1` — Framework de testes

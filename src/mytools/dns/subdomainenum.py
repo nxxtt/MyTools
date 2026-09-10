@@ -827,7 +827,7 @@ def run_once(args: argparse.Namespace) -> int:
     domain = args.domain.strip().lower()
     wordlist = load_wordlist(getattr(args, "wordlist", None))
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         logger.warning("Nenhuma consulta DNS sera realizada.")
         logger.info("Dominio: %s", domain)
         logger.info("Wordlist: %d subdominios", len(wordlist))

@@ -531,7 +531,7 @@ def run_once(args: argparse.Namespace) -> int:
 
     targets = resolve_targets(all_targets)
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         total = len(targets) * len(args.ports)
         logger.warning("Nenhuma conexao sera realizada.")
         logger.info(

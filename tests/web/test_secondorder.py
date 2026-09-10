@@ -68,7 +68,15 @@ class TestGetVerifyPayload:
         assert result is None
 
     def test_all_modules_present(self) -> None:
-        for module in ["cmdinject", "sqliscan", "lfidetect", "sstidetect"]:
+        for module in [
+            "cmdinject",
+            "sqliscan",
+            "lfidetect",
+            "sstidetect",
+            "nosqliinject",
+            "xxedetect",
+            "ssiinject",
+        ]:
             assert module in VERIFY_PAYLOADS
 
     def test_all_categories_have_tuple(self) -> None:
@@ -216,3 +224,60 @@ class TestVerifyPayloadsStructure:
         payload, indicators = VERIFY_PAYLOADS["sstidetect"]["detect"]
         assert "7*8" in payload
         assert b"56" in indicators
+
+
+# ---------------------------------------------------------------------------
+# New modules: nosqliinject, xxedetect, ssiinject
+# ---------------------------------------------------------------------------
+
+
+class TestNewVerifyPayloads:
+    def test_nosqliinject_error(self) -> None:
+        payload, indicators = VERIFY_PAYLOADS["nosqliinject"]["error"]
+        assert "$gt" in payload
+        assert any(b"error" in ind or b"Error" in ind for ind in indicators)
+
+    def test_nosqliinject_blind(self) -> None:
+        payload, indicators = VERIFY_PAYLOADS["nosqliinject"]["blind"]
+        assert "$ne" in payload
+        assert len(indicators) > 0
+
+    def test_xxedetect_file_read(self) -> None:
+        payload, indicators = VERIFY_PAYLOADS["xxedetect"]["file_read"]
+        assert "ENTITY" in payload
+        assert b"\n" in indicators
+
+    def test_ssiinject_detect(self) -> None:
+        payload, indicators = VERIFY_PAYLOADS["ssiinject"]["detect"]
+        assert "#exec" in payload
+        assert b"uid=" in indicators
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_nosqli_verify_confirmed(self) -> None:
+        respx.get("https://example.com/?q=%7B%24gt%3A+%22%22%7D").mock(
+            return_value=httpx.Response(200, text="CastError: value"),
+        )
+        async with httpx.AsyncClient() as client:
+            confirmed, found = await verify_positive(
+                client,
+                "https://example.com/?q=%7B%24gt%3A+%22%22%7D",
+                [b"error", b"CastError", b"MongoError"],
+            )
+            assert confirmed is True
+            assert "CastError" in found
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_ssi_verify_confirmed(self) -> None:
+        respx.get("https://example.com/?input=%3C!--%23exec+cmd%3D%22id%22--%3E").mock(
+            return_value=httpx.Response(200, text="uid=33(www-data) gid=33(www-data)"),
+        )
+        async with httpx.AsyncClient() as client:
+            confirmed, found = await verify_positive(
+                client,
+                "https://example.com/?input=%3C!--%23exec+cmd%3D%22id%22--%3E",
+                [b"uid=", b"gid="],
+            )
+            assert confirmed is True
+            assert "uid=" in found

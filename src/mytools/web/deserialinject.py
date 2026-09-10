@@ -1404,6 +1404,15 @@ def run_once(args: argparse.Namespace) -> int:
 
     init_scanner(args)
 
+    if getattr(args, "dry_run", False) is True:
+        print(
+            "[DRY-RUN] mytools-deserial \u2014 nenhuma requisi\u00e7\u00e3o executada."
+        )
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
+
     logger.info("Deserialization scan iniciado para %s", args.url)
 
     categories: list[str] = []

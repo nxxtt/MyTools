@@ -32,7 +32,8 @@ dependencies = [
     "tqdm>=4.70.0",
     "jinja2>=3.1.6",
     "playwright>=1.62.0",
-    "phonenumbers>=9.0.38",
+    "phonenumbers>=9.0.39",
+    "dpkt>=1.9.8",
 ]
 [dependency-groups]
 dev = [
@@ -157,6 +158,11 @@ mytools-bruteforce = "mytools.web.loginbruteforce:main"
 mytools-bucket = "mytools.web.cloudbucketenum:main"
 mytools-restfuzz = "mytools.web.restapifuzz:main"
 mytools-mobile = "mytools.mobile.mobile_audit:main"
+mytools-llm = "mytools.llm.llm_audit:main"
+mytools-secret = "mytools.secret.secret_scan:main"
+mytools-iac = "mytools.iac.iac_scan:main"
+mytools-binary = "mytools.binary.binary_scan:main"
+mytools-pcap = "mytools.network.pcapanalysis:main"
 mytools-depscan = "mytools.web.depscanner:main"
 mytools-cmsfp = "mytools.web.cmsfingerprint:main"
 mytools-report = "mytools.core.report:main"

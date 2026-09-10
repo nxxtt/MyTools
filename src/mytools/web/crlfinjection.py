@@ -948,6 +948,13 @@ banner_art = create_banner(
 def run_once(args: argparse.Namespace) -> int:
     """Executa um scan CRLF injection a partir de argumentos parseados."""
 
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-crlfinject — nenhuma requisição executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
+
     logger.info("CRLF Injection scan iniciado para %s", args.url)
 
     categories: list[str] = []

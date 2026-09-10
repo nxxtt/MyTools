@@ -616,7 +616,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         logger.error("Informe um dominio ou use -l <arquivo>.")
         return 1
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         for d in domains:
             logger.info("Dominio: %s", d)

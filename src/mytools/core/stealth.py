@@ -24,6 +24,7 @@ import contextlib
 import logging
 import random
 import secrets
+from collections.abc import AsyncIterable
 from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import quote, urlparse, urlunparse
@@ -434,6 +435,274 @@ def fragment_tcp_request(data: bytes, fragment_size: int = 8) -> list[bytes]:
     if len(data) <= fragment_size:
         return [data]
     return [data[i : i + fragment_size] for i in range(0, len(data), fragment_size)]
+
+
+class FragmentedSocket:
+    """Wrapper transparente que fragmenta sendall() conforme StealthContext.
+
+    Substitui socket normal — todos os sendall() passam a ser fragmentados
+    automaticamente quando --fragment ou --fragment-tcp estao ativos.
+    """
+
+    def __init__(
+        self,
+        sock: Any,
+        fragment: int = 0,
+        fragment_tcp: int = 0,
+    ) -> None:
+        self._sock = sock
+        self._fragment = fragment
+        self._fragment_tcp = fragment_tcp
+
+    @classmethod
+    def from_context(cls, sock: Any, ctx: Any = None) -> FragmentedSocket:
+        """Cria wrapper lendo fragment/fragment_tcp do StealthContext."""
+        frag = getattr(ctx, "fragment", 0) if ctx else 0
+        frag_tcp = getattr(ctx, "fragment_tcp", 0) if ctx else 0
+        return cls(sock, fragment=frag, fragment_tcp=frag_tcp)
+
+    def sendall(self, data: bytes, *args: Any, **kwargs: Any) -> None:
+        if self._fragment_tcp > 0:
+            for chunk in fragment_tcp_request(data, self._fragment_tcp):
+                self._sock.sendall(chunk, *args, **kwargs)
+        elif self._fragment > 0:
+            sep = data.find(b"\r\n\r\n")
+            if sep > 0:
+                header_bytes = data[: sep + 4]
+                body = data[sep + 4 :]
+                for chunk in fragment_tcp_request(header_bytes, self._fragment):
+                    self._sock.sendall(chunk, *args, **kwargs)
+                if body:
+                    self._sock.sendall(body, *args, **kwargs)
+            else:
+                self._sock.sendall(data, *args, **kwargs)
+        else:
+            self._sock.sendall(data, *args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._sock, name)
+
+    def __repr__(self) -> str:
+        return f"FragmentedSocket({self._sock!r}, frag={self._fragment}, frag_tcp={self._fragment_tcp})"
+
+
+class _FragmentedNetworkStream:
+    """AsyncNetworkStream wrapper that fragments writes for httpcore integration.
+
+    Intercepts write() calls from httpcore's HTTP/1.1 connection and fragments
+    the bytes before forwarding to the real network stream.
+    """
+
+    def __init__(self, real_stream: Any, fragment: int, fragment_tcp: int) -> None:
+        self._real = real_stream
+        self._fragment = fragment
+        self._fragment_tcp = fragment_tcp
+
+    async def read(self, max_bytes: int, timeout: float | None = None) -> bytes:
+        return await self._real.read(max_bytes, timeout=timeout)
+
+    async def write(self, buffer: bytes, timeout: float | None = None) -> None:
+        if self._fragment_tcp > 0:
+            for chunk in fragment_tcp_request(buffer, self._fragment_tcp):
+                await self._real.write(chunk, timeout=timeout)
+        elif self._fragment > 0:
+            sep = buffer.find(b"\r\n\r\n")
+            if sep > 0:
+                header_bytes = buffer[: sep + 4]
+                body = buffer[sep + 4 :]
+                for chunk in fragment_tcp_request(header_bytes, self._fragment):
+                    await self._real.write(chunk, timeout=timeout)
+                if body:
+                    await self._real.write(body, timeout=timeout)
+            else:
+                await self._real.write(buffer, timeout=timeout)
+        else:
+            await self._real.write(buffer, timeout=timeout)
+
+    async def aclose(self) -> None:
+        await self._real.aclose()
+
+    async def start_tls(
+        self,
+        ssl_context: Any,
+        server_hostname: str | None = None,
+        timeout: float | None = None,
+    ) -> _FragmentedNetworkStream:
+        inner = await self._real.start_tls(
+            ssl_context, server_hostname=server_hostname, timeout=timeout
+        )
+        return _FragmentedNetworkStream(inner, self._fragment, self._fragment_tcp)
+
+    def get_extra_info(self, info: str) -> Any:
+        return self._real.get_extra_info(info)
+
+
+class _FragmentedNetworkBackend:
+    """AsyncNetworkBackend that wraps connections with FragmentedNetworkStream.
+
+    Pass as ``network_backend=`` to httpx.AsyncHTTPTransport or
+    httpcore.AsyncConnectionPool to enable fragmentation at the socket level.
+    """
+
+    def __init__(self, fragment: int, fragment_tcp: int) -> None:
+        self._fragment = fragment
+        self._fragment_tcp = fragment_tcp
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: Any | None = None,
+    ) -> _FragmentedNetworkStream:
+        import httpcore._backends.anyio as _anyio_backend
+
+        backend = _anyio_backend.AnyIOBackend()
+        real_stream = await backend.connect_tcp(
+            host,
+            port,
+            timeout=timeout,
+            local_address=local_address,
+            socket_options=socket_options,
+        )
+        return _FragmentedNetworkStream(real_stream, self._fragment, self._fragment_tcp)
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options: Any | None = None,
+    ) -> _FragmentedNetworkStream:
+        import httpcore._backends.anyio as _anyio_backend
+
+        backend = _anyio_backend.AnyIOBackend()
+        real_stream = await backend.connect_unix_socket(
+            path, timeout=timeout, socket_options=socket_options
+        )
+        return _FragmentedNetworkStream(real_stream, self._fragment, self._fragment_tcp)
+
+    async def sleep(self, seconds: float) -> None:
+        import httpcore._backends.anyio as _anyio_backend
+
+        backend = _anyio_backend.AnyIOBackend()
+        await backend.sleep(seconds)
+
+
+class _FragmentedTransport(httpx.AsyncBaseTransport):
+    """httpx transport that fragments HTTP traffic at the socket level.
+
+    Wraps an httpcore connection pool configured with a custom network backend
+    that splits writes into chunks before sending to the wire.  Transparent to
+    callers — implements the standard ``handle_async_request`` interface.
+    """
+
+    def __init__(
+        self,
+        *,
+        fragment: int = 0,
+        fragment_tcp: int = 0,
+        verify: bool = False,
+        local_address: str | None = None,
+        proxy: str | None = None,
+    ) -> None:
+        import ssl as _ssl
+
+        import httpcore
+
+        backend = _FragmentedNetworkBackend(fragment, fragment_tcp)
+        ssl_context = _ssl.create_default_context() if verify else None
+
+        if proxy is not None:
+            from httpx import Proxy
+
+            p = Proxy(url=proxy) if isinstance(proxy, str) else proxy
+            self._pool: Any = httpcore.AsyncHTTPProxy(
+                proxy_url=httpcore.URL(
+                    scheme=p.url.raw_scheme,
+                    host=p.url.raw_host,
+                    port=p.url.port,
+                    target=p.url.raw_path,
+                ),
+                proxy_auth=p.raw_auth,
+                proxy_headers=p.headers.raw,
+                proxy_ssl_context=p.ssl_context,
+                ssl_context=ssl_context,
+                local_address=local_address,
+                network_backend=backend,  # type: ignore[reportArgumentType]
+            )
+        else:
+            self._pool = httpcore.AsyncConnectionPool(
+                ssl_context=ssl_context,
+                local_address=local_address,
+                network_backend=backend,  # type: ignore[reportArgumentType]
+            )
+
+    async def handle_async_request(
+        self,
+        request: httpx.Request,
+    ) -> httpx.Response:
+        from httpx._transports.default import (
+            AsyncResponseStream,
+            map_httpcore_exceptions,
+        )
+
+        assert isinstance(request.stream, httpx.AsyncByteStream)
+        import httpcore
+
+        req = httpcore.Request(
+            method=request.method,
+            url=httpcore.URL(
+                scheme=request.url.raw_scheme,
+                host=request.url.raw_host,
+                port=request.url.port,
+                target=request.url.raw_path,
+            ),
+            headers=request.headers.raw,
+            content=request.stream,
+            extensions=request.extensions,
+        )
+        with map_httpcore_exceptions():
+            resp = await self._pool.handle_async_request(req)
+
+        assert isinstance(resp.stream, AsyncIterable)
+
+        return httpx.Response(
+            status_code=resp.status,
+            headers=resp.headers,
+            stream=AsyncResponseStream(resp.stream),
+            extensions=resp.extensions,
+        )
+
+
+def build_fragmented_transport(
+    *,
+    fragment: int = 0,
+    fragment_tcp: int = 0,
+    verify: bool = False,
+    local_address: str | None = None,
+    proxy: str | None = None,
+) -> httpx.AsyncBaseTransport:
+    """Build an httpx transport with fragmentation at the socket level.
+
+    When *fragment* or *fragment_tcp* > 0, returns a ``_FragmentedTransport``
+    that chunks outgoing data at the TCP level.  Otherwise returns a plain
+    ``httpx.AsyncHTTPTransport``.
+    """
+    if fragment > 0 or fragment_tcp > 0:
+        return _FragmentedTransport(
+            fragment=fragment,
+            fragment_tcp=fragment_tcp,
+            verify=verify,
+            local_address=local_address,
+            proxy=proxy,
+        )
+
+    return httpx.AsyncHTTPTransport(
+        verify=verify,
+        local_address=local_address,  # type: ignore[arg-type]
+        proxy=proxy,
+    )
 
 
 def waf_encode_url(url: str) -> str:

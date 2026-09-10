@@ -11,6 +11,7 @@ import pytest
 from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     run_main_loop,
+    set_dry_run,
     workspace_path,
     workspace_timestamp,
     write_output,
@@ -289,6 +290,83 @@ class TestBaseScannerEdgeCases:
         scanner = _FakeScannerB()
         monkeypatch.setattr(sys, "argv", ["fake-b", "https://example.com"])
         assert scanner.main() == 0
+
+
+class TestDescribePlan:
+    def test_dry_run_group_b_returns_zero(self):
+        scanner = _FakeScannerB()
+        args = _make_args(scanner, ["https://example.com"])
+        args.dry_run = True
+        set_dry_run(True)
+        try:
+            code = scanner.run_once(args)
+            assert code == 0
+        finally:
+            set_dry_run(False)
+
+    def test_dry_run_group_a_returns_zero(self):
+        scanner = _FakeScannerA()
+        args = _make_args(scanner, ["https://example.com"])
+        args.dry_run = True
+        set_dry_run(True)
+        try:
+            code = scanner.run_once(args)
+            assert code == 0
+        finally:
+            set_dry_run(False)
+
+    def test_dry_run_group_b_skips_run_scan(self, capsys):
+        scanner = _FakeScannerB()
+        args = _make_args(scanner, ["https://example.com"])
+        args.dry_run = True
+        set_dry_run(True)
+        try:
+            code = scanner.run_once(args)
+            assert code == 0
+            # run_scan was NOT called — no output from FakeScannerB
+            out = capsys.readouterr().out
+            assert "fake-b" not in out or "DRY-RUN" in out
+        finally:
+            set_dry_run(False)
+
+    def test_custom_describe_plan(self, capsys):
+        class _PlanScanner(BaseScanner):
+            prog = "plan-test"
+            description = "Plan test"
+            prompt = "plan> "
+            module_name = "plan_test"
+            banner_text = "Plan"
+            group = ScanGroup.B
+
+            def _add_arguments(self, parser):
+                parser.add_argument("url", nargs="?", default=None)
+
+            async def run_scan(self, **kwargs):
+                return _FakeResultB()
+
+            def print_results(self, result):
+                pass
+
+            def _describe_plan(self, args):
+                print("[DRY-RUN] Custom plan message")
+                return 0
+
+            def _example(self):
+                return "plan-test url"
+
+            def _help(self):
+                return "help"
+
+        scanner = _PlanScanner()
+        args = _make_args(scanner, ["https://example.com"])
+        args.dry_run = True
+        set_dry_run(True)
+        try:
+            code = scanner.run_once(args)
+            assert code == 0
+            assert "[DRY-RUN] Custom plan message" in capsys.readouterr().out
+        finally:
+            set_dry_run(False)
 
 
 # ---------------------------------------------------------------------------

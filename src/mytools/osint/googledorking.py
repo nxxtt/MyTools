@@ -494,7 +494,7 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
     quiet = init_scanner(args)
 
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False) is True:
         logger.warning("Nenhuma requisicao HTTP sera enviada.")
         domain_display = args.domain or "(nenhum)"
         logger.info("Dominio: %s", domain_display)

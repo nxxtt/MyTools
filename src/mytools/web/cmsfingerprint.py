@@ -683,6 +683,13 @@ def _async_run_once(args: argparse.Namespace) -> CmsResult:
 
 def run_once(args: argparse.Namespace) -> int:
     """Wrapper sincrono."""
+
+    if getattr(args, "dry_run", False) is True:
+        print("[DRY-RUN] mytools-cmsfp — nenhuma requisição executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
     result = _async_run_once(args)
     return 1 if result.overall_status != "secure" else 0
 
