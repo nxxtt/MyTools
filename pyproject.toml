@@ -43,7 +43,7 @@ dev = [
  "pytest-asyncio>=1.4.0",
  "pytest-cov>=7.1.0",
  "ruff>=0.16.6",
- "basedpyright>=1.40.0",
+ "basedpyright>=1.40.1",
 ]
 [project.scripts]
 mytools = "mytools.core.main:main"
