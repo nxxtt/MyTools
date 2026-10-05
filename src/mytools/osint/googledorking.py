@@ -19,19 +19,21 @@ import asyncio
 import logging
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
+from typing import Any
 from urllib.parse import quote_plus
 
 import httpx
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
     __version__,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -43,8 +45,6 @@ from mytools.core.utils import (
     print_json,
     print_table,
     read_target_lines,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -449,49 +449,8 @@ def print_results(queries: list[DorkQuery], quiet: bool = False) -> None:
         print_exploit_info(q.exploit, q.tool)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Google Dorking e OSINT search — gera dorks e busca via DuckDuckGo.",
-    )
-    add_common_args(parser, "osint")
-    parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
-    parser.add_argument(
-        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
-    )
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=[*list(ALL_CATEGORIES.keys()), "all", "custom"],
-        default="all",
-        dest="category",
-        help="Categoria de dorks para gerar. Padrao: all",
-    )
-    parser.add_argument(
-        "--custom-dork",
-        action="append",
-        default=[],
-        dest="custom_dorks",
-        help="Dork customizada (pode repetir). Ex: 'inurl:api v1'",
-    )
-    parser.add_argument(
-        "--search",
-        action="store_true",
-        dest="do_search",
-        help="Ativar busca via DuckDuckGo (padrao: so gera URLs).",
-    )
-    parser.add_argument(
-        "--max-results",
-        type=int,
-        default=5,
-        dest="max_results",
-        help="Max resultados por dork no DuckDuckGo. Padrao: 5",
-    )
-    return parser
-
-
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
+async def run_scan(args: argparse.Namespace) -> int:
+    """Executa um unico scan (Grupo A — output interno)."""
     quiet = init_scanner(args)
 
     if getattr(args, "dry_run", False) is True:
@@ -563,22 +522,81 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class GoogledorkingScanner(BaseScanner):
+    """Google Dorking e OSINT Search — dispatcher BaseScanner (Grupo A)."""
 
+    prog = "mytools-dork"
+    description = "Google Dorking e OSINT search — gera dorks e busca via DuckDuckGo."
+    prompt = "dork> "
+    module_name = "mytools.googledorking"
+    module_type = "osint"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal do Google Dorking."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain or getattr(a, "target_list", None)),
-        prompt="dork> ",
-        description="Google Dorking interativo.",
-        example="example.com --category sensitive",
-        contextual_help=(
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None) or getattr(args, "target_list", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com dominios (um por linha).",
+        )
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=[*list(ALL_CATEGORIES.keys()), "all", "custom"],
+            default="all",
+            dest="category",
+            help="Categoria de dorks para gerar. Padrao: all",
+        )
+        parser.add_argument(
+            "--custom-dork",
+            action="append",
+            default=[],
+            dest="custom_dorks",
+            help="Dork customizada (pode repetir). Ex: 'inurl:api v1'",
+        )
+        parser.add_argument(
+            "--search",
+            action="store_true",
+            dest="do_search",
+            help="Ativar busca via DuckDuckGo (padrao: so gera URLs).",
+        )
+        parser.add_argument(
+            "--max-results",
+            type=int,
+            default=5,
+            dest="max_results",
+            help="Max resultados por dork no DuckDuckGo. Padrao: 5",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        domain_display = getattr(args, "domain", None) or "(nenhum)"
+        logger.info("Dominio: %s", domain_display)
+        return 0
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _example(self) -> str:
+        return "example.com --category sensitive"
+
+    def _help(self) -> str:
+        return (
             "Uso: <dominio> [opcoes]\n"
             "Exemplos:\n"
             "  example.com\n"
@@ -586,9 +604,13 @@ def main() -> int:
             "  example.com --category sensitive --search\n"
             "  example.com --custom-dork 'inurl:api v1'\n"
             "  -l domains.txt -o results.json"
-        ),
-    )
+        )
 
+
+scanner = GoogledorkingScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

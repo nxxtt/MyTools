@@ -21,7 +21,8 @@ import socket
 import ssl
 import struct
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import dns.exception
@@ -30,18 +31,12 @@ import dns.name
 import dns.rdatatype
 import dns.resolver
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.dotscan")
@@ -403,31 +398,6 @@ def print_results(result: DotScanResult) -> None:
     print_exploit_info(result.exploit, result.tool)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="mytools-dot",
-        description="DNS-over-TLS (DoT) Scan — Resolucao DNS via TLS",
-    )
-    parser.add_argument("domain", help="Dominio alvo")
-    parser.add_argument(
-        "-T",
-        "--type",
-        default="A",
-        choices=["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "SRV", "CAA"],
-        help="Tipo de registro DNS (default: A)",
-    )
-    parser.add_argument(
-        "-r",
-        "--resolvers",
-        nargs="+",
-        choices=list(_DOT_RESOLVERS.keys()),
-        default=None,
-        help="Resolvers DoT para testar (default: todos)",
-    )
-    add_base_args(parser)
-    return parser
-
-
 async def _run_scan(args: argparse.Namespace) -> DotScanResult:
     domain = str(getattr(args, "domain", ""))
     rdtype = str(getattr(args, "type", "A"))
@@ -449,36 +419,84 @@ def banner() -> None:
     create_banner(art, "DNS-over-TLS Scan — resolucao DNS via TLS")()
 
 
-def main() -> int:
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=_safe_run,
-        has_target=lambda a: bool(getattr(a, "domain", None)),
-        prompt="dot> ",
-        description="DNS-over-TLS (DoT) Scan — Resolucao DNS via TLS",
-        example="mytools-dot example.com",
-        contextual_help="dot: testa resolucao DNS via TLS contra multiplos resolvers",
-    )
+async def run_scan(
+    domain: str,
+    rdtype: str = "A",
+    resolvers: list[str] | None = None,
+    timeout: float = 5.0,
+    verify: bool = True,
+) -> DotScanResult:
+    """Roda o scan DoT (envolve a funcao original)."""
+    return await scan_dot(domain, rdtype, resolvers, timeout, verify)
 
 
-def _safe_run(args: argparse.Namespace) -> int:
-    quiet = init_scanner(args)
-    result = safe_asyncio_run(_run_scan(args))
-    if not quiet:
-        print_results(result)
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
-    if getattr(args, "output", None):
-        write_output(args.output, [asdict(result)], quiet=quiet)
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{result.domain}.json", [asdict(result)], quiet=quiet
+class DotScanScanner(BaseScanner):
+    """DNS-over-TLS (DoT) Scan — dispatcher BaseScanner (Grupo B)."""
+
+    prog = "mytools-dot"
+    description = "DNS-over-TLS (DoT) Scan — Resolucao DNS via TLS"
+    prompt = "dot> "
+    module_name = "mytools.dotscan"
+    module_type = "core"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        """Alvo vem do arg posicional ``domain`` (nao url/target)."""
+        return getattr(args, "domain", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", help="Dominio alvo")
+        parser.add_argument(
+            "-T",
+            "--type",
+            default="A",
+            choices=["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "SRV", "CAA"],
+            help="Tipo de registro DNS (default: A)",
         )
-    return 0
+        parser.add_argument(
+            "-r",
+            "--resolvers",
+            nargs="+",
+            choices=list(_DOT_RESOLVERS.keys()),
+            default=None,
+            help="Resolvers DoT para testar (default: todos)",
+        )
 
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "rdtype": str(getattr(args, "type", "A")),
+            "resolvers": getattr(args, "resolvers", None),
+            "timeout": float(getattr(args, "timeout", 5.0)),
+            "verify": bool(getattr(args, "verify", True)),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _get_return_code(self, result: object) -> int:
+        # Exit code original de _safe_run: sempre 0 (independe de overall_status).
+        return 0
+
+    def _example(self) -> str:
+        return "mytools-dot example.com"
+
+    def _help(self) -> str:
+        return "dot: testa resolucao DNS via TLS contra multiplos resolvers"
+
+
+scanner = DotScanScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -2,7 +2,6 @@
 """Testes unitarios do modulo de deteccao de backup files."""
 
 import argparse
-import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -20,7 +19,6 @@ from mytools.config.backupfiledetect import (
     SWP_PATHS,
     TILDE_PATHS,
     BackupFile,
-    _async_run_once,
     _classify_backup,
     _load_paths_from_args,
     _validate_content,
@@ -685,7 +683,7 @@ class TestJsonOutput:
             "mytools.config.backupfiledetect.scan_backups",
             new=AsyncMock(return_value=[backup]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         captured = capsys.readouterr().out
         decoder = json.JSONDecoder()
@@ -706,7 +704,7 @@ class TestJsonOutput:
             "mytools.config.backupfiledetect.scan_backups",
             new=AsyncMock(return_value=[backup]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert out.exists()
         assert json.loads(out.read_text()) == [
@@ -764,7 +762,7 @@ class TestAsyncRunOnce:
                 return_value=["http://x.com/"],
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_prints_results_when_not_quiet(self, capsys):
@@ -783,7 +781,7 @@ class TestAsyncRunOnce:
                 new=AsyncMock(return_value=[]),
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_output_dir(self, tmp_path):
@@ -804,7 +802,7 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.config.backupfiledetect.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
@@ -826,7 +824,7 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.config.backupfiledetect.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
@@ -836,18 +834,17 @@ class TestAsyncRunOnce:
 
 class TestRunOnceAndMain:
     def test_run_once(self):
-        args = argparse.Namespace()
+        args = build_parser().parse_args(["http://x.com"])
         with patch(
-            "mytools.config.backupfiledetect._async_run_once",
+            "mytools.config.backupfiledetect.run_scan",
             new_callable=AsyncMock,
             return_value=0,
-        ):
+        ) as mock_scan:
             assert run_once(args) == 0
+        mock_scan.assert_called_once_with(args=args)
 
     def test_main(self):
-        with patch(
-            "mytools.config.backupfiledetect.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
@@ -855,7 +852,7 @@ class TestRunOnceAndMain:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-backupfiledetect"]),
             pytest.raises(SystemExit),
         ):

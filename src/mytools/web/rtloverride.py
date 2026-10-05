@@ -37,23 +37,24 @@ Fluxo:
 import argparse
 import logging
 import unicodedata
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     __version__,
-    add_common_args,
     color,
     create_async_client,
     fetch,
     init_scanner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -491,48 +492,7 @@ def print_results(result: RTLResult) -> None:
         )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-
-    parser = argparse.ArgumentParser(
-        description="RTL Override Bypass — detecta bypass via caracteres Unicode de direcao."
-    )
-
-    add_common_args(parser, "web")
-
-    parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://target.com")
-
-    parser.add_argument(
-        "-m",
-        "--mode",
-        choices=["gen", "detect", "scan"],
-        default="scan",
-        help="Modo: gen (gera variantes), detect (detecta RTL), scan (testa servidor). Padrao: scan",
-    )
-
-    parser.add_argument(
-        "-T",
-        "--techniques",
-        nargs="*",
-        choices=list(_ALL_LABELS.keys()),
-        help="Tecnicas especificas para testar. Padrao: todas do tipo selecionado",
-    )
-
-    parser.add_argument(
-        "--type",
-        choices=["rtl", "zero-width", "combining", "all"],
-        default="rtl",
-        help="Tipo de caractere: rtl, zero-width, combining, all. Padrao: rtl",
-    )
-
-    parser.set_defaults(
-        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) RTLOverride/{__version__}"
-    )
-
-    return parser
-
-
-async def _async_run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
 
     quiet = init_scanner(args)
@@ -691,45 +651,103 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         await client.aclose()
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
+# ---------------------------------------------------------------------------
+# Scanner
+# ---------------------------------------------------------------------------
 
-    if getattr(args, "dry_run", False) is True:
+
+class RtloverrideScanner(BaseScanner):
+    """Scanner CLI do RTL Override."""
+
+    prog = "mytools-rtlo"
+    description = (
+        "RTL Override Bypass — detecta bypass via caracteres Unicode de direcao."
+    )
+    prompt = "rtlo> "
+    module_name = "mytools.rtloverride"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Constrói o parser de argumentos da linha de comandos."""
+        parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://target.com")
+
+        parser.add_argument(
+            "-m",
+            "--mode",
+            choices=["gen", "detect", "scan"],
+            default="scan",
+            help="Modo: gen (gera variantes), detect (detecta RTL), scan (testa servidor). Padrao: scan",
+        )
+
+        parser.add_argument(
+            "-T",
+            "--techniques",
+            nargs="*",
+            choices=list(_ALL_LABELS.keys()),
+            help="Tecnicas especificas para testar. Padrao: todas do tipo selecionado",
+        )
+
+        parser.add_argument(
+            "--type",
+            choices=["rtl", "zero-width", "combining", "all"],
+            default="rtl",
+            help="Tipo de caractere: rtl, zero-width, combining, all. Padrao: rtl",
+        )
+
+        parser.set_defaults(
+            user_agent=f"Mozilla/5.0 (X11; Linux x86_64) RTLOverride/{__version__}"
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        """O corpo original do run consome ``args`` inteiro (P1)."""
+        return {"args": args}
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] rtloverride — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    return safe_asyncio_run(_async_run_once(args))
+    async def run_scan(self, **kwargs: Any) -> int | object:
+        return await run_scan(**kwargs)
 
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-def main() -> int:
-    """Ponto de entrada principal do RTL Override."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=lambda: print(
+    def _make_banner(self) -> Callable[[], None]:
+        return lambda: print(
             color(
                 "RTL Override Bypass — detecta bypass via Unicode RTL",
                 Cyber.RED,
                 Cyber.BOLD,
             )
-        ),
-        run_fn=run_once,
-        has_target=lambda a: bool(a.url),
-        prompt="rtlo> ",
-        description="RTL Override interativo.",
-        example="https://target.com -m scan",
-        contextual_help=(
+        )
+
+    def _example(self) -> str:
+        return "https://target.com -m scan"
+
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -m gen --type zero-width\n"
             "  https://target.com -m detect --type all\n"
             "  https://target.com -m scan --type rtl -T rlo rle"
-        ),
-    )
+        )
+
+
+scanner = RtloverrideScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

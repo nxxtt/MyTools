@@ -699,9 +699,14 @@ class TestRunOnce:
             timeout=10,
             output=None,
         )
-        with patch(
-            "mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0
-        ) as mock_scan:
+        with (
+            patch("mytools.core.base.init_scanner"),
+            patch(
+                "mytools.web.fileupload.run_scan",
+                new_callable=AsyncMock,
+                return_value=0,
+            ) as mock_scan,
+        ):
             run_once(args)
             assert mock_scan.call_args.kwargs["categories"] == ["polyglot"]
 
@@ -712,9 +717,14 @@ class TestRunOnce:
             timeout=10,
             output=None,
         )
-        with patch(
-            "mytools.web.fileupload.run_scan", new_callable=AsyncMock, return_value=0
-        ) as mock_scan:
+        with (
+            patch("mytools.core.base.init_scanner"),
+            patch(
+                "mytools.web.fileupload.run_scan",
+                new_callable=AsyncMock,
+                return_value=0,
+            ) as mock_scan,
+        ):
             run_once(args)
             assert mock_scan.call_args.kwargs["categories"] == []
 
@@ -732,7 +742,7 @@ class TestBannerArt:
 
 class TestMain:
     def test_main(self) -> None:
-        with patch("mytools.web.fileupload.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert result == 0
             mock_loop.assert_called_once()
@@ -742,7 +752,7 @@ class TestMainGuard:
     def test_main_guard_runs(self) -> None:
         with (
             patch("sys.argv", ["mytools-fileupload"]),
-            patch("mytools.core.utils.run_main_loop", return_value=0),
+            patch("mytools.core.base.run_main_loop", return_value=0),
             pytest.raises(SystemExit),
         ):
             import runpy

@@ -18,21 +18,20 @@ Fluxo:
 
 import argparse
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
     print_json,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -543,37 +542,43 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-loginjection",
-        description="Log Injection — testa injecao de conteudo em logs via headers.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-loginjection https://target.com\n"
-            "  mytools-loginjection https://target.com -c user_agent\n"
-            "  mytools-loginjection https://target.com -c referer\n"
-            "  mytools-loginjection https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
-    parser.add_argument("url", help="URL alvo para o scan")
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=["all", "user_agent", "referer", "custom_header", "url_path", "bypass"],
-        help="Categoria de testes (default: todas)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class LoginjectionScanner(BaseScanner):
+    """Scanner CLI de Log Injection (Grupo A - output interno)."""
 
+    prog = "mytools-loginjection"
+    description = "Log Injection — testa injecao de conteudo em logs via headers."
+    prompt = "loginjection> "
+    module_name = "mytools.loginjection"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+    epilog = "Exemplos:\n  mytools-loginjection https://target.com\n  mytools-loginjection https://target.com -c user_agent\n  mytools-loginjection https://target.com -c referer\n  mytools-loginjection https://target.com --proxy http://127.0.0.1:8080"
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Log Injection a partir de argumentos parseados."""
-    init_scanner(args)
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "user_agent",
+                "referer",
+                "custom_header",
+                "url_path",
+                "bypass",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        if getattr(args, "dry_run", False) is True:
+            return None
+        logger.info("Log Injection scan iniciado para %s", args.url)
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print(
             "[DRY-RUN] mytools-loginjection \u2014 nenhuma requisi\u00e7\u00e3o executada."
         )
@@ -581,44 +586,27 @@ def run_once(args: argparse.Namespace) -> int:
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("Log Injection scan iniciado para %s", args.url)
-    categories: list[str] = []
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-            proxy=getattr(args, "proxy", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _example(self) -> str:
+        return "https://target.com -c user_agent"
+
+    def _help(self) -> str:
+        return "Uso: <url> [opcoes]\nExemplos:\n  https://target.com\n  https://target.com -c user_agent\n  https://target.com -c referer\n  https://target.com -c bypass\n  https://target.com --proxy http://127.0.0.1:8080"
 
 
-def main() -> int:
-    """Entry point do modulo Log Injection."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="loginjection> ",
-        description="Log Injection interativo.",
-        example="https://target.com -c user_agent",
-        contextual_help=(
-            "Uso: <url> [opcoes]\n"
-            "Exemplos:\n"
-            "  https://target.com\n"
-            "  https://target.com -c user_agent\n"
-            "  https://target.com -c referer\n"
-            "  https://target.com -c bypass\n"
-            "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+scanner = LoginjectionScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

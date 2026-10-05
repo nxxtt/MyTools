@@ -33,15 +33,15 @@ import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -541,109 +541,107 @@ def banner_art() -> None:
     create_banner(art, "   saml: assertion_replay, xml_signature_wrapping")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class SamlScanner(BaseScanner):
+    """Scanner CLI de SAML Attack Detection (Grupo A - output interno)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-saml",
-        description="SAML Attack Detection â€” detecta assertion replay e XML Signature Wrapping.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-saml --file response.xml\n"
-            "  mytools-saml --saml-response PHNhbWw+...\n"
-            "  mytools-saml --file response.xml --url https://target.com/acs\n"
-            "  mytools-saml --file response.xml -c assertion_replay\n"
-            "  mytools-saml --file response.xml -o resultado.json"
-        ),
+    prog = "mytools-saml"
+    description = (
+        "SAML Attack Detection â€” detecta assertion replay e XML Signature Wrapping."
     )
+    prompt = "saml> "
+    module_name = "mytools.saml"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+    epilog = "Exemplos:\n  mytools-saml --file response.xml\n  mytools-saml --saml-response PHNhbWw+...\n  mytools-saml --file response.xml --url https://target.com/acs\n  mytools-saml --file response.xml -c assertion_replay\n  mytools-saml --file response.xml -o resultado.json"
 
-    parser.add_argument("--saml-response", help="SAML Response em base64")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--saml-response", help="SAML Response em base64")
+        parser.add_argument("--file", help="Arquivo com SAML Response XML ou base64")
+        parser.add_argument(
+            "--url", help="URL do ACS (Assertion Consumer Service) para envio ativo"
+        )
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=["all", "assertion_replay", "xml_signature_wrapping"],
+            help="Categoria de testes (default: todas)",
+        )
 
-    parser.add_argument("--file", help="Arquivo com SAML Response XML ou base64")
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "saml_response", None) or getattr(args, "file", None)
 
-    parser.add_argument(
-        "--url", help="URL do ACS (Assertion Consumer Service) para envio ativo"
-    )
+    def run_once(self, args: argparse.Namespace) -> int:
+        # Namespaces bare dos testes nao trazem verbose/log_file.
+        args.verbose = getattr(args, "verbose", 0)
+        args.log_file = getattr(args, "log_file", None)
+        return super().run_once(args)
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=["all", "assertion_replay", "xml_signature_wrapping"],
-        help="Categoria de testes (default: todas)",
-    )
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        if getattr(args, "dry_run", False) is True:
+            return None
 
-    add_common_args(parser, "web")
+        saml_response = getattr(args, "saml_response", None)
 
-    return parser
+        file_path = getattr(args, "file", None)
 
+        if not saml_response and file_path:
+            try:
+                content = Path(file_path).read_text(encoding="utf-8").strip()
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa o scan SAML a partir de argumentos parseados."""
+                saml_response = content.splitlines()[0] if content else ""
 
-    if getattr(args, "dry_run", False) is True:
+            except OSError, IndexError:
+                print(color(f"Erro ao ler arquivo: {file_path}", Cyber.RED))
+
+                return 1
+
+        if not saml_response:
+            print(
+                color(
+                    "Erro: forneÃ§a um SAML Response via --saml-response ou --file",
+                    Cyber.RED,
+                )
+            )
+
+            return 1
+
+        args.saml_response = saml_response
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "saml_response": getattr(args, "saml_response", None),
+            "target": getattr(args, "url", None),
+            "categories": self._get_categories(args),
+            "output_file": getattr(args, "output", None),
+            "timeout": getattr(args, "timeout", 10),
+        }
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-saml — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    saml_response = getattr(args, "saml_response", None)
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
-    file_path = getattr(args, "file", None)
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    if not saml_response and file_path:
-        try:
-            content = Path(file_path).read_text(encoding="utf-8").strip()
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
-            saml_response = content.splitlines()[0] if content else ""
+    def _example(self) -> str:
+        return "--file response.xml -c assertion_replay"
 
-        except OSError, IndexError:
-            print(color(f"Erro ao ler arquivo: {file_path}", Cyber.RED))
-
-            return 1
-
-    if not saml_response:
-        print(
-            color(
-                "Erro: forneÃ§a um SAML Response via --saml-response ou --file",
-                Cyber.RED,
-            )
-        )
-
-        return 1
-
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            saml_response=saml_response,
-            target=getattr(args, "url", None),
-            categories=categories,
-            output_file=getattr(args, "output", None),
-            timeout=getattr(args, "timeout", 10),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo SAML Attack Detection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "saml_response", None) or getattr(a, "file", None)
-        ),
-        prompt="saml> ",
-        description="SAML Attack Detection interativo.",
-        example="--file response.xml -c assertion_replay",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: --file <arquivo> ou --saml-response <base64>\n"
             "Exemplos:\n"
             "  --file response.xml\n"
@@ -651,8 +649,13 @@ def main() -> int:
             "  --file response.xml --url https://target.com/acs\n"
             "  --file response.xml -c assertion_replay\n"
             "  --file response.xml -o resultado.json"
-        ),
-    )
+        )
+
+
+scanner = SamlScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

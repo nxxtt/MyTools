@@ -1179,12 +1179,12 @@ class TestRunOnce:
 
 class TestMain:
     def test_main(self) -> None:
-        with patch("mytools.web.iotattack.run_main_loop", return_value=0):
+        with patch("mytools.core.base.run_main_loop", return_value=0):
             assert iotattack_module.main() == 0
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit) as exc_info,
         ):
             runpy.run_module("mytools.web.iotattack", run_name="__main__")

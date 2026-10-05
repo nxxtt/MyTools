@@ -804,7 +804,12 @@ class TestRunOnce:
             grpcattack_module, "run_scan", AsyncMock(return_value=result)
         )
         args = argparse.Namespace(
-            url="grpc://target.com:50051", categories=None, timeout=5.0, output=None
+            url="grpc://target.com:50051",
+            categories=None,
+            timeout=5.0,
+            output=None,
+            verbose=0,
+            log_file=None,
         )
         assert run_once(args) == 1
 
@@ -827,7 +832,12 @@ class TestRunOnce:
             grpcattack_module, "run_scan", AsyncMock(return_value=result)
         )
         args = argparse.Namespace(
-            url="grpc://target.com:50051", categories=None, timeout=5.0, output=None
+            url="grpc://target.com:50051",
+            categories=None,
+            timeout=5.0,
+            output=None,
+            verbose=0,
+            log_file=None,
         )
         assert run_once(args) == 0
 
@@ -835,8 +845,7 @@ class TestRunOnce:
 class TestMain:
     def test_runs_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            grpcattack_module,
-            "run_main_loop",
+            "mytools.core.base.run_main_loop",
             lambda *args, **kwargs: 42,
         )
         assert main() == 42

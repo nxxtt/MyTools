@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -906,7 +906,7 @@ class TestAsyncRunOnce:
         base_ns: argparse.Namespace,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        from mytools.web.cmsfingerprint import _async_run_once
+        from mytools.web.cmsfingerprint import run_once
 
         mock_scan.return_value = CmsResult(
             target="https://example.com",
@@ -918,11 +918,11 @@ class TestAsyncRunOnce:
         )
         args = base_ns
         args.url = "example.com"
-        result = _async_run_once(args)
+        result = run_once(args)
         assert result is not None
         assert mock_scan.call_args[1]["base_url"] == "https://example.com"
 
-    @patch("mytools.web.cmsfingerprint.write_output")
+    @patch("mytools.core.base.write_output")
     @patch("mytools.web.cmsfingerprint.scan_cms_fingerprint")
     def test_async_run_once_with_output(
         self,
@@ -931,7 +931,7 @@ class TestAsyncRunOnce:
         base_ns: argparse.Namespace,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        from mytools.web.cmsfingerprint import _async_run_once
+        from mytools.web.cmsfingerprint import run_once
 
         mock_scan.return_value = CmsResult(
             target="https://example.com",
@@ -944,49 +944,54 @@ class TestAsyncRunOnce:
         args = base_ns
         args.url = "https://example.com"
         args.output = "out.json"
-        _async_run_once(args)
+        run_once(args)
         mock_write.assert_called_once()
 
 
 class TestRunOnce:
-    @patch("mytools.web.cmsfingerprint._async_run_once")
-    def test_run_once(self, mock_async: MagicMock) -> None:
-        from mytools.web.cmsfingerprint import run_once
-
-        mock_async.return_value = CmsResult(
+    @patch(
+        "mytools.web.cmsfingerprint.run_scan",
+        new_callable=AsyncMock,
+        return_value=CmsResult(
             target="https://example.com",
             cms_detected="",
             version="",
             attempts=[],
             issues=[],
             overall_status="secure",
-        )
-        result = run_once(MagicMock())
-        assert result == 0
-        mock_async.assert_called_once()
-
-    @patch("mytools.web.cmsfingerprint._async_run_once")
-    def test_run_once_vulnerable_returns_1(self, mock_async: MagicMock) -> None:
+        ),
+    )
+    def test_run_once(self, mock_scan: AsyncMock) -> None:
         from mytools.web.cmsfingerprint import run_once
 
-        mock_async.return_value = CmsResult(
+        args = build_parser().parse_args(["https://example.com"])
+        assert run_once(args) == 0
+        mock_scan.assert_called_once()
+
+    @patch(
+        "mytools.web.cmsfingerprint.run_scan",
+        new_callable=AsyncMock,
+        return_value=CmsResult(
             target="https://example.com",
             cms_detected="wordpress",
             version="6.0",
             attempts=[],
             issues=[],
             overall_status="vulnerable",
-        )
-        assert run_once(MagicMock()) == 1
+        ),
+    )
+    def test_run_once_vulnerable_returns_1(self, mock_scan: AsyncMock) -> None:
+        from mytools.web.cmsfingerprint import run_once
+
+        assert run_once(build_parser().parse_args(["https://example.com"])) == 1
+        mock_scan.assert_called_once()
 
 
 class TestMain:
     def test_main(self) -> None:
         from mytools.web.cmsfingerprint import main
 
-        with patch(
-            "mytools.web.cmsfingerprint.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert result == 0
             mock_loop.assert_called_once()
@@ -997,7 +1002,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-cmsfp", "https://example.com"]),
             pytest.raises(SystemExit) as exc_info,
         ):

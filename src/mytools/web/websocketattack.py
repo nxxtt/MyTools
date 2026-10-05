@@ -56,14 +56,13 @@ from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -1757,71 +1756,80 @@ async def run_scan(
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
+def banner_art() -> None:
+    """Exibe a banner do modulo."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-wsattack",
-        description="WebSocket Security — CSWSH, Upgrade Abuse, Message Inject, DoS, Compression Bomb, Payload Fuzzing",
-    )
-
-    parser.add_argument("url", help="URL alvo (ws:// ou wss://)")
-
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-
-    add_common_args(parser, "web")
-
-    return parser
+    create_banner(_BANNER_LINES, "WebSocket Security")()
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa scan uma vez."""
+class WebsocketattackScanner(BaseScanner):
+    """Scanner CLI de WebSocket Security."""
 
-    if getattr(args, "dry_run", False) is True:
+    prog = "mytools-wsattack"
+    description = "WebSocket Security — CSWSH, Upgrade Abuse, Message Inject, DoS, Compression Bomb, Payload Fuzzing"
+    prompt = "wsattack> "
+    module_name = "mytools.websocketattack"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ws:// ou wss://)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(bool(getattr(args, "dry_run", False)))
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> int:
+        result = await run_scan(**kwargs)
+        return self._get_return_code(result)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-wsattack — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
+    def _example(self) -> str:
+        return "wss://target.com/ws -c ws_scanner ws_dos"
 
-    return 1 if result.overall_status == "vulnerable" else 0
-
-
-def main() -> int:
-    """Entry point principal."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "WebSocket Security"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="wsattack> ",
-        description="Teste de WebSocket Security (CSWSH, Upgrade Abuse, Message Inject, DoS, Compression Bomb).",
-        example="wss://target.com/ws -c ws_scanner ws_dos",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  ws_scanner          — CSWSH, hijacking, info leak\n"
             "  ws_upgrade_abuse    — Forcar upgrade em endpoints nao-WS\n"
             "  ws_message_inject   — Injecao de mensagens\n"
             "  ws_dos              — DoS via frames maliciosos\n"
             "  ws_compression_bomb — Compression bomb"
-        ),
-    )
+        )
+
+
+scanner = WebsocketattackScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

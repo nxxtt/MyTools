@@ -34,21 +34,21 @@ Fluxo:
 
 import argparse
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     print_exploit_info,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -800,6 +800,7 @@ async def run_scan(
     verbose: bool,
 ) -> int:
     """Executa o scan CRLF injection."""
+    logger.info("CRLF Injection scan iniciado para %s", target)
 
     tls = target.startswith("https")
 
@@ -884,35 +885,6 @@ async def run_scan(
     return 1 if vuln else 0
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """ConstrÃ³i o parser de argumentos CLI."""
-
-    parser = argparse.ArgumentParser(
-        prog="mytools-crlfinject",
-        description="CRLF Injection â€” detecta injecao de headers via \\r\\n em HTTP",
-    )
-
-    parser.add_argument("url", help="URL alvo (ex: https://example.com)")
-
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categoria de testes (default: todas)",
-    )
-
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-
-    add_common_args(parser, "web")
-
-    return parser
-
-
 def print_crlf_art() -> None:
     """Exibe ASCII art do scanner."""
 
@@ -945,57 +917,81 @@ banner_art = create_banner(
 )
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan CRLF injection a partir de argumentos parseados."""
+class CrlfinjectionScanner(BaseScanner):
+    """Scanner CLI de CRLF Injection."""
 
-    if getattr(args, "dry_run", False) is True:
+    prog = "mytools-crlfinject"
+    description = "CRLF Injection â€” detecta injecao de headers via \\r\\n em HTTP"
+    prompt = "crlf> "
+    module_name = "mytools.crlfinjection"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ex: https://example.com)")
+
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categoria de testes (default: todas)",
+        )
+
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        categories: list[str] = []
+        if getattr(args, "category", None):
+            categories = [args.category]
+        return {
+            "target": self._get_target(args),
+            "categories": categories,
+            "timeout": getattr(args, "timeout", 10),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+            "verbose": getattr(args, "verbose", False),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-crlfinject — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("CRLF Injection scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c param"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None):
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            verbose=getattr(args, "verbose", False),
-        ),
-    )
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="crlf> ",
-        description="CRLF Injection interativo.",
-        example="https://target.com -c param",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c param\n"
             "  https://target.com -c header\n"
             "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = CrlfinjectionScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

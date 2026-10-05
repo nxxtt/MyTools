@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 import json
 from dataclasses import asdict
 from unittest.mock import AsyncMock, patch
@@ -18,7 +17,6 @@ from mytools.network.dirscanner import (
     DEFAULT_PATHS,
     DEFAULT_STATUSES,
     Finding,
-    _async_run_once,
     _generate_case_variations,
     _generate_unicode_variations,
     _run_single,
@@ -705,14 +703,14 @@ class TestDryRun:
     def test_dry_run_returns_zero(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["http://example.com", "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
 
     def test_dry_run_outputs_info(self, caplog):
         parser = build_parser()
         args = parser.parse_args(["http://example.com", "--dry-run"])
         with caplog.at_level("WARNING", logger="mytools.dirscanner"):
-            asyncio.run(_async_run_once(args))
+            run_once(args)
         assert any("Nenhuma requisicao" in r.message for r in caplog.records)
 
 
@@ -1039,10 +1037,9 @@ class TestAsyncRunOnceMore:
         parser = build_parser()
         args = parser.parse_args(["http://example.com", "--concurrency", "0"])
         with pytest.raises(ValueError, match="concorrencia"):
-            asyncio.run(_async_run_once(args))
+            run_once(args)
 
-    @pytest.mark.asyncio
-    async def test_output_dir_writes(self, tmp_path):
+    def test_output_dir_writes(self, tmp_path):
         parser = build_parser()
         args = parser.parse_args(["http://example.com", "--output-dir", str(tmp_path)])
         finding = Finding(
@@ -1060,12 +1057,11 @@ class TestAsyncRunOnceMore:
             ),
             patch("mytools.network.dirscanner.write_output") as mock_write,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         assert mock_write.call_count == 1
 
-    @pytest.mark.asyncio
-    async def test_output_file_writes(self, tmp_path):
+    def test_output_file_writes(self, tmp_path):
         out = tmp_path / "out.json"
         parser = build_parser()
         args = parser.parse_args(["http://example.com", "-o", str(out)])
@@ -1084,12 +1080,11 @@ class TestAsyncRunOnceMore:
             ),
             patch("mytools.network.dirscanner.write_output") as mock_write,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         assert mock_write.call_count == 1
 
-    @pytest.mark.asyncio
-    async def test_json_output_all(self, capsys):
+    def test_json_output_all(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["--json", "http://example.com"])
         finding = Finding(
@@ -1104,19 +1099,21 @@ class TestAsyncRunOnceMore:
             "mytools.network.dirscanner._run_single",
             new=AsyncMock(return_value=[finding]),
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         assert "admin" in capsys.readouterr().out
 
 
 class TestRunOnce:
-    def test_calls_safe_asyncio_run(self):
-        args = argparse.Namespace()
+    def test_delegates_to_scan(self):
+        parser = build_parser()
+        args = parser.parse_args(["http://x.com"])
         with patch(
-            "mytools.network.dirscanner._async_run_once",
+            "mytools.network.dirscanner.run_scan",
             new=AsyncMock(return_value=0),
-        ):
+        ) as mock_scan:
             assert run_once(args) == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestDirScannerMainGuard:
@@ -1172,7 +1169,7 @@ class TestJsonOutput:
             "mytools.network.dirscanner.scan_target",
             new=AsyncMock(return_value=[finding]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         captured = capsys.readouterr().out
         decoder = json.JSONDecoder()
@@ -1198,7 +1195,7 @@ class TestJsonOutput:
             "mytools.network.dirscanner.scan_target",
             new=AsyncMock(return_value=[finding]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert out.exists()
         assert json.loads(out.read_text()) == [asdict(finding)]

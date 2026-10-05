@@ -29,23 +29,23 @@ import contextlib
 import logging
 import statistics
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 import dns.exception
 import dns.name
 import dns.resolver
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.timingattack")
@@ -735,64 +735,6 @@ def print_results(result: TimingResult) -> None:
     print()
 
 
-def build_parser() -> argparse.ArgumentParser:
-
-    parser = argparse.ArgumentParser(
-        prog="mytools-timing",
-        description="Timing Attack Testing — Detecção de timing side-channels",
-    )
-
-    parser.add_argument("url", help="URL alvo (ex: https://target.com/login)")
-
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar",
-    )
-
-    parser.add_argument(
-        "--usernames",
-        nargs="+",
-        help="Usernames para login timing (default: admin root user test)",
-    )
-
-    parser.add_argument("--token", help="Token para testar token timing")
-
-    parser.add_argument(
-        "--cache-rounds",
-        type=int,
-        default=5,
-        help="Rounds para cache timing (default: 5)",
-    )
-
-    parser.add_argument("--dns-domains", nargs="+", help="Domínios para DNS timing")
-
-    add_common_args(parser, "web")
-
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
-
-    if getattr(args, "dry_run", False) is True:
-        print("[DRY-RUN] mytools-timing \u2014 nenhuma requisi\u00e7\u00e3o executada.")
-        print(
-            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
-        )
-        return 0
-
-    result = safe_asyncio_run(_run_scan(args))
-
-    print_results(result)
-
-    if getattr(args, "output", None):
-        write_output(args.output, [asdict(a) for a in result.attempts])
-
-    return 1 if result.overall_status == "vulnerable" else 0
-
-
 async def _run_scan(args: argparse.Namespace) -> TimingResult:
 
     url = str(getattr(args, "url", ""))
@@ -838,18 +780,86 @@ async def _run_scan(args: argparse.Namespace) -> TimingResult:
     )
 
 
-def main() -> int:
+async def run_scan(args: argparse.Namespace) -> TimingResult:
+    return await _run_scan(args)
 
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "Timing Attack Testing"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="timing> ",
-        description="Timing Attack Testing — Detecção de timing side-channels",
-        example="mytools-timing https://target.com/login",
-        contextual_help="timing: login_timing, token_timing, cache_timing, dns_timing",
-    )
+
+class TimingattackScanner(BaseScanner):
+    """Scanner CLI de Timing Attack Testing."""
+
+    prog = "mytools-timing"
+    description = "Timing Attack Testing — Detecção de timing side-channels"
+    prompt = "timing> "
+    module_name = "mytools.timingattack"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ex: https://target.com/login)")
+
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar",
+        )
+
+        parser.add_argument(
+            "--usernames",
+            nargs="+",
+            help="Usernames para login timing (default: admin root user test)",
+        )
+
+        parser.add_argument("--token", help="Token para testar token timing")
+
+        parser.add_argument(
+            "--cache-rounds",
+            type=int,
+            default=5,
+            help="Rounds para cache timing (default: 5)",
+        )
+
+        parser.add_argument("--dns-domains", nargs="+", help="Domínios para DNS timing")
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _get_return_code(self, result: object) -> int:
+        return 1 if getattr(result, "overall_status", None) == "vulnerable" else 0
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "Timing Attack Testing")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-timing \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
+
+    def _example(self) -> str:
+        return "mytools-timing https://target.com/login"
+
+    def _help(self) -> str:
+        return "timing: login_timing, token_timing, cache_timing, dns_timing"
+
+
+scanner = TimingattackScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
+import argparse
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -490,31 +491,59 @@ class TestRunScan:
 
 
 class TestRunOnce:
+    def _ns(self) -> argparse.Namespace:
+        return argparse.Namespace(
+            url="https://target.com:6443",
+            categories=None,
+            timeout=5.0,
+            output=None,
+            verbose=0,
+            log_file=None,
+        )
+
+    def _make_result(self, status: str) -> K8sAttackResult:
+        return K8sAttackResult(
+            target="https://target.com:6443",
+            host="target.com",
+            port=6443,
+            tls=True,
+            endpoint="https://target.com:6443",
+            k8s_detected=status == "vulnerable",
+            api_versions=[],
+            attempts=[],
+            vulnerable_techniques=["api_enumeration"] if status == "vulnerable" else [],
+            issues=[],
+            overall_status=status,
+        )
+
     def test_vulnerable(self) -> None:
-        fake = MagicMock()
-        fake.overall_status = "vulnerable"
-        with (
-            patch("mytools.web.k8sattack.safe_asyncio_run", return_value=fake) as m,
-            patch("mytools.web.k8sattack.run_scan", new_callable=MagicMock),
-        ):
-            code = run_once(MagicMock())
+        with patch(
+            "mytools.web.k8sattack.run_scan",
+            new_callable=AsyncMock,
+            return_value=self._make_result("vulnerable"),
+        ) as mock_scan:
+            code = run_once(self._ns())
         assert code == 1
-        m.assert_called_once()
+        mock_scan.assert_called_once_with(
+            target="https://target.com:6443",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
     def test_secure(self) -> None:
-        fake = MagicMock()
-        fake.overall_status = "secure"
-        with (
-            patch("mytools.web.k8sattack.safe_asyncio_run", return_value=fake),
-            patch("mytools.web.k8sattack.run_scan", new_callable=MagicMock),
+        with patch(
+            "mytools.web.k8sattack.run_scan",
+            new_callable=AsyncMock,
+            return_value=self._make_result("secure"),
         ):
-            code = run_once(MagicMock())
+            code = run_once(self._ns())
         assert code == 0
 
 
 class TestMain:
     def test_main(self) -> None:
-        with patch("mytools.web.k8sattack.run_main_loop", return_value=0) as m:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as m:
             code = main()
         assert code == 0
         m.assert_called_once()
@@ -523,7 +552,7 @@ class TestMain:
         import runpy
 
         with (
-            patch("mytools.web.k8sattack.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             runpy.run_module("mytools.web.k8sattack", run_name="__main__")

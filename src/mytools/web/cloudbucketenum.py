@@ -32,23 +32,21 @@ Valide manualmente antes de assumir que um bucket e acessivel.
 import argparse
 import logging
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import quote
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
-    print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.cloudbucketenum")
@@ -644,97 +642,95 @@ banner_art = create_banner(
 
 
 # ---------------------------------------------------------------------------
-# build_parser
+# Scanner
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta parser CLI para mytools-bucket."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-bucket",
-        description="Cloud Bucket Enumeration — detecta buckets abertos em S3, GCP, Azure.",
+class CloudbucketenumScanner(BaseScanner):
+    """Scanner CLI do Cloud Bucket Enumeration."""
+
+    prog = "mytools-bucket"
+    description = (
+        "Cloud Bucket Enumeration — detecta buckets abertos em S3, GCP, Azure."
     )
-    parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com)")
-    parser.add_argument(
-        "-p",
-        "--providers",
-        choices=["s3", "gcp", "azure", "all"],
-        default="all",
-        help="Provedores para testar (default: all)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-    add_common_args(parser, "web")
-    return parser
+    prompt = "bucket> "
+    module_name = "mytools.cloudbucketenum"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Monta parser CLI para mytools-bucket."""
+        parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com)")
+        parser.add_argument(
+            "-p",
+            "--providers",
+            choices=["s3", "gcp", "azure", "all"],
+            default="all",
+            help="Provedores para testar (default: all)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
 
-# ---------------------------------------------------------------------------
-# run_once
-# ---------------------------------------------------------------------------
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        """Alvo e o positional ``domain`` (nao ``url``)."""
+        return getattr(args, "domain", None)
 
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        """Kwargs exatos que o run_once original passava para ``run_scan``."""
+        return {
+            "domain": self._get_target(args),
+            "providers": getattr(args, "providers", "all"),
+            "timeout": getattr(args, "timeout", 10.0),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+            "json_output": getattr(args, "json_output", False),
+        }
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Cloud Bucket Enumeration a partir de argumentos parseados."""
-    init_scanner(args)
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-bucket \u2014 nenhuma requisi\u00e7\u00e3o executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("Cloud Bucket Enumeration iniciado para %s", args.domain)
 
-    result = safe_asyncio_run(
-        run_scan(
-            domain=args.domain,
-            providers=getattr(args, "providers", "all"),
-            timeout=getattr(args, "timeout", 10.0),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
+    async def run_scan(self, **kwargs: Any) -> int | object:
+        logger.info("Cloud Bucket Enumeration iniciado para %s", kwargs.get("domain"))
+        return await run_scan(**kwargs)
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    else:
-        print_results(result)
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result))
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
-    return 1 if result.overall_status != "secure" else 0
+    def _example(self) -> str:
+        return "example.com"
 
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "domain", None)),
-        prompt="bucket> ",
-        description="Cloud Bucket Enumeration interativo.",
-        example="example.com",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <domain> [opcoes]\n"
             "Exemplos:\n"
             "  example.com\n"
             "  example.com -p s3\n"
             "  example.com -p gcp --timeout 15\n"
             "  example.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = CloudbucketenumScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

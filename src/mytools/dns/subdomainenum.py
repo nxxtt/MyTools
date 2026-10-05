@@ -31,20 +31,20 @@ import time
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
 import dns.exception
 import dns.resolver
 import httpx
 from tqdm import tqdm
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     FetchError,
-    add_base_args,
     create_async_client,
     create_banner,
     ensure_output_dir,
     fetch,
-    init_scanner,
     print_json,
     read_target_lines,
     run_main_loop,
@@ -764,75 +764,18 @@ def run_enum_scan(
     )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói e retorna o parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        description="Enumerador de subdominios via DNS brute-force e enumeracao passiva.",
-    )
-    parser.add_argument(
-        "domain",
-        nargs="?",
-        help="Dominio alvo. Ex: example.com",
-    )
-    parser.add_argument(
-        "-w",
-        "--wordlist",
-        dest="wordlist",
-        help="Arquivo com subdominios (um por linha). Usa lista embutida se omitido.",
-    )
-    parser.add_argument(
-        "-T",
-        "--threads",
-        type=int,
-        default=DEFAULT_THREADS,
-        help=f"Numero de threads. Padrao: {DEFAULT_THREADS}",
-    )
-    parser.add_argument(
-        "-P",
-        "--passive",
-        action="store_true",
-        default=False,
-        help="Ativa enumeracao passiva (crt.sh, OTX, URLScan). Use --vt-api-key etc. para mais fontes.",
-    )
-    parser.add_argument(
-        "--vt-api-key",
-        dest="vt_api_key",
-        help="API key do VirusTotal (ativa fonte VirusTotal no modo passivo).",
-    )
-    parser.add_argument(
-        "--st-api-key",
-        dest="st_api_key",
-        help="API key do SecurityTrails (ativa fonte SecurityTrails no modo passivo).",
-    )
-    parser.add_argument(
-        "--shodan-api-key",
-        dest="shodan_api_key",
-        help="API key do Shodan (ativa fonte Shodan no modo passivo).",
-    )
-    add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
-    return parser
+async def run_scan(args: argparse.Namespace) -> int:
+    """Executa uma unica enumeracao de subdominios (alvo do BaseScanner).
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa uma unica enumeracao de subdominios."""
-    quiet = init_scanner(args)
+    Recebe o namespace completo; validacao e dry-run acontecem nos hooks
+    ``_pre_scan``/``_describe_plan`` antes desta chamada.
+    """
+    quiet = getattr(args, "quiet", False)
 
     raw_threads = getattr(args, "threads", None)
     threads = DEFAULT_THREADS if raw_threads is None else raw_threads
-    if threads < 1:
-        raise ValueError("threads precisa ser maior que zero")
-    if args.timeout <= 0:
-        raise ValueError("timeout precisa ser maior que zero")
 
     domain = args.domain.strip().lower()
-    wordlist = load_wordlist(getattr(args, "wordlist", None))
-
-    if getattr(args, "dry_run", False) is True:
-        logger.warning("Nenhuma consulta DNS sera realizada.")
-        logger.info("Dominio: %s", domain)
-        logger.info("Wordlist: %d subdominios", len(wordlist))
-        logger.info("Threads: %d | Timeout: %.1fs", threads, args.timeout)
-        return 0
 
     passive_results: list[SubdomainResult] = []
     if getattr(args, "passive", False):
@@ -858,7 +801,6 @@ def run_once(args: argparse.Namespace) -> int:
             api_keys,
             timeout=args.timeout,
         )
-        passive_names = {r.subdomain for r in passive_results}
         for r in passive_results:
             logger.info("%s (passive)", r.subdomain)
         logger.info(
@@ -903,31 +845,145 @@ def run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def main() -> int:
-    """Ponto de entrada principal do enumerador."""
+class SubdomainEnumScanner(BaseScanner):
+    """Scanner CLI do enumerador de subdominios (Grupo A)."""
 
-    def _validate(args: argparse.Namespace) -> None:
-        if not args.domain:
-            raise ValueError("Informe um dominio alvo.")
+    prog = "mytools-subenum"
+    description = "Enumerador de subdominios via DNS brute-force e enumeracao passiva."
+    prompt = "subenum> "
+    module_name = "mytools.subdomainenum"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="subenum> ",
-        description="Subdomain Enumeration interativo.",
-        example="example.com -T 30 -w wordlist.txt",
-        validate_fn=_validate,
-        contextual_help=(
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        """Alvo e o argumento posicional domain."""
+        return getattr(args, "domain", None)
+
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Constroi o parser e preserva o timeout padrao do modulo."""
+        parser = super().build_parser()
+        parser.set_defaults(timeout=DEFAULT_TIMEOUT)
+        return parser
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "domain",
+            nargs="?",
+            help="Dominio alvo. Ex: example.com",
+        )
+        parser.add_argument(
+            "-w",
+            "--wordlist",
+            dest="wordlist",
+            help="Arquivo com subdominios (um por linha). Usa lista embutida se omitido.",
+        )
+        parser.add_argument(
+            "-T",
+            "--threads",
+            type=int,
+            default=DEFAULT_THREADS,
+            help=f"Numero de threads. Padrao: {DEFAULT_THREADS}",
+        )
+        parser.add_argument(
+            "-P",
+            "--passive",
+            action="store_true",
+            default=False,
+            help="Ativa enumeracao passiva (crt.sh, OTX, URLScan). Use --vt-api-key etc. para mais fontes.",
+        )
+        parser.add_argument(
+            "--vt-api-key",
+            dest="vt_api_key",
+            help="API key do VirusTotal (ativa fonte VirusTotal no modo passivo).",
+        )
+        parser.add_argument(
+            "--st-api-key",
+            dest="st_api_key",
+            help="API key do SecurityTrails (ativa fonte SecurityTrails no modo passivo).",
+        )
+        parser.add_argument(
+            "--shodan-api-key",
+            dest="shodan_api_key",
+            help="API key do Shodan (ativa fonte Shodan no modo passivo).",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        """Validacoes originais do run_once (levantam ValueError)."""
+        raw_threads = getattr(args, "threads", None)
+        threads = DEFAULT_THREADS if raw_threads is None else raw_threads
+        if threads < 1:
+            raise ValueError("threads precisa ser maior que zero")
+        if args.timeout <= 0:
+            raise ValueError("timeout precisa ser maior que zero")
+        # Ordem original: wordlist invalida levanta antes do dry-run.
+        load_wordlist(getattr(args, "wordlist", None))
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        """Dry-run byte-exato do run_once original (logger do modulo)."""
+        domain = args.domain.strip().lower()
+        wordlist = load_wordlist(getattr(args, "wordlist", None))
+        raw_threads = getattr(args, "threads", None)
+        threads = DEFAULT_THREADS if raw_threads is None else raw_threads
+        logger.warning("Nenhuma consulta DNS sera realizada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Wordlist: %d subdominios", len(wordlist))
+        logger.info("Threads: %d | Timeout: %.1fs", threads, args.timeout)
+        return 0
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        """Grupo A: o wrapper run_scan recebe o namespace completo."""
+        return {"args": args}
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        """Grupo A: saida e gerenciada internamente por run_scan."""
+        del result
+
+    def _make_banner(self) -> Callable[[], None]:
+        # Funcao module-level: accesso via atributo de classe vincularia self.
+        return banner
+
+    def _example(self) -> str:
+        return "example.com -T 30 -w wordlist.txt"
+
+    def _help(self) -> str:
+        return (
             "Uso: <dominio> [opcoes]\n"
             "Exemplos:\n"
             "  example.com\n"
             "  example.com -T 30 -w wordlist.txt\n"
             "  example.com -o subs.json\n"
             "  Use -l para arquivo com dominios (um por linha)"
-        ),
-    )
+        )
+
+    def main(self) -> int:
+        """Ponto de entrada principal do enumerador."""
+
+        def _validate(args: argparse.Namespace) -> None:
+            if not args.domain:
+                raise ValueError("Informe um dominio alvo.")
+
+        return run_main_loop(
+            parser=build_parser(),
+            banner_fn=self._make_banner(),
+            run_fn=run_once,
+            has_target=lambda a: bool(a.domain),
+            prompt="subenum> ",
+            description="Subdomain Enumeration interativo.",
+            example=self._example(),
+            validate_fn=_validate,
+            contextual_help=self._help(),
+        )
+
+
+scanner = SubdomainEnumScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

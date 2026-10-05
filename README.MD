@@ -4,7 +4,7 @@
 
 Suite de ferramentas de auditoria e reconhecimento web/network para ambientes de laboratório e alvos autorizados.
 
-> **Qualidade:** 9074+ testes passando · 100% de cobertura de código (statements + branches) · `ruff check`/`ruff format` limpos · `basedpyright` com 0 erros.
+> **Qualidade:** 9310+ testes passando · 100% de cobertura de código (statements + branches) · `ruff check`/`ruff format` limpos · `basedpyright` com 0 erros.
 
 > **AVISO:** Este projeto é destinado exclusivamente para fins educacionais e de teste em ambientes autorizados. O uso irresponsável pode ser ilegal. Use com responsabilidade.
 
@@ -2029,8 +2029,8 @@ src/mytools/                    # Pacote principal
     stealth.py                  # Anti-detection: proxy, UA rotation, Tor, jitter, WAF evasion
     cred.py                     # Gerenciador de credenciais (keyring)
     main.py                     # Menu interativo central
-    reconall.py                 # Orquestrador: executa todos os módulos
-    base.py                     # BaseScanner: parser base, run_scan, exit codes
+    reconall.py                 # Orquestrador (única exceção ao BaseScanner)
+    base.py                     # BaseScanner: template comum aos 97 módulos (parser, run_scan, exit codes)
     batch.py                    # Execução em lote (mytools-batch)
     report.py                   # Relatórios HTML (mytools-report)
     headless.py                 # Headless browser (Playwright) helpers
@@ -2038,6 +2038,8 @@ src/mytools/                    # Pacote principal
     __init__.py                 # Package marker
     portscanner.py              # Scanner de portas TCP
     dirscanner.py               # Scanner de diretórios HTTP
+    pcapanalysis.py             # PCAP Network Analysis
+    _pcap_common.py             # PCAP parsing utilities
   web/                          # Web e HTTP
     __init__.py                 # Package marker
     webrecon.py                 # Reconhecimento passivo + CVE + WHOIS
@@ -2116,7 +2118,7 @@ src/mytools/                    # Pacote principal
     restapifuzz.py              # REST API Fuzzer (auth bypass, content-type, HATEOAS)
     cmsfingerprint.py           # CMS Fingerprinting (WordPress, Joomla, Drupal)
     depscanner.py               # Dependency Scanner (libs + CVE + outdated)
-    secondorder.py              # Second-Order Injection Detection
+    secondorder.py              # Lib compartilhada de verificacao second-order (nao e CLI)
   dns/                          # DNS e resolução
     __init__.py                 # Package marker
     dnstransfer.py              # DNS Zone Transfer
@@ -2162,30 +2164,27 @@ src/mytools/                    # Pacote principal
     backupfiledetect.py         # Backup File Detection
   binary/                       # Binary Analysis
     __init__.py                 # Package marker
-    binaryanalysis.py           # ELF/PE analysis, strings, imports/exports, entropy
-    _capa_rules.py              # Capa capability detection rules
-    _yara_rules.py              # YARA rule scanner
+    binary_scan.py              # CLI BaseScanner: ELF/PE analysis, strings, imports/exports, entropy
+    _common.py                  # Shared types and utilities (ELF/PE/Mach-O helpers)
   iac/                          # Infrastructure as Code
     __init__.py                 # Package marker
-    iacscan.py                  # IaC static analysis (Terraform, CloudFormation, Docker)
-    _terraform.py               # Terraform plan/parser
-    _cloudformation.py          # CloudFormation template parser
+    iac_scan.py                 # CLI BaseScanner: IaC static analysis aggregator
+    terraform_scan.py           # Terraform plan/parser scan
+    cloudformation_scan.py      # CloudFormation template scan
+    dockerfile_scan.py          # Dockerfile best-practice scan
+    kubernetes_scan.py          # Kubernetes manifest scan
+    _common.py                  # Shared types and utilities
   llm/                          # LLM/AI Security
     __init__.py                 # Package marker
-    llmsecurity.py              # LLM prompt injection, model extraction, data leakage
+    llm_audit.py                # CLI BaseScanner: LLM prompt injection, model extraction, data leakage
+    prompt_injection.py         # Prompt injection tests
+    jailbreak.py                # Jailbreak technique tests
+    secret_detection.py         # Secret detection in LLM outputs
     _common.py                  # Shared types and utilities
-    _payloads.py                # Attack payloads for LLM testing
   secret/                       # Secret Scanning
     __init__.py                 # Package marker
-    secretscan.py               # Hardcoded credential scanner
-    _rules.py                   # 100+ secret detection rules
+    secret_scan.py              # CLI BaseScanner: hardcoded credential scanner
     _common.py                  # Shared types and utilities
-  network/                      # Rede e portas
-    __init__.py                 # Package marker
-    portscanner.py              # Scanner de portas TCP
-    dirscanner.py               # Scanner de diretórios HTTP
-    pcapanalysis.py             # PCAP Network Analysis
-    _pcap_common.py             # PCAP parsing utilities
   data/                         # Payloads e wordlists externos (YAML)
     __init__.py                 # Re-exporta load_payloads, dump_registry
     loader.py                   # Carregador YAML/JSON com cache e fallback
@@ -2274,7 +2273,7 @@ src/mytools/                    # Pacote principal
     oauth2_flows.py             # OAuth2 PKCE, Client Credentials, JWT validation
     mobile_audit.py             # BaseScanner CLI: run_scan + colored output
 
-tests/                          # Testes unitários (9074+ testes, 100% de cobertura)
+tests/                          # Testes unitários (9310+ testes, 100% de cobertura)
   __init__.py                   # Package marker
   conftest.py                   # Fixtures compartilhadas
   fixtures/                     # Arquivos de teste (SportzX_3.0v.apk)
@@ -2300,7 +2299,7 @@ pyproject.toml                  # Configuração do projeto
 
 ### Rodar testes
 ```bash
-uv run pytest tests/                                  # Suite completa (9074+ testes, xdist)
+uv run pytest tests/                                  # Suite completa (9310+ testes, xdist)
 uv run pytest tests/ -m smoke                        # Testes rápidos
 uv run pytest tests/ -m integration                  # Testes de integração (HTTP real)
 uv run pytest tests/ -m "not real_sleep"             # Excluir testes com sleep real

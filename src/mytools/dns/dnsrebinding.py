@@ -27,27 +27,23 @@ import ipaddress
 import logging
 import random
 import string
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 import dns.exception
 import dns.name
 import dns.query
 import dns.rdatatype
 import dns.resolver
-from anyio import Path
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.dnsrebinding")
@@ -79,6 +75,14 @@ class RebindingResult:
     records: list[str] = field(default_factory=list)
     exploit: str = ""
     tool: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class RebindingScanResult:
+    """Resultado agregado do scan de DNS rebinding (1+ dominios)."""
+
+    domains: list[str]
+    results: list[RebindingResult] = field(default_factory=list)
 
 
 def _is_private_ip(ip_str: str) -> bool:
@@ -455,116 +459,120 @@ def banner() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Deteccao de DNS Rebinding — testa se dominio e vulneravel a rebinding.",
-    )
-    add_base_args(parser)
-    parser.add_argument(
-        "domain", nargs="?", help="Dominio alvo para testar (ex: example.com)."
-    )
-    parser.add_argument(
-        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
-    )
-    parser.add_argument(
-        "--queries",
-        "-n",
-        type=int,
-        default=5,
-        help="Numero de resolucoes para detectar IP flip. Padrao: 5",
-    )
-    return parser
+async def run_scan(
+    domains: list[str],
+    timeout: float,
+    queries: int,
+) -> RebindingScanResult:
+    """Roda o scan de rebinding para cada dominio (wrapper async da base)."""
+    all_results: list[RebindingResult] = []
+    for d in domains:
+        all_results.extend(scan_rebinding(domain=d, timeout=timeout, queries=queries))
+    return RebindingScanResult(domains=list(domains), results=all_results)
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-    quiet = init_scanner(args)
+class DnsrebindingScanner(BaseScanner):
+    """DNS Rebinding Detection — dispatcher BaseScanner (Grupo B)."""
 
-    domain = getattr(args, "domain", None)
-    target_list = getattr(args, "target_list", None)
+    prog = "mytools-rebind"
+    description = (
+        "Deteccao de DNS Rebinding — testa se dominio e vulneravel a rebinding."
+    )
+    prompt = "rebind> "
+    module_name = "mytools.dnsrebinding"
+    module_type = "core"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    if not domain and target_list:
-        try:
-            async with await Path(target_list).open(encoding="utf-8") as f:
-                domains = [line.strip() async for line in f if line.strip()]
-        except FileNotFoundError:
-            print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))
-            return 1
-    elif domain:
-        domains = [domain]
-    else:
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None) or getattr(args, "target_list", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "domain", nargs="?", help="Dominio alvo para testar (ex: example.com)."
+        )
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com dominios (um por linha).",
+        )
+        parser.add_argument(
+            "--queries",
+            "-n",
+            type=int,
+            default=5,
+            help="Numero de resolucoes para detectar IP flip. Padrao: 5",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        domain = getattr(args, "domain", None)
+        target_list = getattr(args, "target_list", None)
+        if domain:
+            args._domains = [domain]
+            return None
+        if target_list:
+            try:
+                with Path(target_list).open(encoding="utf-8") as fh:
+                    domains = [line.strip() for line in fh if line.strip()]
+            except FileNotFoundError:
+                print(color(f"[!] Arquivo nao encontrado: {target_list}", Cyber.RED))
+                return 1
+            args._domains = domains
+            return None
         print(color("[!] Informe um dominio ou use -l <arquivo>.", Cyber.RED))
         return 1
 
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print(
             color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
             "Nenhuma consulta DNS sera enviada.",
         )
-        for d in domains:
+        for d in getattr(args, "_domains", None) or []:
             print(
                 color("[*]", Cyber.CYAN, Cyber.BOLD),
                 f"Dominio: {color(d, Cyber.WHITE, Cyber.BOLD)}",
             )
         return 0
 
-    all_results: list[RebindingResult] = []
-    for d in domains:
-        results = scan_rebinding(
-            domain=d,
-            timeout=args.timeout,
-            queries=getattr(args, "queries", 5),
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domains": list(getattr(args, "_domains", None) or []),
+            "timeout": getattr(args, "timeout", 5.0),
+            "queries": getattr(args, "queries", 5),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(getattr(result, "results", []))  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _get_return_code(self, result: object) -> int:
+        results = getattr(result, "results", [])
+        return 1 if any(r.severity == "critical" for r in results) else 0
+
+    def _example(self) -> str:
+        return "example.com --queries 10"
+
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --queries 10\n"
+            "  -l domains.txt -o results.json"
         )
-        all_results.extend(results)
-
-    if not quiet:
-        print_results(all_results)
-
-    if getattr(args, "json_output", False):
-        print_json([asdict(r) for r in all_results])
-
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(r) for r in all_results],
-            ["domain", "check", "severity", "detail", "records"],
-            quiet=quiet,
-        )
-
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{domain}.json",
-            [asdict(r) for r in all_results],
-            ["domain", "check", "severity", "detail", "records"],
-            quiet=quiet,
-        )
-
-    return 1 if any(r.severity == "critical" for r in all_results) else 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do DNS Rebinding Detection."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain or getattr(a, "target_list", None)),
-        prompt="rebind> ",
-        description="DNS Rebinding Detection interativo.",
-        example="example.com --queries 10",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 10\n  -l domains.txt -o results.json"
-        ),
-    )
-
+scanner = DnsrebindingScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

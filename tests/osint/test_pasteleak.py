@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Paste/Leak Monitoring."""
 
-import asyncio
 import runpy
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,7 +11,6 @@ import respx
 from mytools.core.utils import RateLimiter
 from mytools.osint.pasteleak import (
     LeakRecord,
-    _async_run_once,
     _contains_domain,
     _dedup_leaks,
     _mask_secret,
@@ -1062,37 +1060,30 @@ class TestBanner:
 class TestRunOnce:
     def test_run_once(self) -> None:
         args = build_parser().parse_args(["example.com"])
-        with (
-            patch(
-                "mytools.osint.pasteleak._async_run_once",
-                new_callable=MagicMock,
-                return_value=0,
-            ),
-            patch(
-                "mytools.osint.pasteleak.safe_asyncio_run",
-                new_callable=MagicMock,
-                return_value=0,
-            ) as mock_safe,
-        ):
+        with patch(
+            "mytools.osint.pasteleak.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             result = run_once(args)
-            assert result == 0
-        mock_safe.assert_called_once()
+        assert result == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestAsyncRunOnce:
     def test_no_target(self) -> None:
         args = build_parser().parse_args([])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_file_not_found(self) -> None:
         args = build_parser().parse_args(["-l", "definitely_missing_12345.txt"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_dry_run(self) -> None:
         args = build_parser().parse_args(["example.com", "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
 
     def test_domain_from_file(self, tmp_path) -> None:
@@ -1103,7 +1094,7 @@ class TestAsyncRunOnce:
             "mytools.osint.pasteleak.scan_leaks",
             new=AsyncMock(return_value=[]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_github_code_without_token(self) -> None:
@@ -1112,7 +1103,7 @@ class TestAsyncRunOnce:
             "mytools.osint.pasteleak.scan_leaks",
             new=AsyncMock(return_value=[]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_with_output(self, tmp_path) -> None:
@@ -1125,7 +1116,7 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.osint.pasteleak.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
@@ -1140,7 +1131,7 @@ class TestAsyncRunOnce:
             patch("mytools.osint.pasteleak.print_results") as mock_print,
             patch("mytools.osint.pasteleak.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_print.assert_not_called()
         mock_write.assert_called_once()
@@ -1155,7 +1146,7 @@ class TestAsyncRunOnce:
             patch("mytools.osint.pasteleak.print_json") as mock_json,
             patch("mytools.osint.pasteleak.print_results") as mock_print,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_json.assert_called_once()
         mock_print.assert_not_called()
@@ -1171,7 +1162,7 @@ class TestAsyncRunOnce:
             patch("mytools.osint.pasteleak.ensure_output_dir") as mock_ensure,
             patch("mytools.osint.pasteleak.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_ensure.assert_called_once_with(str(out_dir))
         mock_write.assert_called_once()
@@ -1182,15 +1173,13 @@ class TestAsyncRunOnce:
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.osint.pasteleak.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-pasteleak", "example.com"]),
             pytest.raises(SystemExit),
         ):

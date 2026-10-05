@@ -21,14 +21,12 @@ from urllib.parse import urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -855,53 +853,64 @@ async def run_scan(
     return result
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="mytools-infra",
-        description="Infrastructure Attack Testing — Terraform, Vault, CI/CD, Elastic, Redis/MongoDB, Debug",
-    )
-    parser.add_argument("url", help="URL alvo (https://target.com)")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar",
-    )
-    add_common_args(parser, "web")
-    return parser
+class InfraattackScanner(BaseScanner):
+    """Scanner CLI de Infrastructure Attack Testing."""
 
+    prog = "mytools-infra"
+    description = "Infrastructure Attack Testing — Terraform, Vault, CI/CD, Elastic, Redis/MongoDB, Debug"
+    prompt = "infra> "
+    module_name = "mytools.infraattack"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (https://target.com)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        # run_scan ja imprime o resultado; a base chamaria print_results de novo
+        # no fluxo Grupo B - no-op para nao imprimir 2x.
+        return None
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "Infrastructure Attack Testing")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-infra \u2014 nenhuma requisi\u00e7\u00e3o executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
+
+    def _example(self) -> str:
+        return "mytools-infra https://target.com"
+
+    def _help(self) -> str:
+        return "infrastructure: terraform_state_leak, vault_exposed, cicd_pipeline_leak, cicd_secret_detection, elastic_exposed, redis_mongo_unauth, debug_endpoints, debug_mode_detection"
 
 
-def main() -> int:
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "Infrastructure Attack Testing"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="infra> ",
-        description="Infrastructure Attack Testing — Terraform, Vault, CI/CD, Elastic, Redis/MongoDB, Debug",
-        example="mytools-infra https://target.com",
-        contextual_help="infrastructure: terraform_state_leak, vault_exposed, cicd_pipeline_leak, cicd_secret_detection, elastic_exposed, redis_mongo_unauth, debug_endpoints, debug_mode_detection",
-    )
+scanner = InfraattackScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

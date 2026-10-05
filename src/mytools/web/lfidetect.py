@@ -30,24 +30,22 @@ Fluxo:
 
 import argparse
 import logging
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 from mytools.web.secondorder import get_verify_payload, verify_positive
 
@@ -641,97 +639,92 @@ banner_art = create_banner(
 
 
 # ---------------------------------------------------------------------------
-# build_parser
+# Scanner
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta parser CLI para mytools-lfi."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-lfi",
-        description="LFI/RFI Scanner — detecta Local/Remote File Inclusion.",
-    )
-    parser.add_argument("url", nargs="?", help="URL alvo para teste")
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=["lfi", "rfi", "all"],
-        default="all",
-        help="Categoria de testes (default: all)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class LfidetectScanner(BaseScanner):
+    """Scanner CLI do LFI/RFI."""
 
+    prog = "mytools-lfi"
+    description = "LFI/RFI Scanner — detecta Local/Remote File Inclusion."
+    prompt = "lfi> "
+    module_name = "mytools.lfidetect"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-# ---------------------------------------------------------------------------
-# run_once
-# ---------------------------------------------------------------------------
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Monta parser CLI para mytools-lfi."""
+        parser.add_argument("url", nargs="?", help="URL alvo para teste")
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=["lfi", "rfi", "all"],
+            default="all",
+            help="Categoria de testes (default: all)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
 
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        """Kwargs exatos que o run_once original passava para ``run_scan``."""
+        return {
+            "url": self._get_target(args),
+            "category": getattr(args, "category", "all"),
+            "timeout": getattr(args, "timeout", 10.0),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+            "confirm": getattr(args, "confirm", True),
+        }
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan LFI/RFI a partir de argumentos parseados."""
-    init_scanner(args)
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-lfi \u2014 nenhuma requisi\u00e7\u00e3o executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("LFI/RFI scan iniciado para %s", args.url)
 
-    result = safe_asyncio_run(
-        run_scan(
-            url=args.url,
-            category=getattr(args, "category", "all"),
-            timeout=getattr(args, "timeout", 10.0),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            confirm=getattr(args, "confirm", True),
-        ),
-    )
+    def _get_return_code(self, result: object) -> int:
+        """Exit code original: 0 para qualquer status exceto 'error'."""
+        return 0 if getattr(result, "overall_status", "error") != "error" else 1
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    else:
-        print_results(result)
+    async def run_scan(self, **kwargs: Any) -> int | object:
+        logger.info("LFI/RFI scan iniciado para %s", kwargs.get("url"))
+        return await run_scan(**kwargs)
 
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result))
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    return 0 if result.overall_status != "error" else 1
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
+    def _example(self) -> str:
+        return "https://target.com/?page=home"
 
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="lfi> ",
-        description="LFI/RFI interativo.",
-        example="https://target.com/?page=home",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com/?page=home\n"
             "  https://target.com/ -c lfi\n"
             "  https://target.com/ -c rfi\n"
             "  https://target.com/ --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = LfidetectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

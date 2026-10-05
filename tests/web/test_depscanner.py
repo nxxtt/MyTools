@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -18,7 +18,6 @@ from mytools.web.depscanner import (
     _FRONTEND_LIBS,
     DepScanAttempt,
     DepScanResult,
-    _async_run_once,
     _check_cves,
     _check_outdated,
     _check_url,
@@ -983,7 +982,7 @@ class TestPrintResults:
 # ---------------------------------------------------------------------------
 
 
-class TestAsyncRunOnce:
+class TestRunOnceScan:
     def test_runs_scan(self, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
         result = DepScanResult(
             target="https://example.com",
@@ -992,19 +991,21 @@ class TestAsyncRunOnce:
             outdated_deps=[],
             overall_status="secure",
         )
-        monkeypatch.setattr(
-            depscanner_module, "scan_dependency", AsyncMock(return_value=result)
-        )
-        monkeypatch.setattr(depscanner_module, "init_scanner", lambda args: False)
+        mock_scan = AsyncMock(return_value=result)
+        monkeypatch.setattr(depscanner_module, "scan_dependency", mock_scan)
         monkeypatch.setattr(depscanner_module, "print_results", lambda r: None)
         args = argparse.Namespace(
             url="example.com",
             categories=None,
             timeout=5.0,
             output=str(tmp_path / "out.json"),
+            verbose=0,
+            log_file=None,
         )
-        out = _async_run_once(args)
-        assert out.overall_status == "secure"
+        out = run_once(args)
+        assert out == 0
+        assert mock_scan.await_args is not None
+        assert mock_scan.await_args.kwargs["base_url"] == "https://example.com"
         assert (tmp_path / "out.json").exists()
 
     def test_runs_scan_with_scheme_no_output(
@@ -1017,56 +1018,74 @@ class TestAsyncRunOnce:
             outdated_deps=[],
             overall_status="secure",
         )
-        monkeypatch.setattr(
-            depscanner_module, "scan_dependency", AsyncMock(return_value=result)
-        )
-        monkeypatch.setattr(depscanner_module, "init_scanner", lambda args: False)
+        mock_scan = AsyncMock(return_value=result)
+        monkeypatch.setattr(depscanner_module, "scan_dependency", mock_scan)
         monkeypatch.setattr(depscanner_module, "print_results", lambda r: None)
         args = argparse.Namespace(
             url="https://example.com",
             categories=["frontend_deps"],
             timeout=5.0,
             output=None,
+            verbose=0,
+            log_file=None,
         )
-        out = _async_run_once(args)
-        assert out.target == "https://example.com"
+        out = run_once(args)
+        assert out == 0
+        assert mock_scan.await_args is not None
+        assert mock_scan.await_args.kwargs == {
+            "base_url": "https://example.com",
+            "categories": ["frontend_deps"],
+            "timeout": 5.0,
+        }
 
 
 class TestRunOnce:
-    def test_returns_zero(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        result = DepScanResult(
+    @staticmethod
+    def _make_result(status: str) -> DepScanResult:
+        return DepScanResult(
             target="https://example.com",
             attempts=[],
             vulnerable_deps=[],
             outdated_deps=[],
-            overall_status="secure",
+            overall_status=status,
         )
-        monkeypatch.setattr(
-            depscanner_module, "_async_run_once", MagicMock(return_value=result)
+
+    @staticmethod
+    def _make_args() -> argparse.Namespace:
+        return argparse.Namespace(
+            url="https://example.com",
+            categories=None,
+            timeout=5.0,
+            output=None,
+            verbose=0,
+            log_file=None,
         )
-        args = argparse.Namespace()
-        assert run_once(args) == 0
+
+    def test_returns_zero(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        mock_scan = AsyncMock(return_value=self._make_result("secure"))
+        monkeypatch.setattr(depscanner_module, "run_scan", mock_scan)
+        monkeypatch.setattr(depscanner_module, "print_results", lambda r: None)
+        assert run_once(self._make_args()) == 0
+        mock_scan.assert_called_once_with(
+            base_url="https://example.com",
+            categories=None,
+            timeout=5.0,
+        )
 
     def test_returns_one_when_vulnerable(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        result = DepScanResult(
-            target="https://example.com",
-            attempts=[],
-            vulnerable_deps=["express"],
-            outdated_deps=[],
-            overall_status="vulnerable",
-        )
         monkeypatch.setattr(
-            depscanner_module, "_async_run_once", MagicMock(return_value=result)
+            depscanner_module,
+            "run_scan",
+            AsyncMock(return_value=self._make_result("vulnerable")),
         )
-        args = argparse.Namespace()
-        assert run_once(args) == 1
+        monkeypatch.setattr(depscanner_module, "print_results", lambda r: None)
+        assert run_once(self._make_args()) == 1
 
 
 class TestMain:
     def test_runs_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            depscanner_module,
-            "run_main_loop",
+            "mytools.core.base.run_main_loop",
             lambda *args, **kwargs: 42,
         )
         assert depscanner_module.main() == 42

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""DirScanner — scanner HTTP de diretórios/arquivos para laboratórios e alvos autorizados."""
+
 import argparse
 import asyncio
 import logging
@@ -8,17 +10,18 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 from tqdm import tqdm
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
     __version__,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -36,7 +39,6 @@ from mytools.core.utils import (
     read_target_lines,
     resolve_target_urls,
     run_main_loop,
-    safe_asyncio_run,
     status_color,
     write_output,
 )
@@ -505,77 +507,6 @@ def print_dir_table(findings: list[Finding]) -> None:
     )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Directory/file scanner HTTP rapido para laboratorios e hosts autorizados."
-    )
-    add_common_args(parser, "network")
-    parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument(
-        "-l",
-        "--list",
-        dest="target_list",
-        help="Arquivo com URLs alvo (uma por linha).",
-    )
-    parser.add_argument(
-        "-w", "--wordlist", help="Wordlist customizada, um path por linha."
-    )
-    parser.add_argument(
-        "-x",
-        "--extensions",
-        type=parse_extensions,
-        default=[],
-        help="Extensoes para testar em paths sem extensao. Ex: php,txt,bak",
-    )
-    parser.add_argument(
-        "-s",
-        "--status",
-        type=parse_statuses,
-        default=DEFAULT_STATUSES,
-        help="Status aceitos: default, all, 200,403 ou 200-399. Padrao: default",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=40,
-        help="Concorrencia assincrona (requests simultaneos). Padrao: 40",
-    )
-    parser.add_argument(
-        "-M",
-        "--method",
-        default="GET",
-        choices=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
-        help="Metodo HTTP para as requests. Padrao: GET",
-    )
-    parser.add_argument(
-        "--filter-size",
-        type=parse_range,
-        help="Filtrar por tamanho em bytes. Ex: 100-5000",
-    )
-    parser.add_argument(
-        "--filter-words",
-        type=parse_range,
-        help="Filtrar por numero de palavras. Ex: 10-100",
-    )
-    parser.add_argument(
-        "-C",
-        "--case-variation",
-        action="store_true",
-        help="Gera variacoes de case (Admin, ADMIN, aDmIn) para cada path da wordlist",
-    )
-    parser.add_argument(
-        "-U",
-        "--unicode-norm",
-        action="store_true",
-        help="Gera variantes Unicode (circled, full-width) para cada path da wordlist",
-    )
-    parser.set_defaults(
-        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) DirScanner/{__version__}"
-    )
-    return parser
-
-
 async def _run_single(
     url: str,
     args: argparse.Namespace,
@@ -617,7 +548,7 @@ async def _run_single(
     return findings
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
     quiet = init_scanner(args)
     if args.concurrency < 1:
@@ -685,22 +616,147 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class DirscannerScanner(BaseScanner):
+    """DirScanner — dispatcher BaseScanner (Grupo A)."""
 
+    prog = "mytools-dir"
+    description = (
+        "Directory/file scanner HTTP rapido para laboratorios e hosts autorizados."
+    )
+    prompt = "dirscan> "
+    module_name = "mytools.dirscanner"
+    module_type = "network"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal do DirScanner."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
-        prompt="dirscan> ",
-        description="DirScanner interativo.",
-        example="http://localhost:8000 -x php,txt,bak -s 200,301,403",
-        contextual_help=(
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Parser do modulo — igual ao template, com user-agent do modulo."""
+        parser = super().build_parser()
+        parser.set_defaults(
+            user_agent=f"Mozilla/5.0 (X11; Linux x86_64) DirScanner/{__version__}"
+        )
+        return parser
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "url", None) or getattr(args, "target_list", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com URLs alvo (uma por linha).",
+        )
+        parser.add_argument(
+            "-w", "--wordlist", help="Wordlist customizada, um path por linha."
+        )
+        parser.add_argument(
+            "-x",
+            "--extensions",
+            type=parse_extensions,
+            default=[],
+            help="Extensoes para testar em paths sem extensao. Ex: php,txt,bak",
+        )
+        parser.add_argument(
+            "-s",
+            "--status",
+            type=parse_statuses,
+            default=DEFAULT_STATUSES,
+            help="Status aceitos: default, all, 200,403 ou 200-399. Padrao: default",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=40,
+            help="Concorrencia assincrona (requests simultaneos). Padrao: 40",
+        )
+        parser.add_argument(
+            "-M",
+            "--method",
+            default="GET",
+            choices=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+            help="Metodo HTTP para as requests. Padrao: GET",
+        )
+        parser.add_argument(
+            "--filter-size",
+            type=parse_range,
+            help="Filtrar por tamanho em bytes. Ex: 100-5000",
+        )
+        parser.add_argument(
+            "--filter-words",
+            type=parse_range,
+            help="Filtrar por numero de palavras. Ex: 10-100",
+        )
+        parser.add_argument(
+            "-C",
+            "--case-variation",
+            action="store_true",
+            help="Gera variacoes de case (Admin, ADMIN, aDmIn) para cada path da wordlist",
+        )
+        parser.add_argument(
+            "-U",
+            "--unicode-norm",
+            action="store_true",
+            help="Gera variantes Unicode (circled, full-width) para cada path da wordlist",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        urls = resolve_target_urls(args)
+        output_dir = getattr(args, "output_dir", None)
+        ensure_output_dir(output_dir)
+        paths = load_paths(
+            args.wordlist,
+            args.extensions,
+            case_variation=getattr(args, "case_variation", False),
+            unicode_norm=getattr(args, "unicode_norm", False),
+        )
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        for url in urls:
+            base_url = normalize_url(
+                url, default_scheme="http", ensure_trailing_slash=True
+            )
+            logger.info("Alvo: %s", base_url)
+            logger.info(
+                "Paths: %d | Method: %s | Concurrency: %d",
+                len(paths),
+                args.method,
+                args.concurrency,
+            )
+            logger.info("Status: %s", ",".join(map(str, sorted(args.status))))
+        return 0
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_dir_table(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def main(self) -> int:
+        """Ponto de entrada principal (mantem has_target original)."""
+        return run_main_loop(
+            parser=self.build_parser(),
+            banner_fn=self._make_banner(),
+            run_fn=run_once,
+            has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
+            prompt=self.prompt,
+            description=f"{self.description.strip()} interativo.",
+            example=self._example(),
+            contextual_help=self._help(),
+        )
+
+    def _example(self) -> str:
+        return "http://localhost:8000 -x php,txt,bak -s 200,301,403"
+
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  http://localhost:8000 -x php,txt,bak\n"
@@ -709,9 +765,13 @@ def main() -> int:
             "  http://target.com -U -x php,txt,bak\n"
             "  http://target.com -M POST --filter-size 100-5000\n"
             "  -l urls.txt --output-dir results/ -o out.json"
-        ),
-    )
+        )
 
+
+scanner = DirscannerScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

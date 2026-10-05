@@ -107,6 +107,10 @@ class TestBrowserAvailable:
     def test_true_when_chromium_installed(self) -> None:
         assert h.browser_available() is True
 
+
+class TestBrowserAvailableDetection:
+    """Casos que NAO dependem de um chromium real (rodam sempre)."""
+
     def test_false_when_playwright_missing(self, monkeypatch) -> None:
         import builtins
 
@@ -123,6 +127,98 @@ class TestBrowserAvailable:
             assert h.browser_available() is False
         finally:
             h.browser_available.cache_clear()
+
+    def test_false_when_browsers_json_unreadable(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+
+        def boom(*args, **kwargs):
+            raise ValueError("json invalido")
+
+        monkeypatch.setattr(h.json, "loads", boom)
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
+
+    def test_false_when_no_chromium_revision(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+        monkeypatch.setattr(
+            h.json,
+            "loads",
+            lambda *args, **kwargs: {
+                "browsers": [{"name": "firefox", "revision": "1"}]
+            },
+        )
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
+
+    def test_false_when_only_old_revision_present(self, tmp_path, monkeypatch) -> None:
+        """Regressao: diretorios de revisoes antigas nao contam como instalado."""
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+        old_exe = tmp_path / h._exe_candidates("1208")[0]
+        old_exe.parent.mkdir(parents=True)
+        old_exe.write_bytes(b"")
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
+
+    def test_true_when_expected_revision_exe_present(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+        revisions = h._expected_revisions()
+        assert revisions, "playwright instalado deve expor revisoes no browsers.json"
+        exe = tmp_path / h._exe_candidates(next(iter(revisions)))[0]
+        exe.parent.mkdir(parents=True)
+        exe.write_bytes(b"")
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is True
+        finally:
+            h.browser_available.cache_clear()
+
+    def test_false_when_no_browser_dir(self, monkeypatch) -> None:
+        monkeypatch.setattr(h, "_browser_dir", lambda: None)
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
+
+    def test_false_when_only_firefox_dir(self, tmp_path, monkeypatch) -> None:
+        (tmp_path / "firefox-123").mkdir()
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+        h.browser_available.cache_clear()
+        try:
+            assert h.browser_available() is False
+        finally:
+            h.browser_available.cache_clear()
+
+
+class TestExeCandidates:
+    def test_windows(self, monkeypatch) -> None:
+        monkeypatch.setattr(h.sys, "platform", "win32")
+        candidates = h._exe_candidates("999")
+        assert candidates[0] == "chromium-999/chrome-win/chrome.exe"
+        assert "chrome-headless-shell.exe" in candidates[1]
+
+    def test_macos(self, monkeypatch) -> None:
+        monkeypatch.setattr(h.sys, "platform", "darwin")
+        candidates = h._exe_candidates("999")
+        assert "Contents/MacOS/chromium" in candidates[0]
+        assert "chrome-headless-shell" in candidates[1]
+
+    def test_linux_default(self, monkeypatch) -> None:
+        monkeypatch.setattr(h.sys, "platform", "linux")
+        candidates = h._exe_candidates("999")
+        assert candidates[0] == "chromium-999/chrome-linux/chrome"
+        assert "linux64" in candidates[1]
 
 
 class TestBrowserDir:
@@ -152,23 +248,6 @@ class TestBrowserDir:
         monkeypatch.delenv("PLAYWRIGHT_BROWSERS_PATH", raising=False)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         assert h._browser_dir() == fallback
-
-    def test_browser_available_no_chromium(self, tmp_path, monkeypatch) -> None:
-        (tmp_path / "firefox-123").mkdir()
-        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
-        h.browser_available.cache_clear()
-        try:
-            assert h.browser_available() is False
-        finally:
-            h.browser_available.cache_clear()
-
-    def test_browser_available_dir_none(self, monkeypatch) -> None:
-        monkeypatch.setattr(h, "_browser_dir", lambda: None)
-        h.browser_available.cache_clear()
-        try:
-            assert h.browser_available() is False
-        finally:
-            h.browser_available.cache_clear()
 
 
 @pytest.mark.skipif(not h.browser_available(), reason="chromium nao instalado")
@@ -247,6 +326,7 @@ class TestConfirmJsExecution:
             await h.confirm_js_execution("http://localhost:1/")
 
 
+@pytest.mark.skipif(not h.browser_available(), reason="chromium nao instalado")
 class TestBrowserReuse:
     """Passa um browser ja iniciado: nao cria/fecha (owns_playwright=False)."""
 

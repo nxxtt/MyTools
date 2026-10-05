@@ -37,15 +37,12 @@ from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1744,72 +1741,70 @@ async def run_scan(
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
+class TlsfingerprintScanner(BaseScanner):
+    """Scanner CLI do TLS Fingerprinting."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-tlsfp",
-        description="TLS Fingerprinting — JA3/JA4, Replay, Key Exchange, Cipher Audit",
-    )
+    prog = "mytools-tlsfp"
+    description = "TLS Fingerprinting — JA3/JA4, Replay, Key Exchange, Cipher Audit"
+    prompt = "tlsfp> "
+    module_name = "mytools.tlsfingerprint"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo (https://)")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (https://)")
 
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
+        )
 
-    add_common_args(parser, "web")
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
 
-    return parser
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        result = await run_scan(**kwargs)
+        return self._get_return_code(result)
 
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa scan uma vez."""
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "TLS Fingerprinting")
 
-    init_scanner(args)
-
-    if getattr(args, "dry_run", False) is True:
-        print("[DRY-RUN] mytools-tlsfp \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-tlsfp — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
+    def _example(self) -> str:
+        return "https://target.com -c tls_fingerprint cipher_audit"
 
-    return 1 if result.overall_status == "vulnerable" else 0
-
-
-def main() -> int:
-    """Entry point principal."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "TLS Fingerprinting"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="tlsfp> ",
-        description="Teste de TLS Fingerprinting (JA3/JA4, Replay, Key Exchange, Cipher Audit).",
-        example="https://target.com -c tls_fingerprint cipher_audit",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  tls_fingerprint  — JA3/JA4, cipher order, extensions, ALPN\n"
             "  tls_replay       — ClientHello de browsers (Chrome, Firefox, Safari, Edge)\n"
             "  key_exchange     — RSA, DHE, ECDHE, DH fraco, X25519\n"
             "  cipher_audit     — deprecated, export, null, MAC fraco, key size"
-        ),
-    )
+        )
+
+
+scanner = TlsfingerprintScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

@@ -17,22 +17,19 @@ Fluxo:
 import argparse
 import logging
 import re
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 import dns.exception
 import dns.resolver
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.emailsecurity")
@@ -398,93 +395,97 @@ def banner() -> None:
     create_banner(art, "   email security: verifica DMARC, SPF e DKIM")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Email Security — verifica DMARC, SPF e DKIM de um dominio.",
-        epilog="Analiza configuracao de email security para protecao contra spoofing.",
+async def run_scan(
+    domain: str,
+    nameserver: str,
+    selectors: list[str],
+    timeout: float,
+) -> EmailSecurityResult:
+    """Roda a verificacao de email security (envolve a funcao sync)."""
+    return scan_email_security(
+        domain=domain,
+        nameserver=nameserver,
+        selectors=selectors,
+        timeout=timeout,
     )
-    add_base_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para verificacao.")
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default="8.8.8.8",
-        help="Nameserver para queries. Padrao: 8.8.8.8",
-    )
-    parser.add_argument(
-        "--selectors",
-        default=",".join(DEFAULT_SELECTORS),
-        help=f"Seletores DKIM (separados por virgula). Padrao: {','.join(DEFAULT_SELECTORS)}",
-    )
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=5.0,
-        help="Timeout por query em segundos. Padrao: 5",
-    )
-    return parser
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-    quiet = init_scanner(args)
+class EmailsecurityScanner(BaseScanner):
+    """Email Security (DMARC/SPF/DKIM) — dispatcher BaseScanner (Grupo B)."""
 
-    domain = getattr(args, "domain", None)
-    if not domain:
-        logger.error("Informe um dominio.")
-        return 1
+    prog = "mytools-secemail"
+    description = "Email Security — verifica DMARC, SPF e DKIM de um dominio."
+    prompt = "secemail> "
+    module_name = "mytools.emailsecurity"
+    module_type = "core"
+    epilog = "Analiza configuracao de email security para protecao contra spoofing."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    if getattr(args, "dry_run", False) is True:
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo para verificacao.")
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default="8.8.8.8",
+            help="Nameserver para queries. Padrao: 8.8.8.8",
+        )
+        parser.add_argument(
+            "--selectors",
+            default=",".join(DEFAULT_SELECTORS),
+            help=f"Seletores DKIM (separados por virgula). Padrao: {','.join(DEFAULT_SELECTORS)}",
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=5.0,
+            help="Timeout por query em segundos. Padrao: 5",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        selectors = [s.strip() for s in args.selectors.split(",") if s.strip()]
+        return {
+            "domain": self._get_target(args),
+            "nameserver": args.nameserver,
+            "selectors": selectors,
+            "timeout": args.query_timeout,
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         logger.warning("Nenhuma query DNS sera enviada.")
-        logger.info("Dominio: %s", domain)
+        logger.info("Dominio: %s", self._get_target(args))
         return 0
 
-    selectors = [s.strip() for s in args.selectors.split(",") if s.strip()]
+    def _example(self) -> str:
+        return "example.com --selectors default,google"
 
-    result = scan_email_security(
-        domain=domain,
-        nameserver=args.nameserver,
-        selectors=selectors,
-        timeout=args.query_timeout,
-    )
-
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-
-    elif not quiet:
-        print_results(result)
-
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            ["domain", "overall_status", "issues"],
-            quiet=quiet,
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --selectors default,google,s1\n"
+            "  example.com --nameserver 1.1.1.1"
         )
-    return 0 if result.overall_status == "secure" else 1
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do Email Security."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="secemail> ",
-        description="Email Security interativo — verifica DMARC/SPF/DKIM.",
-        example="example.com --selectors default,google",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"
-        ),
-    )
-
+scanner = EmailsecurityScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

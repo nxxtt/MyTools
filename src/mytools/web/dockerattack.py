@@ -22,14 +22,13 @@ from urllib.parse import urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -511,61 +510,66 @@ async def run_scan(
     return result
 
 
-def build_parser() -> argparse.ArgumentParser:
+class DockerattackScanner(BaseScanner):
+    """Docker Attack Testing — dispatcher BaseScanner (Grupo B)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-docker",
-        description="Docker Attack Testing — Docker Registry security probing",
-    )
+    prog = "mytools-docker"
+    description = "Docker Attack Testing — Docker Registry security probing"
+    prompt = "docker> "
+    module_name = "mytools.dockerattack"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo (https://registry.target.com)")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (https://registry.target.com)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar",
-    )
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-    add_common_args(parser, "web")
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
 
-    return parser
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-def run_once(args: argparse.Namespace) -> int:
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "Docker Attack Testing")
 
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-docker \u2014 nenhuma requisi\u00e7\u00e3o executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
+    def _example(self) -> str:
+        return "mytools-docker https://registry.target.com"
 
-    return 1 if result.overall_status == "vulnerable" else 0
+    def _help(self) -> str:
+        return "docker: registry_exposed"
 
 
-def main() -> int:
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "Docker Attack Testing"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="docker> ",
-        description="Docker Attack Testing — Docker Registry security probing",
-        example="mytools-docker https://registry.target.com",
-        contextual_help="docker: registry_exposed",
-    )
+scanner = DockerattackScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

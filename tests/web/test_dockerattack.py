@@ -33,6 +33,8 @@ def _ns(**overrides: object) -> argparse.Namespace:
         categories=None,
         timeout=5.0,
         output=None,
+        verbose=0,
+        log_file=None,
     )
     for key, value in overrides.items():
         setattr(ns, key, value)
@@ -682,7 +684,9 @@ class TestRunOnce:
             issues=[],
             overall_status="secure",
         )
-        ns = argparse.Namespace(url="https://registry.target.com")
+        ns = argparse.Namespace(
+            url="https://registry.target.com", verbose=0, log_file=None
+        )
         with patch(
             "mytools.web.dockerattack.run_scan", new_callable=AsyncMock, return_value=r
         ):
@@ -694,7 +698,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             runpy.run_module("mytools.web.dockerattack", run_name="__main__")

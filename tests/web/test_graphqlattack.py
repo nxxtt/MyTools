@@ -881,34 +881,74 @@ class TestRunScan:
 
 class TestRunOnce:
     def test_vulnerable_returns_1(self) -> None:
-        result = MagicMock()
-        result.overall_status = "vulnerable"
+        result = GraphQLAttackResult(
+            target="https://target.com/graphql",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com/graphql",
+            schema_found=True,
+            types_count=1,
+            queries_count=1,
+            mutations_count=0,
+            attempts=[],
+            vulnerable_techniques=["full_introspection"],
+            issues=[],
+            overall_status="vulnerable",
+        )
+        args = build_parser().parse_args(["https://target.com/graphql"])
         with patch(
             "mytools.web.graphqlattack.run_scan",
             new_callable=AsyncMock,
             return_value=result,
-        ):
-            assert run_once(MagicMock()) == 1
+        ) as mock_scan:
+            assert run_once(args) == 1
+        mock_scan.assert_called_once_with(
+            target="https://target.com/graphql",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
     def test_secure_returns_0(self) -> None:
-        result = MagicMock()
-        result.overall_status = "secure"
+        result = GraphQLAttackResult(
+            target="https://target.com/graphql",
+            host="target.com",
+            port=443,
+            tls=True,
+            endpoint="https://target.com/graphql",
+            schema_found=False,
+            types_count=0,
+            queries_count=0,
+            mutations_count=0,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        args = build_parser().parse_args(["https://target.com/graphql"])
         with patch(
             "mytools.web.graphqlattack.run_scan",
             new_callable=AsyncMock,
             return_value=result,
-        ):
-            assert run_once(MagicMock()) == 0
+        ) as mock_scan:
+            assert run_once(args) == 0
+        mock_scan.assert_called_once_with(
+            target="https://target.com/graphql",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
 
 class TestMainEntry:
     def test_main(self) -> None:
-        with patch("mytools.web.graphqlattack.run_main_loop", return_value=0):
+        with patch("mytools.core.base.run_main_loop", return_value=0):
             assert main() == 0
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit) as exc_info,
         ):
             runpy.run_module("mytools.web.graphqlattack", run_name="__main__")

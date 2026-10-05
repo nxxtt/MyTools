@@ -17,8 +17,9 @@ import contextlib
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import phonenumbers
@@ -29,10 +30,10 @@ import phonenumbers.timezone
 if TYPE_CHECKING:
     import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -40,8 +41,6 @@ from mytools.core.utils import (
     fetch,
     init_scanner,
     print_json,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 from mytools.data import load_payloads
@@ -461,86 +460,93 @@ def print_results(result: PhoneResult) -> None:
     print()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constroi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Phone Lookup — informacoes de um numero de telefone.",
-    )
-    add_common_args(parser, "osint")
-    parser.add_argument("number", help="Numero de telefone (ex.: +5511987654321).")
-    parser.add_argument(
-        "--region",
-        default="BR",
-        help="Regiao default (ISO alpha-2) para interpretar numero sem +. Padrao: BR",
-    )
-    parser.add_argument(
-        "--numlookup-key",
-        dest="numlookup_key",
-        default=os.getenv("MYTOOLS_NUMLOOKUP_KEY"),
-        help="API key do NumLookup (ou env MYTOOLS_NUMLOOKUP_KEY).",
-    )
-    parser.add_argument(
-        "--ipqs-key",
-        dest="ipqs_key",
-        default=os.getenv("MYTOOLS_IPQS_KEY"),
-        help="API key do IPQualityScore (ou env MYTOOLS_IPQS_KEY).",
-    )
-    return parser
+class PhonelookupScanner(BaseScanner):
+    """Phone Lookup — dispatcher BaseScanner (Grupo A)."""
 
+    prog = "mytools-phone"
+    description = "Phone Lookup — informacoes de um numero de telefone."
+    prompt = "phone> "
+    module_name = "mytools.phonelookup"
+    module_type = "osint"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa uma unica consulta (async)."""
-    quiet = init_scanner(args)
-    raw = args.number
-    if not raw:
-        logger.error("Informe um numero. Ex: mytools-phone +5511987654321")
-        return 1
+    _args: argparse.Namespace | None = None
 
-    result = await run_scan(
-        raw,
-        region=getattr(args, "region", "BR"),
-        numlookup_key=getattr(args, "numlookup_key", None),
-        ipqs_key=getattr(args, "ipqs_key", None),
-        timeout=args.timeout,
-        user_agent=args.user_agent,
-        proxy=args.proxy,
-        verify=getattr(args, "verify", False),
-    )
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "number", None)
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    elif not quiet:
-        print_results(result)
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("number", help="Numero de telefone (ex.: +5511987654321).")
+        parser.add_argument(
+            "--region",
+            default="BR",
+            help="Regiao default (ISO alpha-2) para interpretar numero sem +. Padrao: BR",
+        )
+        parser.add_argument(
+            "--numlookup-key",
+            dest="numlookup_key",
+            default=os.getenv("MYTOOLS_NUMLOOKUP_KEY"),
+            help="API key do NumLookup (ou env MYTOOLS_NUMLOOKUP_KEY).",
+        )
+        parser.add_argument(
+            "--ipqs-key",
+            dest="ipqs_key",
+            default=os.getenv("MYTOOLS_IPQS_KEY"),
+            help="API key do IPQualityScore (ou env MYTOOLS_IPQS_KEY).",
+        )
 
-    if getattr(args, "output_dir", None):
-        safe = "".join(c for c in result.raw_number if c.isalnum()) or "phone"
-        out_path = f"{args.output_dir}/phone_{safe}.json"
-        ensure_output_dir(args.output_dir)
-        write_output(out_path, asdict(result), quiet=quiet)
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        self._args = args
+        if not args.number:
+            logger.error("Informe um numero. Ex: mytools-phone +5511987654321")
+            return 1
+        return None
 
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result), quiet=quiet)
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "raw": args.number,
+            "region": getattr(args, "region", "BR"),
+            "numlookup_key": getattr(args, "numlookup_key", None),
+            "ipqs_key": getattr(args, "ipqs_key", None),
+            "timeout": args.timeout,
+            "user_agent": args.user_agent,
+            "proxy": args.proxy,
+            "verify": getattr(args, "verify", False),
+        }
 
-    api_error = any(i.startswith(("NumLookup:", "IPQS:")) for i in result.issues)
-    return 1 if (not result.is_valid) or api_error else 0
+    async def run_scan(self, **kwargs: Any) -> Any:
+        args = self._args
+        if args is None:
+            return 1
+        quiet = init_scanner(args)
+        result = await run_scan(**kwargs)
+        if getattr(args, "json_output", False):
+            print_json(asdict(result))
+        elif not quiet:
+            print_results(result)
+        if getattr(args, "output_dir", None):
+            safe = "".join(c for c in result.raw_number if c.isalnum()) or "phone"
+            out_path = f"{args.output_dir}/phone_{safe}.json"
+            ensure_output_dir(args.output_dir)
+            write_output(out_path, asdict(result), quiet=quiet)
+        if getattr(args, "output", None):
+            write_output(args.output, asdict(result), quiet=quiet)
+        api_error = any(i.startswith(("NumLookup:", "IPQS:")) for i in result.issues)
+        return 1 if (not result.is_valid) or api_error else 0
 
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa uma unica consulta com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
 
+    def _example(self) -> str:
+        return "+5561981280041 --numlookup-key KEY --ipqs-key KEY"
 
-def main() -> int:
-    """Ponto de entrada principal do Phone Lookup."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.number),
-        prompt="phone> ",
-        description="Phone Lookup interativo.",
-        example="+5561981280041 --numlookup-key KEY --ipqs-key KEY",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <numero> [opcoes]\n"
             "Exemplos:\n"
             "  phone> +5561981280041\n"
@@ -548,9 +554,13 @@ def main() -> int:
             "  phone> +12125551234 --region US\n"
             "  phone> +5561981280041 --numlookup-key KEY\n"
             "  phone> +5561981280041 --ipqs-key KEY\n"
-        ),
-    )
+        )
 
+
+scanner = PhonelookupScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

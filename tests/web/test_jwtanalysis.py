@@ -590,6 +590,8 @@ class TestRunOnce:
         args.category = "signature_bypass"
         args.output = None
         args.timeout = 10
+        args.log_file = None
+        args.theme = None
         with patch(
             "mytools.web.jwtanalysis.run_scan",
             new_callable=AsyncMock,
@@ -606,6 +608,8 @@ class TestRunOnce:
         args.category = "all"
         args.output = None
         args.timeout = 10
+        args.log_file = None
+        args.theme = None
         assert run_once(args) == 1
 
     def test_file_loading(self, tmp_path) -> None:
@@ -618,6 +622,8 @@ class TestRunOnce:
         args.category = "all"
         args.output = None
         args.timeout = 10
+        args.log_file = None
+        args.theme = None
         with patch(
             "mytools.web.jwtanalysis.run_scan",
             new_callable=AsyncMock,
@@ -634,6 +640,8 @@ class TestRunOnce:
         args.category = "all"
         args.output = None
         args.timeout = 10
+        args.log_file = None
+        args.theme = None
         assert run_once(args) == 1
 
 
@@ -643,7 +651,7 @@ class TestMain:
     def test_main_returns_loop_result(self) -> None:
         with (
             patch("sys.argv", ["mytools-jwt", _TOKEN_HS256]),
-            patch("mytools.web.jwtanalysis.run_main_loop", return_value=0) as mock_loop,
+            patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop,
         ):
             assert main() == 0
             mock_loop.assert_called_once()
@@ -655,7 +663,7 @@ class TestMainGuard:
     def test_guard_raises_system_exit(self) -> None:
         with (
             patch("sys.argv", ["mytools-jwt", _TOKEN_HS256]),
-            patch("mytools.core.utils.run_main_loop", return_value=0),
+            patch("mytools.core.base.run_main_loop", return_value=0),
             pytest.raises(SystemExit) as exc_info,
         ):
             runpy.run_module("mytools.web.jwtanalysis", run_name="__main__")

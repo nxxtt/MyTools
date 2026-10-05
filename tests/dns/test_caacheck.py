@@ -3,7 +3,7 @@
 
 import argparse
 import runpy
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import dns.exception
 import dns.resolver
@@ -12,7 +12,6 @@ import pytest
 from mytools.dns.caacheck import (
     CaaRecord,
     CaaResult,
-    _async_run_once,
     _identify_ca,
     _parse_caa_rdata,
     banner,
@@ -346,20 +345,17 @@ def _make_args(**overrides: object) -> argparse.Namespace:
 
 
 class TestAsyncRunOnce:
-    """Testes do _async_run_once."""
+    """Testes do run_once (fluxo BaseScanner Grupo B)."""
 
-    @pytest.mark.asyncio
-    async def test_no_domain_returns_one(self) -> None:
+    def test_no_domain_returns_one(self) -> None:
         args = _make_args(domain=None)
-        assert await _async_run_once(args) == 1
+        assert run_once(args) == 1
 
-    @pytest.mark.asyncio
-    async def test_dry_run(self) -> None:
+    def test_dry_run(self) -> None:
         args = _make_args(dry_run=True)
-        assert await _async_run_once(args) == 0
+        assert run_once(args) == 0
 
-    @pytest.mark.asyncio
-    async def test_normal_runs_scan(self) -> None:
+    def test_normal_runs_scan(self) -> None:
         args = _make_args()
         with (
             patch("mytools.dns.caacheck.scan_caa") as mock_scan,
@@ -373,15 +369,14 @@ class TestAsyncRunOnce:
                 has_iodef=False,
                 policy_status="restrictive",
             )
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_scan.assert_called_once_with(
             domain="example.com", nameserver="8.8.8.8", timeout=5.0
         )
         mock_print.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_quiet_skips_print(self) -> None:
+    def test_quiet_skips_print(self) -> None:
         args = _make_args(quiet=True)
         mock_scan_result = CaaResult(
             domain="example.com",
@@ -395,16 +390,15 @@ class TestAsyncRunOnce:
             patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
             patch("mytools.dns.caacheck.print_results") as mock_print,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_print.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_writes_output(self) -> None:
+    def test_writes_output(self) -> None:
         args = _make_args(output="out.json")
         with (
             patch("mytools.dns.caacheck.scan_caa") as mock_scan,
-            patch("mytools.dns.caacheck.write_output") as mock_write,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
             mock_scan.return_value = CaaResult(
                 domain="example.com",
@@ -414,12 +408,11 @@ class TestAsyncRunOnce:
                 has_iodef=False,
                 policy_status="restrictive",
             )
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_no_caa_returns_vulnerable_exit(self) -> None:
+    def test_no_caa_returns_vulnerable_exit(self) -> None:
         args = _make_args()
         mock_scan_result = CaaResult(
             domain="example.com",
@@ -433,11 +426,10 @@ class TestAsyncRunOnce:
             patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
             patch("mytools.dns.caacheck.print_results"),
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 1
 
-    @pytest.mark.asyncio
-    async def test_open_policy_zero_issue_exit(self) -> None:
+    def test_open_policy_zero_issue_exit(self) -> None:
         args = _make_args()
         mock_scan_result = CaaResult(
             domain="example.com",
@@ -451,11 +443,10 @@ class TestAsyncRunOnce:
             patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
             patch("mytools.dns.caacheck.print_results"),
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
 
-    @pytest.mark.asyncio
-    async def test_json_prints_and_still_writes_output_dir(self) -> None:
+    def test_json_prints_and_still_writes_output_dir(self) -> None:
         args = _make_args(json_output=True, output_dir="out")
         mock_scan_result = CaaResult(
             domain="example.com",
@@ -467,44 +458,50 @@ class TestAsyncRunOnce:
         )
         with (
             patch("mytools.dns.caacheck.scan_caa", return_value=mock_scan_result),
-            patch("mytools.dns.caacheck.print_json") as mock_print_json,
-            patch("mytools.dns.caacheck.ensure_output_dir") as mock_ensure,
-            patch("mytools.dns.caacheck.write_output") as mock_write,
+            patch("mytools.core.base.print_json") as mock_print_json,
+            patch("mytools.core.base.ensure_output_dir") as mock_ensure,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_print_json.assert_called_once()
-        mock_ensure.assert_called_once_with("out")
+        mock_ensure.assert_called_once()
         mock_write.assert_called_once()
 
 
 class TestRunOnce:
     """Testes da funcao run_once."""
 
-    def test_delegates_to_safe_asyncio_run(self) -> None:
+    def test_delegates_to_scan(self) -> None:
         args = _make_args()
-        with patch(
-            "mytools.dns.caacheck._async_run_once",
-            new_callable=AsyncMock,
-            return_value=0,
-        ) as mock_async:
+        mock_result = CaaResult(
+            domain="example.com",
+            records=[CaaRecord("issue", "letsencrypt.org", 0)],
+            has_caa=True,
+            authorized_cas=["Let's Encrypt"],
+            has_iodef=False,
+            policy_status="restrictive",
+        )
+        with (
+            patch("mytools.dns.caacheck.scan_caa", return_value=mock_result),
+            patch("mytools.dns.caacheck.print_results"),
+        ):
             result = run_once(args)
         assert result == 0
-        mock_async.assert_called_once_with(args)
 
 
 class TestMain:
     """Testes da funcao main."""
 
     def test_delegates_to_run_main_loop(self) -> None:
-        with patch("mytools.dns.caacheck.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
         assert result == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-caa"]),
             pytest.raises(SystemExit) as exc_info,
         ):

@@ -35,19 +35,19 @@ Fluxo:
 import argparse
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1086,78 +1086,59 @@ def banner_art() -> None:
     create_banner(art, "   http method override: header, param, body, bypass, verb")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class MethodoverrideScanner(BaseScanner):
+    """HTTP Method Override — dispatcher BaseScanner (Grupo A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-methodoverride",
-        description="HTTP Method Override — detecta bypass de ACL via headers/params/body.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-methodoverride https://target.com\n"
-            "  mytools-methodoverride https://target.com -c header\n"
-            "  mytools-methodoverride https://target.com -c bypass\n"
-            "  mytools-methodoverride https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-methodoverride"
+    description = (
+        "HTTP Method Override — detecta bypass de ACL via headers/params/body."
     )
-
-    parser.add_argument("url", help="URL alvo para o scan")
-
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=["all", "header", "param", "body", "bypass", "verb"],
-        help="Categoria de testes (default: todas)",
+    prompt = "methodoverride> "
+    module_name = "mytools.methodoverride"
+    module_type = "web"
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-methodoverride https://target.com\n"
+        "  mytools-methodoverride https://target.com -c header\n"
+        "  mytools-methodoverride https://target.com -c bypass\n"
+        "  mytools-methodoverride https://target.com --proxy http://127.0.0.1:8080"
     )
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    add_common_args(parser, "web")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
 
-    return parser
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=["all", "header", "param", "body", "bypass", "verb"],
+            help="Categoria de testes (default: todas)",
+        )
 
+    async def run_scan(self, **kwargs: Any) -> Any:
+        logger.info("HTTP Method Override scan iniciado para %s", kwargs.get("target"))
+        return await run_scan(**kwargs)  # type: ignore[override]
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Method Override a partir de argumentos parseados."""
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    if getattr(args, "dry_run", False) is True:
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-methodoverride — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("HTTP Method Override scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c header"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo Method Override."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="methodoverride> ",
-        description="HTTP Method Override interativo.",
-        example="https://target.com -c header",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
@@ -1165,9 +1146,13 @@ def main() -> int:
             "  https://target.com -c bypass\n"
             "  https://target.com -c verb\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
 
+
+scanner = MethodoverrideScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

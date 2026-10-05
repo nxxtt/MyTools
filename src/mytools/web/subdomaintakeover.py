@@ -19,6 +19,7 @@ NOTA: vulnerable = cname_dangling AND http_match
 import argparse
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -26,17 +27,13 @@ import dns.exception
 import dns.resolver
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
-    print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -432,6 +429,7 @@ async def run_scan(
     wordlist: str | None = None,
 ) -> TakeoverResult:
     """Executa o scan de subdomain takeover contra o dominio alvo."""
+    logger.info("Subdomain takeover scan iniciado para %s", domain)
     services = _get_services()
     if not services:
         logger.error("Nenhum service fingerprint carregado")
@@ -617,32 +615,56 @@ banner_art = create_banner(
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-subtakeover",
-        description="Subdomain Takeover — detecta dangling CNAMEs para servicos nao reclamados",
-    )
-    parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com)")
-    parser.add_argument(
-        "--wordlist",
-        help="Arquivo com subdominios extras (1 por linha)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=10,
-        help="Requisicoes simultaneas (default: 10)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class SubdomaintakeoverScanner(BaseScanner):
+    """Subdomain takeover scanner (Grupo B)."""
 
+    prog = "mytools-subtakeover"
+    description = (
+        "Subdomain Takeover — detecta dangling CNAMEs para servicos nao reclamados"
+    )
+    prompt = "subtakeover> "
+    module_name = "mytools.subdomaintakeover"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan a partir de argumentos parseados."""
-    init_scanner(args)
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com)")
+        parser.add_argument(
+            "--wordlist",
+            help="Arquivo com subdominios extras (1 por linha)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=10,
+            help="Requisicoes simultaneas (default: 10)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "timeout": getattr(args, "timeout", 10),
+            "concurrency": getattr(args, "concurrency", 10),
+            "output_file": getattr(args, "output", None),
+            "json_output": getattr(args, "json_output", False),
+            "wordlist": getattr(args, "wordlist", None),
+        }
+
+    def run_scan(self, **kwargs):  # type: ignore[override]
+        return run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print(
             "[DRY-RUN] mytools-subtakeover \u2014 nenhuma requisi\u00e7\u00e3o executada."
         )
@@ -650,42 +672,18 @@ def run_once(args: argparse.Namespace) -> int:
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("Subdomain takeover scan iniciado para %s", args.domain)
 
-    result = safe_asyncio_run(
-        run_scan(
-            domain=args.domain,
-            timeout=getattr(args, "timeout", 10),
-            concurrency=getattr(args, "concurrency", 10),
-            output_file=getattr(args, "output", None),
-            json_output=getattr(args, "json_output", False),
-            wordlist=getattr(args, "wordlist", None),
-        ),
-    )
+    def _example(self) -> str:
+        return "example.com"
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    else:
-        print_results(result)
-
-    return 1 if result.overall_status != "secure" else 0
+    def _help(self) -> str:
+        return "Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20 --json-output"
 
 
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "domain", None)),
-        prompt="subtakeover> ",
-        description="Subdomain takeover interativo.",
-        example="example.com",
-        contextual_help=(
-            "Uso: <domain> [opcoes]\nExemplos:\n  example.com\n  example.com --wordlist extras.txt\n  example.com --concurrency 20 --json-output"
-        ),
-    )
-
+scanner = SubdomaintakeoverScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

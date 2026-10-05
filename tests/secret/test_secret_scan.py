@@ -45,7 +45,9 @@ class TestSecretPatterns:
         assert m is not None
 
     def test_stripe_key(self):
-        m = SECRET_PATTERNS["stripe_key"].search("sk_live_" + "abcdefghijklmnopqrstuvwx")
+        m = SECRET_PATTERNS["stripe_key"].search(
+            "sk_live_" + "abcdefghijklmnopqrstuvwx"
+        )
         assert m is not None
 
     def test_password_assign(self):

@@ -31,14 +31,12 @@ from grpc_reflection.v1alpha.proto_reflection_descriptor_database import (
     ProtoReflectionDescriptorDatabase,
 )
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -786,53 +784,69 @@ async def run_scan(
     return result
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="mytools-grpc",
-        description="gRPC Attack Testing — Reflection, Streaming, Bidirectional, gRPC-Web, Protobuf",
+class GrpcattackScanner(BaseScanner):
+    """gRPC Attack Testing — dispatcher BaseScanner (Grupo B)."""
+
+    prog = "mytools-grpc"
+    description = (
+        "gRPC Attack Testing — Reflection, Streaming, Bidirectional, gRPC-Web, Protobuf"
     )
-    parser.add_argument("url", help="URL alvo (grpc://target.com:50051)")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar",
-    )
-    add_common_args(parser, "web")
-    return parser
+    prompt = "grpc> "
+    module_name = "mytools.grpcattack"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (grpc://target.com:50051)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar",
+        )
 
-def run_once(args: argparse.Namespace) -> int:
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
 
-    if getattr(args, "dry_run", False) is True:
-        print("[DRY-RUN] mytools-grpc \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        # run_scan ja imprime o resultado (contrato dos testes); a base chamaria
+        # print_results de novo no fluxo Grupo B — no-op para nao imprimir 2x.
+        return None
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "gRPC Attack Testing")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-grpc — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
+
+    def _example(self) -> str:
+        return "mytools-grpc grpc://target.com:50051"
+
+    def _help(self) -> str:
+        return (
+            "gRPC: reflection, server_streaming, client_streaming, bidirectional, "
+            "grpc_web, protobuf"
         )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
 
 
-def main() -> int:
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "gRPC Attack Testing"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="grpc> ",
-        description="gRPC Attack Testing — Reflection, Streaming, Bidirectional, gRPC-Web, Protobuf",
-        example="mytools-grpc grpc://target.com:50051",
-        contextual_help="gRPC: reflection, server_streaming, client_streaming, bidirectional, grpc_web, protobuf",
-    )
+scanner = GrpcattackScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

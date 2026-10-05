@@ -762,7 +762,7 @@ class TestRunOnce:
 
     def test_returns_0_on_secure(self, capsys: pytest.CaptureFixture[str]) -> None:
         with (
-            patch("mytools.web.cloudbucketenum.init_scanner") as mock_init,
+            patch("mytools.core.base.init_scanner", return_value=False) as mock_init,
             patch(
                 "mytools.web.cloudbucketenum.run_scan",
                 new_callable=AsyncMock,
@@ -777,7 +777,7 @@ class TestRunOnce:
 
     def test_returns_1_on_error(self) -> None:
         with (
-            patch("mytools.web.cloudbucketenum.init_scanner"),
+            patch("mytools.core.base.init_scanner", return_value=False),
             patch(
                 "mytools.web.cloudbucketenum.run_scan",
                 new_callable=AsyncMock,
@@ -789,7 +789,7 @@ class TestRunOnce:
 
     def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         with (
-            patch("mytools.web.cloudbucketenum.init_scanner"),
+            patch("mytools.core.base.init_scanner", return_value=False),
             patch(
                 "mytools.web.cloudbucketenum.run_scan",
                 new_callable=AsyncMock,
@@ -804,7 +804,7 @@ class TestRunOnce:
     def test_output_file_written(self, tmp_path: object) -> None:
         out = str(tmp_path) + "/out.json"
         with (
-            patch("mytools.web.cloudbucketenum.init_scanner"),
+            patch("mytools.core.base.init_scanner", return_value=False),
             patch(
                 "mytools.web.cloudbucketenum.run_scan",
                 new_callable=AsyncMock,
@@ -820,7 +820,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             runpy.run_module("mytools.web.cloudbucketenum", run_name="__main__")

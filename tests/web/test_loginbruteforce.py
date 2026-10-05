@@ -584,7 +584,7 @@ class TestMain:
 
     def test_runs_main_loop(self) -> None:
         with patch(
-            "mytools.web.loginbruteforce.run_main_loop", return_value=0
+            "mytools.core.base.run_main_loop", return_value=0
         ) as mock_run_main_loop:
             assert main() == 0
             mock_run_main_loop.assert_called_once()
@@ -595,7 +595,7 @@ class TestMain:
         def _raise(*_args: object, **_kwargs: object) -> int:
             raise SystemExit(0)
 
-        monkeypatch.setattr("mytools.core.utils.run_main_loop", _raise)
+        monkeypatch.setattr("mytools.core.base.run_main_loop", _raise)
         with pytest.raises(SystemExit):
             runpy.run_module("mytools.web.loginbruteforce", run_name="__main__")
 
@@ -1040,7 +1040,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         mock_print = MagicMock()
         monkeypatch.setattr(loginbruteforce_module, "print_results", mock_print)
         args = argparse.Namespace(
@@ -1073,7 +1075,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         args = argparse.Namespace(
             url="http://x/login",
             category="all",
@@ -1103,7 +1107,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         args = argparse.Namespace(
             url="http://x/login",
             category="all",
@@ -1132,7 +1138,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             loginbruteforce_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(loginbruteforce_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         args = argparse.Namespace(
             url="http://x/login",
             category="all",

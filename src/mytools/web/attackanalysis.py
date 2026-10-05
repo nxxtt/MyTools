@@ -10,8 +10,10 @@ Gera grafos de ataque baseados em findings de segurança:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -23,14 +25,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
     print_json,
-    run_main_loop,
+    set_dry_run,
     write_output,
 )
 
@@ -311,28 +313,7 @@ def print_results(graph: AttackGraph, exploits: list[dict[str, str]]) -> None:
     print()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="mytools-analysis",
-        description="Attack Analysis — Visualização de caminhos de ataque",
-    )
-    parser.add_argument(
-        "findings_file", help="Arquivo JSON com findings (output de attackaudit)"
-    )
-    parser.add_argument(
-        "--target", default="unknown", help="Target label (default: unknown)"
-    )
-    parser.add_argument("--png", help="Caminho para salvar PNG")
-    parser.add_argument("--svg", help="Caminho para salvar SVG")
-    parser.add_argument("--dot", help="Caminha para salvar DOT")
-    parser.add_argument(
-        "--exploits-only", action="store_true", help="Mostrar apenas exploits"
-    )
-    add_common_args(parser, "web")
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
 
     if getattr(args, "dry_run", False) is True:
         print(
@@ -343,11 +324,13 @@ def run_once(args: argparse.Namespace) -> int:
         )
         return 0
     findings_file = Path(args.findings_file)
-    if not findings_file.exists():
+    if not await asyncio.to_thread(findings_file.exists):
         logger.error("arquivo não encontrado: %s", findings_file)
         return 1
     try:
-        findings = json.loads(findings_file.read_text(encoding="utf-8"))
+        findings = json.loads(
+            await asyncio.to_thread(findings_file.read_text, encoding="utf-8")
+        )
     except json.JSONDecodeError as e:
         logger.error("JSON inválido: %s", e)
         return 1
@@ -388,17 +371,74 @@ def run_once(args: argparse.Namespace) -> int:
     return 1 if graph.critical_count or graph.high_count else 0
 
 
-def main() -> int:
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "Attack Analysis"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "findings_file", None)),
-        prompt="analysis> ",
-        description="Attack Analysis — Visualização de caminhos de ataque",
-        example="mytools-analysis findings.json --png attack_path.png",
-        contextual_help="analysis: attack_path, exploit_suggest, DOT/PNG/SVG export",
-    )
+class AttackanalysisScanner(BaseScanner):
+    """Attack Analysis — dispatcher BaseScanner (Grupo A)."""
+
+    prog = "mytools-analysis"
+    description = "Attack Analysis — Visualização de caminhos de ataque"
+    prompt = "analysis> "
+    module_name = "mytools.attackanalysis"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "findings_file", help="Arquivo JSON com findings (output de attackaudit)"
+        )
+        parser.add_argument(
+            "--target", default="unknown", help="Target label (default: unknown)"
+        )
+        parser.add_argument("--png", help="Caminho para salvar PNG")
+        parser.add_argument("--svg", help="Caminho para salvar SVG")
+        parser.add_argument("--dot", help="Caminha para salvar DOT")
+        parser.add_argument(
+            "--exploits-only", action="store_true", help="Mostrar apenas exploits"
+        )
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "findings_file", None)
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        # Grupo A: o output acontece dentro de run_scan e o print_results do
+        # modulo exige (graph, exploits) — a base nunca chama este metodo no
+        # fluxo A, entao e um no-op.
+        return None
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "Attack Analysis")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print(
+            "[DRY-RUN] mytools-analysis \u2014 nenhuma requisi\u00e7\u00e3o executada."
+        )
+        print(
+            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        )
+        return 0
+
+    def _example(self) -> str:
+        return "mytools-analysis findings.json --png attack_path.png"
+
+    def _help(self) -> str:
+        return "analysis: attack_path, exploit_suggest, DOT/PNG/SVG export"
+
+
+scanner = AttackanalysisScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

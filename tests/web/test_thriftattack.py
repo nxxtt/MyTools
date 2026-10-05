@@ -671,10 +671,13 @@ class TestRunOnce:
             issues=[],
             overall_status="vulnerable",
         )
-        with patch(
-            "mytools.web.thriftattack.run_scan",
-            new_callable=AsyncMock,
-            return_value=result,
+        with (
+            patch("mytools.core.base.init_scanner", return_value=False),
+            patch(
+                "mytools.web.thriftattack.run_scan",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
         ):
             args = argparse.Namespace(
                 url="thrift://target.com:9090",
@@ -698,10 +701,13 @@ class TestRunOnce:
             issues=[],
             overall_status="secure",
         )
-        with patch(
-            "mytools.web.thriftattack.run_scan",
-            new_callable=AsyncMock,
-            return_value=result,
+        with (
+            patch("mytools.core.base.init_scanner", return_value=False),
+            patch(
+                "mytools.web.thriftattack.run_scan",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
         ):
             args = argparse.Namespace(
                 url="thrift://target.com:9090",
@@ -715,8 +721,7 @@ class TestRunOnce:
 class TestMain:
     def test_runs_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            thriftattack_module,
-            "run_main_loop",
+            "mytools.core.base.run_main_loop",
             lambda *args, **kwargs: 42,
         )
         assert main() == 42
@@ -727,7 +732,7 @@ class TestMain:
         with (
             patch("sys.argv", ["mytools-thrift"]),
             patch(
-                "mytools.core.utils.run_main_loop", side_effect=SystemExit(0)
+                "mytools.core.base.run_main_loop", side_effect=SystemExit(0)
             ) as mock_loop,
             pytest.raises(SystemExit) as exc_info,
         ):

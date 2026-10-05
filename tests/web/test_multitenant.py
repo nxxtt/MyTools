@@ -7,7 +7,7 @@ import json
 import runpy
 from collections.abc import Awaitable, Callable, Sequence
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -900,29 +900,32 @@ class TestRunScanBlocked:
 class TestRunOnce:
     def test_vulnerable_returns_1(self) -> None:
         result = _make_result(overall="vulnerable")
-        with (
-            patch(
-                "mytools.web.multitenant.run_scan",
-                new_callable=MagicMock,
-                return_value=result,
-            ),
-            patch(
-                "mytools.web.multitenant.safe_asyncio_run", return_value=result
-            ) as mock_run,
-        ):
-            code = run_once(argparse.Namespace(url="https://example.com"))
+        with patch(
+            "mytools.web.multitenant.run_scan",
+            new_callable=AsyncMock,
+            return_value=result,
+        ) as mock_scan:
+            code = run_once(
+                argparse.Namespace(
+                    url="https://example.com",
+                    verbose=False,
+                    log_file=None,
+                )
+            )
         assert code == 1
-        mock_run.assert_called_once()
+        mock_scan.assert_called_once_with(
+            target="https://example.com",
+            categories=None,
+            timeout=10.0,
+            output_file=None,
+        )
 
     def test_secure_returns_0(self) -> None:
         result = _make_result(overall="secure")
-        with (
-            patch(
-                "mytools.web.multitenant.run_scan",
-                new_callable=MagicMock,
-                return_value=result,
-            ),
-            patch("mytools.web.multitenant.safe_asyncio_run", return_value=result),
+        with patch(
+            "mytools.web.multitenant.run_scan",
+            new_callable=AsyncMock,
+            return_value=result,
         ):
             code = run_once(
                 argparse.Namespace(
@@ -930,6 +933,8 @@ class TestRunOnce:
                     categories=None,
                     timeout=10.0,
                     output=None,
+                    verbose=False,
+                    log_file=None,
                 )
             )
         assert code == 0
@@ -937,15 +942,13 @@ class TestRunOnce:
 
 class TestMain:
     def test_main_returns(self) -> None:
-        with patch(
-            "mytools.web.multitenant.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.web.multitenant.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-multitenant"]),
             pytest.raises(SystemExit),
         ):

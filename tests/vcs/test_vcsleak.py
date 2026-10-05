@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 import json
 from dataclasses import asdict
 from unittest.mock import AsyncMock, patch
@@ -14,7 +13,6 @@ from mytools.vcs.vcsleak import (
     HG_PATHS,
     SVN_PATHS,
     VCSLeak,
-    _async_run_once,
     _classify_path,
     _load_paths_from_args,
     _validate_content,
@@ -651,7 +649,7 @@ class TestAsyncRunOnce:
                 return_value=["http://x.com/"],
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_timeout_zero(self):
@@ -664,7 +662,7 @@ class TestAsyncRunOnce:
                 return_value=["http://x.com/"],
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 1
 
     def test_prints_results_when_not_quiet(self, capsys):
@@ -680,7 +678,7 @@ class TestAsyncRunOnce:
                 new=AsyncMock(return_value=[]),
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_json_output(self, capsys):
@@ -704,7 +702,7 @@ class TestAsyncRunOnce:
                 new=AsyncMock(return_value=[leak]),
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         captured = capsys.readouterr().out
         data = json.loads(captured)
@@ -731,7 +729,7 @@ class TestAsyncRunOnce:
                 new=AsyncMock(side_effect=[[leak], []]),
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         captured = capsys.readouterr().out
         assert json.loads(captured) == [asdict(leak)]
@@ -758,7 +756,7 @@ class TestAsyncRunOnce:
                 new=AsyncMock(return_value=[leak]),
             ),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         out_file = tmp_path / "out.json"
         assert out_file.exists()
@@ -780,7 +778,7 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.vcs.vcsleak.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
@@ -799,7 +797,7 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.vcs.vcsleak.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
@@ -809,16 +807,17 @@ class TestAsyncRunOnce:
 
 class TestRunOnceAndMain:
     def test_run_once(self):
-        args = argparse.Namespace()
+        args = build_parser().parse_args(["http://x.com"])
         with patch(
-            "mytools.vcs.vcsleak._async_run_once",
+            "mytools.vcs.vcsleak.run_scan",
             new_callable=AsyncMock,
             return_value=0,
-        ):
+        ) as mock_scan:
             assert run_once(args) == 0
+        mock_scan.assert_called_once_with(args=args)
 
     def test_main(self):
-        with patch("mytools.vcs.vcsleak.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
@@ -826,7 +825,7 @@ class TestRunOnceAndMain:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-vcsleak"]),
             pytest.raises(SystemExit),
         ):

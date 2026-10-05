@@ -23,15 +23,14 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlparse
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
     print_json,
     run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1378,56 +1377,71 @@ async def run_scan(
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-certcheck",
-        description="Certificate Checks — OCSP, Chain, CT, HSTS, Mixed Content",
-    )
-    parser.add_argument("url", help="URL alvo (https://)")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class CertcheckScanner(BaseScanner):
+    """Scanner CLI do Certificate Checks (Grupo A — output interno)."""
 
+    prog = "mytools-certcheck"
+    description = "Certificate Checks — OCSP, Chain, CT, HSTS, Mixed Content"
+    prompt = "certcheck> "
+    module_name = "mytools.certcheck"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa scan uma vez."""
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (https://)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+            "json_output": getattr(args, "json_output", False),
+        }
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        result = await run_scan(**kwargs)
+        return 1 if result.overall_status == "vulnerable" else 0
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "Certificate Checks")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-certcheck — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-            json_output=getattr(args, "json_output", False),
+
+    def main(self) -> int:
+        """Entry point principal."""
+        return run_main_loop(
+            parser=self.build_parser(),
+            banner_fn=self._make_banner(),
+            run_fn=run_once,
+            has_target=lambda a: bool(getattr(a, "url", None)),
+            prompt=self.prompt,
+            description="Teste de Certificate Checks (OCSP, Chain, CT, HSTS, Mixed Content).",
+            example=self._example(),
+            contextual_help=self._help(),
         )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
 
+    def _example(self) -> str:
+        return "https://target.com -c ocsp_stapling cert_chain"
 
-def main() -> int:
-    """Entry point principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "Certificate Checks"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="certcheck> ",
-        description="Teste de Certificate Checks (OCSP, Chain, CT, HSTS, Mixed Content).",
-        example="https://target.com -c ocsp_stapling cert_chain",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  ocsp_stapling  — OCSP stapling, response status, must-staple, revocation\n"
             "  cert_chain     — Full chain, intermediate, self-signed, expired, hostname\n"
@@ -1435,8 +1449,13 @@ def main() -> int:
             "  ct_split_world — crt.sh CA query, regional issuance, CA comparison\n"
             "  hsts_preload   — HSTS header, max-age, includeSubDomains, preload\n"
             "  mixed_content  — Active/passive mixed, upgrade-insecure, CSP upgrade"
-        ),
-    )
+        )
+
+
+scanner = CertcheckScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

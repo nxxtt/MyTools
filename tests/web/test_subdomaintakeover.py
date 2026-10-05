@@ -903,7 +903,7 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result()),
             ) as mock_run,
             patch(
-                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
         ):
@@ -924,16 +924,16 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result()),
             ),
             patch(
-                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
-            patch("mytools.web.subdomaintakeover.print_json") as mock_print,
-            patch("mytools.web.subdomaintakeover.write_output") as mock_write,
+            patch("mytools.core.base.print_json") as mock_print,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
             result = run_once(base_ns)
         assert result == 0
         mock_print.assert_called_once()
-        mock_write.assert_not_called()
+        mock_write.assert_called_once()
 
     def test_run_once_error(self, base_ns: argparse.Namespace) -> None:
         base_ns.domain = "example.com"
@@ -948,7 +948,7 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result("error")),
             ),
             patch(
-                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
         ):
@@ -968,7 +968,7 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result("vulnerable")),
             ),
             patch(
-                "mytools.web.subdomaintakeover.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
         ):
@@ -986,7 +986,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-subtakeover"]),
             pytest.raises(SystemExit) as exc_info,
         ):

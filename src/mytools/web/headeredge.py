@@ -25,14 +25,12 @@ from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1016,55 +1014,58 @@ async def run_scan(
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-headeredge",
-        description="Header & Parsing Edge Cases — Duplicate, Malformed, Null, Whitespace, Case, Absolute, HTTP/0.9",
-    )
-    parser.add_argument("url", help="URL alvo para teste")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class HeaderEdgeScanner(BaseScanner):
+    """Header & Parsing Edge Cases — dispatcher BaseScanner (Grupo B)."""
 
+    prog = "mytools-headeredge"
+    description = "Header & Parsing Edge Cases — Duplicate, Malformed, Null, Whitespace, Case, Absolute, HTTP/0.9"
+    prompt = "headeredge> "
+    module_name = "mytools.headeredge"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa scan uma vez."""
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para teste")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": getattr(args, "url", None),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
+
+    def run_scan(self, **kwargs):  # type: ignore[override]
+        return run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        # run_scan ja imprime o resultado (contrato dos testes); a base chamaria
+        # print_results de novo no fluxo Grupo B — no-op para nao imprimir 2x.
+        return None
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "Header & Parsing Edge Cases")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-headeredge — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
 
+    def _example(self) -> str:
+        return "https://target.com -c duplicate_headers null_request_byte"
 
-def main() -> int:
-    """Entry point principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "Header & Parsing Edge Cases"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="headeredge> ",
-        description="Teste de Header & Parsing Edge Cases (Duplicate, Malformed, Null, Whitespace, Case, Absolute, HTTP/0.9).",
-        example="https://target.com -c duplicate_headers null_request_byte",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  duplicate_headers  — Host/CL/TE duplicado\n"
             "  malformed_version  — HTTP/1.3, 2.0, 9.9\n"
@@ -1073,8 +1074,13 @@ def main() -> int:
             "  header_case        — case sensitivity\n"
             "  absolute_uri       — GET http://b.com/path\n"
             "  http09_request     — request sem headers/versao"
-        ),
-    )
+        )
+
+
+scanner = HeaderEdgeScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

@@ -31,14 +31,12 @@ import h2.errors
 import h2.events
 import h2.settings
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1898,55 +1896,57 @@ async def run_scan(
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-http2abuse",
-        description="HTTP/2 Abuse — Downgrade, Fingerprint, Stream Abuse, Reset, SETTINGS, Priority, Push",
-    )
-    parser.add_argument("url", help="URL alvo para teste")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class Http2abuseScanner(BaseScanner):
+    """Scanner CLI do HTTP/2 Abuse."""
 
+    prog = "mytools-http2abuse"
+    description = "HTTP/2 Abuse — Downgrade, Fingerprint, Stream Abuse, Reset, SETTINGS, Priority, Push"
+    prompt = "http2> "
+    module_name = "mytools.http2abuse"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa scan uma vez."""
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para teste")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    async def run_scan(self, **kwargs: Any) -> int:
+        result = await run_scan(**kwargs)
+        return self._get_return_code(result)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "HTTP/2 Abuse")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-http2abuse — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
 
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
 
-def main() -> int:
-    """Entry point principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "HTTP/2 Abuse"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="http2> ",
-        description="Teste de HTTP/2 Abuse (Downgrade, Fingerprint, Stream, Reset, SETTINGS, Priority, Push).",
-        example="https://target.com -c h2_downgrade h2_fingerprint",
-        contextual_help=(
+    def _example(self) -> str:
+        return "https://target.com -c h2_downgrade h2_fingerprint"
+
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  h2_downgrade       — Mismatch HTTP/2→1.1\n"
             "  h2_fingerprint     — Detectar server via SETTINGS\n"
@@ -1955,8 +1955,13 @@ def main() -> int:
             "  h2_settings_abuse  — SETTINGS frame manipulation\n"
             "  h2_priority_attack — Priority frame abuse\n"
             "  h2_push_abuse      — Server Push exploitation"
-        ),
-    )
+        )
+
+
+scanner = Http2abuseScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

@@ -47,7 +47,9 @@ Uso do dnspython:
 import argparse
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
 import dns.exception
 import dns.name
@@ -56,13 +58,12 @@ import dns.rdatatype
 import dns.resolver
 import dns.zone
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
     ensure_output_dir,
-    init_scanner,
     print_exploit_info,
     print_json,
     run_main_loop,
@@ -444,46 +445,21 @@ def _print_results(results: list[XfrResult]) -> None:
         )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói e retorna o parser de argumentos CLI."""
+async def run_scan(
+    domain: str,
+    timeout: float,
+    quiet: bool = False,
+    output: str | None = None,
+    json_output: bool = False,
+    output_dir: str | None = None,
+) -> int:
+    """Executa uma unica varredura de zone transfer (wrap do run_once original)."""
 
-    parser = argparse.ArgumentParser(
-        description="Scanner de DNS Zone Transfer (AXFR) para detecção de configurações inseguras.",
-    )
-
-    parser.add_argument(
-        "domain",
-        nargs="?",
-        help="Domínio alvo. Ex: example.com",
-    )
-
-    add_base_args(parser, timeout_default=AXFR_TIMEOUT)
-
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa uma única varredura de zone transfer."""
-
-    quiet = init_scanner(args)
-
-    if args.timeout <= 0:
-        raise ValueError("timeout precisa ser maior que zero")
-
-    domain = args.domain.strip().lower()
-
-    if getattr(args, "dry_run", False) is True:
-        logger.warning("Nenhuma consulta DNS sera realizada.")
-
-        logger.info("Dominio: %s", domain)
-
-        logger.info("Nameservers: serao consultados na execucao real")
-
-        return 0
+    domain = domain.strip().lower()
 
     start = time.monotonic()
 
-    results = run_xfr_scan(domain, timeout=args.timeout)
+    results = run_xfr_scan(domain, timeout=timeout)
 
     elapsed = time.monotonic() - start
 
@@ -497,11 +473,11 @@ def run_once(args: argparse.Namespace) -> int:
             sum(1 for r in results if r.zone_transferred),
         )
 
-    if args.output:
+    if output:
         rows = [asdict(r) for r in results]
 
         write_output(
-            args.output,
+            output,
             rows,
             [
                 "domain",
@@ -516,10 +492,8 @@ def run_once(args: argparse.Namespace) -> int:
             quiet=quiet,
         )
 
-    if getattr(args, "json_output", False):
+    if json_output:
         print_json([asdict(r) for r in results])
-
-    output_dir = getattr(args, "output_dir", None)
 
     if output_dir:
         ensure_output_dir(output_dir)
@@ -545,28 +519,103 @@ def run_once(args: argparse.Namespace) -> int:
     return 1 if failed or any(r.zone_transferred for r in results) else 0
 
 
-def main() -> int:
-    """Ponto de entrada principal do scanner."""
+class DnstransferScanner(BaseScanner):
+    """Scanner de DNS Zone Transfer (AXFR) — dispatcher BaseScanner (Grupo A)."""
 
-    def _validate(args: argparse.Namespace) -> None:
-
-        if not args.domain:
-            raise ValueError("Informe um dominio alvo.")
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="dnsxfer> ",
-        description="DNS Zone Transfer Scanner interativo.",
-        example="example.com -t 15",
-        validate_fn=_validate,
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com -t 15 -o xfr.json"
-        ),
+    prog = "mytools-dnsxfer"
+    description = (
+        "Scanner de DNS Zone Transfer (AXFR) para detecção de configurações inseguras."
     )
+    prompt = "dnsxfer> "
+    module_name = "mytools.dnstransfer"
+    module_type = "core"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
+
+    def build_parser(self) -> argparse.ArgumentParser:
+        # O parser original chamava add_base_args(timeout_default=AXFR_TIMEOUT);
+        # add_common_args usa o default 5.0 — restaura o default do modulo.
+        parser = super().build_parser()
+        parser.set_defaults(timeout=AXFR_TIMEOUT)
+        return parser
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "domain",
+            nargs="?",
+            help="Domínio alvo. Ex: example.com",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if args.timeout <= 0:
+            raise ValueError("timeout precisa ser maior que zero")
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        domain = (self._get_target(args) or "").strip().lower()
+        logger.warning("Nenhuma consulta DNS sera realizada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Nameservers: serao consultados na execucao real")
+        return 0
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "timeout": args.timeout,
+            "quiet": bool(getattr(args, "quiet", False)),
+            "output": getattr(args, "output", None),
+            "json_output": getattr(args, "json_output", False),
+            "output_dir": getattr(args, "output_dir", None),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        _print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def main(self) -> int:
+        """Ponto de entrada principal (mantem validacao de dominio original)."""
+
+        def _validate(args: argparse.Namespace) -> None:
+            if not args.domain:
+                raise ValueError("Informe um dominio alvo.")
+
+        return run_main_loop(
+            parser=self.build_parser(),
+            banner_fn=self._make_banner(),
+            run_fn=self.run_once,
+            has_target=lambda a: bool(self._get_target(a)),
+            prompt=self.prompt,
+            description=f"{self.description.strip()} interativo.",
+            example=self._example(),
+            validate_fn=_validate,
+            contextual_help=self._help(),
+        )
+
+    def _example(self) -> str:
+        return "example.com -t 15"
+
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com -t 15 -o xfr.json"
+        )
+
+
+scanner = DnstransferScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

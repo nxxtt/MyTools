@@ -59,19 +59,16 @@ Fluxo:
 import argparse
 import contextlib
 import smtplib
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 _CATEGORY_MAP_DEFAULT: dict[str, list[str]] = {
@@ -523,118 +520,106 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-
-    parser = argparse.ArgumentParser(
-        description="Email Address Quoting Bypass — testa bypass de blocklists via local-parts citados.",
-        epilog="Verifica se o servidor aceita enderecos RFC 5321/5322 citados que bypassam filtros.",
+async def run_scan(
+    target: str,
+    port: int,
+    from_addr: str,
+    domain: str | None,
+    timeout: float,
+    category: str | None,
+) -> AddressResult:
+    """Roda a verificacao de address bypass (envolve a funcao sync)."""
+    return scan_address_bypass(
+        target=target,
+        port=port,
+        from_addr=from_addr,
+        domain=domain,
+        timeout=timeout,
+        category=category,
     )
 
-    add_base_args(parser)
 
-    parser.add_argument(
-        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
-    )
+class EmailaddressbypassScanner(BaseScanner):
+    """Email Address Quoting Bypass — dispatcher BaseScanner (Grupo B)."""
 
-    parser.add_argument(
-        "--port",
-        "-p",
-        type=int,
-        default=587,
-        help="Porta SMTP. Padrao: 587",
-    )
+    prog = "mytools-addrbypass"
+    description = "Email Address Quoting Bypass — testa bypass de blocklists via local-parts citados."
+    prompt = "addrbypass> "
+    module_name = "mytools.emailaddressbypass"
+    module_type = "core"
+    epilog = "Verifica se o servidor aceita enderecos RFC 5321/5322 citados que bypassam filtros."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument(
-        "--from-addr",
-        default="test@example.com",
-        help="Endereco FROM para os testes. Padrao: test@example.com",
-    )
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+        )
+        parser.add_argument(
+            "--port",
+            "-p",
+            type=int,
+            default=587,
+            help="Porta SMTP. Padrao: 587",
+        )
+        parser.add_argument(
+            "--from-addr",
+            default="test@example.com",
+            help="Endereco FROM para os testes. Padrao: test@example.com",
+        )
+        parser.add_argument(
+            "--domain",
+            help="Dominio alvo para construir enderecos de teste. Padrao: target",
+        )
+        parser.add_argument(
+            "--category",
+            "-c",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Testa apenas uma categoria de bypass.",
+        )
 
-    parser.add_argument(
-        "--domain",
-        help="Dominio alvo para construir enderecos de teste. Padrao: target",
-    )
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if not self._get_target(args):
+            print(color("[!] Informe um host SMTP.", Cyber.RED))
+            return 1
+        return None
 
-    parser.add_argument(
-        "--category",
-        "-c",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Testa apenas uma categoria de bypass.",
-    )
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "port": args.port,
+            "from_addr": args.from_addr,
+            "domain": getattr(args, "domain", None),
+            "timeout": args.timeout,
+            "category": getattr(args, "category", None),
+        }
 
-    return parser
-
-
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-
-    quiet = init_scanner(args)
-
-    target = getattr(args, "target", None)
-
-    if not target:
-        print(color("[!] Informe um host SMTP.", Cyber.RED))
-
-        return 1
-
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        target = self._get_target(args) or ""
         print(
             color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
             "Nenhuma conexao SMTP sera feita.",
         )
-
         print(
             color("[*]", Cyber.CYAN, Cyber.BOLD),
             f"Target: {color(target, Cyber.WHITE, Cyber.BOLD)}:{args.port}",
         )
-
         return 0
 
-    result = scan_address_bypass(
-        target=target,
-        port=args.port,
-        from_addr=args.from_addr,
-        domain=getattr(args, "domain", None),
-        timeout=args.timeout,
-        category=getattr(args, "category", None),
-    )
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    elif not quiet:
-        print_results(result)
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            ["target", "port", "overall_status", "accepted_techniques", "issues"],
-            quiet=quiet,
-        )
+    def _example(self) -> str:
+        return "mail.example.com --port 587"
 
-    return 0 if result.overall_status == "secure" else 1
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do Email Address Quoting Bypass."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.target),
-        prompt="addrbypass> ",
-        description="Email Address Quoting Bypass — testa bypass de blocklists via local-parts citados.",
-        example="mail.example.com --port 587",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <host> [opcoes]\n"
             "Exemplos:\n"
             "  mail.example.com\n"
@@ -642,9 +627,13 @@ def main() -> int:
             "  mail.example.com --domain example.com\n"
             "  mail.example.com --category quoted\n"
             "  mail.example.com --category special"
-        ),
-    )
+        )
 
+
+scanner = EmailaddressbypassScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

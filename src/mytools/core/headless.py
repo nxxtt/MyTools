@@ -1,7 +1,8 @@
 """Headless browser helpers via Playwright (import lazy).
 
 Fornece:
-- ``browser_available`` — detecta playwright + chromium instalados
+- ``browser_available`` — detecta playwright + chromium instalados (revisao
+  esperada pelo driver, com executavel presente — sem falsos positivos)
 - ``evaluate`` — executa JavaScript no contexto de uma pagina real
 - ``HeadlessError`` — erro amigavel quando o browser nao esta instalado
 
@@ -14,7 +15,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
+import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -45,22 +48,71 @@ def _browser_dir() -> Path | None:
     return None
 
 
-@functools.lru_cache(maxsize=1)
-def browser_available() -> bool:
-    """True se playwright importa e um chromium foi baixado.
+def _expected_revisions() -> frozenset[str] | None:
+    """Revisoes de chromium esperadas pelo playwright instalado.
 
-    Resultado cacheado (lru_cache): a deteccao so roda uma vez por processo.
-    Cobre ``playwright install chromium`` (diretorios ``chromium-*`` e
-    ``chromium_headless_shell-*``) e o override ``PLAYWRIGHT_BROWSERS_PATH``.
+    Le ``browsers.json`` do driver do proprio pacote playwright. Retorna
+    ``None`` quando o arquivo nao existe/nao pode ser lido (instalacao
+    quebrada ou layout inesperado).
     """
     try:
-        import playwright  # noqa: F401
-    except ImportError:
-        return False
+        import playwright
+
+        pkg = Path(playwright.__file__).resolve().parent
+        raw = (pkg / "driver" / "package" / "browsers.json").read_text(encoding="utf-8")
+        browsers = json.loads(raw).get("browsers", [])
+        revisions = frozenset(
+            str(b["revision"])
+            for b in browsers
+            if str(b.get("name", "")).replace("-", "_")
+            in ("chromium", "chromium_headless_shell")
+        )
+    except Exception:
+        return None
+    return revisions or None
+
+
+def _exe_candidates(revision: str) -> tuple[str, ...]:
+    """Caminhos (relativos ao diretorio de browsers) do executavel chromium."""
+    if sys.platform == "win32":
+        return (
+            f"chromium-{revision}/chrome-win/chrome.exe",
+            f"chromium_headless_shell-{revision}/chrome-headless-shell-win64"
+            "/chrome-headless-shell.exe",
+        )
+    if sys.platform == "darwin":
+        return (
+            f"chromium-{revision}/chrome-mac/Chromium.app/Contents/MacOS/chromium",
+            f"chromium_headless_shell-{revision}/chrome-headless-shell-mac"
+            "/chrome-headless-shell",
+        )
+    return (
+        f"chromium-{revision}/chrome-linux/chrome",
+        f"chromium_headless_shell-{revision}/chrome-headless-shell-linux64"
+        "/chrome-headless-shell",
+    )
+
+
+@functools.lru_cache(maxsize=1)
+def browser_available() -> bool:
+    """True se playwright importa e o chromium da revisao esperada esta instalado.
+
+    Resultado cacheado (lru_cache): a deteccao so roda uma vez por processo.
+    Compara a revisao esperada (``browsers.json`` do driver) com o executavel
+    realmente presente em ``ms-playwright`` — evita falso positivo quando ha
+    apenas diretorios de revisoes antigas apos um upgrade do playwright.
+    """
     base = _browser_dir()
     if base is None:
         return False
-    return any(p.name.startswith("chromium") for p in base.iterdir() if p.is_dir())
+    revisions = _expected_revisions()
+    if revisions is None:
+        return False
+    return any(
+        (base / candidate).is_file()
+        for revision in revisions
+        for candidate in _exe_candidates(revision)
+    )
 
 
 async def evaluate(

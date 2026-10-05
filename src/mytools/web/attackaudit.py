@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""AttackAudit — auditoria web red/blue para laboratórios e alvos autorizados."""
+
 import argparse
 import asyncio
 import contextlib
@@ -9,21 +11,21 @@ import socket
 import ssl
 import time
 import warnings
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import cast, override
+from typing import Any, cast, override
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
     __version__,
-    add_common_args,
     apply_session_auth_async,
     color,
     create_async_client,
@@ -39,7 +41,6 @@ from mytools.core.utils import (
     read_target_lines,
     resolve_target_urls,
     run_main_loop,
-    safe_asyncio_run,
     severity_color,
     status_color,
     write_output,
@@ -2148,58 +2149,6 @@ def _save_audit_output(path: str, result: AuditResult, quiet: bool = False) -> N
     )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constroi parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Auditoria web red/blue para laboratorios e alvos autorizados."
-    )
-    add_common_args(parser, "web")
-    parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
-    parser.add_argument(
-        "-l",
-        "--list",
-        dest="target_list",
-        help="Arquivo com URLs alvo (uma por linha).",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=20,
-        help="Concorrencia assincrona para probes de paths. Padrao: 20",
-    )
-    parser.add_argument(
-        "--paths-file",
-        dest="paths_file",
-        help="Arquivo com paths customizados (um por linha). Ativa --deep automaticamente.",
-    )
-    parser.add_argument(
-        "--deep", action="store_true", help="Ativa probes de arquivos/endpoints comuns."
-    )
-    parser.add_argument(
-        "--test-vulns",
-        action="store_true",
-        help="Ativa testes de vulnerabilidade (XSS reflection, SQLi error-based).",
-    )
-    parser.add_argument(
-        "--test-methods",
-        action="store_true",
-        help="Testa metodos HTTP perigosos (PUT, DELETE, PATCH, TRACE) nos endpoints.",
-    )
-    parser.add_argument(
-        "--params",
-        help="Query params para injecao XSS/SQLi (separado por virgula). Ex: --params 'q,id,search'",
-    )
-    parser.add_argument(
-        "--login-url",
-        dest="login_url",
-        help="URL do endpoint de login para testar Session Fixation. Ex: --login-url /login",
-    )
-    parser.set_defaults(
-        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) AttackAudit/{__version__}"
-    )
-    return parser
-
-
 async def _run_single(
     url: str, args: argparse.Namespace, quiet: bool = False
 ) -> AuditResult:
@@ -2234,7 +2183,7 @@ async def _run_single(
     return result
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa uma unica auditoria (async)."""
     quiet = init_scanner(args)
     if getattr(args, "paths_file", None):
@@ -2305,22 +2254,125 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 1 if any(r.findings for r in all_results) else 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa uma unica auditoria com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class AttackauditScanner(BaseScanner):
+    """Scanner CLI do AttackAudit (Grupo A — output interno)."""
 
+    prog = "mytools-audit"
+    description = "Auditoria web red/blue para laboratorios e alvos autorizados."
+    prompt = "audit> "
+    module_name = "mytools.attackaudit"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal do AttackAudit."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
-        prompt="audit> ",
-        description="AttackAudit interativo.",
-        example="https://example.com --deep --test-vulns -o audit.json",
-        contextual_help=(
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Parser do modulo — template, com user_agent default do modulo."""
+        parser = super().build_parser()
+        parser.set_defaults(
+            user_agent=f"Mozilla/5.0 (X11; Linux x86_64) AttackAudit/{__version__}"
+        )
+        return parser
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com URLs alvo (uma por linha).",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=20,
+            help="Concorrencia assincrona para probes de paths. Padrao: 20",
+        )
+        parser.add_argument(
+            "--paths-file",
+            dest="paths_file",
+            help="Arquivo com paths customizados (um por linha). Ativa --deep automaticamente.",
+        )
+        parser.add_argument(
+            "--deep",
+            action="store_true",
+            help="Ativa probes de arquivos/endpoints comuns.",
+        )
+        parser.add_argument(
+            "--test-vulns",
+            action="store_true",
+            help="Ativa testes de vulnerabilidade (XSS reflection, SQLi error-based).",
+        )
+        parser.add_argument(
+            "--test-methods",
+            action="store_true",
+            help="Testa metodos HTTP perigosos (PUT, DELETE, PATCH, TRACE) nos endpoints.",
+        )
+        parser.add_argument(
+            "--params",
+            help="Query params para injecao XSS/SQLi (separado por virgula). Ex: --params 'q,id,search'",
+        )
+        parser.add_argument(
+            "--login-url",
+            dest="login_url",
+            help="URL do endpoint de login para testar Session Fixation. Ex: --login-url /login",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if getattr(args, "paths_file", None):
+            args.deep = True
+        if args.concurrency < 1:
+            raise ValueError("concorrencia precisa ser maior que zero")
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        urls = resolve_target_urls(args)
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        for url in urls:
+            target = normalize_url(url)
+            logger.info("Alvo: %s", target)
+            features = []
+            if args.deep:
+                features.append("path probing")
+            if getattr(args, "test_vulns", False):
+                features.append("XSS/SQLi tests")
+            if getattr(args, "test_methods", False):
+                features.append("HTTP method tests")
+            if getattr(args, "params", None):
+                features.append(f"params={args.params}")
+            if features:
+                logger.info("Features: %s", ", ".join(features))
+        return 0
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_result(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def main(self) -> int:
+        """Entry point — ``run_fn`` resolve o global ``run_once`` (patchavel)."""
+        return run_main_loop(
+            parser=self.build_parser(),
+            banner_fn=self._make_banner(),
+            run_fn=run_once,
+            has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
+            prompt=self.prompt,
+            description="AttackAudit interativo.",
+            example=self._example(),
+            contextual_help=self._help(),
+        )
+
+    def _example(self) -> str:
+        return "https://example.com --deep --test-vulns -o audit.json"
+
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://example.com --deep\n"
@@ -2328,8 +2380,13 @@ def main() -> int:
             "  https://example.com --deep --test-vulns --params 'q,search,id'\n"
             "  https://example.com --paths-file custom.txt -o audit.json\n"
             "  -l targets.txt --output-dir results/"
-        ),
-    )
+        )
+
+
+scanner = AttackauditScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

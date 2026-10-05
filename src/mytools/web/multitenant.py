@@ -23,16 +23,14 @@ from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1379,62 +1377,69 @@ async def run_scan(
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-multitenant",
-        description="Multi-Tenant Security Testing — Testa isolamento entre tenants",
-    )
-    parser.add_argument("url", help="URL alvo para teste")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class MultitenantScanner(BaseScanner):
+    """Scanner CLI de teste de seguranca multi-tenant."""
 
+    prog = "mytools-multitenant"
+    description = "Multi-Tenant Security Testing — Testa isolamento entre tenants"
+    prompt = "multitenant> "
+    module_name = "mytools.multitenant"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa scan uma vez."""
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para teste")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    async def run_scan(self, **kwargs: Any) -> int:
+        result = await run_scan(**kwargs)
+        return self._get_return_code(result)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "Multi-Tenant Security Test")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-multitenant — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 10.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
 
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 10.0),
+            "output_file": getattr(args, "output", None),
+        }
 
-def main() -> int:
-    """Entry point principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "Multi-Tenant Security Test"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="multitenant> ",
-        description="Teste de isolamento entre tenants em aplicações SaaS.",
-        example="https://app.example.com/api/v1/users -c tenant_id",
-        contextual_help=(
+    def _example(self) -> str:
+        return "https://app.example.com/api/v1/users -c tenant_id"
+
+    def _help(self) -> str:
+        return (
             "Categorias disponíveis:\n"
             "  tenant_id            — Trocar tenant ID em headers/cookies/params\n"
             "  subdomain_isolation  — Cookie scope cross-subdomain\n"
             "  shared_resource      — Acessar recursos de outros tenants\n"
             "  cross_tenant_ssrf    — SSRF para infra interna de tenants"
-        ),
-    )
+        )
+
+
+scanner = MultitenantScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

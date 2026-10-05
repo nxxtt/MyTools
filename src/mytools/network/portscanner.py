@@ -24,14 +24,15 @@ import ipaddress
 import logging
 import socket
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     create_banner,
     init_scanner,
     parse_int_range,
@@ -460,50 +461,7 @@ def print_port_table(findings: list[Finding]) -> None:
     )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói e retorna o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Port scanner TCP rapido para laboratorios e hosts autorizados."
-    )
-    parser.add_argument(
-        "targets",
-        nargs="*",
-        help="IP, hostname ou CIDR. Ex: 192.168.0.10 scanme.nmap.org 10.0.0.0/30",
-    )
-    parser.add_argument(
-        "-l", "--list", dest="target_list", help="Arquivo com alvos (um por linha)."
-    )
-    parser.add_argument(
-        "-p",
-        "--ports",
-        type=parse_ports,
-        default=DEFAULT_PORTS,
-        help="Portas: default, top100, all, 22,80,443 ou 1-1024. Padrao: default",
-    )
-    parser.add_argument(
-        "-w",
-        "--workers",
-        type=int,
-        default=100,
-        help="Numero de threads. Padrao: 100",
-    )
-    parser.add_argument(
-        "--threads",
-        type=int,
-        default=None,
-        help="Alias de --workers (deprecated). Use --workers.",
-    )
-    parser.add_argument(
-        "-b",
-        "--banner",
-        action="store_true",
-        help="Tenta coletar banner em portas abertas.",
-    )
-    add_base_args(parser, timeout_default=0.5)
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa uma única varredura com os argumentos fornecidos."""
     quiet = init_scanner(args)
 
@@ -571,23 +529,121 @@ def run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def main() -> int:
-    """Ponto de entrada principal do scanner."""
+class PortscannerScanner(BaseScanner):
+    """PortScanner — dispatcher BaseScanner (Grupo A)."""
 
-    def _validate(args: argparse.Namespace) -> None:
-        if not args.targets and not getattr(args, "target_list", None):
-            raise ValueError("Informe pelo menos um alvo.")
+    prog = "mytools-port"
+    description = "Port scanner TCP rapido para laboratorios e hosts autorizados."
+    prompt = "scanner> "
+    module_name = "mytools.portscanner"
+    module_type = "core"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.targets or getattr(a, "target_list", None)),
-        prompt="scanner> ",
-        description="PortScanner interativo.",
-        example="192.168.0.10 -p 1-1024 -b",
-        validate_fn=_validate,
-        contextual_help=(
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Parser do modulo — igual ao template, com timeout do modulo."""
+        parser = super().build_parser()
+        parser.set_defaults(timeout=0.5)
+        return parser
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "targets",
+            nargs="*",
+            help="IP, hostname ou CIDR. Ex: 192.168.0.10 scanme.nmap.org 10.0.0.0/30",
+        )
+        parser.add_argument(
+            "-l", "--list", dest="target_list", help="Arquivo com alvos (um por linha)."
+        )
+        parser.add_argument(
+            "-p",
+            "--ports",
+            type=parse_ports,
+            default=DEFAULT_PORTS,
+            help="Portas: default, top100, all, 22,80,443 ou 1-1024. Padrao: default",
+        )
+        parser.add_argument(
+            "-w",
+            "--workers",
+            type=int,
+            default=100,
+            help="Numero de threads. Padrao: 100",
+        )
+        parser.add_argument(
+            "--threads",
+            type=int,
+            default=None,
+            help="Alias de --workers (deprecated). Use --workers.",
+        )
+        parser.add_argument(
+            "-b",
+            "--banner",
+            action="store_true",
+            help="Tenta coletar banner em portas abertas.",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        all_targets: list[str] = list(args.targets) if args.targets else []
+        if getattr(args, "target_list", None):
+            all_targets.extend(read_target_lines(args.target_list))
+        if not all_targets:
+            raise ValueError("informe pelo menos um alvo ou use -l/--list")
+
+        targets = resolve_targets(all_targets)
+        total = len(targets) * len(args.ports)
+        logger.warning("Nenhuma conexao sera realizada.")
+        logger.info(
+            "Alvos: %d | Portas: %d | Tentativas: %d",
+            len(targets),
+            len(args.ports),
+            total,
+        )
+        for host, address in targets:
+            logger.info("Alvo: %s (%s)", host, address)
+        logger.info(
+            "Portas: %d em %d alvo(s) = %d tentativas",
+            len(args.ports),
+            len(targets),
+            total,
+        )
+        return 0
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_port_table(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def main(self) -> int:
+        """Ponto de entrada principal (mantem has_target/validate originais)."""
+
+        def _validate(args: argparse.Namespace) -> None:
+            if not args.targets and not getattr(args, "target_list", None):
+                raise ValueError("Informe pelo menos um alvo.")
+
+        return run_main_loop(
+            parser=self.build_parser(),
+            banner_fn=self._make_banner(),
+            run_fn=run_once,
+            has_target=lambda a: bool(a.targets or getattr(a, "target_list", None)),
+            prompt=self.prompt,
+            description=f"{self.description.strip()} interativo.",
+            example=self._example(),
+            contextual_help=self._help(),
+            validate_fn=_validate,
+        )
+
+    def _example(self) -> str:
+        return "192.168.0.10 -p 1-1024 -b"
+
+    def _help(self) -> str:
+        return (
             "Uso: <target> [opcoes]\n"
             "  Targets: IP, hostname ou CIDR (IPv4/IPv6)\n"
             "Exemplos:\n"
@@ -595,9 +651,13 @@ def main() -> int:
             "  scanme.nmap.org -p top100 -b\n"
             "  10.0.0.0/30 -w 500\n"
             "  -l targets.txt -p 80,443 -o results.json"
-        ),
-    )
+        )
 
+
+scanner = PortscannerScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

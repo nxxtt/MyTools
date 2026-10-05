@@ -25,25 +25,22 @@ este modulo faz testes ativos:
 
 import argparse
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from html.parser import HTMLParser
+from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.csrfscan")
@@ -484,6 +481,7 @@ async def run_scan(
     output_file: str | None = None,
 ) -> CSRFResult:
     """Executa o scan de CSRF contra a URL alvo."""
+    logger.info("CSRF scan iniciado para %s", url)
     parsed = urlparse(url)
     if not parsed.scheme:
         url = f"http://{url}"
@@ -648,102 +646,96 @@ banner_art = create_banner(
 
 
 # ---------------------------------------------------------------------------
-# build_parser
+# CLI (build_parser / run_once / main via BaseScanner)
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta parser CLI para mytools-csrf."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-csrf",
-        description="CSRF Scanner — detecta e testa protecao CSRF.",
-    )
-    parser.add_argument("url", nargs="?", help="URL alvo para teste")
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=[
-            "form_detection",
-            "cookie_analysis",
-            "origin_referer",
-            "token_analysis",
-            "all",
-        ],
-        default="all",
-        help="Categoria de testes (default: all)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class CsrfscanScanner(BaseScanner):
+    """Scanner CLI do CSRF Scanner."""
 
+    prog = "mytools-csrf"
+    description = "CSRF Scanner — detecta e testa protecao CSRF."
+    prompt = "csrf> "
+    module_name = "mytools.csrfscan"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-# ---------------------------------------------------------------------------
-# run_once
-# ---------------------------------------------------------------------------
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo para teste")
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=[
+                "form_detection",
+                "cookie_analysis",
+                "origin_referer",
+                "token_analysis",
+                "all",
+            ],
+            default="all",
+            help="Categoria de testes (default: all)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
 
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        # O fluxo original lia args.dry_run diretamente ("is True"); sincroniza
+        # o flag para o branch dry-run da base ver o mesmo valor quando
+        # init_scanner nao e quem o defineu (testes que o mockam).
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan CSRF a partir de argumentos parseados."""
-    init_scanner(args)
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "url": self._get_target(args),
+            "category": getattr(args, "category", "all"),
+            "timeout": getattr(args, "timeout", 10.0),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+        }
 
-    if getattr(args, "dry_run", False) is True:
+    def run_scan(self, **kwargs):  # type: ignore[override]
+        # Sincrono de proposito: os testes patcham run_scan com MagicMock
+        # (valor cru) e safe_asyncio_run com identidade; o coroutine chega
+        # intacto ao safe_asyncio_run da base no caminho real.
+        return run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self):  # type: ignore[override]
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-csrf \u2014 nenhuma requisi\u00e7\u00e3o executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("CSRF scan iniciado para %s", args.url)
 
-    result = safe_asyncio_run(
-        run_scan(
-            url=args.url,
-            category=getattr(args, "category", "all"),
-            timeout=getattr(args, "timeout", 10.0),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-        ),
-    )
+    def _example(self) -> str:
+        return "https://target.com/login"
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    else:
-        print_results(result)
-
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result))
-
-    return 1 if result.overall_status != "secure" else 0
-
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="csrf> ",
-        description="CSRF Scanner interativo.",
-        example="https://target.com/login",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com/login\n"
             "  https://target.com/ -c form_detection\n"
             "  https://target.com/ -c cookie_analysis\n"
             "  https://target.com/ --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = CsrfscanScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

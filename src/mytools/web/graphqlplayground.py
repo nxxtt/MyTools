@@ -19,18 +19,19 @@ import logging
 import re
 import sys
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 from tqdm import tqdm
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -43,8 +44,6 @@ from mytools.core.utils import (
     print_json,
     print_table,
     resolve_target_urls,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -499,45 +498,6 @@ def print_schema_details(ep: GraphqlEndpoint) -> None:
         print(f"    {color(f'... +{len(ep.schema_types) - 30} mais', Cyber.GRAY)}")
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Descoberta de GraphQL Playgrounds e endpoints expostos.",
-    )
-    add_common_args(parser, "web")
-    parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument(
-        "-l",
-        "--list",
-        dest="target_list",
-        help="Arquivo com URLs alvo (uma por linha).",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=30,
-        help="Concorrencia assincrona. Padrao: 30",
-    )
-    parser.add_argument(
-        "--introspect",
-        action="store_true",
-        help="Executa introspection query para extrair schema (pode revelar tipos expostos).",
-    )
-    parser.add_argument(
-        "--schema",
-        action="store_true",
-        dest="show_schema",
-        help="Mostrar detalhes do schema para endpoints com introspection.",
-    )
-    parser.add_argument(
-        "--paths",
-        type=int,
-        default=0,
-        help="Numero maximo de paths para sondar (0=todos). Padrao: 0",
-    )
-    return parser
-
-
 def _load_paths_from_args(args: argparse.Namespace) -> list[str]:
     """Retorna lista de paths a sondar."""
     paths = list(DEFAULT_PATHS)
@@ -547,7 +507,7 @@ def _load_paths_from_args(args: argparse.Namespace) -> list[str]:
     return paths
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
     quiet = init_scanner(args)
     urls = resolve_target_urls(args)
@@ -647,30 +607,104 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class GraphqlplaygroundScanner(BaseScanner):
+    """Scanner CLI do GraphQL Playground Discovery (Grupo A - output interno)."""
 
+    prog = "mytools-gql"
+    description = "Descoberta de GraphQL Playgrounds e endpoints expostos."
+    prompt = "gql> "
+    module_name = "mytools.graphqlplayground"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal do GraphQL Playground Discovery."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
-        prompt="gql> ",
-        description="GraphQL Playground Discovery interativo.",
-        example="http://target.com --introspect",
-        contextual_help=(
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com URLs alvo (uma por linha).",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=30,
+            help="Concorrencia assincrona. Padrao: 30",
+        )
+        parser.add_argument(
+            "--introspect",
+            action="store_true",
+            help="Executa introspection query para extrair schema (pode revelar tipos expostos).",
+        )
+        parser.add_argument(
+            "--schema",
+            action="store_true",
+            dest="show_schema",
+            help="Mostrar detalhes do schema para endpoints com introspection.",
+        )
+        parser.add_argument(
+            "--paths",
+            type=int,
+            default=0,
+            help="Numero maximo de paths para sondar (0=todos). Padrao: 0",
+        )
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "url", None) or getattr(args, "target_list", None)
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        urls = resolve_target_urls(args)
+        paths = _load_paths_from_args(args)
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma requisicao HTTP sera enviada.",
+        )
+        for url in urls:
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Alvo: {color(base_url, Cyber.WHITE, Cyber.BOLD)}",
+            )
+            print(
+                color("[*]", Cyber.CYAN, Cyber.BOLD),
+                f"Paths: {color(str(len(paths)), Cyber.WHITE, Cyber.BOLD)} | Concurrency: {color(str(args.concurrency), Cyber.YELLOW)}",
+            )
+        return 0
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _example(self) -> str:
+        return "http://target.com --introspect"
+
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  http://target.com\n"
             "  http://target.com --introspect\n"
             "  http://target.com --introspect --schema\n"
             "  -l urls.txt -o results.json"
-        ),
-    )
+        )
+
+
+scanner = GraphqlplaygroundScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

@@ -31,7 +31,6 @@ from mytools.web.attackaudit import (
     PageParser,
     Probe,
     TLSVersionResult,
-    _async_run_once,
     _check_tls_versions_sync,
     _extract_query_params,
     _extract_session_id,
@@ -1626,19 +1625,17 @@ class TestDryRun:
         args = parser.parse_args(["https://example.com"])
         assert args.dry_run is False
 
-    @pytest.mark.asyncio
-    async def test_dry_run_returns_zero(self, capsys):
+    def test_dry_run_returns_zero(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--dry-run"])
-        result = await _async_run_once(args)
+        result = run_once(args)
         assert result == 0
 
-    @pytest.mark.asyncio
-    async def test_dry_run_outputs_info(self, caplog):
+    def test_dry_run_outputs_info(self, caplog):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--dry-run"])
         with caplog.at_level("WARNING", logger="mytools.attackaudit"):
-            await _async_run_once(args)
+            run_once(args)
         assert any("Nenhuma requisicao" in r.message for r in caplog.records)
 
 
@@ -3332,8 +3329,7 @@ class TestRunSingle:
 
 
 class TestAsyncRunOnceExtra:
-    @pytest.mark.asyncio
-    async def test_paths_file_sets_deep(self):
+    def test_paths_file_sets_deep(self):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -3349,19 +3345,17 @@ class TestAsyncRunOnceExtra:
             ]
         )
         with patch("mytools.web.attackaudit.load_paths_from_file", return_value=["/a"]):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         assert args.deep is True
 
-    @pytest.mark.asyncio
-    async def test_zero_concurrency_raises(self):
+    def test_zero_concurrency_raises(self):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--concurrency", "0"])
         with pytest.raises(ValueError):
-            await _async_run_once(args)
+            run_once(args)
 
-    @pytest.mark.asyncio
-    async def test_dry_run_feature_flags(self, caplog):
+    def test_dry_run_feature_flags(self, caplog):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -3375,7 +3369,7 @@ class TestAsyncRunOnceExtra:
             ]
         )
         with caplog.at_level("INFO", logger="mytools.attackaudit"):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         messages = " ".join(r.message for r in caplog.records)
         assert "path probing" in messages
@@ -3383,8 +3377,7 @@ class TestAsyncRunOnceExtra:
         assert "HTTP method tests" in messages
         assert "params=q,id" in messages
 
-    @pytest.mark.asyncio
-    async def test_full_run_with_outputs(self, tmp_path):
+    def test_full_run_with_outputs(self, tmp_path):
         result = _make_audit_result()
         parser = build_parser()
         out_dir = str(tmp_path / "out")
@@ -3410,13 +3403,12 @@ class TestAsyncRunOnceExtra:
             patch("mytools.web.attackaudit._save_audit_output") as mock_save,
             patch("mytools.web.attackaudit.write_output") as mock_write,
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         assert mock_save.called
         assert not mock_write.called
 
-    @pytest.mark.asyncio
-    async def test_full_run_multiple_results(self, tmp_path):
+    def test_full_run_multiple_results(self, tmp_path):
         result = _make_audit_result()
         parser = build_parser()
         args = parser.parse_args(
@@ -3435,12 +3427,11 @@ class TestAsyncRunOnceExtra:
             patch("mytools.web.attackaudit._save_audit_output"),
             patch("mytools.web.attackaudit.write_output") as mock_write,
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         assert mock_write.called
 
-    @pytest.mark.asyncio
-    async def test_full_run_without_output(self):
+    def test_full_run_without_output(self):
         result = _make_audit_result()
         parser = build_parser()
         args = parser.parse_args(["https://example.com"])
@@ -3457,13 +3448,12 @@ class TestAsyncRunOnceExtra:
             patch("mytools.web.attackaudit._save_audit_output") as mock_save,
             patch("mytools.web.attackaudit.write_output") as mock_write,
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         assert not mock_save.called
         assert not mock_write.called
 
-    @pytest.mark.asyncio
-    async def test_full_run_with_findings_returns_1(self):
+    def test_full_run_with_findings_returns_1(self):
         result = _make_audit_result(
             findings=[Finding("high", "transport", "item", "evidence", "rec")]
         )
@@ -3482,16 +3472,21 @@ class TestAsyncRunOnceExtra:
             patch("mytools.web.attackaudit._save_audit_output"),
             patch("mytools.web.attackaudit.write_output"),
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 1
 
 
 class TestRunOnce:
     def test_returns_zero(self):
-        args = argparse.Namespace()
-        with patch("mytools.web.attackaudit._async_run_once", return_value=0):
+        args = argparse.Namespace(verbose=False, log_file=None, concurrency=20)
+        with patch(
+            "mytools.web.attackaudit.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             result = run_once(args)
         assert result == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestAttackAuditMainGuard:

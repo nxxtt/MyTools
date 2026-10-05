@@ -43,6 +43,8 @@ def _ns(**overrides: object) -> argparse.Namespace:
         "categories": None,
         "timeout": 5.0,
         "output": None,
+        "verbose": False,
+        "log_file": None,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -997,30 +999,31 @@ class TestAbuseEvidence:
 
 class TestRunOnce:
     def test_vulnerable_returns_1(self) -> None:
-        with (
-            patch(
-                "mytools.web.http2abuse.safe_asyncio_run",
-                return_value=_result("vulnerable"),
-            ) as mock_run,
-            patch("mytools.web.http2abuse.run_scan", new_callable=MagicMock),
-        ):
+        with patch(
+            "mytools.web.http2abuse.run_scan",
+            new_callable=AsyncMock,
+            return_value=_result("vulnerable"),
+        ) as mock_scan:
             assert run_once(_ns()) == 1
-        mock_run.assert_called_once()
+        mock_scan.assert_called_once_with(
+            target="https://example.com",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
     def test_secure_returns_0(self) -> None:
-        with (
-            patch(
-                "mytools.web.http2abuse.safe_asyncio_run",
-                return_value=_result("secure"),
-            ),
-            patch("mytools.web.http2abuse.run_scan", new_callable=MagicMock),
+        with patch(
+            "mytools.web.http2abuse.run_scan",
+            new_callable=AsyncMock,
+            return_value=_result("secure"),
         ):
             assert run_once(_ns()) == 0
 
 
 class TestMain:
     def test_main(self) -> None:
-        with patch("mytools.web.http2abuse.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
@@ -1030,7 +1033,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             runpy.run_module("mytools.web.http2abuse", run_name="__main__")

@@ -29,20 +29,20 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -643,6 +643,7 @@ async def run_scan(
 ) -> int:
     """Executa o scan de OIDC Attacks."""
 
+    logger.info("OIDC scan iniciado para %s", target)
     logger.info("OIDC scan para %s", target)
 
     tls = target.startswith("https://")
@@ -784,86 +785,86 @@ def banner_art() -> None:
     create_banner(art, "   oidc: discovery, token_substitution")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class OidcScanner(BaseScanner):
+    """Scanner CLI de OIDC Attack Detection."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-oidc",
-        description="OIDC Attack Detection — detecta discovery abuse e token substitution.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-oidc https://target.com\n"
-            "  mytools-oidc https://target.com -c discovery\n"
-            "  mytools-oidc https://target.com -c token_substitution\n"
-            "  mytools-oidc https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-oidc"
+    description = (
+        "OIDC Attack Detection — detecta discovery abuse e token substitution."
     )
-
-    parser.add_argument("url", help="URL alvo (dominio OIDC)")
-
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=["all", "discovery", "token_substitution"],
-        help="Categoria de testes (default: todas)",
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-oidc https://target.com\n"
+        "  mytools-oidc https://target.com -c discovery\n"
+        "  mytools-oidc https://target.com -c token_substitution\n"
+        "  mytools-oidc https://target.com --proxy http://127.0.0.1:8080"
     )
+    prompt = "oidc> "
+    module_name = "mytools.oidc"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    add_common_args(parser, "web")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (dominio OIDC)")
 
-    return parser
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=["all", "discovery", "token_substitution"],
+            help="Categoria de testes (default: todas)",
+        )
 
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan OIDC a partir de argumentos parseados."""
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        categories: list[str] = []
+        if getattr(args, "category", None) and args.category != "all":
+            categories = [args.category]
+        return {
+            "target": self._get_target(args),
+            "categories": categories,
+            "timeout": getattr(args, "timeout", 10),
+            "output_file": getattr(args, "output", None),
+        }
 
-    if getattr(args, "dry_run", False) is True:
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-oidc — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("OIDC scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c discovery"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo OIDC Attack Detection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="oidc> ",
-        description="OIDC Attack Detection interativo.",
-        example="https://target.com -c discovery",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c discovery\n"
             "  https://target.com -c token_substitution\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = OidcScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

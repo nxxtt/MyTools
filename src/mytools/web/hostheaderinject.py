@@ -34,20 +34,20 @@ Fluxo:
 
 import argparse
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -722,85 +722,71 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class HostheaderinjectScanner(BaseScanner):
+    """Host Header Injection — dispatcher BaseScanner (Grupo A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-hostinject",
-        description="Host Header Injection — testa injecao via Host header em responses.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-hostinject https://target.com\n"
-            "  mytools-hostinject https://target.com --inject-host evil.com\n"
-            "  mytools-hostinject https://target.com -c reflected\n"
-            "  mytools-hostinject https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-hostinject"
+    description = "Host Header Injection — testa injecao via Host header em responses."
+    prompt = "hostinject> "
+    module_name = "mytools.hostheaderinject"
+    module_type = "web"
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-hostinject https://target.com\n"
+        "  mytools-hostinject https://target.com --inject-host evil.com\n"
+        "  mytools-hostinject https://target.com -c reflected\n"
+        "  mytools-hostinject https://target.com --proxy http://127.0.0.1:8080"
     )
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
 
-    parser.add_argument(
-        "--inject-host",
-        default=_INJECTED_HOST,
-        help=f"Host a injetar (default: {_INJECTED_HOST})",
-    )
+        parser.add_argument(
+            "--inject-host",
+            default=_INJECTED_HOST,
+            help=f"Host a injetar (default: {_INJECTED_HOST})",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=["all", "reflected", "password_reset", "ssrf", "cache", "bypass"],
-        help="Categoria de testes (default: todas)",
-    )
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=["all", "reflected", "password_reset", "ssrf", "cache", "bypass"],
+            help="Categoria de testes (default: todas)",
+        )
 
-    add_common_args(parser, "web")
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "injected_host": getattr(args, "inject_host", _INJECTED_HOST),
+            "categories": self._get_categories(args),
+            "timeout": getattr(args, "timeout", 10),
+            "output_file": getattr(args, "output", None),
+        }
 
-    return parser
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Host Header Injection a partir de argumentos parseados."""
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-hostinject — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("Host Header Injection scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c reflected"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            injected_host=getattr(args, "inject_host", _INJECTED_HOST),
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo Host Header Injection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="hostinject> ",
-        description="Host Header Injection interativo.",
-        example="https://target.com -c reflected",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
@@ -808,8 +794,13 @@ def main() -> int:
             "  https://target.com -c reflected\n"
             "  https://target.com -c password_reset\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = HostheaderinjectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

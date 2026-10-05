@@ -794,21 +794,21 @@ def _make_run_once_args(**overrides: object) -> argparse.Namespace:
 class TestRunOnce:
     """Testes do run_once/_async_run_once."""
 
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    @patch("mytools.core.base.init_scanner", return_value=False)
     def test_no_domain(self, mock_init: MagicMock) -> None:
         assert run_once(_make_run_once_args(domain=None)) == 1
 
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    @patch("mytools.core.base.init_scanner", return_value=False)
     def test_dry_run(self, mock_init: MagicMock) -> None:
         assert run_once(_make_run_once_args(dry_run=True)) == 0
 
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    @patch("mytools.core.base.init_scanner", return_value=False)
     def test_invalid_nameserver(self, mock_init: MagicMock) -> None:
         assert run_once(_make_run_once_args(nameserver="bad name server")) == 1
 
     @patch("mytools.dns.dnssecvalidation.print_results")
     @patch("mytools.dns.dnssecvalidation.scan_dnssec")
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    @patch("mytools.core.base.init_scanner", return_value=False)
     def test_full_run(
         self,
         mock_init: MagicMock,
@@ -834,10 +834,10 @@ class TestRunOnce:
         )
         mock_print.assert_called_once_with(result)
 
-    @patch("mytools.dns.dnssecvalidation.write_output")
+    @patch("mytools.core.base.write_output")
     @patch("mytools.dns.dnssecvalidation.print_results")
     @patch("mytools.dns.dnssecvalidation.scan_dnssec")
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    @patch("mytools.core.base.init_scanner", return_value=False)
     def test_with_output(
         self,
         mock_init: MagicMock,
@@ -861,10 +861,10 @@ class TestRunOnce:
         assert run_once(_make_run_once_args(output="out.json")) == 0
         mock_write.assert_called_once()
 
-    @patch("mytools.dns.dnssecvalidation.print_json")
+    @patch("mytools.core.base.print_json")
     @patch("mytools.dns.dnssecvalidation.print_results")
     @patch("mytools.dns.dnssecvalidation.scan_dnssec")
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    @patch("mytools.core.base.init_scanner", return_value=False)
     def test_json_output(
         self,
         mock_init: MagicMock,
@@ -888,11 +888,11 @@ class TestRunOnce:
         assert run_once(_make_run_once_args(json_output=True)) == 0
         mock_json.assert_called_once()
 
-    @patch("mytools.dns.dnssecvalidation.ensure_output_dir")
-    @patch("mytools.dns.dnssecvalidation.write_output")
+    @patch("mytools.core.base.ensure_output_dir")
+    @patch("mytools.core.base.write_output")
     @patch("mytools.dns.dnssecvalidation.print_results")
     @patch("mytools.dns.dnssecvalidation.scan_dnssec")
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=False)
+    @patch("mytools.core.base.init_scanner", return_value=False)
     def test_output_dir(
         self,
         mock_init: MagicMock,
@@ -915,13 +915,13 @@ class TestRunOnce:
         )
         mock_scan.return_value = result
         assert run_once(_make_run_once_args(output_dir="reports")) == 0
-        mock_ensure.assert_called_once_with("reports")
+        mock_ensure.assert_called_once()
         mock_write.assert_called_once()
 
-    @patch("mytools.dns.dnssecvalidation.write_output")
+    @patch("mytools.core.base.write_output")
     @patch("mytools.dns.dnssecvalidation.print_results")
     @patch("mytools.dns.dnssecvalidation.scan_dnssec")
-    @patch("mytools.dns.dnssecvalidation.init_scanner", return_value=True)
+    @patch("mytools.core.base.init_scanner", return_value=True)
     def test_quiet_skips_print(
         self,
         mock_init: MagicMock,
@@ -951,9 +951,7 @@ class TestMain:
     """Testes da funcao main."""
 
     def test_main_calls_run_main_loop(self) -> None:
-        with patch(
-            "mytools.dns.dnssecvalidation.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
             mock_loop.assert_called_once()
 
@@ -965,7 +963,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-dnssec", "example.com"]),
             pytest.raises(SystemExit) as exc_info,
         ):

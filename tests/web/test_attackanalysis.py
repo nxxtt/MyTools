@@ -416,6 +416,8 @@ class TestRunOnceLogging:
         import argparse
 
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(tmp_path / "missing.json"),
             target="test.com",
             output=None,
@@ -436,6 +438,8 @@ class TestRunOnceLogging:
         bad = tmp_path / "bad.json"
         bad.write_text("not json {{{", encoding="utf-8")
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(bad),
             target="test.com",
             output=None,
@@ -458,6 +462,8 @@ class TestRunOnceLogging:
             '[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8"
         )
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=None,
@@ -480,6 +486,8 @@ class TestRunOnceLogging:
             '[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8"
         )
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=None,
@@ -502,6 +510,8 @@ class TestRunOnceLogging:
             '[{"severity": "low", "category": "test", "item": "T"}]', encoding="utf-8"
         )
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=None,
@@ -525,6 +535,8 @@ class TestRunOnceLogging:
             encoding="utf-8",
         )
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=None,
@@ -548,6 +560,8 @@ class TestRunOnceLogging:
         )
         out_file = str(tmp_path / "out.json")
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=out_file,
@@ -573,6 +587,8 @@ class TestJsonOutput:
             encoding="utf-8",
         )
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=None,
@@ -599,6 +615,8 @@ class TestJsonOutput:
             encoding="utf-8",
         )
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=None,
@@ -621,6 +639,8 @@ class TestJsonOutput:
         findings = tmp_path / "findings.json"
         findings.write_text("[]", encoding="utf-8")
         args = argparse.Namespace(
+            verbose=0,
+            log_file=None,
             findings_file=str(findings),
             target="test.com",
             output=None,
@@ -683,9 +703,7 @@ class TestBuildParser:
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.web.attackanalysis.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert result == 0
             mock_loop.assert_called_once()

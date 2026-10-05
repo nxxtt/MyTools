@@ -26,26 +26,22 @@ import argparse
 import json
 import logging
 import re
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
-    add_base_args,
-    add_http_args,
     color,
     create_async_client,
     create_banner,
     fetch,
-    init_scanner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.cmsfingerprint")
@@ -619,92 +615,88 @@ def print_results(result: CmsResult) -> None:
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-cmsfp",
-        description="CMS Fingerprinting — deteccao ativa de CMS, plugins, temas e usuarios",
+async def run_scan(**kwargs: Any) -> CmsResult:
+    return await scan_cms_fingerprint(**kwargs)
+
+
+class CmsfingerprintScanner(BaseScanner):
+    """CMS Fingerprinting - dispatcher BaseScanner (Grupo B)."""
+
+    prog = "mytools-cmsfp"
+    description = (
+        "CMS Fingerprinting — deteccao ativa de CMS, plugins, temas e usuarios"
     )
-    parser.add_argument("url", help="URL alvo (ex: https://example.com)")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-    parser.add_argument(
-        "--plugin-limit",
-        type=int,
-        default=15,
-        help="Maximo de plugins WordPress para testar (default: 15)",
-    )
-    parser.add_argument(
-        "--theme-limit",
-        type=int,
-        default=10,
-        help="Maximo de temas WordPress para testar (default: 10)",
-    )
-    add_base_args(parser)
-    add_http_args(parser)
-    return parser
+    prompt = "cmsfp> "
+    module_name = "mytools.cmsfingerprint"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-
-def _async_run_once(args: argparse.Namespace) -> CmsResult:
-    """Executa scan uma vez."""
-    init_scanner(args)
-
-    url = args.url
-    if not url.startswith(("http://", "https://")):
-        url = f"https://{url}"
-
-    categories = getattr(args, "categories", None)
-    timeout = getattr(args, "timeout", DEFAULT_TIMEOUT)
-    plugin_limit = getattr(args, "plugin_limit", 15)
-    theme_limit = getattr(args, "theme_limit", 10)
-
-    result = safe_asyncio_run(
-        scan_cms_fingerprint(
-            base_url=url,
-            categories=categories,
-            timeout=timeout,
-            plugin_limit=plugin_limit,
-            theme_limit=theme_limit,
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ex: https://example.com)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
         )
-    )
+        parser.add_argument(
+            "--plugin-limit",
+            type=int,
+            default=15,
+            help="Maximo de plugins WordPress para testar (default: 15)",
+        )
+        parser.add_argument(
+            "--theme-limit",
+            type=int,
+            default=10,
+            help="Maximo de temas WordPress para testar (default: 10)",
+        )
 
-    print_results(result)
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-    if getattr(args, "output", None):
-        write_output(args.output, [asdict(a) for a in result.attempts])
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        url = self._get_target(args)
+        if url and not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
 
-    return result
+        categories = getattr(args, "categories", None)
+        timeout = getattr(args, "timeout", DEFAULT_TIMEOUT)
+        plugin_limit = getattr(args, "plugin_limit", 15)
+        theme_limit = getattr(args, "theme_limit", 10)
 
+        return {
+            "base_url": url,
+            "categories": categories,
+            "timeout": timeout,
+            "plugin_limit": plugin_limit,
+            "theme_limit": theme_limit,
+        }
 
-def run_once(args: argparse.Namespace) -> int:
-    """Wrapper sincrono."""
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
-    if getattr(args, "dry_run", False) is True:
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(BANNER_ART, "CMS Fingerprinting")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-cmsfp — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = _async_run_once(args)
-    return 1 if result.overall_status != "secure" else 0
 
+    def _example(self) -> str:
+        return "https://example.com -c cms_detect wp_version"
 
-def main() -> int:
-    """Entry point CLI."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(BANNER_ART, "CMS Fingerprinting"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="cmsfp> ",
-        description="CMS Fingerprinting — deteccao ativa de CMS, plugins, temas e usuarios.",
-        example="https://example.com -c cms_detect wp_version",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  cms_detect   — identificar CMS\n"
             "  wp_version   — versao do WordPress\n"
@@ -712,8 +704,13 @@ def main() -> int:
             "  wp_themes    — temas WordPress\n"
             "  wp_users     — enumerar usuarios WP\n"
             "  joomla_info  — versao + extensoes Joomla\n"
-        ),
-    )
+        )
+
+
+scanner = CmsfingerprintScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

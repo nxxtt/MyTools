@@ -24,8 +24,9 @@ import datetime
 import logging
 import random
 import string
-from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from typing import Any
 
 import dns.dnssec
 import dns.exception
@@ -35,18 +36,13 @@ import dns.query
 import dns.rdatatype
 import dns.resolver
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.dnssecvalidation")
@@ -644,29 +640,6 @@ def banner() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="DNSSEC Validation — verifica se DNSSEC esta configurado corretamente.",
-        epilog="Verifica cadeia de confianca, assinaturas, algoritmos e configuracao NSEC/NSEC3.",
-    )
-    add_base_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para validacao DNSSEC.")
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default="8.8.8.8",
-        help="Nameserver para queries. Padrao: 8.8.8.8",
-    )
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=5.0,
-        help="Timeout por query em segundos. Padrao: 5",
-    )
-    return parser
-
-
 def _is_valid_nameserver(value: str) -> bool:
     """Valida se o valor parece um hostname ou endereco IP plausivel."""
     value = value.strip()
@@ -679,23 +652,88 @@ def _is_valid_nameserver(value: str) -> bool:
     return all(ch.isalnum() or ch in ".-:" for ch in value)
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-    quiet = init_scanner(args)
+async def run_scan(
+    domain: str,
+    nameserver: str,
+    timeout: float,
+) -> DnssecResult:
+    """Roda a validacao DNSSEC (envolve a funcao sync)."""
+    return scan_dnssec(
+        domain=domain,
+        nameserver=nameserver,
+        timeout=timeout,
+    )
 
-    domain = getattr(args, "domain", None)
-    if not domain:
-        print(color("[!] Informe um dominio.", Cyber.RED))
-        return 1
 
-    if not _is_valid_nameserver(args.nameserver):
-        logger.error(
-            "Nameserver invalido: %r. Use um hostname ou endereco IP valido.",
-            args.nameserver,
+class DnssecvalidationScanner(BaseScanner):
+    """DNSSEC Validation — dispatcher BaseScanner (Grupo B)."""
+
+    prog = "mytools-dnssec"
+    description = (
+        "DNSSEC Validation — verifica se DNSSEC esta configurado corretamente."
+    )
+    prompt = "dnssec> "
+    module_name = "mytools.dnssecvalidation"
+    module_type = "core"
+    epilog = (
+        "Verifica cadeia de confianca, assinaturas, algoritmos e "
+        "configuracao NSEC/NSEC3."
+    )
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "domain", nargs="?", help="Dominio alvo para validacao DNSSEC."
         )
-        return 1
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default="8.8.8.8",
+            help="Nameserver para queries. Padrao: 8.8.8.8",
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=5.0,
+            help="Timeout por query em segundos. Padrao: 5",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        # O fluxo original lia args.dry_run diretamente; sincroniza o flag
+        # para que o branch dry-run da base veja o mesmo valor (init_scanner
+        # pode nao ter sido o responsavel por define-lo).
+        set_dry_run(bool(getattr(args, "dry_run", False)))
+        if not _is_valid_nameserver(args.nameserver):
+            logger.error(
+                "Nameserver invalido: %r. Use um hostname ou endereco IP valido.",
+                args.nameserver,
+            )
+            return 1
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "nameserver": args.nameserver,
+            "timeout": args.query_timeout,
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        domain = self._get_target(args) or ""
         print(
             color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
             "Nenhuma query DNS sera enviada.",
@@ -707,80 +745,23 @@ async def _async_run_once(args: argparse.Namespace) -> int:
         print(color("[*]", Cyber.CYAN, Cyber.BOLD), f"Nameserver: {args.nameserver}")
         return 0
 
-    result = scan_dnssec(
-        domain=domain,
-        nameserver=args.nameserver,
-        timeout=args.query_timeout,
-    )
+    def _example(self) -> str:
+        return "example.com --nameserver 8.8.8.8"
 
-    if not quiet:
-        print_results(result)
-
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
-
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            [
-                "domain",
-                "nameserver",
-                "is_signed",
-                "has_ds",
-                "has_dnskey",
-                "has_rrsig",
-                "chain_valid",
-                "algorithm_strength",
-                "overall_status",
-            ],
-            quiet=quiet,
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --nameserver 1.1.1.1\n"
+            "  example.com --query-timeout 10"
         )
 
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{domain}.json",
-            [asdict(result)],
-            [
-                "domain",
-                "nameserver",
-                "is_signed",
-                "has_ds",
-                "has_dnskey",
-                "has_rrsig",
-                "chain_valid",
-                "algorithm_strength",
-                "overall_status",
-            ],
-            quiet=quiet,
-        )
 
-    # Ausencia de DNSSEC ou cadeia quebrada indica exposicao.
-    return 1 if result.overall_status != "secure" else 0
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do DNSSEC Validation."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="dnssec> ",
-        description="DNSSEC Validation interativo.",
-        example="example.com --nameserver 8.8.8.8",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1\n  example.com --query-timeout 10"
-        ),
-    )
-
+scanner = DnssecvalidationScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

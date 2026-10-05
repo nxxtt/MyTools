@@ -855,7 +855,7 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result()),
             ) as mock_run,
             patch(
-                "mytools.web.csrfscan.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
         ):
@@ -878,7 +878,7 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result("secure")),
             ),
             patch(
-                "mytools.web.csrfscan.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
         ):
@@ -900,11 +900,11 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result()),
             ),
             patch(
-                "mytools.web.csrfscan.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
-            patch("mytools.web.csrfscan.print_json") as mock_print,
-            patch("mytools.web.csrfscan.write_output") as mock_write,
+            patch("mytools.core.base.print_json") as mock_print,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
             result = run_once(base_ns)
         assert result == 1
@@ -926,7 +926,7 @@ class TestRunOnce:
                 MagicMock(return_value=self._make_result("error")),
             ),
             patch(
-                "mytools.web.csrfscan.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: coro,
             ),
         ):
@@ -940,7 +940,7 @@ class TestMainGuard:
         from unittest.mock import patch
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-csrf"]),
             pytest.raises(SystemExit) as exc_info,
         ):

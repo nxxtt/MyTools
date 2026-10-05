@@ -580,7 +580,7 @@ class TestMain:
         def _raise(*_args: object, **_kwargs: object) -> int:
             raise SystemExit(0)
 
-        monkeypatch.setattr("mytools.core.utils.run_main_loop", _raise)
+        monkeypatch.setattr("mytools.core.base.run_main_loop", _raise)
         with pytest.raises(SystemExit):
             runpy.run_module("mytools.web.cmdinject", run_name="__main__")
 
@@ -897,7 +897,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             cmdinject_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(cmdinject_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         mock_print = MagicMock()
         monkeypatch.setattr(cmdinject_module, "print_results", mock_print)
         args = argparse.Namespace(
@@ -927,7 +929,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             cmdinject_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(cmdinject_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         args = argparse.Namespace(
             url="https://target.com/?cmd=ls",
             category="all",
@@ -954,7 +958,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             cmdinject_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(cmdinject_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         args = argparse.Namespace(
             url="https://target.com/?cmd=ls",
             category="all",
@@ -980,7 +986,9 @@ class TestRunOnce:
         monkeypatch.setattr(
             cmdinject_module, "run_scan", AsyncMock(return_value=result)
         )
-        monkeypatch.setattr(cmdinject_module, "init_scanner", MagicMock())
+        monkeypatch.setattr(
+            "mytools.core.base.init_scanner", MagicMock(return_value=False)
+        )
         args = argparse.Namespace(
             url="https://target.com/?cmd=ls",
             category="all",

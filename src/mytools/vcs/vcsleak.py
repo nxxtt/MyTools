@@ -16,17 +16,19 @@ import logging
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 from tqdm import tqdm
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_common_args,
     apply_session_auth,
     color,
     create_async_client,
@@ -41,8 +43,6 @@ from mytools.core.utils import (
     print_json,
     print_table,
     resolve_target_urls,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -431,46 +431,6 @@ def print_results(leaks: list[VCSLeak]) -> None:
                 print_exploit_info(leak.exploit, leak.tool)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Deteccao de controle de versao (.git, .svn, .hg) exposto em servidores web.",
-    )
-    add_common_args(parser, "vcs")
-    parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument(
-        "-l",
-        "--list",
-        dest="target_list",
-        help="Arquivo com URLs alvo (uma por linha).",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=30,
-        help="Concorrencia assincrona. Padrao: 30",
-    )
-    parser.add_argument(
-        "--git-only",
-        action="store_true",
-        dest="git_only",
-        help="Apenas paths de .git.",
-    )
-    parser.add_argument(
-        "--svn-only",
-        action="store_true",
-        dest="svn_only",
-        help="Apenas paths de .svn.",
-    )
-    parser.add_argument(
-        "--hg-only",
-        action="store_true",
-        dest="hg_only",
-        help="Apenas paths de .hg.",
-    )
-    return parser
-
-
 def _load_paths_from_args(args: argparse.Namespace) -> list[str] | None:
     """Retorna lista de paths customizada baseada nos flags --git-only, --svn-only, --hg-only."""
     git_only = getattr(args, "git_only", False)
@@ -486,23 +446,10 @@ def _load_paths_from_args(args: argparse.Namespace) -> list[str] | None:
     return None
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
+async def run_scan(args: argparse.Namespace) -> int:
+    """Executa um unico scan de VCS leak (Grupo A — output interno)."""
     quiet = init_scanner(args)
     urls = resolve_target_urls(args)
-
-    if getattr(args, "dry_run", False) is True:
-        logger.warning("Nenhuma requisicao HTTP sera enviada.")
-        for url in urls:
-            base_url = normalize_url(
-                url, default_scheme="https", ensure_trailing_slash=True
-            )
-            logger.info("Alvo: %s", base_url)
-        return 0
-
-    if args.timeout <= 0:
-        logger.error("Timeout deve ser maior que 0.")
-        return 1
 
     custom_paths = _load_paths_from_args(args)
     output_dir = getattr(args, "output_dir", None)
@@ -557,26 +504,101 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class VcsleakScanner(BaseScanner):
+    """VCS Leak Detection — dispatcher BaseScanner (Grupo A)."""
 
-
-def main() -> int:
-    """Ponto de entrada principal do VCS Leak Detection."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
-        prompt="vcs> ",
-        description="VCS Leak Detection interativo.",
-        example="http://target.com --git-only",
-        contextual_help=(
-            "Uso: <url> [opcoes]\nExemplos:\n  http://target.com\n  http://target.com --git-only\n  http://target.com --svn-only\n  -l urls.txt -o results.json"
-        ),
+    prog = "mytools-vcs"
+    description = (
+        "Deteccao de controle de versao (.git, .svn, .hg) exposto em servidores web."
     )
+    prompt = "vcs> "
+    module_name = "mytools.vcsleak"
+    module_type = "vcs"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "url", None) or getattr(args, "target_list", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com URLs alvo (uma por linha).",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=30,
+            help="Concorrencia assincrona. Padrao: 30",
+        )
+        parser.add_argument(
+            "--git-only",
+            action="store_true",
+            dest="git_only",
+            help="Apenas paths de .git.",
+        )
+        parser.add_argument(
+            "--svn-only",
+            action="store_true",
+            dest="svn_only",
+            help="Apenas paths de .svn.",
+        )
+        parser.add_argument(
+            "--hg-only",
+            action="store_true",
+            dest="hg_only",
+            help="Apenas paths de .hg.",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if args.timeout <= 0:
+            logger.error("Timeout deve ser maior que 0.")
+            return 1
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        urls = resolve_target_urls(args)
+        for url in urls:
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
+            logger.info("Alvo: %s", base_url)
+        return 0
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _example(self) -> str:
+        return "http://target.com --git-only"
+
+    def _help(self) -> str:
+        return (
+            "Uso: <url> [opcoes]\nExemplos:\n"
+            "  http://target.com\n"
+            "  http://target.com --git-only\n"
+            "  http://target.com --svn-only\n"
+            "  -l urls.txt -o results.json"
+        )
+
+
+scanner = VcsleakScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

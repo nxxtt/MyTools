@@ -36,21 +36,20 @@ import argparse
 import codecs
 import logging
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
     print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -1022,6 +1021,8 @@ async def run_scan(
 ) -> int:
     """Executa o scan XXE."""
 
+    logger.info("XXE scan iniciado para %s", target)
+
     tls = target.startswith("https")
 
     client = create_async_client(timeout=timeout, proxy=proxy)
@@ -1127,92 +1128,86 @@ banner_art = create_banner(
 )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos CLI."""
+class XxedetectScanner(BaseScanner):
+    """XXE — dispatcher BaseScanner (Grupo A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-xxedetect",
-        description="XXE — detecta XML External Entity em web apps",
-    )
+    prog = "mytools-xxedetect"
+    description = "XXE — detecta XML External Entity em web apps"
+    prompt = "xxe> "
+    module_name = "mytools.xxedetect"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo (ex: https://example.com)")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ex: https://example.com)")
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categoria de testes (default: todas)",
-    )
-
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-
-    add_common_args(parser, "web")
-
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan XXE a partir de argumentos parseados."""
-
-    init_scanner(args)
-
-    if getattr(args, "dry_run", False) is True:
-        print(
-            "[DRY-RUN] mytools-xxedetect \u2014 nenhuma requisi\u00e7\u00e3o executada."
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categoria de testes (default: todas)",
         )
+
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        # init_scanner faz set_dry_run(bool(...)); com Namespace/MagicMock sem
+        # dry_run isso vira True e cairia no dry-run. O original checava "is True".
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": args.url,
+            "categories": [args.category] if getattr(args, "category", None) else [],
+            "timeout": getattr(args, "timeout", 10),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+            "verbose": getattr(args, "verbose", False),
+            "proxy": getattr(args, "proxy", None),
+            "json_output": getattr(args, "json_output", False),
+        }
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self):  # type: ignore[override]
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-xxedetect — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("XXE scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c detect"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None):
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            verbose=getattr(args, "verbose", False),
-            proxy=getattr(args, "proxy", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="xxe> ",
-        description="XXE interativo.",
-        example="https://target.com -c detect",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c detect\n"
             "  https://target.com -c file_read\n"
             "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = XxedetectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

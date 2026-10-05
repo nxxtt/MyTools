@@ -18,7 +18,8 @@ import argparse
 import base64
 import logging
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import dns.exception
@@ -28,18 +29,12 @@ import dns.rdatatype
 import dns.resolver
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.dohscan")
@@ -370,31 +365,6 @@ def print_results(result: DohScanResult) -> None:
     print_exploit_info(result.exploit, result.tool)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="mytools-doh",
-        description="DNS-over-HTTPS (DoH) Scan — Resolucao DNS via HTTPS",
-    )
-    parser.add_argument("domain", help="Dominio alvo")
-    parser.add_argument(
-        "-T",
-        "--type",
-        default="A",
-        choices=["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "SRV", "CAA"],
-        help="Tipo de registro DNS (default: A)",
-    )
-    parser.add_argument(
-        "-p",
-        "--providers",
-        nargs="+",
-        choices=list(_DOH_PROVIDERS.keys()),
-        default=None,
-        help="Providers DoH para testar (default: todos)",
-    )
-    add_base_args(parser)
-    return parser
-
-
 async def _run_scan(args: argparse.Namespace) -> DohScanResult:
     domain = str(getattr(args, "domain", ""))
     rdtype = str(getattr(args, "type", "A"))
@@ -416,40 +386,89 @@ def banner() -> None:
     create_banner(art, "DNS-over-HTTPS Scan — resolucao DNS via HTTPS")()
 
 
-def main() -> int:
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=_safe_run,
-        has_target=lambda a: bool(getattr(a, "domain", None)),
-        prompt="doh> ",
-        description="DNS-over-HTTPS (DoH) Scan — Resolucao DNS via HTTPS",
-        example="mytools-doh example.com",
-        contextual_help="doh: testa resolucao DNS via HTTPS contra multiplos providers",
-    )
+async def run_scan(
+    domain: str,
+    rdtype: str = "A",
+    providers: list[str] | None = None,
+    timeout: float = 5.0,
+    verify: bool = True,
+) -> DohScanResult:
+    """Roda o scan DoH (envolve a funcao original)."""
+    return await scan_doh(domain, rdtype, providers, timeout, verify)
 
 
-def _safe_run(args: argparse.Namespace) -> int:
-    quiet = init_scanner(args)
-    if getattr(args, "dry_run", False) is True:
-        print("[DRY-RUN] mytools-doh \u2014 nenhuma requisi\u00e7\u00e3o executada.")
-        print(f"[DRY-RUN] Alvo: {getattr(args, 'domain', None) or '(nenhum alvo)'}")
-        return 0
-    result = safe_asyncio_run(_run_scan(args))
-    if not quiet:
-        print_results(result)
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
-    if getattr(args, "output", None):
-        write_output(args.output, [asdict(result)], quiet=quiet)
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{result.domain}.json", [asdict(result)], quiet=quiet
+class DohScanScanner(BaseScanner):
+    """DNS-over-HTTPS (DoH) Scan — dispatcher BaseScanner (Grupo B)."""
+
+    prog = "mytools-doh"
+    description = "DNS-over-HTTPS (DoH) Scan — Resolucao DNS via HTTPS"
+    prompt = "doh> "
+    module_name = "mytools.dohscan"
+    module_type = "core"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        """Alvo vem do arg posicional ``domain`` (nao url/target)."""
+        return getattr(args, "domain", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", help="Dominio alvo")
+        parser.add_argument(
+            "-T",
+            "--type",
+            default="A",
+            choices=["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "SRV", "CAA"],
+            help="Tipo de registro DNS (default: A)",
         )
-    return 0
+        parser.add_argument(
+            "-p",
+            "--providers",
+            nargs="+",
+            choices=list(_DOH_PROVIDERS.keys()),
+            default=None,
+            help="Providers DoH para testar (default: todos)",
+        )
 
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "rdtype": str(getattr(args, "type", "A")),
+            "providers": getattr(args, "providers", None),
+            "timeout": float(getattr(args, "timeout", 5.0)),
+            "verify": bool(getattr(args, "verify", True)),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-doh \u2014 nenhuma requisi\u00e7\u00e3o executada.")
+        print(f"[DRY-RUN] Alvo: {self._get_target(args) or '(nenhum alvo)'}")
+        return 0
+
+    def _get_return_code(self, result: object) -> int:
+        # Exit code original de _safe_run: sempre 0 (independe de overall_status).
+        return 0
+
+    def _example(self) -> str:
+        return "mytools-doh example.com"
+
+    def _help(self) -> str:
+        return "doh: testa resolucao DNS via HTTPS contra multiplos providers"
+
+
+scanner = DohScanScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

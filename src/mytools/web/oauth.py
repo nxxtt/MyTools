@@ -39,16 +39,14 @@ from urllib.parse import urljoin
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -867,86 +865,64 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class OauthScanner(BaseScanner):
+    """Scanner CLI do OAuth 2.0 Misconfiguration (Grupo A — output interno)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-oauth",
-        description="OAuth 2.0 Misconfiguration — detecta misconfigurations, scope escalation, redirect URI bypass.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-oauth https://target.com/authorize\n"
-            "  mytools-oauth https://target.com -c misconfig\n"
-            "  mytools-oauth https://target.com -c redirect_uri\n"
-            "  mytools-oauth https://target.com -c pkce_bypass\n"
-            "  mytools-oauth https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-oauth"
+    description = "OAuth 2.0 Misconfiguration — detecta misconfigurations, scope escalation, redirect URI bypass."
+    prompt = "oauth> "
+    module_name = "mytools.oauth"
+    module_type = "web"
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-oauth https://target.com/authorize\n"
+        "  mytools-oauth https://target.com -c misconfig\n"
+        "  mytools-oauth https://target.com -c redirect_uri\n"
+        "  mytools-oauth https://target.com -c pkce_bypass\n"
+        "  mytools-oauth https://target.com --proxy http://127.0.0.1:8080"
     )
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo (authorize endpoint ou dominio)")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (authorize endpoint ou dominio)")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "misconfig",
+                "scope_escalation",
+                "redirect_uri",
+                "pkce_bypass",
+                "refresh_token",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "misconfig",
-            "scope_escalation",
-            "redirect_uri",
-            "pkce_bypass",
-            "refresh_token",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        logger.info("OAuth scan iniciado para %s", kwargs.get("target"))
+        return await run_scan(**kwargs)
 
-    add_common_args(parser, "web")
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    return parser
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan OAuth a partir de argumentos parseados."""
-
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-oauth — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("OAuth scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com/authorize -c misconfig"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo OAuth 2.0 Misconfiguration."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="oauth> ",
-        description="OAuth 2.0 Misconfiguration interativo.",
-        example="https://target.com/authorize -c misconfig",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com/authorize\n"
@@ -954,8 +930,13 @@ def main() -> int:
             "  https://target.com -c redirect_uri\n"
             "  https://target.com -c pkce_bypass\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = OauthScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

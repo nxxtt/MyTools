@@ -19,23 +19,18 @@ Fluxo:
 
 import argparse
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+from typing import Any
 
 import dns.exception
 import dns.resolver
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.caacheck")
@@ -238,96 +233,84 @@ def banner() -> None:
     create_banner(art, "   caa record check: verifica registros CAA de certificados")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="CAA Record Check — verifica registros CAA de certificados.",
-        epilog="Verifica quais Certificate Authorities podem emitir certificados para o dominio.",
+class CaaCheckScanner(BaseScanner):
+    """Scanner CLI do CAA Record Check."""
+
+    prog = "mytools-caa"
+    description = "CAA Record Check — verifica registros CAA de certificados."
+    epilog = (
+        "Verifica quais Certificate Authorities podem emitir certificados "
+        "para o dominio."
     )
-    add_base_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para verificacao CAA.")
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default="8.8.8.8",
-        help="Nameserver para queries. Padrao: 8.8.8.8",
-    )
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=5.0,
-        help="Timeout por query em segundos. Padrao: 5",
-    )
-    return parser
+    prompt = "caa> "
+    module_name = "mytools.caacheck"
+    module_type = "core"
+    group = ScanGroup.B
+    scan_fn = staticmethod(scan_caa)
 
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        """Alvo vem do arg posicional ``domain`` (nao url/target)."""
+        return getattr(args, "domain", None) or getattr(args, "target", None)
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-    quiet = init_scanner(args)
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "domain", nargs="?", help="Dominio alvo para verificacao CAA."
+        )
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default="8.8.8.8",
+            help="Nameserver para queries. Padrao: 8.8.8.8",
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=5.0,
+            help="Timeout por query em segundos. Padrao: 5",
+        )
 
-    domain = getattr(args, "domain", None)
-    if not domain:
-        logger.error("Informe um dominio.")
-        return 1
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "nameserver": getattr(args, "nameserver", "8.8.8.8"),
+            "timeout": getattr(args, "query_timeout", 5.0),
+        }
 
-    if getattr(args, "dry_run", False) is True:
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return scan_caa(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self):  # type: ignore[override]
+        return banner
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         logger.warning("Nenhuma query DNS sera enviada.")
-        logger.info("Dominio: %s", domain)
+        logger.info("Dominio: %s", self._get_target(args))
         return 0
 
-    result = scan_caa(
-        domain=domain,
-        nameserver=args.nameserver,
-        timeout=args.query_timeout,
-    )
+    def _get_return_code(self, result: object) -> int:
+        # Sem registro CAA, qualquer CA pode emitir (vulnerabilidade).
+        return 1 if getattr(result, "policy_status", "none") == "none" else 0
 
-    if not quiet:
-        print_results(result)
+    def _example(self) -> str:
+        return "example.com --nameserver 8.8.8.8"
 
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
-
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            ["domain", "has_caa", "authorized_cas", "has_iodef", "policy_status"],
-            quiet=quiet,
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --nameserver 1.1.1.1"
         )
 
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{domain}.json",
-            [asdict(result)],
-            ["domain", "has_caa", "authorized_cas", "has_iodef", "policy_status"],
-            quiet=quiet,
-        )
 
-    # Sem registro CAA, qualquer CA pode emitir certificados (vulnerabilidade).
-    return 1 if result.policy_status == "none" else 0
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do CAA Record Check."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="caa> ",
-        description="CAA Record Check interativo.",
-        example="example.com --nameserver 8.8.8.8",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --nameserver 1.1.1.1"
-        ),
-    )
+scanner = CaaCheckScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

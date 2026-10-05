@@ -24,18 +24,18 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 import jwt
 import jwt.exceptions
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -932,100 +932,113 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-jwt",
-        description="JWT Analysis — analisa tokens JWT para vulnerabilidades de algoritmo, assinatura, expiracao e claims.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx\n"
-            "  mytools-jwt --file token.txt\n"
-            "  mytools-jwt eyJ... -c weak_algorithm\n"
-            "  mytools-jwt eyJ... --url https://target.com/api\n"
-            "  mytools-jwt eyJ... --wordlist secrets.txt\n"
-            "  mytools-jwt eyJ... -o resultado.json"
-        ),
-    )
-    parser.add_argument("token", nargs="?", help="Token JWT para analisar")
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "weak_algorithm",
-            "signature_bypass",
-            "expiration",
-            "claims",
-            "header_injection",
-            "replay",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
-    parser.add_argument("--file", help="Arquivo com token JWT (um por linha)")
-    parser.add_argument(
-        "--url", help="URL alvo para testes ativos (envia tokens forjados)"
-    )
-    parser.add_argument("--wordlist", help="Arquivo com secrets para brute-force HMAC")
-    add_common_args(parser, "web")
-    return parser
+class JwtanalysisScanner(BaseScanner):
+    """Scanner CLI de JWT Analysis."""
 
+    prog = "mytools-jwt"
+    description = "JWT Analysis — analisa tokens JWT para vulnerabilidades de algoritmo, assinatura, expiracao e claims."
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx\n"
+        "  mytools-jwt --file token.txt\n"
+        "  mytools-jwt eyJ... -c weak_algorithm\n"
+        "  mytools-jwt eyJ... --url https://target.com/api\n"
+        "  mytools-jwt eyJ... --wordlist secrets.txt\n"
+        "  mytools-jwt eyJ... -o resultado.json"
+    )
+    prompt = "jwt> "
+    module_name = "mytools.jwtanalysis"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa a analise de JWT a partir de argumentos parseados."""
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("token", nargs="?", help="Token JWT para analisar")
 
-    if getattr(args, "dry_run", False) is True:
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "weak_algorithm",
+                "signature_bypass",
+                "expiration",
+                "claims",
+                "header_injection",
+                "replay",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
+
+        parser.add_argument("--file", help="Arquivo com token JWT (um por linha)")
+        parser.add_argument(
+            "--url", help="URL alvo para testes ativos (envia tokens forjados)"
+        )
+        parser.add_argument(
+            "--wordlist", help="Arquivo com secrets para brute-force HMAC"
+        )
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "token", None) or getattr(args, "file", None)
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        dry = getattr(args, "dry_run", False) is True
+        set_dry_run(dry)
+        if dry:
+            return None
+        token = getattr(args, "token", None)
+        file_path = getattr(args, "file", None)
+
+        if not token and file_path:
+            try:
+                content = Path(file_path).read_text(encoding="utf-8").strip()
+                token = content.splitlines()[0] if content else ""
+            except OSError, IndexError:
+                print(color(f"Erro ao ler arquivo: {file_path}", Cyber.RED))
+                return 1
+
+        if not token:
+            print(color("Erro: forneça um token JWT ou use --file", Cyber.RED))
+            return 1
+
+        args.token = token
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        categories: list[str] = []
+        if getattr(args, "category", None) and args.category != "all":
+            categories = [args.category]
+        return {
+            "token": getattr(args, "token", None),
+            "target": getattr(args, "url", None),
+            "categories": categories,
+            "output_file": getattr(args, "output", None),
+            "timeout": getattr(args, "timeout", 10),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> int:
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-jwt — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    token = getattr(args, "token", None)
-    file_path = getattr(args, "file", None)
-    target = getattr(args, "url", None)
 
-    if not token and file_path:
-        try:
-            content = Path(file_path).read_text(encoding="utf-8").strip()
-            token = content.splitlines()[0] if content else ""
-        except OSError, IndexError:
-            print(color(f"Erro ao ler arquivo: {file_path}", Cyber.RED))
-            return 1
+    def _example(self) -> str:
+        return "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx -c weak_algorithm"
 
-    if not token:
-        print(color("Erro: forneça um token JWT ou use --file", Cyber.RED))
-        return 1
-
-    categories: list[str] = []
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            token=token,
-            target=target,
-            categories=categories,
-            output_file=getattr(args, "output", None),
-            timeout=getattr(args, "timeout", 10),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo JWT Analysis."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "token", None) or getattr(a, "file", None)
-        ),
-        prompt="jwt> ",
-        description="JWT Analysis interativo.",
-        example="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx -c weak_algorithm",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <token> [opcoes]\n"
             "Exemplos:\n"
             "  eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.xxx\n"
@@ -1034,8 +1047,13 @@ def main() -> int:
             "  eyJ... --url https://target.com/api\n"
             "  eyJ... --wordlist secrets.txt\n"
             "  eyJ... -o resultado.json"
-        ),
-    )
+        )
+
+
+scanner = JwtanalysisScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

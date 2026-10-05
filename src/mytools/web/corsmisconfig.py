@@ -40,16 +40,14 @@ from urllib.parse import urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     print_exploit_info,
     print_json,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -717,86 +715,62 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class CorsmisconfigScanner(BaseScanner):
+    """Scanner CLI do CORS Misconfiguration."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-cors",
-        description="CORS Misconfiguration â€” testa null origin, subdomain, credenciais, reflected.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-cors https://target.com\n"
-            "  mytools-cors https://target.com -c null_origin\n"
-            "  mytools-cors https://target.com -c credentials\n"
-            "  mytools-cors https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-cors"
+    description = "CORS Misconfiguration â€” testa null origin, subdomain, credenciais, reflected."
+    prompt = "cors> "
+    module_name = "mytools.corsmisconfig"
+    module_type = "web"
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-cors https://target.com\n"
+        "  mytools-cors https://target.com -c null_origin\n"
+        "  mytools-cors https://target.com -c credentials\n"
+        "  mytools-cors https://target.com --proxy http://127.0.0.1:8080"
     )
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "null_origin",
+                "subdomain",
+                "credentials",
+                "reflected",
+                "bypass",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "null_origin",
-            "subdomain",
-            "credentials",
-            "reflected",
-            "bypass",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
-    add_common_args(parser, "web")
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    return parser
+    def _make_banner(self):  # type: ignore[override]
+        return banner_art
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan CORS a partir de argumentos parseados."""
-
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-cors — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("CORS Misconfiguration scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c null_origin"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo CORS Misconfiguration."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="cors> ",
-        description="CORS Misconfiguration interativo.",
-        example="https://target.com -c null_origin",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
@@ -804,8 +778,13 @@ def main() -> int:
             "  https://target.com -c credentials\n"
             "  https://target.com -c reflected\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = CorsmisconfigScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

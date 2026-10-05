@@ -61,6 +61,7 @@ fi
 
 if [ -n "$SHELL_RC" ]; then
     if ! grep -q "$VENV_BIN" "$SHELL_RC" 2>/dev/null; then
+        # shellcheck disable=SC2129
         echo "" >> "$SHELL_RC"
         echo "# MyTools" >> "$SHELL_RC"
         echo "export PATH=\"$VENV_BIN:\$PATH\"" >> "$SHELL_RC"

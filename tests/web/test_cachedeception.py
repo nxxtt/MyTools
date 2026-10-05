@@ -637,9 +637,7 @@ class TestMain:
     def test_main_returns_int(self) -> None:
         with (
             patch("sys.argv", ["mytools-cachedec"]),
-            patch(
-                "mytools.web.cachedeception.run_main_loop", return_value=0
-            ) as mock_loop,
+            patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop,
         ):
             result = main()
             assert isinstance(result, int)
@@ -648,7 +646,7 @@ class TestMain:
     def test_main_passes_args(self) -> None:
         with (
             patch("sys.argv", ["mytools-cachedec", "https://example.com"]),
-            patch("mytools.web.cachedeception.run_main_loop", return_value=0),
+            patch("mytools.core.base.run_main_loop", return_value=0),
         ):
             result = main()
             assert result == 0
@@ -659,7 +657,7 @@ class TestMainGuard:
 
     def test_guard_runs(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             import runpy
@@ -816,11 +814,14 @@ class TestIntegration:
         args.output = None
         args.verbose = False
 
-        with patch(
-            "mytools.web.cachedeception.run_scan",
-            new_callable=AsyncMock,
-            return_value=0,
-        ) as mock_scan:
+        with (
+            patch("mytools.core.base.init_scanner"),
+            patch(
+                "mytools.web.cachedeception.run_scan",
+                new_callable=AsyncMock,
+                return_value=0,
+            ) as mock_scan,
+        ):
             from mytools.web.cachedeception import run_once
 
             result = run_once(args)
@@ -836,10 +837,13 @@ class TestIntegration:
         args.output = None
         args.verbose = False
 
-        with patch(
-            "mytools.web.cachedeception.run_scan",
-            new_callable=AsyncMock,
-            return_value=0,
+        with (
+            patch("mytools.core.base.init_scanner"),
+            patch(
+                "mytools.web.cachedeception.run_scan",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
         ):
             from mytools.web.cachedeception import run_once
 

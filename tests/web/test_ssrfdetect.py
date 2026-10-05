@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from mytools.core.utils import safe_asyncio_run
 from mytools.web.ssrfdetect import (
     _BYPASS_PAYLOADS,
     _CATEGORY_MAP,
@@ -32,7 +33,6 @@ from mytools.web.ssrfdetect import (
     print_results,
     run_once,
     run_scan,
-    safe_asyncio_run,
 )
 
 
@@ -713,7 +713,7 @@ class TestMain:
     def test_no_url(self) -> None:
         with (
             patch("sys.argv", ["mytools-ssrfdetect"]),
-            patch("mytools.web.ssrfdetect.run_main_loop", return_value=1) as mock_loop,
+            patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop,
         ):
             result = main()
             assert result == 1
@@ -984,7 +984,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             runpy.run_module("mytools.web.ssrfdetect", run_name="__main__")

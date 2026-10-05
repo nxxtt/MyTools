@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+"""WebRecon — reconhecimento passivo HTTP: tecnologias, headers, CVE e WHOIS."""
+
 import argparse
 import asyncio
 import ipaddress
 import logging
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -16,12 +18,12 @@ import httpx
 import whois
 from bs4 import BeautifulSoup
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     SECURITY_HEADERS,
     Cyber,
     FetchError,
     __version__,
-    add_common_args,
     apply_session_auth_async,
     color,
     create_async_client,
@@ -36,7 +38,6 @@ from mytools.core.utils import (
     query_nvd,
     resolve_target_urls,
     run_main_loop,
-    safe_asyncio_run,
     severity_color,
     status_color,
     write_output,
@@ -1097,47 +1098,6 @@ def status_text(status: int | None) -> str:
     return color(str(status), status_color(status), Cyber.BOLD)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="HTTP recon rapido para laboratorios e hosts autorizados."
-    )
-    add_common_args(parser, "web")
-    parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
-    parser.add_argument(
-        "-l",
-        "--list",
-        dest="target_list",
-        help="Arquivo com URLs alvo (uma por linha).",
-    )
-    parser.add_argument(
-        "--cve",
-        action="store_true",
-        help="Busca CVEs para versoes detectadas (via NIST NVD).",
-    )
-    parser.add_argument(
-        "--nvd-api-key",
-        dest="nvd_api_key",
-        help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).",
-    )
-    parser.add_argument(
-        "--crawl-limit",
-        dest="crawl_limit",
-        type=int,
-        default=10,
-        help="Limite de links internos para crawl de emails. Padrao: 10. Requer --deep.",
-    )
-    parser.add_argument(
-        "--deep",
-        action="store_true",
-        help="Ativa crawl de links internos para coleta de emails.",
-    )
-    parser.set_defaults(
-        user_agent=f"Mozilla/5.0 (X11; Linux x86_64) WebRecon/{__version__}"
-    )
-    return parser
-
-
 async def _run_single(
     url: str,
     args: argparse.Namespace,
@@ -1166,7 +1126,7 @@ async def _run_single(
     return result
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa uma unica operacao de reconhecimento (async)."""
     quiet = init_scanner(args)
 
@@ -1235,30 +1195,124 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa uma unica operacao de reconhecimento com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class WebreconScanner(BaseScanner):
+    """WebReCon — dispatcher BaseScanner (Grupo A)."""
 
+    prog = "mytools-recon"
+    description = "HTTP recon rapido para laboratorios e hosts autorizados."
+    prompt = "webrecon> "
+    module_name = "mytools.webrecon"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal da ferramenta."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
-        prompt="webrecon> ",
-        description="WebReCon interativo.",
-        example="https://example.com -o recon.json",
-        contextual_help=(
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo. Ex: https://example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com URLs alvo (uma por linha).",
+        )
+        parser.add_argument(
+            "--cve",
+            action="store_true",
+            help="Busca CVEs para versoes detectadas (via NIST NVD).",
+        )
+        parser.add_argument(
+            "--nvd-api-key",
+            dest="nvd_api_key",
+            help="Chave da API NVD (aumenta rate limit de 5 para 50 req/30s).",
+        )
+        parser.add_argument(
+            "--crawl-limit",
+            dest="crawl_limit",
+            type=int,
+            default=10,
+            help="Limite de links internos para crawl de emails. Padrao: 10. Requer --deep.",
+        )
+        parser.add_argument(
+            "--deep",
+            action="store_true",
+            help="Ativa crawl de links internos para coleta de emails.",
+        )
+
+    def build_parser(self) -> argparse.ArgumentParser:
+        parser = super().build_parser()
+        parser.set_defaults(
+            user_agent=f"Mozilla/5.0 (X11; Linux x86_64) WebRecon/{__version__}"
+        )
+        return parser
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_result(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        urls = resolve_target_urls(args)
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma requisicao HTTP sera enviada.",
+        )
+        for url in urls:
+            candidates = candidate_urls(url)
+            for c in candidates:
+                print(
+                    color("[*]", Cyber.CYAN, Cyber.BOLD),
+                    f"Alvo: {color(c, Cyber.WHITE, Cyber.BOLD)}",
+                )
+            features = []
+            if getattr(args, "cve", False):
+                features.append("CVE lookup")
+            if getattr(args, "deep", False):
+                features.append(
+                    f"deep crawl (limit={getattr(args, 'crawl_limit', 10)})"
+                )
+            if features:
+                print(
+                    color("[*]", Cyber.CYAN, Cyber.BOLD),
+                    f"Features: {color(', '.join(features), Cyber.WHITE, Cyber.BOLD)}",
+                )
+        return 0
+
+    def _example(self) -> str:
+        return "https://example.com -o recon.json"
+
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://example.com\n"
             "  https://example.com --cve --nvd-api-key KEY\n"
             "  https://example.com --deep --crawl-limit 20\n"
             "  -l urls.txt --output-dir results/ -o recon.json"
-        ),
-    )
+        )
+
+    def main(self) -> int:
+        return run_main_loop(
+            parser=self.build_parser(),
+            banner_fn=banner,
+            run_fn=run_once,
+            has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
+            prompt="webrecon> ",
+            description="WebReCon interativo.",
+            example=self._example(),
+            contextual_help=self._help(),
+        )
+
+
+scanner = WebreconScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

@@ -36,19 +36,18 @@ Fluxo:
 
 import argparse
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -698,85 +697,63 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class HeaderinjectScanner(BaseScanner):
+    """Header Injection via URL params — dispatcher BaseScanner (Grupo A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-headerinject",
-        description="Header Injection via URL params — testa injecao de headers HTTP.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-headerinject https://target.com\n"
-            "  mytools-headerinject https://target.com -c param_reflected\n"
-            "  mytools-headerinject https://target.com -c header_overwrite\n"
-            "  mytools-headerinject https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-headerinject"
+    description = "Header Injection via URL params — testa injecao de headers HTTP."
+    prompt = "headerinject> "
+    module_name = "mytools.headerinject"
+    module_type = "web"
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-headerinject https://target.com\n"
+        "  mytools-headerinject https://target.com -c param_reflected\n"
+        "  mytools-headerinject https://target.com -c header_overwrite\n"
+        "  mytools-headerinject https://target.com --proxy http://127.0.0.1:8080"
     )
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "param_reflected",
-            "header_overwrite",
-            "redirect_header",
-            "cookie_inject",
-            "bypass",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "param_reflected",
+                "header_overwrite",
+                "redirect_header",
+                "cookie_inject",
+                "bypass",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
 
-    add_common_args(parser, "web")
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
-    return parser
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Header Injection a partir de argumentos parseados."""
-
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-headerinject — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("Header Injection scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c param_reflected"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo Header Injection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="headerinject> ",
-        description="Header Injection via URL params interativo.",
-        example="https://target.com -c param_reflected",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
@@ -784,8 +761,13 @@ def main() -> int:
             "  https://target.com -c header_overwrite\n"
             "  https://target.com -c bypass\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = HeaderinjectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

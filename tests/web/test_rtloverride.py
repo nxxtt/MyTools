@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-import mytools.web.rtloverride as rtl_module
 from mytools.core.utils import FetchError
 from mytools.web.rtloverride import (
     _COMBINING_CHARS,
@@ -15,7 +14,6 @@ from mytools.web.rtloverride import (
     _ZERO_WIDTH_CHARS,
     RTLAttempt,
     RTLResult,
-    _async_run_once,
     _generate_variants,
     _insert_combining,
     _insert_rtl,
@@ -338,7 +336,7 @@ class TestPrintResults:
         def _raise(*_args: object, **_kwargs: object) -> int:
             raise SystemExit(0)
 
-        monkeypatch.setattr("mytools.core.utils.run_main_loop", _raise)
+        monkeypatch.setattr("mytools.core.base.run_main_loop", _raise)
         with pytest.raises(SystemExit):
             runpy.run_module("mytools.web.rtloverride", run_name="__main__")
 
@@ -427,39 +425,37 @@ class TestAsyncRunOnce:
             "timeout": 5.0,
             "techniques": None,
             "output": None,
+            "verbose": 0,
+            "log_file": None,
         }
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
 
-    @pytest.mark.asyncio
-    async def test_detect_mode_found(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_detect_mode_found(self, capsys: pytest.CaptureFixture[str]) -> None:
         args = self._make_args(url="https://target.com/\u202e", mode="detect")
         with patch("mytools.web.rtloverride.init_scanner", return_value=False):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         captured = capsys.readouterr()
         assert "invisiveis" in captured.out
 
-    @pytest.mark.asyncio
-    async def test_detect_mode_clean(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_detect_mode_clean(self, capsys: pytest.CaptureFixture[str]) -> None:
         args = self._make_args(url="https://target.com", mode="detect")
         with patch("mytools.web.rtloverride.init_scanner", return_value=False):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         captured = capsys.readouterr()
         assert "Nenhum caractere invisivel" in captured.out
 
-    @pytest.mark.asyncio
-    async def test_gen_mode(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_gen_mode(self, capsys: pytest.CaptureFixture[str]) -> None:
         args = self._make_args(url="https://target.com", mode="gen")
         with patch("mytools.web.rtloverride.init_scanner", return_value=False):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         captured = capsys.readouterr()
         assert "variante" in captured.out
 
-    @pytest.mark.asyncio
-    async def test_scan_mode_vulnerable(
+    def test_scan_mode_vulnerable(
         self, capsys: pytest.CaptureFixture[str], tmp_path
     ) -> None:
         async def fake_fetch(client: object, url: str, timeout: float = 5.0) -> tuple:
@@ -482,17 +478,14 @@ class TestAsyncRunOnce:
             ) as mock_fetch,
         ):
             mock_fetch.side_effect = fake_fetch
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         captured = capsys.readouterr()
         assert "VULNERAVEL" in captured.out
         assert (tmp_path / "out.json").exists()
         mock_client.aclose.assert_awaited_once()
 
-    @pytest.mark.asyncio
-    async def test_scan_mode_baseline_error(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_scan_mode_baseline_error(self, capsys: pytest.CaptureFixture[str]) -> None:
         async def fake_fetch(client: object, url: str, timeout: float = 5.0) -> tuple:
             raise FetchError(url, 3, httpx.ConnectError("boom"))
 
@@ -509,13 +502,12 @@ class TestAsyncRunOnce:
             ) as mock_fetch,
         ):
             mock_fetch.side_effect = fake_fetch
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 1
         captured = capsys.readouterr()
         assert "Erro no baseline" in captured.out
 
-    @pytest.mark.asyncio
-    async def test_scan_mode_status_changed_with_filter(
+    def test_scan_mode_status_changed_with_filter(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         async def fake_fetch(client: object, url: str, timeout: float = 5.0) -> tuple:
@@ -536,14 +528,13 @@ class TestAsyncRunOnce:
             ) as mock_fetch,
         ):
             mock_fetch.side_effect = fake_fetch
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         captured = capsys.readouterr()
         assert "VULNERAVEL" in captured.out
         assert "status 200 -> 500" in captured.out
 
-    @pytest.mark.asyncio
-    async def test_scan_mode_variant_error(self) -> None:
+    def test_scan_mode_variant_error(self) -> None:
         async def fake_fetch(client: object, url: str, timeout: float = 5.0) -> tuple:
             if url == "https://target.com/path":
                 return (200, {}, b"x" * 100, {})
@@ -562,13 +553,10 @@ class TestAsyncRunOnce:
             ) as mock_fetch,
         ):
             mock_fetch.side_effect = fake_fetch
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
 
-    @pytest.mark.asyncio
-    async def test_scan_mode_blocked_quiet(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_scan_mode_blocked_quiet(self, capsys: pytest.CaptureFixture[str]) -> None:
         async def fake_fetch(client: object, url: str, timeout: float = 5.0) -> tuple:
             return (200, {}, b"x" * 100, {})
 
@@ -585,7 +573,7 @@ class TestAsyncRunOnce:
             ) as mock_fetch,
         ):
             mock_fetch.side_effect = fake_fetch
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         captured = capsys.readouterr()
         assert "VULNERAVEL" not in captured.out
@@ -594,12 +582,15 @@ class TestAsyncRunOnce:
 class TestRunOnce:
     """Testes para run_once."""
 
-    def test_runs_async_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        mock_async = AsyncMock(return_value=0)
-        monkeypatch.setattr(rtl_module, "_async_run_once", mock_async)
-        args = argparse.Namespace()
-        assert run_once(args) == 0
-        mock_async.assert_called_once_with(args)
+    def test_delegates_to_scan(self) -> None:
+        args = build_parser().parse_args(["https://target.com/path"])
+        with patch(
+            "mytools.web.rtloverride.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
+            assert run_once(args) == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestZeroWidthChars:

@@ -18,7 +18,6 @@ from mytools.web.webrecon import (
     CVEFinding,
     ReconResult,
     WhoisResult,
-    _async_run_once,
     _ensure_list,
     _fetch_file,
     _format_date,
@@ -1091,18 +1090,16 @@ class TestDryRun:
         args = parser.parse_args(["https://example.com"])
         assert args.dry_run is False
 
-    @pytest.mark.asyncio
-    async def test_dry_run_returns_zero(self, capsys):
+    def test_dry_run_returns_zero(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--dry-run"])
-        result = await _async_run_once(args)
+        result = run_once(args)
         assert result == 0
 
-    @pytest.mark.asyncio
-    async def test_dry_run_outputs_info(self, capsys):
+    def test_dry_run_outputs_info(self, capsys):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "--dry-run"])
-        await _async_run_once(args)
+        run_once(args)
         captured = capsys.readouterr()
         assert "DRY-RUN" in captured.out
         assert "Nenhuma requisicao" in captured.out
@@ -1746,8 +1743,7 @@ class TestRunSingle:
 
 
 class TestAsyncRunOnceExtra:
-    @pytest.mark.asyncio
-    async def test_dry_run_feature_flags(self, capsys):
+    def test_dry_run_feature_flags(self, capsys):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -1759,14 +1755,13 @@ class TestAsyncRunOnceExtra:
                 "5",
             ]
         )
-        await _async_run_once(args)
+        run_once(args)
         captured = capsys.readouterr()
         assert "CVE lookup" in captured.out
         assert "deep crawl (limit=5)" in captured.out
         assert "Features:" in captured.out
 
-    @pytest.mark.asyncio
-    async def test_run_multiple_with_output_dir(self, tmp_path):
+    def test_run_multiple_with_output_dir(self, tmp_path):
         result = _make_recon_result()
         parser = build_parser()
         out_dir = str(tmp_path / "out")
@@ -1783,12 +1778,11 @@ class TestAsyncRunOnceExtra:
             ),
             patch("mytools.web.webrecon.write_output") as mock_write,
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         assert mock_write.call_count == 2
 
-    @pytest.mark.asyncio
-    async def test_one_client_shared_across_urls(self, tmp_path):
+    def test_one_client_shared_across_urls(self, tmp_path):
         result = _make_recon_result()
         parser = build_parser()
         args = parser.parse_args(["https://example.com"])
@@ -1810,12 +1804,11 @@ class TestAsyncRunOnceExtra:
             ),
             patch("mytools.web.webrecon.write_output"),
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         assert len(seen_clients) == 1
 
-    @pytest.mark.asyncio
-    async def test_run_single_output_file(self, tmp_path):
+    def test_run_single_output_file(self, tmp_path):
         result = _make_recon_result()
         parser = build_parser()
         out = str(tmp_path / "recon.json")
@@ -1832,13 +1825,12 @@ class TestAsyncRunOnceExtra:
             ),
             patch("mytools.web.webrecon.write_output") as mock_write,
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         assert mock_write.call_count == 1
         assert mock_write.call_args.args[0] == out
 
-    @pytest.mark.asyncio
-    async def test_run_multiple_output_file(self, tmp_path):
+    def test_run_multiple_output_file(self, tmp_path):
         result = _make_recon_result()
         parser = build_parser()
         out = str(tmp_path / "recon.json")
@@ -1855,7 +1847,7 @@ class TestAsyncRunOnceExtra:
             ),
             patch("mytools.web.webrecon.write_output") as mock_write,
         ):
-            code = await _async_run_once(args)
+            code = run_once(args)
         assert code == 0
         assert mock_write.call_count == 1
         assert isinstance(mock_write.call_args.args[1], list)
@@ -1863,9 +1855,14 @@ class TestAsyncRunOnceExtra:
 
 class TestRunOnce:
     def test_returns_zero(self):
-        args = argparse.Namespace()
-        with patch("mytools.web.webrecon._async_run_once", return_value=0):
+        args = argparse.Namespace(verbose=False, log_file=None)
+        with patch(
+            "mytools.web.webrecon.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             assert run_once(args) == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestWebReconMainGuard:

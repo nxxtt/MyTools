@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Spoofing."""
 
-import asyncio
 import runpy
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -11,7 +10,6 @@ from mytools.email.emailsecurity import DmarcRecord, EmailSecurityResult, SpfRec
 from mytools.email.emailspoof import (
     SpoofResult,
     SpoofVector,
-    _async_run_once,
     _max_severity,
     analyze_spoofing,
     banner,
@@ -412,34 +410,52 @@ class TestBanner:
 
 
 class TestRunOnce:
-    def test_run_once(self) -> None:
-        args = build_parser().parse_args(["example.com"])
-        with (
-            patch(
-                "mytools.email.emailspoof._async_run_once",
-                new_callable=MagicMock,
-                return_value=0,
-            ),
-            patch(
-                "mytools.email.emailspoof.safe_asyncio_run",
-                new_callable=MagicMock,
-            ) as mock_safe,
-        ):
-            mock_safe.return_value = 0
+    def test_delegates_to_scan(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "example.com",
+                "--nameserver",
+                "1.1.1.1",
+                "--selectors",
+                "default,google",
+                "--query-timeout",
+                "10.0",
+            ]
+        )
+        mock_result = SpoofResult(
+            domain="example.com",
+            risk_score="none",
+            vectors=[],
+            issues=[],
+            spf_status="strict",
+            dmarc_status="reject",
+            dkim_status="present",
+            overall_protection="protected",
+        )
+        with patch(
+            "mytools.email.emailspoof.run_scan",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_scan:
             result = run_once(args)
-            assert result == 0
-        mock_safe.assert_called_once()
+        assert result == 0
+        mock_scan.assert_called_once_with(
+            domain="example.com",
+            nameserver="1.1.1.1",
+            selectors=["default", "google"],
+            timeout=10.0,
+        )
 
 
-class TestAsyncRunOnce:
+class TestRunOnceFlow:
     def test_no_domain(self) -> None:
         args = build_parser().parse_args([])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_dry_run(self, capsys: pytest.CaptureFixture[str]) -> None:
         args = build_parser().parse_args(["example.com", "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         captured = capsys.readouterr().out
         assert "DRY-RUN" in captured
         assert result == 0
@@ -460,7 +476,7 @@ class TestAsyncRunOnce:
             "mytools.email.emailspoof.analyze_spoofing",
             return_value=result,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 0
 
     def test_output_flag(self, tmp_path) -> None:
@@ -481,9 +497,9 @@ class TestAsyncRunOnce:
                 "mytools.email.emailspoof.analyze_spoofing",
                 return_value=result,
             ),
-            patch("mytools.email.emailspoof.write_output") as mock_write,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 0
         mock_write.assert_called_once()
 
@@ -503,7 +519,7 @@ class TestAsyncRunOnce:
             "mytools.email.emailspoof.analyze_spoofing",
             return_value=result,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 0
 
     def test_json_output(self) -> None:
@@ -523,24 +539,22 @@ class TestAsyncRunOnce:
                 "mytools.email.emailspoof.analyze_spoofing",
                 return_value=result,
             ),
-            patch("mytools.email.emailspoof.print_json") as mock_print,
+            patch("mytools.core.base.print_json") as mock_print,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 0
         mock_print.assert_called_once()
 
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.email.emailspoof.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-spoof", "example.com"]),
             pytest.raises(SystemExit),
         ):

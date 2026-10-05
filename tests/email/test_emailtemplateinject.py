@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Template Injection."""
 
-import asyncio
 import runpy
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -11,7 +10,6 @@ from mytools.email import emailtemplateinject
 from mytools.email.emailtemplateinject import (
     TemplateInjectionResult,
     TemplateProbe,
-    _async_run_once,
     _build_email,
     _connect_smtp,
     _detect_engine_from_response,
@@ -435,34 +433,54 @@ class TestBanner:
 
 
 class TestRunOnce:
-    def test_run_once(self) -> None:
-        args = build_parser().parse_args(["mail.test.com"])
-        with (
-            patch(
-                "mytools.email.emailtemplateinject._async_run_once",
-                new_callable=MagicMock,
-                return_value=0,
-            ),
-            patch(
-                "mytools.email.emailtemplateinject.safe_asyncio_run",
-                new_callable=MagicMock,
-            ) as mock_safe,
-        ):
-            mock_safe.return_value = 0
+    def test_delegates_to_scan(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "mail.test.com",
+                "--port",
+                "25",
+                "--from-addr",
+                "a@b.com",
+                "--to-addr",
+                "c@d.com",
+                "--timeout",
+                "3.5",
+            ]
+        )
+        mock_result = TemplateInjectionResult(
+            target="mail.test.com",
+            port=25,
+            banner="220",
+            engines_detected=[],
+            probes=[],
+            issues=[],
+            overall_status="safe",
+        )
+        with patch(
+            "mytools.email.emailtemplateinject.run_scan",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_scan:
             result = run_once(args)
-            assert result == 0
-        mock_safe.assert_called_once()
+        assert result == 0
+        mock_scan.assert_called_once_with(
+            target="mail.test.com",
+            port=25,
+            from_addr="a@b.com",
+            to_addr="c@d.com",
+            timeout=3.5,
+        )
 
 
-class TestAsyncRunOnce:
+class TestRunOnceFlow:
     def test_no_target(self) -> None:
         args = build_parser().parse_args([])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_dry_run(self) -> None:
         args = build_parser().parse_args(["mail.test.com", "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
 
     def test_print_results(self) -> None:
@@ -480,7 +498,7 @@ class TestAsyncRunOnce:
             "mytools.email.emailtemplateinject.scan_email_template_injection",
             return_value=result,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
 
     def test_output_flag(self, tmp_path) -> None:
@@ -500,9 +518,9 @@ class TestAsyncRunOnce:
                 "mytools.email.emailtemplateinject.scan_email_template_injection",
                 return_value=result,
             ),
-            patch("mytools.email.emailtemplateinject.write_output") as mock_write,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
         mock_write.assert_called_once()
 
@@ -521,7 +539,7 @@ class TestAsyncRunOnce:
             "mytools.email.emailtemplateinject.scan_email_template_injection",
             return_value=result,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
 
     def test_json_output(self) -> None:
@@ -540,24 +558,22 @@ class TestAsyncRunOnce:
                 "mytools.email.emailtemplateinject.scan_email_template_injection",
                 return_value=result,
             ),
-            patch("mytools.email.emailtemplateinject.print_json") as mock_print,
+            patch("mytools.core.base.print_json") as mock_print,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
         mock_print.assert_called_once()
 
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.email.emailtemplateinject.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-templeti", "mail.test.com"]),
             pytest.raises(SystemExit),
         ):

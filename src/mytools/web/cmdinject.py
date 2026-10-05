@@ -33,24 +33,22 @@ Testa se o servidor e vulneravel a command injection via parametros:
 import argparse
 import logging
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 from mytools.web.secondorder import get_verify_payload, verify_positive
 
@@ -612,6 +610,7 @@ async def run_scan(
     confirm: bool = True,
 ) -> CmdInjectResult:
     """Executa o scan de command injection contra a URL alvo."""
+    logger.info("Command injection scan iniciado para %s", url)
     parsed = urlparse(url)
     if not parsed.scheme:
         url = f"http://{url}"
@@ -777,101 +776,90 @@ banner_art = create_banner(
 
 
 # ---------------------------------------------------------------------------
-# build_parser
-# ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta parser CLI para mytools-cmd."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-cmd",
-        description="Command Injection Scanner — detecta OS command injection.",
-    )
-    parser.add_argument("url", nargs="?", help="URL alvo para teste")
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=["os_command", "blind", "bypass", "all"],
-        default="all",
-        help="Categoria de testes (default: all)",
-    )
-    parser.add_argument(
-        "--param",
-        help="Param name para forcar (override auto-detect)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class CmdinjectScanner(BaseScanner):
+    """Scanner CLI de Command Injection."""
 
+    prog = "mytools-cmd"
+    description = "Command Injection Scanner — detecta OS command injection."
+    prompt = "cmd> "
+    module_name = "mytools.cmdinject"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-# ---------------------------------------------------------------------------
-# run_once
-# ---------------------------------------------------------------------------
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo para teste")
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=["os_command", "blind", "bypass", "all"],
+            default="all",
+            help="Categoria de testes (default: all)",
+        )
+        parser.add_argument(
+            "--param",
+            help="Param name para forcar (override auto-detect)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
 
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan de command injection a partir de argumentos parseados."""
-    init_scanner(args)
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "url": self._get_target(args),
+            "category": getattr(args, "category", "all"),
+            "timeout": getattr(args, "timeout", 10.0),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+            "confirm": getattr(args, "confirm", True),
+        }
 
-    if getattr(args, "dry_run", False) is True:
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _get_return_code(self, result: object) -> int:
+        return 0 if getattr(result, "overall_status", "error") != "error" else 1
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-cmd \u2014 nenhuma requisi\u00e7\u00e3o executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("Command injection scan iniciado para %s", args.url)
 
-    result = safe_asyncio_run(
-        run_scan(
-            url=args.url,
-            category=getattr(args, "category", "all"),
-            timeout=getattr(args, "timeout", 10.0),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            confirm=getattr(args, "confirm", True),
-        ),
-    )
+    def _example(self) -> str:
+        return "https://target.com/?cmd=ls"
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    else:
-        print_results(result)
-
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result))
-
-    return 0 if result.overall_status != "error" else 1
-
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="cmd> ",
-        description="Command Injection interativo.",
-        example="https://target.com/?cmd=ls",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com/?cmd=ls\n"
             "  https://target.com/ -c os_command\n"
             "  https://target.com/ -c blind\n"
             "  https://target.com/ -c bypass --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = CmdinjectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

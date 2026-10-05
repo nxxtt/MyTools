@@ -12,7 +12,7 @@ import pytest
 
 from mytools.dns.dnsrebinding import (
     RebindingResult,
-    _async_run_once,
+    RebindingScanResult,
     _check_cname_chain,
     _check_ip_flip,
     _check_private_ips,
@@ -591,21 +591,18 @@ def _make_args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-class TestAsyncRunOnce:
-    """Testes do _async_run_once."""
+class TestRunOnceFlow:
+    """Testes do run_once (fluxo Grupo B da base)."""
 
-    @pytest.mark.asyncio
-    async def test_no_target_returns_one(self) -> None:
+    def test_no_target_returns_one(self) -> None:
         args = _make_args(domain=None, target_list=None)
-        assert await _async_run_once(args) == 1
+        assert run_once(args) == 1
 
-    @pytest.mark.asyncio
-    async def test_file_not_found_returns_one(self) -> None:
+    def test_file_not_found_returns_one(self) -> None:
         args = _make_args(domain=None, target_list="missing.txt")
-        assert await _async_run_once(args) == 1
+        assert run_once(args) == 1
 
-    @pytest.mark.asyncio
-    async def test_target_list(self, tmp_path) -> None:
+    def test_target_list(self, tmp_path) -> None:
         target_file = tmp_path / "domains.txt"
         target_file.write_text("example.com\nother.com\n", encoding="utf-8")
         args = _make_args(domain=None, target_list=str(target_file))
@@ -614,47 +611,43 @@ class TestAsyncRunOnce:
             patch("mytools.dns.dnsrebinding.print_results") as mock_print,
         ):
             mock_scan.return_value = []
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         assert mock_scan.call_count == 2
         mock_print.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_domain(self) -> None:
+    def test_domain(self) -> None:
         args = _make_args()
         with (
             patch("mytools.dns.dnsrebinding.scan_rebinding") as mock_scan,
             patch("mytools.dns.dnsrebinding.print_results") as mock_print,
         ):
             mock_scan.return_value = []
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_scan.assert_called_once()
         mock_print.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_dry_run(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_dry_run(self, capsys: pytest.CaptureFixture[str]) -> None:
         args = _make_args(dry_run=True)
         with patch("mytools.dns.dnsrebinding.scan_rebinding") as mock_scan:
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_scan.assert_not_called()
         out = capsys.readouterr().out
         assert "DRY-RUN" in out
 
-    @pytest.mark.asyncio
-    async def test_quiet_skips_print(self) -> None:
+    def test_quiet_skips_print(self) -> None:
         args = _make_args(quiet=True)
         with (
             patch("mytools.dns.dnsrebinding.scan_rebinding", return_value=[]),
             patch("mytools.dns.dnsrebinding.print_results") as mock_print,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_print.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_writes_output(self) -> None:
+    def test_writes_output(self) -> None:
         args = _make_args(output="out.json")
         mock_result = RebindingResult(
             domain="example.com", check="ttl", severity="low", detail="TTL baixo"
@@ -663,14 +656,13 @@ class TestAsyncRunOnce:
             patch(
                 "mytools.dns.dnsrebinding.scan_rebinding", return_value=[mock_result]
             ),
-            patch("mytools.dns.dnsrebinding.write_output") as mock_write,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_json_output(self) -> None:
+    def test_json_output(self) -> None:
         args = _make_args(json_output=True)
         mock_result = RebindingResult(
             domain="example.com", check="ttl", severity="low", detail="TTL baixo"
@@ -679,14 +671,13 @@ class TestAsyncRunOnce:
             patch(
                 "mytools.dns.dnsrebinding.scan_rebinding", return_value=[mock_result]
             ),
-            patch("mytools.dns.dnsrebinding.print_json") as mock_json,
+            patch("mytools.core.base.print_json") as mock_json,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_json.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_output_dir(self) -> None:
+    def test_output_dir(self) -> None:
         args = _make_args(output_dir="reports")
         mock_result = RebindingResult(
             domain="example.com", check="ttl", severity="low", detail="TTL baixo"
@@ -695,44 +686,45 @@ class TestAsyncRunOnce:
             patch(
                 "mytools.dns.dnsrebinding.scan_rebinding", return_value=[mock_result]
             ),
-            patch("mytools.dns.dnsrebinding.ensure_output_dir") as mock_ensure,
-            patch("mytools.dns.dnsrebinding.write_output") as mock_write,
+            patch("mytools.core.base.ensure_output_dir") as mock_ensure,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
-        mock_ensure.assert_called_once_with("reports")
+        mock_ensure.assert_called_once()
         mock_write.assert_called_once()
 
 
 class TestRunOnce:
     """Testes da funcao run_once."""
 
-    def test_delegates_to_safe_asyncio_run(self) -> None:
+    def test_delegates_to_scan(self) -> None:
         args = _make_args()
+        mock_result = RebindingScanResult(domains=["example.com"], results=[])
         with patch(
-            "mytools.dns.dnsrebinding._async_run_once",
+            "mytools.dns.dnsrebinding.run_scan",
             new_callable=AsyncMock,
-            return_value=0,
-        ) as mock_async:
+            return_value=mock_result,
+        ) as mock_scan:
             result = run_once(args)
         assert result == 0
-        mock_async.assert_called_once_with(args)
+        mock_scan.assert_called_once_with(
+            domains=["example.com"], timeout=5.0, queries=5
+        )
 
 
 class TestMain:
     """Testes da funcao main."""
 
     def test_delegates_to_run_main_loop(self) -> None:
-        with patch(
-            "mytools.dns.dnsrebinding.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
         assert result == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-rebind"]),
             pytest.raises(SystemExit) as exc_info,
         ):

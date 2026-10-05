@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Social Engineering Recon."""
 
-import asyncio
 import runpy
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -12,7 +11,6 @@ import respx
 from mytools.core.utils import RateLimiter
 from mytools.osint.socialengrecon import (
     EmployeeInfo,
-    _async_run_once,
     _dedup_employees,
     _extract_domain_name,
     _query_github,
@@ -1013,27 +1011,20 @@ async def test_scan_employees_web_source():
 class TestRunOnce:
     def test_run_once(self):
         args = build_parser().parse_args(["example.com"])
-        with (
-            patch(
-                "mytools.osint.socialengrecon._async_run_once",
-                new_callable=MagicMock,
-                return_value=0,
-            ),
-            patch(
-                "mytools.osint.socialengrecon.safe_asyncio_run",
-                new_callable=MagicMock,
-                return_value=0,
-            ) as mock_safe,
-        ):
+        with patch(
+            "mytools.osint.socialengrecon.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             result = run_once(args)
-            assert result == 0
-        mock_safe.assert_called_once()
+        assert result == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestAsyncRunOnce:
     def test_dry_run(self):
         args = build_parser().parse_args(["example.com", "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
 
     def test_hunter_without_key(self):
@@ -1042,7 +1033,7 @@ class TestAsyncRunOnce:
             "mytools.osint.socialengrecon.scan_employees",
             new=AsyncMock(return_value=[]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_print_results_path(self):
@@ -1052,7 +1043,7 @@ class TestAsyncRunOnce:
             "mytools.osint.socialengrecon.scan_employees",
             new=AsyncMock(return_value=[emp]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_output_flag(self, tmp_path):
@@ -1065,7 +1056,7 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.osint.socialengrecon.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
@@ -1080,14 +1071,14 @@ class TestAsyncRunOnce:
             patch("mytools.osint.socialengrecon.print_results") as mock_print,
             patch("mytools.osint.socialengrecon.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_print.assert_not_called()
         mock_write.assert_called_once()
 
     def test_missing_target_returns_1(self):
         args = build_parser().parse_args([])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_list_file_multiple_domains(self, tmp_path):
@@ -1102,7 +1093,7 @@ class TestAsyncRunOnce:
             ) as mock_scan,
             patch("mytools.osint.socialengrecon.print_results"),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert mock_scan.call_count == 2
         assert mock_scan.call_args_list[0].kwargs["domain"] == "one.com"
@@ -1110,14 +1101,14 @@ class TestAsyncRunOnce:
 
     def test_list_file_missing_returns_1(self, tmp_path):
         args = build_parser().parse_args(["-l", str(tmp_path / "nope.txt")])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_list_file_dry_run(self, tmp_path):
         lst = tmp_path / "domains.txt"
         lst.write_text("one.com\ntwo.com\n", encoding="utf-8")
         args = build_parser().parse_args(["-l", str(lst), "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
 
     def test_json_output_flag(self):
@@ -1131,7 +1122,7 @@ class TestAsyncRunOnce:
             patch("mytools.osint.socialengrecon.print_json") as mock_json,
             patch("mytools.osint.socialengrecon.print_results") as mock_print,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_json.assert_called_once()
         mock_print.assert_not_called()
@@ -1147,7 +1138,7 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.osint.socialengrecon.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
         assert out_dir.is_dir()
@@ -1155,15 +1146,13 @@ class TestAsyncRunOnce:
 
 class TestMain:
     def test_main(self):
-        with patch(
-            "mytools.osint.socialengrecon.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self):
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-soceng", "example.com"]),
             pytest.raises(SystemExit),
         ):

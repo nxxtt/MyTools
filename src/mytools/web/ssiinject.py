@@ -19,22 +19,22 @@ import argparse
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
     print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -839,34 +839,59 @@ banner_art = create_banner(
 )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-ssiinject",
-        description="SSI Injection — detecta Server-Side Includes em web apps",
-    )
-    parser.add_argument("url", help="URL alvo (ex: https://example.com)")
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categoria de testes (default: todas)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class SsiinjectScanner(BaseScanner):
+    """Scanner CLI do SSI Injection (Grupo A — output interno)."""
 
+    prog = "mytools-ssiinject"
+    description = "SSI Injection — detecta Server-Side Includes em web apps"
+    prompt = "ssi> "
+    module_name = "mytools.ssiinject"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan SSI Injection a partir de argumentos parseados."""
-    init_scanner(args)
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ex: https://example.com)")
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categoria de testes (default: todas)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": [args.category] if getattr(args, "category", None) else [],
+            "timeout": getattr(args, "timeout", 10),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+            "verbose": getattr(args, "verbose", False),
+            "proxy": getattr(args, "proxy", None),
+            "json_output": getattr(args, "json_output", False),
+        }
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        logger.info("SSI scan iniciado para %s", kwargs.get("target"))
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print(
             "[DRY-RUN] mytools-ssiinject \u2014 nenhuma requisi\u00e7\u00e3o executada."
         )
@@ -874,45 +899,25 @@ def run_once(args: argparse.Namespace) -> int:
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("SSI scan iniciado para %s", args.url)
-    categories: list[str] = []
-    if getattr(args, "category", None):
-        categories = [args.category]
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            verbose=getattr(args, "verbose", False),
-            proxy=getattr(args, "proxy", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
 
+    def _example(self) -> str:
+        return "https://target.com -c detect"
 
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="ssi> ",
-        description="SSI Injection interativo.",
-        example="https://target.com -c detect",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c detect\n"
             "  https://target.com -c rce\n"
             "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = SsiinjectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

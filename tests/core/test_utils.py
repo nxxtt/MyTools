@@ -154,6 +154,7 @@ class TestExtractTitle:
 
 class TestRateLimiter:
     @pytest.mark.asyncio
+    @pytest.mark.real_sleep
     async def test_zero_delay_does_not_block(self):
         limiter = RateLimiter(0.0)
         start = time.monotonic()
@@ -1015,6 +1016,7 @@ class TestFetchErrorAttrs:
 
 class TestRateLimiterEdgeCases:
     @pytest.mark.asyncio
+    @pytest.mark.real_sleep
     async def test_large_rps_very_fast(self):
         limiter = RateLimiter(1000.0)
         start = time.monotonic()

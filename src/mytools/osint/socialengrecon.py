@@ -17,18 +17,19 @@ import argparse
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import quote, urljoin
 
 import httpx
 from bs4 import BeautifulSoup
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_base_args,
-    add_http_args,
     color,
     create_async_client,
     create_banner,
@@ -39,8 +40,6 @@ from mytools.core.utils import (
     print_json,
     print_table,
     read_target_lines,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 from mytools.data import load_payloads
@@ -531,40 +530,7 @@ def print_results(employees: list[EmployeeInfo]) -> None:
         print_exploit_info(e.exploit, e.tool)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Social Engineering Recon — coleta informacoes de funcionarios do alvo.",
-    )
-    add_base_args(parser)
-    add_http_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
-    parser.add_argument(
-        "-l", "--list", dest="target_list", help="Arquivo com dominios (um por linha)."
-    )
-    parser.add_argument(
-        "--source",
-        action="append",
-        choices=["github", "hunter", "web"],
-        dest="sources",
-        help="Fonte para consulta (pode repetir). Padrao: github.",
-    )
-    parser.add_argument(
-        "--hunter-api-key",
-        dest="hunter_api_key",
-        help="API key do Hunter.io (obrigatoria para --source hunter).",
-    )
-    parser.add_argument(
-        "--max-results",
-        type=int,
-        default=50,
-        dest="max_results",
-        help="Max resultados por fonte. Padrao: 50",
-    )
-    return parser
-
-
-async def _async_run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
     quiet = init_scanner(args)
 
@@ -659,31 +625,98 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class SocialEngreconScanner(BaseScanner):
+    """Social Engineering Recon — dispatcher BaseScanner (Grupo A)."""
 
+    prog = "mytools-soceng"
+    description = (
+        "Social Engineering Recon — coleta informacoes de funcionarios do alvo."
+    )
+    prompt = "soceng> "
+    module_name = "mytools.socialengrecon"
+    module_type = "core"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal do Social Engineering Recon."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain or getattr(a, "target_list", None)),
-        prompt="soceng> ",
-        description="Social Engineering Recon interativo.",
-        example="example.com --source github",
-        contextual_help=(
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None) or getattr(args, "target_list", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo. Ex: example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com dominios (um por linha).",
+        )
+        parser.add_argument(
+            "--source",
+            action="append",
+            choices=["github", "hunter", "web"],
+            dest="sources",
+            help="Fonte para consulta (pode repetir). Padrao: github.",
+        )
+        parser.add_argument(
+            "--hunter-api-key",
+            dest="hunter_api_key",
+            help="API key do Hunter.io (obrigatoria para --source hunter).",
+        )
+        parser.add_argument(
+            "--max-results",
+            type=int,
+            default=50,
+            dest="max_results",
+            help="Max resultados por fonte. Padrao: 50",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        domain = getattr(args, "domain", None)
+        target_list = getattr(args, "target_list", None)
+        if not domain and target_list:
+            try:
+                domains = read_target_lines(target_list, sort_dedup=True)
+            except ValueError:
+                domains = []
+        elif domain:
+            domains = [domain]
+        else:
+            domains = []
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        for d in domains:
+            logger.info("Dominio: %s", d)
+        return 0
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _example(self) -> str:
+        return "example.com --source github"
+
+    def _help(self) -> str:
+        return (
             "Uso: <dominio> [opcoes]\n"
             "Exemplos:\n"
             "  example.com\n"
             "  example.com --source github --source hunter\n"
             "  example.com --hunter-api-key KEY\n"
             "  -l domains.txt -o results.json"
-        ),
-    )
+        )
 
+
+scanner = SocialEngreconScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

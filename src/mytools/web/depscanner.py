@@ -28,24 +28,20 @@ import argparse
 import json
 import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
-    add_base_args,
-    add_http_args,
     color,
     create_async_client,
     create_banner,
     fetch,
-    init_scanner,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.depscanner")
@@ -693,83 +689,90 @@ def print_results(result: DepScanResult) -> None:
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constroi parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-depscan",
-        description="Dependency Scanner — deteccao de libs + verificacao CVE + outdated",
+async def run_scan(
+    base_url: str,
+    categories: list[str] | None,
+    timeout: float,
+) -> DepScanResult:
+    """Wrapper module-level — delega para ``scan_dependency`` (ponto de patch)."""
+    return await scan_dependency(
+        base_url=base_url,
+        categories=categories,
+        timeout=timeout,
     )
-    parser.add_argument("url", help="URL alvo (ex: https://example.com)")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-    add_base_args(parser)
-    add_http_args(parser)
-    return parser
 
 
-def _async_run_once(args: argparse.Namespace) -> DepScanResult:
-    """Executa scan uma vez."""
-    init_scanner(args)
+class DepscannerScanner(BaseScanner):
+    """Scanner CLI do Dependency Scanner."""
 
-    url = args.url
-    if not url.startswith(("http://", "https://")):
-        url = f"https://{url}"
+    prog = "mytools-depscan"
+    description = "Dependency Scanner — deteccao de libs + verificacao CVE + outdated"
+    prompt = "depscan> "
+    module_name = "mytools.depscanner"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    categories = getattr(args, "categories", None)
-    timeout = getattr(args, "timeout", DEFAULT_TIMEOUT)
-
-    result = safe_asyncio_run(
-        scan_dependency(
-            base_url=url,
-            categories=categories,
-            timeout=timeout,
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ex: https://example.com)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
         )
-    )
 
-    print_results(result)
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        # O fluxo original lia args.dry_run diretamente ("is True"); sincroniza
+        # o flag para o branch dry-run da base ver o mesmo valor quando
+        # init_scanner nao e quem o defineu (testes que o mockam).
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-    if getattr(args, "output", None):
-        write_output(args.output, [asdict(a) for a in result.attempts])
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        url = self._get_target(args)
+        if url and not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
+        return {
+            "base_url": url,
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", DEFAULT_TIMEOUT),
+        }
 
-    return result
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-def run_once(args: argparse.Namespace) -> int:
-    """Wrapper sincrono."""
+    def _make_banner(self):  # type: ignore[override]
+        return create_banner(BANNER_ART, "Dependency Scanner")
 
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-depscan — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = _async_run_once(args)
-    return 1 if result.overall_status != "secure" else 0
 
+    def _example(self) -> str:
+        return "https://example.com -c frontend_deps cve_check"
 
-def main() -> int:
-    """Entry point CLI."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(BANNER_ART, "Dependency Scanner"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="depscan> ",
-        description="Dependency Scanner — deteccao de libs front-end/back-end + CVE + outdated.",
-        example="https://example.com -c frontend_deps cve_check",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  frontend_deps   — detectar libs front-end (HTML + sourcemaps)\n"
             "  backend_deps    — detectar libs back-end (headers + manifests)\n"
             "  cve_check       — verificar CVEs conhecidas\n"
             "  outdated_check  — verificar versoes desatualizadas\n"
-        ),
-    )
+        )
+
+
+scanner = DepscannerScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

@@ -28,19 +28,16 @@ Reutiliza emailsecurity.scan_email_security() como base.
 
 import argparse
 import logging
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 from mytools.email.emailsecurity import DEFAULT_SELECTORS, scan_email_security
 
@@ -458,114 +455,107 @@ def banner() -> None:
     create_banner(art, "   email spoofing: analise SPF/DKIM/DMARC contra spoofing")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-
-    parser = argparse.ArgumentParser(
-        description="Email Spoofing — analise de vulnerabilidade a spoofing de email.",
-        epilog="Verifica se SPF/DKIM/DMARC protegem contra spoofing.",
+async def run_scan(
+    domain: str,
+    nameserver: str,
+    selectors: list[str],
+    timeout: float,
+) -> SpoofResult:
+    """Roda a analise de spoofing (envolve a funcao sync)."""
+    return analyze_spoofing(
+        domain=domain,
+        nameserver=nameserver,
+        selectors=selectors,
+        timeout=timeout,
     )
 
-    add_base_args(parser)
 
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para analise.")
+class EmailspoofScanner(BaseScanner):
+    """Email Spoofing Analysis — dispatcher BaseScanner (Grupo B)."""
 
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default="8.8.8.8",
-        help="Nameserver para queries. Padrao: 8.8.8.8",
-    )
+    prog = "mytools-spoof"
+    description = "Email Spoofing — analise de vulnerabilidade a spoofing de email."
+    prompt = "spoof> "
+    module_name = "mytools.emailspoof"
+    module_type = "core"
+    epilog = "Verifica se SPF/DKIM/DMARC protegem contra spoofing."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument(
-        "--selectors",
-        default=",".join(DEFAULT_SELECTORS),
-        help=f"Seletores DKIM (separados por virgula). Padrao: {','.join(DEFAULT_SELECTORS)}",
-    )
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
 
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=5.0,
-        help="Timeout por query em segundos. Padrao: 5",
-    )
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo para analise.")
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default="8.8.8.8",
+            help="Nameserver para queries. Padrao: 8.8.8.8",
+        )
+        parser.add_argument(
+            "--selectors",
+            default=",".join(DEFAULT_SELECTORS),
+            help=f"Seletores DKIM (separados por virgula). Padrao: {','.join(DEFAULT_SELECTORS)}",
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=5.0,
+            help="Timeout por query em segundos. Padrao: 5",
+        )
 
-    return parser
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        selectors = [s.strip() for s in args.selectors.split(",") if s.strip()]
+        return {
+            "domain": self._get_target(args),
+            "nameserver": args.nameserver,
+            "selectors": selectors,
+            "timeout": args.query_timeout,
+        }
 
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    quiet = init_scanner(args)
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
 
-    domain = getattr(args, "domain", None)
-
-    if not domain:
-        print(color("[!] Informe um dominio.", Cyber.RED))
-
-        return 1
-
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        domain = self._get_target(args) or ""
         print(
             color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
             "Nenhuma query DNS sera enviada.",
         )
-
         print(
             color("[*]", Cyber.CYAN, Cyber.BOLD),
             f"Dominio: {color(domain, Cyber.WHITE, Cyber.BOLD)}",
         )
-
         return 0
 
-    selectors = [s.strip() for s in args.selectors.split(",") if s.strip()]
+    def _get_return_code(self, result: object) -> int:
+        return 0 if getattr(result, "overall_protection", "") == "protected" else 1
 
-    result = analyze_spoofing(
-        domain=domain,
-        nameserver=args.nameserver,
-        selectors=selectors,
-        timeout=args.query_timeout,
-    )
+    def _example(self) -> str:
+        return "example.com --selectors default,google"
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-
-    elif not quiet:
-        print_results(result)
-
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            ["domain", "risk_score", "overall_protection", "issues"],
-            quiet=quiet,
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --selectors default,google,s1\n"
+            "  example.com --nameserver 1.1.1.1"
         )
 
-    return 0 if result.overall_protection == "protected" else 1
 
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do Email Spoofing."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="spoof> ",
-        description="Email Spoofing — analise de vulnerabilidade a spoofing.",
-        example="example.com --selectors default,google",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --selectors default,google,s1\n  example.com --nameserver 1.1.1.1"
-        ),
-    )
-
+scanner = EmailspoofScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

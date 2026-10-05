@@ -47,23 +47,19 @@ import logging
 import math
 import re
 import string
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 import dns.exception
 import dns.resolver
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.dnstunnel")
@@ -596,161 +592,126 @@ def banner() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-
-    parser = argparse.ArgumentParser(
-        description="DNS Tunnel Detection — detecta DNS tunneling via analise de padroes.",
-        epilog="Analisa entropia, comprimento de labels, record types e padroes de encoding.",
+async def run_scan(
+    domain: str,
+    nameserver: str,
+    num_queries: int,
+    entropy_threshold: float,
+    label_length_threshold: int,
+    timeout: float,
+) -> TunnelResult:
+    """Roda a deteccao de DNS tunneling (wrapper async da base)."""
+    return scan_tunnel(
+        domain=domain,
+        nameserver=nameserver,
+        num_queries=num_queries,
+        entropy_threshold=entropy_threshold,
+        label_length_threshold=label_length_threshold,
+        timeout=timeout,
     )
 
-    add_base_args(parser)
 
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para analise.")
+class DnstunnelScanner(BaseScanner):
+    """DNS Tunnel Detection — dispatcher BaseScanner (Grupo B)."""
 
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default="8.8.8.8",
-        help="Nameserver para queries. Padrao: 8.8.8.8",
+    prog = "mytools-tunnel"
+    description = "DNS Tunnel Detection — detecta DNS tunneling via analise de padroes."
+    epilog = (
+        "Analisa entropia, comprimento de labels, record types e padroes de encoding."
     )
+    prompt = "tunnel> "
+    module_name = "mytools.dnstunnel"
+    module_type = "core"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument(
-        "--num-queries",
-        type=int,
-        default=DEFAULT_NUM_QUERIES,
-        help=f"Numero de queries sinteticas para analise. Padrao: {DEFAULT_NUM_QUERIES}",
-    )
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
 
-    parser.add_argument(
-        "--min-entropy",
-        type=float,
-        default=DEFAULT_ENTROPY_THRESHOLD,
-        help=f"Threshold minimo de entropia para flagrar. Padrao: {DEFAULT_ENTROPY_THRESHOLD}",
-    )
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo para analise.")
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default="8.8.8.8",
+            help="Nameserver para queries. Padrao: 8.8.8.8",
+        )
+        parser.add_argument(
+            "--num-queries",
+            type=int,
+            default=DEFAULT_NUM_QUERIES,
+            help=f"Numero de queries sinteticas para analise. Padrao: {DEFAULT_NUM_QUERIES}",
+        )
+        parser.add_argument(
+            "--min-entropy",
+            type=float,
+            default=DEFAULT_ENTROPY_THRESHOLD,
+            help=f"Threshold minimo de entropia para flagrar. Padrao: {DEFAULT_ENTROPY_THRESHOLD}",
+        )
+        parser.add_argument(
+            "--max-label-length",
+            type=int,
+            default=DEFAULT_LABEL_LENGTH,
+            help=f"Comprimento maximo de label normal. Padrao: {DEFAULT_LABEL_LENGTH}",
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=3.0,
+            help="Timeout por query em segundos. Padrao: 3",
+        )
 
-    parser.add_argument(
-        "--max-label-length",
-        type=int,
-        default=DEFAULT_LABEL_LENGTH,
-        help=f"Comprimento maximo de label normal. Padrao: {DEFAULT_LABEL_LENGTH}",
-    )
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if not getattr(args, "domain", None):
+            logger.error("Informe um dominio.")
+            return 1
+        return None
 
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=3.0,
-        help="Timeout por query em segundos. Padrao: 3",
-    )
-
-    return parser
-
-
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-
-    quiet = init_scanner(args)
-
-    domain = getattr(args, "domain", None)
-
-    if not domain:
-        logger.error("Informe um dominio.")
-
-        return 1
-
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         logger.warning("Nenhuma query DNS sera enviada.")
-
-        logger.info("Dominio: %s", domain)
-
+        logger.info("Dominio: %s", self._get_target(args))
         return 0
 
-    result = scan_tunnel(
-        domain=domain,
-        nameserver=args.nameserver,
-        num_queries=args.num_queries,
-        entropy_threshold=args.min_entropy,
-        label_length_threshold=args.max_label_length,
-        timeout=args.query_timeout,
-    )
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "nameserver": args.nameserver,
+            "num_queries": args.num_queries,
+            "entropy_threshold": args.min_entropy,
+            "label_length_threshold": args.max_label_length,
+            "timeout": args.query_timeout,
+        }
 
-    if not quiet:
-        print_results(result)
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
 
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            [
-                "domain",
-                "overall_severity",
-                "is_tunneling",
-                "confidence",
-                "labels_analyzed",
-                "avg_label_length",
-                "max_label_length",
-                "avg_entropy",
-                "max_entropy",
-                "txt_ratio",
-                "base64_count",
-                "hex_count",
-                "nxdomain_ratio",
-            ],
-            quiet=quiet,
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _get_return_code(self, result: object) -> int:
+        return 1 if getattr(result, "is_tunneling", False) else 0
+
+    def _example(self) -> str:
+        return "example.com --queries 100 --min-entropy 3.5"
+
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --queries 100\n"
+            "  example.com --min-entropy 3.5 --max-label-length 30"
         )
 
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{domain}.json",
-            [asdict(result)],
-            [
-                "domain",
-                "overall_severity",
-                "is_tunneling",
-                "confidence",
-                "labels_analyzed",
-                "avg_label_length",
-                "max_label_length",
-                "avg_entropy",
-                "max_entropy",
-                "txt_ratio",
-                "base64_count",
-                "hex_count",
-                "nxdomain_ratio",
-            ],
-            quiet=quiet,
-        )
 
-    return 1 if result.is_tunneling else 0
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do DNS Tunnel Detection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="tunnel> ",
-        description="DNS Tunnel Detection interativo.",
-        example="example.com --queries 100 --min-entropy 3.5",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --queries 100\n  example.com --min-entropy 3.5 --max-label-length 30"
-        ),
-    )
-
+scanner = DnstunnelScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

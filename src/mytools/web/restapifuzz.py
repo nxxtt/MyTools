@@ -34,25 +34,21 @@ Fuzzing generico de APIs REST testando:
 import argparse
 import json
 import logging
-from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.restapifuzz")
@@ -1175,105 +1171,79 @@ banner_art = create_banner(
 )
 
 
-# ---------------------------------------------------------------------------
-# build_parser
-# ---------------------------------------------------------------------------
+class RestapifuzzScanner(BaseScanner):
+    """REST API Fuzzer — dispatcher BaseScanner (Grupo B)."""
 
-
-def build_parser() -> argparse.ArgumentParser:
-    """Monta parser CLI para mytools-restfuzz."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-restfuzz",
-        description="REST API Fuzzer — auth bypass, content-type switching, version enum, HATEOAS.",
+    prog = "mytools-restfuzz"
+    description = (
+        "REST API Fuzzer — auth bypass, content-type switching, version enum, HATEOAS."
     )
-    parser.add_argument(
-        "url", nargs="?", help="URL base da API (https://api.example.com)"
-    )
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=["auth_bypass", "content_type", "version_enum", "hateoas", "all"],
-        default=["all"],
-        help="Categorias para testar (default: all)",
-    )
-    parser.add_argument(
-        "--endpoints",
-        nargs="+",
-        default=None,
-        help="Endpoints para testar (default: auto-detect via /openapi.json)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-    add_common_args(parser, "web")
-    return parser
+    prompt = "restfuzz> "
+    module_name = "mytools.restapifuzz"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-
-# ---------------------------------------------------------------------------
-# run_once
-# ---------------------------------------------------------------------------
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan de REST API fuzzing a partir de argumentos parseados."""
-    init_scanner(args)
-
-    if getattr(args, "dry_run", False) is True:
-        print(
-            "[DRY-RUN] mytools-restfuzz \u2014 nenhuma requisi\u00e7\u00e3o executada."
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "url", nargs="?", help="URL base da API (https://api.example.com)"
         )
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=["auth_bypass", "content_type", "version_enum", "hateoas", "all"],
+            default=["all"],
+            help="Categorias para testar (default: all)",
+        )
+        parser.add_argument(
+            "--endpoints",
+            nargs="+",
+            default=None,
+            help="Endpoints para testar (default: auto-detect via /openapi.json)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        categories = getattr(args, "categories", ["all"])
+        if not categories:
+            categories = ["all"]
+        return {
+            "url": self._get_target(args),
+            "categories": categories,
+            "endpoints": getattr(args, "endpoints", None),
+            "timeout": getattr(args, "timeout", 10.0),
+            "concurrency": getattr(args, "concurrency", 5),
+            "output_file": getattr(args, "output", None),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        logger.info("REST API Fuzzer iniciado para %s", kwargs.get("url"))
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-restfuzz — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("REST API Fuzzer iniciado para %s", args.url)
 
-    categories = getattr(args, "categories", ["all"])
-    if not categories:
-        categories = ["all"]
+    def _example(self) -> str:
+        return "https://api.example.com -c auth_bypass hateoas"
 
-    result = safe_asyncio_run(
-        run_scan(
-            url=args.url,
-            categories=categories,
-            endpoints=getattr(args, "endpoints", None),
-            timeout=getattr(args, "timeout", 10.0),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    else:
-        print_results(result)
-
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result))
-
-    return 1 if result.overall_status != "secure" else 0
-
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="restfuzz> ",
-        description="REST API Fuzzer interativo.",
-        example="https://api.example.com -c auth_bypass hateoas",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://api.example.com\n"
@@ -1281,9 +1251,13 @@ def main() -> int:
             "  https://api.example.com -c content_type version_enum\n"
             "  https://api.example.com --endpoints /users /products\n"
             "  https://api.example.com -c hateoas --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
 
+
+scanner = RestapifuzzScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

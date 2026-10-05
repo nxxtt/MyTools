@@ -50,7 +50,9 @@ Fluxo:
 
 import argparse
 import logging
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 import dns.exception
 import dns.flags
@@ -60,18 +62,12 @@ import dns.query
 import dns.rdatatype
 import dns.resolver
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.dnsamplification")
@@ -413,44 +409,6 @@ def banner() -> None:
     create_banner(art, "   amplification detection: auditoria de amplificacao DNS")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-
-    parser = argparse.ArgumentParser(
-        description="DNS Amplification Detection — verifica se servidor pode ser usado para amplificacao DDoS.",
-        epilog="Use apenas em servidores que voce possui ou tem autorizacao para auditar.",
-    )
-
-    add_base_args(parser)
-
-    parser.add_argument(
-        "domain", nargs="?", help="Dominio ou IP do nameserver a auditar."
-    )
-
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default=DEFAULT_NAMESERVER,
-        help=f"Nameserver a testar. Padrao: {DEFAULT_NAMESERVER}",
-    )
-
-    parser.add_argument(
-        "--record-types",
-        "-r",
-        default=",".join(DEFAULT_RECORD_TYPES),
-        help=f"Record types para testar (separados por virgula). Padrao: {','.join(DEFAULT_RECORD_TYPES)}",
-    )
-
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=DEFAULT_TIMEOUT,
-        help=f"Timeout por query em segundos. Padrao: {DEFAULT_TIMEOUT}",
-    )
-
-    return parser
-
-
 def _is_valid_nameserver(value: str) -> bool:
     """Valida se o valor parece um hostname ou endereco IP plausivel."""
     value = value.strip()
@@ -463,110 +421,121 @@ def _is_valid_nameserver(value: str) -> bool:
     return all(ch.isalnum() or ch in ".-:" for ch in value)
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
+async def run_scan(
+    domain: str,
+    nameserver: str,
+    record_types: list[str],
+    timeout: float,
+) -> AmplificationResult:
+    """Roda o scan de amplificacao (envolve a funcao sync)."""
+    return scan_amplification(
+        domain=domain,
+        nameserver=nameserver,
+        record_types=record_types,
+        timeout=timeout,
+    )
 
-    quiet = init_scanner(args)
 
-    domain = getattr(args, "domain", None)
+class DnsamplificationScanner(BaseScanner):
+    """DNS Amplification Detection — dispatcher BaseScanner (Grupo B)."""
 
-    if not domain:
-        logger.error("Informe um dominio ou nameserver.")
+    prog = "mytools-amp"
+    description = (
+        "DNS Amplification Detection — verifica se servidor pode ser usado "
+        "para amplificacao DDoS."
+    )
+    prompt = "amp> "
+    module_name = "mytools.dnsamplification"
+    module_type = "core"
+    epilog = "Use apenas em servidores que voce possui ou tem autorizacao para auditar."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-        return 1
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
 
-    if not _is_valid_nameserver(args.nameserver):
-        logger.error(
-            "Nameserver invalido: %r. Use um hostname ou endereco IP valido.",
-            args.nameserver,
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "domain", nargs="?", help="Dominio ou IP do nameserver a auditar."
         )
-        return 1
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default=DEFAULT_NAMESERVER,
+            help=f"Nameserver a testar. Padrao: {DEFAULT_NAMESERVER}",
+        )
+        parser.add_argument(
+            "--record-types",
+            "-r",
+            default=",".join(DEFAULT_RECORD_TYPES),
+            help=(
+                "Record types para testar (separados por virgula). "
+                f"Padrao: {','.join(DEFAULT_RECORD_TYPES)}"
+            ),
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=DEFAULT_TIMEOUT,
+            help=f"Timeout por query em segundos. Padrao: {DEFAULT_TIMEOUT}",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if not _is_valid_nameserver(args.nameserver):
+            logger.error(
+                "Nameserver invalido: %r. Use um hostname ou endereco IP valido.",
+                args.nameserver,
+            )
+            return 1
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        record_types = [
+            rt.strip().upper() for rt in args.record_types.split(",") if rt.strip()
+        ]
+        return {
+            "domain": self._get_target(args),
+            "nameserver": args.nameserver,
+            "record_types": record_types,
+            "timeout": args.query_timeout,
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         logger.warning("Nenhuma query DNS sera enviada.")
-
-        logger.info("Alvo: %s", domain)
-
+        logger.info("Alvo: %s", self._get_target(args))
         logger.info("Nameserver: %s", args.nameserver)
-
         return 0
 
-    record_types = [
-        rt.strip().upper() for rt in args.record_types.split(",") if rt.strip()
-    ]
+    def _get_return_code(self, result: object) -> int:
+        return 1 if getattr(result, "is_open_resolver", False) else 0
 
-    result = scan_amplification(
-        domain=domain,
-        nameserver=args.nameserver,
-        record_types=record_types,
-        timeout=args.query_timeout,
-    )
+    def _example(self) -> str:
+        return "example.com --record-types TXT,MX"
 
-    if not quiet:
-        print_results(result)
-
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
-
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            [
-                "domain",
-                "nameserver",
-                "recursion_available",
-                "is_open_resolver",
-                "max_amplification",
-                "severity",
-                "request_size",
-            ],
-            quiet=quiet,
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  8.8.8.8 --nameserver 1.1.1.1\n"
+            "  example.com --record-types TXT,MX"
         )
 
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{domain}.json",
-            [asdict(result)],
-            [
-                "domain",
-                "nameserver",
-                "recursion_available",
-                "is_open_resolver",
-                "max_amplification",
-                "severity",
-                "request_size",
-            ],
-            quiet=quiet,
-        )
 
-    return 1 if result.is_open_resolver else 0
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do DNS Amplification Detection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="amp> ",
-        description="DNS Amplification Detection interativo.",
-        example="example.com --record-types TXT,MX",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  8.8.8.8 --nameserver 1.1.1.1\n  example.com --record-types TXT,MX"
-        ),
-    )
-
+scanner = DnsamplificationScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

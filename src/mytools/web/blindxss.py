@@ -35,21 +35,20 @@ Fluxo:
 import argparse
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
     print_json,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1173,91 +1172,68 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class BlindxssScanner(BaseScanner):
+    """Blind XSS via callback — dispatcher BaseScanner (Grupo A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-blindxss",
-        description="Blind XSS via callback — injeta payloads que disparam webhook.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-blindxss https://target.com --webhook https://hook.example.com\n"
-            "  mytools-blindxss https://target.com --webhook https://hook.example.com -c input\n"
-            "  mytools-blindxss https://target.com --webhook https://hook.example.com -c header\n"
-            "  mytools-blindxss https://target.com --webhook https://hook.example.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-blindxss"
+    description = "Blind XSS via callback — injeta payloads que disparam webhook."
+    prompt = "blindxss> "
+    module_name = "mytools.blindxss"
+    module_type = "web"
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-blindxss https://target.com --webhook https://hook.example.com\n"
+        "  mytools-blindxss https://target.com --webhook https://hook.example.com -c input\n"
+        "  mytools-blindxss https://target.com --webhook https://hook.example.com -c header\n"
+        "  mytools-blindxss https://target.com --webhook https://hook.example.com --proxy http://127.0.0.1:8080"
     )
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
 
-    parser.add_argument(
-        "--webhook",
-        required=True,
-        help="URL do webhook para receber callbacks de XSS",
-    )
-
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=["all", "input", "header", "attr", "event", "bypass"],
-        help="Categoria de testes (default: todas)",
-    )
-
-    add_common_args(parser, "web")
-
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Blind XSS a partir de argumentos parseados."""
-
-    init_scanner(args)
-
-    if getattr(args, "dry_run", False) is True:
-        print(
-            "[DRY-RUN] mytools-blindxss \u2014 nenhuma requisi\u00e7\u00e3o executada."
+        parser.add_argument(
+            "--webhook",
+            required=True,
+            help="URL do webhook para receber callbacks de XSS",
         )
+
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=["all", "input", "header", "attr", "event", "bypass"],
+            help="Categoria de testes (default: todas)",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        kwargs = super()._build_run_once_kwargs(args)
+        kwargs["webhook_url"] = args.webhook
+        return kwargs
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        logger.info("Blind XSS scan iniciado para %s", kwargs.get("target"))
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-blindxss — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("Blind XSS scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com --webhook https://hook.example.com -c input"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            webhook_url=args.webhook,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-            proxy=getattr(args, "proxy", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo Blind XSS."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="blindxss> ",
-        description="Blind XSS via callback interativo.",
-        example="https://target.com --webhook https://hook.example.com -c input",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> --webhook <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com --webhook https://hook.example.com\n"
@@ -1265,9 +1241,13 @@ def main() -> int:
             "  https://target.com --webhook https://hook.example.com -c header\n"
             "  https://target.com --webhook https://hook.example.com -c bypass\n"
             "  https://target.com --webhook https://hook.example.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
 
+
+scanner = BlindxssScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

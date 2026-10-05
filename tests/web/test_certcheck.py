@@ -1571,6 +1571,8 @@ class TestRunOnce:
             timeout=5.0,
             output=None,
             json_output=False,
+            verbose=False,
+            log_file=None,
         )
         rc = run_once(args)
         capsys.readouterr()
@@ -1586,6 +1588,8 @@ class TestRunOnce:
             timeout=5.0,
             output=None,
             json_output=False,
+            verbose=False,
+            log_file=None,
         )
         rc = run_once(args)
         capsys.readouterr()

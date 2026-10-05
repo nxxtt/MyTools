@@ -1448,40 +1448,68 @@ class TestRunScan:
 
 class TestRunOnce:
     def test_vulnerable_returns_1(self) -> None:
-        mock_result = MagicMock()
-        mock_result.overall_status = "vulnerable"
+        mock_result = WSAttackResult(
+            target="ws://example.com/ws",
+            host="example.com",
+            port=80,
+            tls=False,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="vulnerable",
+        )
         args = argparse.Namespace(
             url="ws://example.com/ws", categories=None, timeout=5.0, output=None
         )
         with (
+            patch("mytools.core.base.init_scanner"),
             patch(
                 "mytools.web.websocketattack.run_scan",
-                MagicMock(return_value=mock_result),
-            ),
-            patch(
-                "mytools.web.websocketattack.safe_asyncio_run",
-                side_effect=lambda coro: coro,
-            ),
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ) as mock_scan,
         ):
             assert run_once(args) == 1
+        mock_scan.assert_called_once_with(
+            target="ws://example.com/ws",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
     def test_secure_returns_0(self) -> None:
-        mock_result = MagicMock()
-        mock_result.overall_status = "secure"
+        mock_result = WSAttackResult(
+            target="ws://example.com/ws",
+            host="example.com",
+            port=80,
+            tls=False,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[],
+            vulnerable_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
         args = argparse.Namespace(
             url="ws://example.com/ws", categories=None, timeout=5.0, output=None
         )
         with (
+            patch("mytools.core.base.init_scanner"),
             patch(
                 "mytools.web.websocketattack.run_scan",
-                MagicMock(return_value=mock_result),
-            ),
-            patch(
-                "mytools.web.websocketattack.safe_asyncio_run",
-                side_effect=lambda coro: coro,
-            ),
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ) as mock_scan,
         ):
             assert run_once(args) == 0
+        mock_scan.assert_called_once_with(
+            target="ws://example.com/ws",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
 
 # ─── Main ───────────────────────────────────────────────────────────────────
@@ -1489,9 +1517,7 @@ class TestRunOnce:
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.web.websocketattack.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
@@ -1501,7 +1527,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-wsattack", "ws://example.com/ws"]),
             pytest.raises(SystemExit) as exc_info,
         ):

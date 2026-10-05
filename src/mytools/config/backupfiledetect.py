@@ -16,17 +16,19 @@ import asyncio
 import logging
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 from tqdm import tqdm
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -39,8 +41,6 @@ from mytools.core.utils import (
     print_json,
     print_table,
     resolve_target_urls,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -487,35 +487,6 @@ def print_results(backups: list[BackupFile]) -> None:
                 print_exploit_info(b.exploit, b.tool)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Deteccao de arquivos de backup expostos em servidores web.",
-    )
-    add_common_args(parser, "config")
-    parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
-    parser.add_argument(
-        "-l",
-        "--list",
-        dest="target_list",
-        help="Arquivo com URLs alvo (uma por linha).",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=30,
-        help="Concorrencia assincrona. Padrao: 30",
-    )
-    parser.add_argument(
-        "--type",
-        choices=["bak", "swp", "tilde", "sql", "archive", "orig_tmp", "all"],
-        default="all",
-        dest="backup_type",
-        help="Tipo de backup para buscar. Padrao: all",
-    )
-    return parser
-
-
 def _load_paths_from_args(args: argparse.Namespace) -> list[str] | None:
     """Retorna lista de paths customizada baseada no flag --type."""
     backup_type = getattr(args, "backup_type", "all")
@@ -524,7 +495,7 @@ def _load_paths_from_args(args: argparse.Namespace) -> list[str] | None:
     return ALL_TYPES.get(backup_type)
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa um unico scan (async)."""
     quiet = init_scanner(args)
     urls = resolve_target_urls(args)
@@ -584,31 +555,83 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class BackupfiledetectScanner(BaseScanner):
+    """Backup File Detection — dispatcher BaseScanner (Grupo A)."""
 
+    prog = "mytools-bak"
+    description = "Deteccao de arquivos de backup expostos em servidores web."
+    prompt = "bak> "
+    module_name = "mytools.backupfiledetect"
+    module_type = "config"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal do Backup File Detection."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.url or getattr(a, "target_list", None)),
-        prompt="bak> ",
-        description="Backup File Detection interativo.",
-        example="http://target.com --type sql",
-        contextual_help=(
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "url", None) or getattr(args, "target_list", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo. Ex: http://example.com")
+        parser.add_argument(
+            "-l",
+            "--list",
+            dest="target_list",
+            help="Arquivo com URLs alvo (uma por linha).",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=30,
+            help="Concorrencia assincrona. Padrao: 30",
+        )
+        parser.add_argument(
+            "--type",
+            choices=["bak", "swp", "tilde", "sql", "archive", "orig_tmp", "all"],
+            default="all",
+            dest="backup_type",
+            help="Tipo de backup para buscar. Padrao: all",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        urls = resolve_target_urls(args)
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        for url in urls:
+            base_url = normalize_url(
+                url, default_scheme="https", ensure_trailing_slash=True
+            )
+            logger.info("Alvo: %s", base_url)
+        return 0
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _example(self) -> str:
+        return "http://target.com --type sql"
+
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  http://target.com\n"
             "  http://target.com --type sql\n"
             "  http://target.com --type archive\n"
             "  -l urls.txt -o results.json"
-        ),
-    )
+        )
 
+
+scanner = BackupfiledetectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

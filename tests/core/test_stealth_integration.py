@@ -26,6 +26,7 @@ def _make_args(**overrides: object) -> argparse.Namespace:
         "user_agent_rotate": False,
         "impersonate": None,
         "tor": False,
+        "proxy": None,
         "waf_evasion": False,
         "pad_headers": 0,
         "fragment": 0,
@@ -65,6 +66,15 @@ class TestStealthContextFromArgs:
         ctx = StealthContext.from_args(_make_args(tor=True))
         assert ctx is not None
         assert ctx.tor is True
+
+    def test_proxy(self):
+        ctx = StealthContext.from_args(_make_args(proxy="http://127.0.0.1:8080"))
+        assert ctx is not None
+        assert ctx.proxy == "http://127.0.0.1:8080"
+
+    def test_proxy_alone_is_not_none(self):
+        ctx = StealthContext.from_args(_make_args(proxy="http://p:1"))
+        assert ctx is not None
 
     def test_waf_evasion(self):
         ctx = StealthContext.from_args(_make_args(waf_evasion=True))
@@ -147,6 +157,37 @@ class TestCreateAsyncClientStealth:
         assert isinstance(client, httpx.AsyncClient)
         assert client._transport is not None
 
+    @staticmethod
+    def _capture_proxy(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+        import mytools.core.utils as utils
+
+        captured: dict[str, object] = {}
+
+        class _CapturingClient:
+            def __init__(self, **kwargs: object) -> None:
+                captured.update(kwargs)
+
+        monkeypatch.setattr(utils.httpx, "AsyncClient", _CapturingClient)
+        return captured
+
+    def test_proxy_from_stealth_ctx(self, monkeypatch: pytest.MonkeyPatch):
+        captured = self._capture_proxy(monkeypatch)
+        init_scanner(_make_args(proxy="http://127.0.0.1:8080"))
+        create_async_client()
+        assert captured.get("proxy") == "http://127.0.0.1:8080"
+
+    def test_explicit_proxy_overrides_ctx(self, monkeypatch: pytest.MonkeyPatch):
+        captured = self._capture_proxy(monkeypatch)
+        init_scanner(_make_args(proxy="http://ctx:1"))
+        create_async_client(proxy="http://explicit:9")
+        assert captured.get("proxy") == "http://explicit:9"
+
+    def test_no_ctx_leaves_proxy_none(self, monkeypatch: pytest.MonkeyPatch):
+        captured = self._capture_proxy(monkeypatch)
+        init_scanner(_make_args())
+        create_async_client()
+        assert captured.get("proxy") is None
+
 
 class TestFetchStealth:
     @respx.mock
@@ -222,14 +263,10 @@ class TestFetchStealth:
                 self.cookies: dict[str, str] = {}
 
         fake_mod = argparse.Namespace(AsyncSession=FakeSession)
-        monkeypatch.setattr(
-            "sys.modules",
-            {
-                **__import__("sys").modules,
-                "curl_cffi": fake_mod,
-                "curl_cffi.requests": fake_mod,
-            },
-        )
+        import sys as _sys
+
+        monkeypatch.setitem(_sys.modules, "curl_cffi", fake_mod)
+        monkeypatch.setitem(_sys.modules, "curl_cffi.requests", fake_mod)
         client = create_async_client()
         assert isinstance(client, object)
         assert "local_address" in captured

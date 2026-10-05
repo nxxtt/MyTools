@@ -26,21 +26,17 @@ import logging
 import re
 import smtplib
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.emaillinktracking")
@@ -636,97 +632,105 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Email Link Tracking — detecta tracking pixels e link rewrites em emails.",
-        epilog="Analisa se o servidor injeta mecanismos de tracking em emails de saida.",
+async def run_scan(
+    target: str,
+    port: int,
+    from_addr: str,
+    to_addr: str,
+    timeout: float,
+    category: str | None,
+) -> TrackingResult:
+    """Roda a verificacao de link tracking (envolve a funcao sync)."""
+    return scan_link_tracking(
+        target=target,
+        port=port,
+        from_addr=from_addr,
+        to_addr=to_addr,
+        timeout=timeout,
+        category=category,
     )
-    add_base_args(parser)
-    parser.add_argument(
-        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
-    )
-    parser.add_argument(
-        "--port",
-        "-p",
-        type=int,
-        default=587,
-        help="Porta SMTP. Padrao: 587",
-    )
-    parser.add_argument(
-        "--from-addr",
-        default="test@example.com",
-        help="Endereco FROM para os testes. Padrao: test@example.com",
-    )
-    parser.add_argument(
-        "--to-addr",
-        default="test@example.com",
-        help="Endereco TO para os testes. Padrao: test@example.com",
-    )
-    parser.add_argument(
-        "--category",
-        "-c",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Testa apenas uma categoria de tracking.",
-    )
-    return parser
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-    quiet = init_scanner(args)
+class EmaillinktrackingScanner(BaseScanner):
+    """Email Link Tracking — dispatcher BaseScanner (Grupo B)."""
 
-    target = getattr(args, "target", None)
-    if not target:
-        logger.error("Informe um host SMTP.")
-        return 1
+    prog = "mytools-linktrack"
+    description = (
+        "Email Link Tracking — detecta tracking pixels e link rewrites em emails."
+    )
+    prompt = "linktrack> "
+    module_name = "mytools.emaillinktracking"
+    module_type = "core"
+    epilog = "Analisa se o servidor injeta mecanismos de tracking em emails de saida."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    if getattr(args, "dry_run", False) is True:
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+        )
+        parser.add_argument(
+            "--port",
+            "-p",
+            type=int,
+            default=587,
+            help="Porta SMTP. Padrao: 587",
+        )
+        parser.add_argument(
+            "--from-addr",
+            default="test@example.com",
+            help="Endereco FROM para os testes. Padrao: test@example.com",
+        )
+        parser.add_argument(
+            "--to-addr",
+            default="test@example.com",
+            help="Endereco TO para os testes. Padrao: test@example.com",
+        )
+        parser.add_argument(
+            "--category",
+            "-c",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Testa apenas uma categoria de tracking.",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if not self._get_target(args):
+            logger.error("Informe um host SMTP.")
+            return 1
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "port": args.port,
+            "from_addr": args.from_addr,
+            "to_addr": args.to_addr,
+            "timeout": args.timeout,
+            "category": getattr(args, "category", None),
+        }
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         logger.warning("Nenhuma conexao SMTP sera feita.")
-        logger.info("Target: %s:%d", target, args.port)
+        logger.info("Target: %s:%d", self._get_target(args), args.port)
         return 0
 
-    result = scan_link_tracking(
-        target=target,
-        port=args.port,
-        from_addr=args.from_addr,
-        to_addr=args.to_addr,
-        timeout=args.timeout,
-        category=getattr(args, "category", None),
-    )
+    def _get_return_code(self, result: object) -> int:
+        return 0 if getattr(result, "overall_status", None) == "clean" else 1
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
 
-    elif not quiet:
-        print_results(result)
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            ["target", "port", "overall_status", "detected_techniques", "issues"],
-            quiet=quiet,
-        )
-    return 0 if result.overall_status == "clean" else 1
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
+    def _example(self) -> str:
+        return "mail.example.com --port 587"
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do Email Link Tracking."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.target),
-        prompt="linktrack> ",
-        description="Email Link Tracking — detecta tracking pixels e link rewrites em emails.",
-        example="mail.example.com --port 587",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <host> [opcoes]\n"
             "Exemplos:\n"
             "  mail.example.com\n"
@@ -734,9 +738,13 @@ def main() -> int:
             "  mail.example.com --from-addr admin@test.com\n"
             "  mail.example.com --category pixel\n"
             "  mail.example.com --category link"
-        ),
-    )
+        )
 
+
+scanner = EmaillinktrackingScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

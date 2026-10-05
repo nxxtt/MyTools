@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Address Quoting Bypass."""
 
-import asyncio
 import runpy
 import smtplib
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -12,7 +11,6 @@ from mytools.email.emailaddressbypass import (
     _CATEGORY_MAP,
     AddressAttempt,
     AddressResult,
-    _async_run_once,
     _build_payloads,
     _connect_smtp,
     _get_banner,
@@ -532,34 +530,47 @@ class TestBanner:
 
 
 class TestRunOnce:
-    def test_run_once(self) -> None:
+    def test_delegates_to_scan(self) -> None:
         args = build_parser().parse_args(["mail.test.com"])
-        with (
-            patch(
-                "mytools.email.emailaddressbypass._async_run_once",
-                new_callable=MagicMock,
-                return_value=0,
-            ),
-            patch(
-                "mytools.email.emailaddressbypass.safe_asyncio_run",
-                new_callable=MagicMock,
-            ) as mock_safe,
-        ):
-            mock_safe.return_value = 0
+        mock_result = AddressResult(
+            target="mail.test.com",
+            port=587,
+            tls=False,
+            banner="220",
+            attempts=[],
+            accepted_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
+        )
+        with patch(
+            "mytools.email.emailaddressbypass.run_scan",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_scan:
             result = run_once(args)
-            assert result == 0
-        mock_safe.assert_called_once()
+        assert result == 0
+        mock_scan.assert_called_once_with(
+            target="mail.test.com",
+            port=587,
+            from_addr="test@example.com",
+            domain=None,
+            timeout=5.0,
+            category=None,
+        )
 
 
-class TestAsyncRunOnce:
+class TestRunOnceFlow:
+    """Testes do run_once (fluxo Grupo B da base)."""
+
     def test_no_target(self) -> None:
         args = build_parser().parse_args([])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_dry_run(self) -> None:
         args = build_parser().parse_args(["mail.test.com", "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
 
     def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -579,7 +590,7 @@ class TestAsyncRunOnce:
             "mytools.email.emailaddressbypass.scan_address_bypass",
             return_value=result,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
         import json
 
@@ -603,7 +614,7 @@ class TestAsyncRunOnce:
             "mytools.email.emailaddressbypass.scan_address_bypass",
             return_value=result,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
 
     def test_output_flag(self, tmp_path) -> None:
@@ -625,9 +636,9 @@ class TestAsyncRunOnce:
                 "mytools.email.emailaddressbypass.scan_address_bypass",
                 return_value=result,
             ),
-            patch("mytools.email.emailaddressbypass.write_output") as mock_write,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
         mock_write.assert_called_once()
 
@@ -648,21 +659,19 @@ class TestAsyncRunOnce:
             "mytools.email.emailaddressbypass.scan_address_bypass",
             return_value=result,
         ):
-            code = asyncio.run(_async_run_once(args))
+            code = run_once(args)
         assert code == 1
 
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.email.emailaddressbypass.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-addrbypass", "mail.test.com"]),
             pytest.raises(SystemExit),
         ):

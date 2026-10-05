@@ -13,6 +13,11 @@ Fluxo:
   4. Executa todos em paralelo via asyncio.gather
   5. Coleta erros e retorna total
 
+Excecao ao padrao:
+  - reconall NAO usa BaseScanner (core/base.py): e orquestrador, nao uma
+    ferramenta CLI individual — chamaria run_once dos proprios modulos.
+    Todos os outros 97 modulos-ferramenta adotaram o template.
+
 Modulos disponiveis:
   - dnstransfer: DNS zone transfer (AXFR)
   - subenum: subdomain enumeration (DNS brute-force)

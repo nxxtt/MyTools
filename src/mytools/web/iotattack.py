@@ -16,13 +16,12 @@ from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
     safe_asyncio_run,
     write_output,
 )
@@ -957,53 +956,67 @@ async def run_scan(
     return result
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="mytools-iot",
-        description="IoT & Industrial Attack Testing — Modbus, OPC UA, BACnet, SNMP, MQTT",
-    )
-    parser.add_argument("target", help="Alvo (host:port, ex: 192.168.1.100:502)")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar",
-    )
-    add_common_args(parser, "web")
-    return parser
+class IotattackScanner(BaseScanner):
+    """Scanner CLI de IoT & Industrial Attack Testing."""
 
+    prog = "mytools-iot"
+    description = "IoT & Industrial Attack Testing — Modbus, OPC UA, BACnet, SNMP, MQTT"
+    prompt = "iot> "
+    module_name = "mytools.iotattack"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("target", help="Alvo (host:port, ex: 192.168.1.100:502)")
 
-    if getattr(args, "dry_run", False) is True:
-        print("[DRY-RUN] mytools-iot \u2014 nenhuma requisi\u00e7\u00e3o executada.")
-        print(
-            f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar",
         )
-        return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.target,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
+
+    def run_once(self, args: argparse.Namespace) -> int:
+        if getattr(args, "dry_run", False) is True:
+            print(
+                "[DRY-RUN] mytools-iot \u2014 nenhuma requisi\u00e7\u00e3o executada."
+            )
+            print(
+                f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
+            )
+            return 0
+        result = safe_asyncio_run(
+            run_scan(
+                target=args.target,
+                categories=getattr(args, "categories", None),
+                timeout=getattr(args, "timeout", 5.0),
+                output_file=getattr(args, "output", None),
+            )
         )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
+        return 1 if result.overall_status == "vulnerable" else 0
+
+    async def run_scan(self, **kwargs: Any) -> IoTAttackResult:
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "IoT & Industrial Attack Testing")
+
+    def _example(self) -> str:
+        return "mytools-iot 192.168.1.100:502"
+
+    def _help(self) -> str:
+        return "iot: modbus_scan, opcua_discovery, bacnet_scan, snmp_brute, mqtt_enum"
 
 
-def main() -> int:
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "IoT & Industrial Attack Testing"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "target", None)),
-        prompt="iot> ",
-        description="IoT & Industrial Attack Testing — Modbus, OPC UA, BACnet, SNMP, MQTT",
-        example="mytools-iot 192.168.1.100:502",
-        contextual_help="iot: modbus_scan, opcua_discovery, bacnet_scan, snmp_brute, mqtt_enum",
-    )
+scanner = IotattackScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

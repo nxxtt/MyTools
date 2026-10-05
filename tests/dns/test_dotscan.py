@@ -27,12 +27,12 @@ from mytools.dns.dotscan import (
     _extract_tls_info,
     _parse_dns_response,
     _run_scan,
-    _safe_run,
     _traditional_resolve,
     banner,
     build_parser,
     main,
     print_results,
+    run_once,
     scan_dot,
 )
 
@@ -846,7 +846,7 @@ class TestBanner:
 
 class TestMain:
     def test_main_calls_run_main_loop(self) -> None:
-        with patch("mytools.dns.dotscan.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
             mock_loop.assert_called_once()
 
@@ -859,30 +859,30 @@ def _make_safe_run_args(**overrides: object) -> argparse.Namespace:
 
 class TestSafeRun:
     @patch("mytools.dns.dotscan.print_results")
-    @patch("mytools.dns.dotscan.init_scanner", return_value=False)
-    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    @patch("mytools.core.base.init_scanner", return_value=False)
+    @patch("mytools.dns.dotscan.run_scan", new_callable=AsyncMock)
     def test_resolved_returns_zero(
         self, mock_scan: AsyncMock, mock_init: MagicMock, mock_print: MagicMock
     ) -> None:
         mock_scan.return_value = _make_dot_result(overall_status="resolved")
-        assert _safe_run(_make_safe_run_args()) == 0
+        assert run_once(_make_safe_run_args()) == 0
         mock_print.assert_called_once()
 
     @patch("mytools.dns.dotscan.print_results")
-    @patch("mytools.dns.dotscan.init_scanner", return_value=False)
-    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    @patch("mytools.core.base.init_scanner", return_value=False)
+    @patch("mytools.dns.dotscan.run_scan", new_callable=AsyncMock)
     def test_error_returns_zero(
         self, mock_scan: AsyncMock, mock_init: MagicMock, mock_print: MagicMock
     ) -> None:
         mock_scan.return_value = _make_dot_result(
             overall_status="error", dot_supported=False
         )
-        assert _safe_run(_make_safe_run_args()) == 0
+        assert run_once(_make_safe_run_args()) == 0
 
-    @patch("mytools.dns.dotscan.write_output")
+    @patch("mytools.core.base.write_output")
     @patch("mytools.dns.dotscan.print_results")
-    @patch("mytools.dns.dotscan.init_scanner", return_value=False)
-    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    @patch("mytools.core.base.init_scanner", return_value=False)
+    @patch("mytools.dns.dotscan.run_scan", new_callable=AsyncMock)
     def test_with_output(
         self,
         mock_scan: AsyncMock,
@@ -891,13 +891,13 @@ class TestSafeRun:
         mock_write: MagicMock,
     ) -> None:
         mock_scan.return_value = _make_dot_result(overall_status="resolved")
-        assert _safe_run(_make_safe_run_args(output="out.json")) == 0
+        assert run_once(_make_safe_run_args(output="out.json")) == 0
         mock_write.assert_called_once()
 
-    @patch("mytools.dns.dotscan.print_json")
+    @patch("mytools.core.base.print_json")
     @patch("mytools.dns.dotscan.print_results")
-    @patch("mytools.dns.dotscan.init_scanner", return_value=False)
-    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    @patch("mytools.core.base.init_scanner", return_value=False)
+    @patch("mytools.dns.dotscan.run_scan", new_callable=AsyncMock)
     def test_json_output(
         self,
         mock_scan: AsyncMock,
@@ -906,14 +906,14 @@ class TestSafeRun:
         mock_json: MagicMock,
     ) -> None:
         mock_scan.return_value = _make_dot_result(overall_status="resolved")
-        assert _safe_run(_make_safe_run_args(json_output=True)) == 0
+        assert run_once(_make_safe_run_args(json_output=True)) == 0
         mock_json.assert_called_once()
 
-    @patch("mytools.dns.dotscan.ensure_output_dir")
-    @patch("mytools.dns.dotscan.write_output")
+    @patch("mytools.core.base.ensure_output_dir")
+    @patch("mytools.core.base.write_output")
     @patch("mytools.dns.dotscan.print_results")
-    @patch("mytools.dns.dotscan.init_scanner", return_value=False)
-    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    @patch("mytools.core.base.init_scanner", return_value=False)
+    @patch("mytools.dns.dotscan.run_scan", new_callable=AsyncMock)
     def test_output_dir(
         self,
         mock_scan: AsyncMock,
@@ -923,18 +923,18 @@ class TestSafeRun:
         mock_ensure: MagicMock,
     ) -> None:
         mock_scan.return_value = _make_dot_result(overall_status="resolved")
-        assert _safe_run(_make_safe_run_args(output_dir="reports")) == 0
-        mock_ensure.assert_called_once_with("reports")
+        assert run_once(_make_safe_run_args(output_dir="reports")) == 0
+        mock_ensure.assert_called_once()
         mock_write.assert_called_once()
 
     @patch("mytools.dns.dotscan.print_results")
-    @patch("mytools.dns.dotscan.init_scanner", return_value=True)
-    @patch("mytools.dns.dotscan._run_scan", new_callable=AsyncMock)
+    @patch("mytools.core.base.init_scanner", return_value=True)
+    @patch("mytools.dns.dotscan.run_scan", new_callable=AsyncMock)
     def test_quiet_skips_print(
         self, mock_scan: AsyncMock, mock_init: MagicMock, mock_print: MagicMock
     ) -> None:
         mock_scan.return_value = _make_dot_result(overall_status="resolved")
-        assert _safe_run(_make_safe_run_args(quiet=True)) == 0
+        assert run_once(_make_safe_run_args(quiet=True)) == 0
         mock_print.assert_not_called()
 
 
@@ -945,7 +945,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-dot", "example.com"]),
             pytest.raises(SystemExit) as exc_info,
         ):

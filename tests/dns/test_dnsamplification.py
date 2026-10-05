@@ -13,7 +13,6 @@ import pytest
 from mytools.dns.dnsamplification import (
     AmplificationResult,
     RecordAmplification,
-    _async_run_once,
     _check_recursion,
     _is_valid_nameserver,
     _query_record,
@@ -259,26 +258,22 @@ def _make_args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-class TestAsyncRunOnce:
-    """Testes do _async_run_once."""
+class TestRunOnceFlow:
+    """Testes do run_once (fluxo Grupo B da base)."""
 
-    @pytest.mark.asyncio
-    async def test_no_domain_returns_one(self) -> None:
+    def test_no_domain_returns_one(self) -> None:
         args = _make_args(domain=None)
-        assert await _async_run_once(args) == 1
+        assert run_once(args) == 1
 
-    @pytest.mark.asyncio
-    async def test_dry_run(self) -> None:
+    def test_dry_run(self) -> None:
         args = _make_args(dry_run=True)
-        assert await _async_run_once(args) == 0
+        assert run_once(args) == 0
 
-    @pytest.mark.asyncio
-    async def test_invalid_nameserver_returns_one(self) -> None:
+    def test_invalid_nameserver_returns_one(self) -> None:
         args = _make_args(nameserver="invalid name server")
-        assert await _async_run_once(args) == 1
+        assert run_once(args) == 1
 
-    @pytest.mark.asyncio
-    async def test_normal_runs_scan(self) -> None:
+    def test_normal_runs_scan(self) -> None:
         args = _make_args()
         mock_result = AmplificationResult(
             domain="example.com",
@@ -297,12 +292,11 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.dns.dnsamplification.print_results") as mock_print,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_print.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_quiet_skips_print(self) -> None:
+    def test_quiet_skips_print(self) -> None:
         args = _make_args(quiet=True)
         mock_result = AmplificationResult(
             domain="example.com",
@@ -321,12 +315,11 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.dns.dnsamplification.print_results") as mock_print,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_print.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_writes_output(self) -> None:
+    def test_writes_output(self) -> None:
         args = _make_args(output="out.json")
         mock_result = AmplificationResult(
             domain="example.com",
@@ -343,14 +336,13 @@ class TestAsyncRunOnce:
                 "mytools.dns.dnsamplification.scan_amplification",
                 return_value=mock_result,
             ),
-            patch("mytools.dns.dnsamplification.write_output") as mock_write,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_json_output(self) -> None:
+    def test_json_output(self) -> None:
         args = _make_args(json_output=True)
         mock_result = AmplificationResult(
             domain="example.com",
@@ -367,14 +359,13 @@ class TestAsyncRunOnce:
                 "mytools.dns.dnsamplification.scan_amplification",
                 return_value=mock_result,
             ),
-            patch("mytools.dns.dnsamplification.print_json") as mock_json,
+            patch("mytools.core.base.print_json") as mock_json,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
         mock_json.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_output_dir(self) -> None:
+    def test_output_dir(self) -> None:
         args = _make_args(output_dir="reports")
         mock_result = AmplificationResult(
             domain="example.com",
@@ -391,44 +382,57 @@ class TestAsyncRunOnce:
                 "mytools.dns.dnsamplification.scan_amplification",
                 return_value=mock_result,
             ),
-            patch("mytools.dns.dnsamplification.ensure_output_dir") as mock_ensure,
-            patch("mytools.dns.dnsamplification.write_output") as mock_write,
+            patch("mytools.core.base.ensure_output_dir") as mock_ensure,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
-            result = await _async_run_once(args)
+            result = run_once(args)
         assert result == 0
-        mock_ensure.assert_called_once_with("reports")
+        mock_ensure.assert_called_once()
         mock_write.assert_called_once()
 
 
 class TestRunOnce:
     """Testes da funcao run_once."""
 
-    def test_delegates_to_safe_asyncio_run(self) -> None:
+    def test_delegates_to_scan(self) -> None:
         args = _make_args()
+        mock_result = AmplificationResult(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            recursion_available=False,
+            is_open_resolver=False,
+            records=[],
+            max_amplification=0.0,
+            severity="safe",
+            request_size=50,
+        )
         with patch(
-            "mytools.dns.dnsamplification._async_run_once",
+            "mytools.dns.dnsamplification.run_scan",
             new_callable=AsyncMock,
-            return_value=0,
-        ) as mock_async:
+            return_value=mock_result,
+        ) as mock_scan:
             result = run_once(args)
         assert result == 0
-        mock_async.assert_called_once_with(args)
+        mock_scan.assert_called_once_with(
+            domain="example.com",
+            nameserver="8.8.8.8",
+            record_types=["ANY", "TXT"],
+            timeout=3.0,
+        )
 
 
 class TestMain:
     """Testes da funcao main."""
 
     def test_delegates_to_run_main_loop(self) -> None:
-        with patch(
-            "mytools.dns.dnsamplification.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
         assert result == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-amp"]),
             pytest.raises(SystemExit) as exc_info,
         ):

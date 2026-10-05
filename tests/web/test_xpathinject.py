@@ -680,7 +680,7 @@ class TestMain:
     def test_main_returns_int(self) -> None:
         with (
             patch("sys.argv", ["mytools-xpathi"]),
-            patch("mytools.web.xpathinject.run_main_loop", return_value=0) as mock_loop,
+            patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop,
         ):
             result = main()
             assert isinstance(result, int)
@@ -689,7 +689,7 @@ class TestMain:
     def test_main_passes_args(self) -> None:
         with (
             patch("sys.argv", ["mytools-xpathi", "https://example.com"]),
-            patch("mytools.web.xpathinject.run_main_loop", return_value=0),
+            patch("mytools.core.base.run_main_loop", return_value=0),
         ):
             result = main()
             assert result == 0
@@ -700,7 +700,7 @@ class TestMainGuard:
 
     def test_guard_runs(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             import runpy

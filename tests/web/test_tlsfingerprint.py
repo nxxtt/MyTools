@@ -1296,7 +1296,7 @@ class TestRunOnce:
         _scan_mocks(monkeypatch)
         calls: list[object] = []
         monkeypatch.setattr(
-            "mytools.web.tlsfingerprint.init_scanner",
+            "mytools.core.base.init_scanner",
             lambda *a, **k: calls.append(a),
         )
         args = argparse.Namespace(
@@ -1313,7 +1313,7 @@ class TestRunOnce:
 class TestMainGuard:
     def test_run_as_main(self, monkeypatch: pytest.MonkeyPatch) -> None:
         mock_loop = MagicMock(return_value=0)
-        monkeypatch.setattr("mytools.core.utils.run_main_loop", mock_loop)
+        monkeypatch.setattr("mytools.core.base.run_main_loop", mock_loop)
         with (
             pytest.raises(SystemExit),
             patch("sys.argv", ["mytools-tlsfp", "https://example.com"]),

@@ -35,14 +35,16 @@ import random
 import string
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import (
     FIRST_COMPLETED,
     ThreadPoolExecutor,
     as_completed,
     wait,
 )
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from statistics import mean, quantiles
+from typing import Any
 
 import dns.exception
 import dns.flags
@@ -50,18 +52,13 @@ import dns.name
 import dns.rdatatype
 import dns.resolver
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.dnswatorture")
@@ -374,179 +371,159 @@ def banner() -> None:
     create_banner(art, "   dns water torture: stress testing para resiliencia DNS")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="DNS Water Torture — stress testing para resiliencia DNS.",
-        epilog="ATENCAO: Use apenas em servidores DNS que voce possui ou tem autorizacao para testar.",
+async def run_scan(
+    domain: str,
+    nameserver: str,
+    rate: int,
+    duration: int,
+    concurrency: int,
+    pattern: str,
+    timeout: float,
+) -> WaterTortureResult:
+    """Roda o stress test DNS (wrapper async da base)."""
+    logger.error("ATENCAO: Executando stress test DNS.")
+    logger.error("Alvo: %s via %s", domain, nameserver)
+    logger.error("Rate: %d QPS por %ds", rate, duration)
+    return run_water_torture(
+        domain=domain,
+        nameserver=nameserver,
+        rate=rate,
+        duration=duration,
+        concurrency=concurrency,
+        pattern=pattern,
+        timeout=timeout,
     )
-    add_base_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com).")
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default=DEFAULT_NAMESERVER,
-        help=f"Nameserver para enviar queries. Padrao: {DEFAULT_NAMESERVER}",
-    )
-    parser.add_argument(
-        "--rate",
-        "-r",
-        type=int,
-        default=DEFAULT_RATE,
-        help=f"Queries por segundo (QPS). Padrao: {DEFAULT_RATE}",
-    )
-    parser.add_argument(
-        "--duration",
-        "-d",
-        type=int,
-        default=DEFAULT_DURATION,
-        help=f"Duracao do teste em segundos. Padrao: {DEFAULT_DURATION}",
-    )
-    parser.add_argument(
-        "--concurrency",
-        "-c",
-        type=int,
-        default=DEFAULT_CONCURRENCY,
-        help=f"Threads concorrentes. Padrao: {DEFAULT_CONCURRENCY}",
-    )
-    parser.add_argument(
-        "--pattern",
-        "-p",
-        choices=["random", "uuid", "sequential", "wordlist"],
-        default="random",
-        help="Padrao de geracao de subdominios. Padrao: random",
-    )
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=2.0,
-        help="Timeout por query em segundos. Padrao: 2",
-    )
-    return parser
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-    quiet = init_scanner(args)
+class DnswatortureScanner(BaseScanner):
+    """DNS Water Torture — dispatcher BaseScanner (Grupo B)."""
 
-    domain = getattr(args, "domain", None)
-    if not domain:
-        logger.error("Informe um dominio.")
-        return 1
+    prog = "mytools-dwt"
+    description = "DNS Water Torture — stress testing para resiliencia DNS."
+    epilog = (
+        "ATENCAO: Use apenas em servidores DNS que voce possui ou tem "
+        "autorizacao para testar."
+    )
+    prompt = "dwt> "
+    module_name = "mytools.dnswatorture"
+    module_type = "core"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    if args.rate <= 0:
-        logger.error("--rate deve ser > 0 (recebido: %d).", args.rate)
-        return 1
-    if args.duration <= 0:
-        logger.error("--duration deve ser > 0 (recebido: %d).", args.duration)
-        return 1
-    if args.concurrency <= 0:
-        logger.error("--concurrency deve ser > 0 (recebido: %d).", args.concurrency)
-        return 1
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
 
-    if getattr(args, "dry_run", False) is True:
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com).")
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default=DEFAULT_NAMESERVER,
+            help=f"Nameserver para enviar queries. Padrao: {DEFAULT_NAMESERVER}",
+        )
+        parser.add_argument(
+            "--rate",
+            "-r",
+            type=int,
+            default=DEFAULT_RATE,
+            help=f"Queries por segundo (QPS). Padrao: {DEFAULT_RATE}",
+        )
+        parser.add_argument(
+            "--duration",
+            "-d",
+            type=int,
+            default=DEFAULT_DURATION,
+            help=f"Duracao do teste em segundos. Padrao: {DEFAULT_DURATION}",
+        )
+        parser.add_argument(
+            "--concurrency",
+            "-c",
+            type=int,
+            default=DEFAULT_CONCURRENCY,
+            help=f"Threads concorrentes. Padrao: {DEFAULT_CONCURRENCY}",
+        )
+        parser.add_argument(
+            "--pattern",
+            "-p",
+            choices=["random", "uuid", "sequential", "wordlist"],
+            default="random",
+            help="Padrao de geracao de subdominios. Padrao: random",
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=2.0,
+            help="Timeout por query em segundos. Padrao: 2",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        # Re-sincroniza o dry-run com args (init_scanner pode estar sob
+        # patch nos testes; o fluxo original lia args.dry_run direto).
+        set_dry_run(getattr(args, "dry_run", False))
+        domain = getattr(args, "domain", None)
+        if not domain:
+            logger.error("Informe um dominio.")
+            return 1
+        if args.rate <= 0:
+            logger.error("--rate deve ser > 0 (recebido: %d).", args.rate)
+            return 1
+        if args.duration <= 0:
+            logger.error("--duration deve ser > 0 (recebido: %d).", args.duration)
+            return 1
+        if args.concurrency <= 0:
+            logger.error("--concurrency deve ser > 0 (recebido: %d).", args.concurrency)
+            return 1
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         logger.warning("Nenhuma query DNS sera enviada.")
-        logger.info("Dominio: %s", domain)
+        logger.info("Dominio: %s", self._get_target(args))
         logger.info("Nameserver: %s", args.nameserver)
         logger.info("Rate: %d QPS, Duracao: %ds", args.rate, args.duration)
         return 0
 
-    logger.error("ATENCAO: Executando stress test DNS.")
-    logger.error("Alvo: %s via %s", domain, args.nameserver)
-    logger.error("Rate: %d QPS por %ds", args.rate, args.duration)
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "nameserver": args.nameserver,
+            "rate": args.rate,
+            "duration": args.duration,
+            "concurrency": args.concurrency,
+            "pattern": args.pattern,
+            "timeout": args.query_timeout,
+        }
 
-    result = run_water_torture(
-        domain=domain,
-        nameserver=args.nameserver,
-        rate=args.rate,
-        duration=args.duration,
-        concurrency=args.concurrency,
-        pattern=args.pattern,
-        timeout=args.query_timeout,
-    )
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
 
-    if not quiet:
-        print_results(result)
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
 
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            [
-                "domain",
-                "nameserver",
-                "pattern",
-                "queries_sent",
-                "nxdomain_count",
-                "noerror_count",
-                "other_count",
-                "timeout_count",
-                "avg_latency_ms",
-                "p95_latency_ms",
-                "p99_latency_ms",
-                "loss_rate",
-                "duration_s",
-                "qps",
-            ],
-            quiet=quiet,
-        )
+    def _get_return_code(self, result: object) -> int:
+        return 1 if getattr(result, "loss_rate", 0.0) > 0.1 else 0
 
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{domain}.json",
-            [asdict(result)],
-            [
-                "domain",
-                "nameserver",
-                "pattern",
-                "queries_sent",
-                "nxdomain_count",
-                "noerror_count",
-                "other_count",
-                "timeout_count",
-                "avg_latency_ms",
-                "p95_latency_ms",
-                "p99_latency_ms",
-                "loss_rate",
-                "duration_s",
-                "qps",
-            ],
-            quiet=quiet,
-        )
+    def _example(self) -> str:
+        return "example.com --rate 100 --duration 10"
 
-    return 1 if result.loss_rate > 0.1 else 0
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do DNS Water Torture."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="dwt> ",
-        description="DNS Water Torture interativo.",
-        example="example.com --rate 100 --duration 10",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <dominio> [opcoes]\n"
             "Exemplos:\n"
             "  example.com\n"
             "  example.com --rate 100 --duration 30\n"
             "  example.com --nameserver 8.8.8.8 --pattern uuid\n"
             "  example.com --concurrency 50 --duration 60"
-        ),
-    )
+        )
 
+
+scanner = DnswatortureScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

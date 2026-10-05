@@ -15,18 +15,19 @@ Cada deteccao inclui nivel de confianca (high/medium/low) e evidencia.
 """
 
 import argparse
+import asyncio
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
-    add_base_args,
-    add_http_args,
     color,
     create_async_client,
     create_banner,
@@ -520,21 +521,6 @@ def _scan_url(
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta o parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-techfp",
-        description="Fingerprint de tecnologias com versoes exatas via headers, meta tags, scripts.",
-    )
-    parser.add_argument("urls", nargs="*", help="URL(s) para analisar.")
-    parser.add_argument(
-        "-l", "--list", dest="url_list", help="Arquivo com URLs (uma por linha)."
-    )
-    add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
-    add_http_args(parser)
-    return parser
-
-
 def _print_results(url: str, results: list[TechFingerprint]) -> None:
     """Imprime tabela de resultados."""
     print(color(f"\n  {url}", Cyber.CYAN, Cyber.BOLD))
@@ -585,18 +571,18 @@ def _print_results(url: str, results: list[TechFingerprint]) -> None:
         print_exploit_info(r.exploit, r.tool)
 
 
-def run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa fingerprint contra URLs."""
     init_scanner(args)
 
     urls = list(args.urls) if args.urls else []
     if getattr(args, "url_list", None):
         try:
-            with Path(args.url_list).open() as fh:
-                for line in fh:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        urls.append(line)
+            text = await asyncio.to_thread(Path(args.url_list).read_text)
+            for line in text.splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    urls.append(line)
         except FileNotFoundError:
             print(
                 color("[!]", Cyber.RED, Cyber.BOLD),
@@ -660,25 +646,100 @@ def run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def main() -> int:
-    """Entry point CLI."""
-    parser = build_parser()
-    args = parser.parse_args()
-    if not args.urls and not getattr(args, "url_list", None):
-        return run_main_loop(
-            parser=parser,
-            banner_fn=create_banner(BANNER_ART, "Technology Fingerprint"),
-            run_fn=run_once,
-            has_target=lambda a: bool(a.urls or getattr(a, "url_list", None)),
-            prompt="techfp> ",
-            description="Fingerprint de tecnologias — detecta versoes exatas via HTTP.",
-            example="https://example.com -o tech.json",
-            contextual_help=(
-                "Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"
-            ),
-        )
-    return run_once(args)
+class TechfingerprintScanner(BaseScanner):
+    """Fingerprint de tecnologias (Grupo A)."""
 
+    prog = "mytools-techfp"
+    description = (
+        "Fingerprint de tecnologias com versoes exatas via headers, meta tags, scripts."
+    )
+    prompt = "techfp> "
+    module_name = "mytools.techfingerprint"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("urls", nargs="*", help="URL(s) para analisar.")
+        parser.add_argument(
+            "-l", "--list", dest="url_list", help="Arquivo com URLs (uma por linha)."
+        )
+
+    def build_parser(self) -> argparse.ArgumentParser:
+        parser = super().build_parser()
+        parser.set_defaults(timeout=DEFAULT_TIMEOUT)
+        return parser
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        """Grupo A: output gerenciado internamente por run_scan."""
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(BANNER_ART, "Technology Fingerprint")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        urls = list(args.urls) if args.urls else []
+        if getattr(args, "url_list", None):
+            try:
+                with Path(args.url_list).open() as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            urls.append(line)
+            except FileNotFoundError:
+                print(
+                    color("[!]", Cyber.RED, Cyber.BOLD),
+                    f"Arquivo nao encontrado: {args.url_list}",
+                )
+                return 1
+        if not urls:
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                "Nenhuma URL especificada. Use posicao ou --list.",
+            )
+            return 1
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD), "Nenhum scan sera realizado."
+        )
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"URLs: {color(str(len(urls)), Cyber.WHITE, Cyber.BOLD)}",
+        )
+        return 0
+
+    def main(self) -> int:
+        """Entry point CLI (parse direto quando ha URLs na linha de comando)."""
+        parser = self.build_parser()
+        args = parser.parse_args()
+        if not args.urls and not getattr(args, "url_list", None):
+            return run_main_loop(
+                parser=parser,
+                banner_fn=self._make_banner(),
+                run_fn=run_once,
+                has_target=lambda a: bool(a.urls or getattr(a, "url_list", None)),
+                prompt="techfp> ",
+                description="Fingerprint de tecnologias — detecta versoes exatas via HTTP.",
+                example=self._example(),
+                contextual_help=self._help(),
+            )
+        return run_once(args)
+
+    def _example(self) -> str:
+        return "https://example.com -o tech.json"
+
+    def _help(self) -> str:
+        return "Uso: <url> [opcoes]\nExemplos:\n  https://example.com\n  https://example.com -o tech.json\n  -l urls.txt -o results.json"
+
+
+scanner = TechfingerprintScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -17,18 +17,22 @@ import argparse
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     add_base_args,
+    add_http_args,
+    add_stealth_args,
     create_async_client,
     create_banner,
     fetch,
     init_scanner,
     print_table,
-    run_main_loop,
     write_output,
 )
 
@@ -339,69 +343,8 @@ def run_history(
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta o parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-dnshistory",
-        description="Consulta historico de registros DNS de um dominio.",
-    )
-    parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com).")
-    parser.add_argument(
-        "--source",
-        action="append",
-        choices=["dnslytics", "securitytrails", "viewdns"],
-        help="Fonte para consulta (pode usar mais de um). Default: dnslytics.",
-    )
-    parser.add_argument(
-        "--dnslytics-key", dest="dnslytics_key", help="API key do DNSlytics (opcional)."
-    )
-    parser.add_argument(
-        "--st-api-key", dest="st_api_key", help="API key do SecurityTrails."
-    )
-    parser.add_argument(
-        "--viewdns-api-key", dest="viewdns_key", help="API key do ViewDNS."
-    )
-    parser.add_argument(
-        "--record-types",
-        dest="record_types",
-        help="Tipos de registro para SecurityTrails (comma-separated). Default: a,aaaa,mx,ns,txt.",
-    )
-    add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
-    return parser
-
-
-def _print_history(records: list[DnsHistoryRecord]) -> None:
-    """Imprime tabela de registros historicos."""
-    if not records:
-        logger.info("Nenhum registro historico encontrado.")
-        return
-
-    print_table(
-        headers=("Type", "Value", "First Seen", "Last Seen", "Owner", "Source"),
-        rows=[
-            (
-                r.record_type.upper(),
-                r.value[:50],
-                r.first_seen or "-",
-                r.last_seen or "-",
-                (r.owner or "-")[:20],
-                r.source,
-            )
-            for r in records
-        ],
-        column_styles=[
-            (Cyber.YELLOW + Cyber.BOLD,),
-            (Cyber.WHITE,),
-            (Cyber.GRAY,),
-            (Cyber.GRAY,),
-            (Cyber.CYAN,),
-            (Cyber.GREEN,),
-        ],
-    )
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa uma unica consulta de historico DNS."""
+async def run_scan(args: argparse.Namespace) -> int:
+    """Executa uma unica consulta de historico DNS (Grupo A — output interno)."""
     quiet = init_scanner(args)
 
     domain = args.domain.strip().lower()
@@ -418,13 +361,6 @@ def run_once(args: argparse.Namespace) -> int:
         "securitytrails": getattr(args, "st_api_key", None),
         "viewdns": getattr(args, "viewdns_key", None),
     }
-
-    if getattr(args, "dry_run", False) is True:
-        logger.warning("Nenhuma consulta sera realizada.")
-        logger.info("Dominio: %s", domain)
-        logger.info("Fontes: %s", ", ".join(sources))
-        logger.info("Record types: %s", ", ".join(record_types))
-        return 0
 
     start = time.time()
     records = run_history(
@@ -462,26 +398,135 @@ def run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def main() -> int:
-    """Entry point CLI."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(BANNER_ART, "DNS History"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "domain", None)),
-        prompt="dns-history> ",
-        description="Consulta historico de registros DNS de um dominio.",
-        example="example.com",
-        contextual_help=(
+def _print_history(records: list[DnsHistoryRecord]) -> None:
+    """Imprime tabela de registros historicos."""
+    if not records:
+        logger.info("Nenhum registro historico encontrado.")
+        return
+
+    print_table(
+        headers=("Type", "Value", "First Seen", "Last Seen", "Owner", "Source"),
+        rows=[
+            (
+                r.record_type.upper(),
+                r.value[:50],
+                r.first_seen or "-",
+                r.last_seen or "-",
+                (r.owner or "-")[:20],
+                r.source,
+            )
+            for r in records
+        ],
+        column_styles=[
+            (Cyber.YELLOW + Cyber.BOLD,),
+            (Cyber.WHITE,),
+            (Cyber.GRAY,),
+            (Cyber.GRAY,),
+            (Cyber.CYAN,),
+            (Cyber.GREEN,),
+        ],
+    )
+
+
+class DnshistoryScanner(BaseScanner):
+    """Consulta historico de registros DNS — dispatcher BaseScanner (Grupo A)."""
+
+    prog = "mytools-dnshistory"
+    description = "Consulta historico de registros DNS de um dominio."
+    prompt = "dns-history> "
+    module_name = "mytools.dnshistory"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
+
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Parser do modulo — igual ao template, com timeout default do modulo."""
+        parser = argparse.ArgumentParser(
+            prog=self.prog,
+            description=self.description,
+            epilog=self.epilog or None,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        self._add_arguments(parser)
+        add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
+        add_http_args(parser)
+        add_stealth_args(parser, self.module_type)
+        parser.set_defaults(_module_type=self.module_type)
+        return parser
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo (ex: example.com).")
+        parser.add_argument(
+            "--source",
+            action="append",
+            choices=["dnslytics", "securitytrails", "viewdns"],
+            help="Fonte para consulta (pode usar mais de um). Default: dnslytics.",
+        )
+        parser.add_argument(
+            "--dnslytics-key",
+            dest="dnslytics_key",
+            help="API key do DNSlytics (opcional).",
+        )
+        parser.add_argument(
+            "--st-api-key", dest="st_api_key", help="API key do SecurityTrails."
+        )
+        parser.add_argument(
+            "--viewdns-api-key", dest="viewdns_key", help="API key do ViewDNS."
+        )
+        parser.add_argument(
+            "--record-types",
+            dest="record_types",
+            help="Tipos de registro para SecurityTrails (comma-separated). Default: a,aaaa,mx,ns,txt.",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        domain = args.domain.strip().lower()
+        sources = getattr(args, "source", None) or ["dnslytics"]
+        record_types_raw = getattr(args, "record_types", None)
+        record_types = (
+            record_types_raw.split(",")
+            if record_types_raw
+            else ["a", "aaaa", "mx", "ns", "txt"]
+        )
+        logger.warning("Nenhuma consulta sera realizada.")
+        logger.info("Dominio: %s", domain)
+        logger.info("Fontes: %s", ", ".join(sources))
+        logger.info("Record types: %s", ", ".join(record_types))
+        return 0
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        _print_history(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(BANNER_ART, "DNS History")
+
+    def _example(self) -> str:
+        return "example.com"
+
+    def _help(self) -> str:
+        return (
             "Uso: <dominio> [opcoes]\n"
             "Exemplos:\n"
             "  example.com\n"
             "  example.com --source securitytrails --st-api-key KEY\n"
             "  example.com --record-types a,mx,ns -o history.json\n"
             "  Use -l para arquivo com dominios (um por linha)"
-        ),
-    )
+        )
 
+
+scanner = DnshistoryScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

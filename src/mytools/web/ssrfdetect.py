@@ -33,23 +33,22 @@ Fluxo:
 import argparse
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
     print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1096,93 +1095,75 @@ banner_art = create_banner(
 )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos CLI."""
+class SsrfdetectScanner(BaseScanner):
+    """SSRF Detection — dispatcher BaseScanner (Grupo A)."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-ssrfdetect",
-        description="SSRF — detecta Server-Side Request Forgery em web apps",
-    )
+    prog = "mytools-ssrfdetect"
+    description = "SSRF — detecta Server-Side Request Forgery em web apps"
+    prompt = "ssrf> "
+    module_name = "mytools.ssrfdetect"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo (ex: https://example.com)")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (ex: https://example.com)")
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categoria de testes (default: todas)",
-    )
-
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-
-    add_common_args(parser, "web")
-
-    return parser
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan SSRF a partir de argumentos parseados."""
-
-    init_scanner(args)
-
-    if getattr(args, "dry_run", False) is True:
-        print(
-            "[DRY-RUN] mytools-ssrfdetect \u2014 nenhuma requisi\u00e7\u00e3o executada."
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categoria de testes (default: todas)",
         )
+
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        kwargs = super()._build_run_once_kwargs(args)
+        kwargs["concurrency"] = getattr(args, "concurrency", 5)
+        kwargs["verbose"] = getattr(args, "verbose", False)
+        return kwargs
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        logger.info("SSRF scan iniciado para %s", kwargs.get("target"))
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        print("[DRY-RUN] mytools-ssrfdetect — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("SSRF scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com -c detect"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None):
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            concurrency=getattr(args, "concurrency", 5),
-            output_file=getattr(args, "output", None),
-            verbose=getattr(args, "verbose", False),
-            proxy=getattr(args, "proxy", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="ssrf> ",
-        description="SSRF interativo.",
-        example="https://target.com -c detect",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
             "  https://target.com -c detect\n"
             "  https://target.com -c cloud\n"
             "  https://target.com -c bypass --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
 
+
+scanner = SsrfdetectScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -789,7 +789,7 @@ def test_run_once_dispatch() -> None:
 
 def test_main_guard() -> None:
     with (
-        patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+        patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
         patch("sys.argv", ["mytools-phone", BR_MOBILE]),
         pytest.raises(SystemExit),
     ):
@@ -797,8 +797,6 @@ def test_main_guard() -> None:
 
 
 def _async_run_once_run(args: argparse.Namespace) -> int:
-    import asyncio
+    from mytools.osint.phonelookup import run_once
 
-    from mytools.osint.phonelookup import _async_run_once
-
-    return asyncio.run(_async_run_once(args))
+    return run_once(args)

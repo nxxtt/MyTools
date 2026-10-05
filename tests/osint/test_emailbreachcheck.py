@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Testes unitarios do modulo de Email Breach Check."""
 
-import asyncio
 import json
 import runpy
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -13,7 +12,6 @@ import respx
 from mytools.core.utils import RateLimiter
 from mytools.osint.emailbreachcheck import (
     EmailBreach,
-    _async_run_once,
     _dedup_breaches,
     _load_emails,
     _query_email,
@@ -529,7 +527,7 @@ class TestJsonOutput:
             "mytools.osint.emailbreachcheck.check_breaches",
             new=AsyncMock(return_value=[breach]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         data = json.loads(capsys.readouterr().out)
         assert isinstance(data, list)
@@ -556,7 +554,7 @@ class TestOutputDir:
             "mytools.osint.emailbreachcheck.check_breaches",
             new=AsyncMock(return_value=[breach]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         out_file = tmp_path / "emails.json"
         assert out_file.exists()
@@ -820,32 +818,25 @@ class TestLoadEmailsFile:
 class TestRunOnce:
     def test_run_once(self) -> None:
         args = build_parser().parse_args(["a@b.com"])
-        with (
-            patch(
-                "mytools.osint.emailbreachcheck._async_run_once",
-                new_callable=MagicMock,
-                return_value=0,
-            ),
-            patch(
-                "mytools.osint.emailbreachcheck.safe_asyncio_run",
-                new_callable=MagicMock,
-                return_value=0,
-            ) as mock_safe,
-        ):
+        with patch(
+            "mytools.osint.emailbreachcheck.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             result = run_once(args)
-            assert result == 0
-        mock_safe.assert_called_once()
+        assert result == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestAsyncRunOnce:
     def test_no_emails(self) -> None:
         args = build_parser().parse_args([])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 1
 
     def test_dry_run(self) -> None:
         args = build_parser().parse_args(["a@b.com", "--dry-run"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
 
     def test_hibp_without_key(self) -> None:
@@ -854,7 +845,7 @@ class TestAsyncRunOnce:
             "mytools.osint.emailbreachcheck.check_breaches",
             new=AsyncMock(return_value=[]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_print_results_path(self) -> None:
@@ -864,7 +855,7 @@ class TestAsyncRunOnce:
             "mytools.osint.emailbreachcheck.check_breaches",
             new=AsyncMock(return_value=[breach]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
 
     def test_output_flag(self, tmp_path) -> None:
@@ -877,22 +868,20 @@ class TestAsyncRunOnce:
             ),
             patch("mytools.osint.emailbreachcheck.write_output") as mock_write,
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         mock_write.assert_called_once()
 
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.osint.emailbreachcheck.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-breach", "a@b.com"]),
             pytest.raises(SystemExit),
         ):

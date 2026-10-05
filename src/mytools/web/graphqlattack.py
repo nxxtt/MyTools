@@ -27,14 +27,12 @@ from urllib.parse import urlparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_banner,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -1559,55 +1557,57 @@ def _parse_introspection(data: dict[str, Any]) -> tuple[list[str], str, str, str
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-gqlattack",
-        description="GraphQL Attack Testing — Introspection, Depth Abuse, Batch, Aliases, Stitching, APQ",
-    )
-    parser.add_argument("url", help="URL alvo (https://target.com/graphql)")
-    parser.add_argument(
-        "-c",
-        "--categories",
-        nargs="+",
-        choices=list(_CATEGORY_MAP.keys()),
-        help="Categorias para testar (default: todas)",
-    )
-    add_common_args(parser, "web")
-    return parser
+class GraphQLAttackScanner(BaseScanner):
+    """Scanner CLI do GraphQL Attack Testing (Grupo A)."""
 
+    prog = "mytools-gqlattack"
+    description = "GraphQL Attack Testing — Introspection, Depth Abuse, Batch, Aliases, Stitching, APQ"
+    prompt = "gqlattack> "
+    module_name = "mytools.graphqlattack"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa scan uma vez."""
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo (https://target.com/graphql)")
+        parser.add_argument(
+            "-c",
+            "--categories",
+            nargs="+",
+            choices=list(_CATEGORY_MAP.keys()),
+            help="Categorias para testar (default: todas)",
+        )
 
-    if getattr(args, "dry_run", False) is True:
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "categories": getattr(args, "categories", None),
+            "timeout": getattr(args, "timeout", 5.0),
+            "output_file": getattr(args, "output", None),
+        }
+
+    async def run_scan(self, **kwargs: Any) -> int:
+        result = await run_scan(**kwargs)  # type: ignore[override]
+        return self._get_return_code(result)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(_BANNER_LINES, "GraphQL Attack Testing")
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-gqlattack — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    result = safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=getattr(args, "categories", None),
-            timeout=getattr(args, "timeout", 5.0),
-            output_file=getattr(args, "output", None),
-        )
-    )
-    return 1 if result.overall_status == "vulnerable" else 0
 
+    def _example(self) -> str:
+        return "https://target.com/graphql -c introspection depth_abuse"
 
-def main() -> int:
-    """Entry point principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(_BANNER_LINES, "GraphQL Attack Testing"),
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="gqlattack> ",
-        description="Teste de GraphQL Attack Testing (Introspection, Depth, Batch, Aliases, Stitching, APQ, Resolvers).",
-        example="https://target.com/graphql -c introspection depth_abuse",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Categorias disponiveis:\n"
             "  introspection    — Schema discovery, full/partial introspection, mutation/subscription\n"
             "  depth_abuse      — Nested query DoS, circular refs, fragments, directives\n"
@@ -1617,8 +1617,13 @@ def main() -> int:
             "  persisted_abuse  — APQ bypass, hash collision, mutation bypass, enumeration\n"
             "  resolver_analysis — N+1, SQL injection, SSRF, authz bypass, info leak\n"
             "  persisted_enum   — Hash bruteforce, ID enum, query from response"
-        ),
-    )
+        )
+
+
+scanner = GraphQLAttackScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

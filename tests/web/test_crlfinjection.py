@@ -442,9 +442,7 @@ class TestMain:
     def test_no_url(self) -> None:
         with (
             patch("sys.argv", ["mytools-crlfinject"]),
-            patch(
-                "mytools.web.crlfinjection.run_main_loop", return_value=1
-            ) as mock_loop,
+            patch("mytools.core.base.run_main_loop", return_value=1) as mock_loop,
         ):
             result = main()
             assert result == 1
@@ -786,6 +784,7 @@ class TestRunOnce:
             "concurrency": 5,
             "output": None,
             "verbose": False,
+            "log_file": None,
         }
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -810,7 +809,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             runpy.run_module("mytools.web.crlfinjection", run_name="__main__")

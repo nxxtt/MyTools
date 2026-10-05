@@ -800,7 +800,7 @@ class TestMainGuard:
         def _raise(*_args: object, **_kwargs: object) -> int:
             raise SystemExit(0)
 
-        monkeypatch.setattr("mytools.core.utils.run_main_loop", _raise)
+        monkeypatch.setattr("mytools.core.base.run_main_loop", _raise)
         with pytest.raises(SystemExit):
             runpy.run_module("mytools.web.lfidetect", run_name="__main__")
 
@@ -835,7 +835,7 @@ class TestRunOnce:
             issues=[],
             overall_status="secure",
         )
-        monkeypatch.setattr(lfidetect_module, "init_scanner", lambda args: None)
+        monkeypatch.setattr("mytools.core.base.init_scanner", lambda args: None)
         monkeypatch.setattr(
             lfidetect_module, "run_scan", AsyncMock(return_value=result)
         )
@@ -854,7 +854,7 @@ class TestRunOnce:
             issues=[],
             overall_status="secure",
         )
-        monkeypatch.setattr(lfidetect_module, "init_scanner", lambda args: None)
+        monkeypatch.setattr("mytools.core.base.init_scanner", lambda args: None)
         monkeypatch.setattr(
             lfidetect_module, "run_scan", AsyncMock(return_value=result)
         )
@@ -874,7 +874,7 @@ class TestRunOnce:
             issues=["Falha ao conectar no alvo"],
             overall_status="error",
         )
-        monkeypatch.setattr(lfidetect_module, "init_scanner", lambda args: None)
+        monkeypatch.setattr("mytools.core.base.init_scanner", lambda args: None)
         monkeypatch.setattr(
             lfidetect_module, "run_scan", AsyncMock(return_value=result)
         )
@@ -895,7 +895,7 @@ class TestRunOnce:
             issues=[],
             overall_status="secure",
         )
-        monkeypatch.setattr(lfidetect_module, "init_scanner", lambda args: None)
+        monkeypatch.setattr("mytools.core.base.init_scanner", lambda args: None)
         monkeypatch.setattr(
             lfidetect_module, "run_scan", AsyncMock(return_value=result)
         )

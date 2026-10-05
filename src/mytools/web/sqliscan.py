@@ -28,24 +28,22 @@ import argparse
 import logging
 import re
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
     run_concurrent,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 from mytools.web.secondorder import get_verify_payload, verify_positive
 
@@ -828,6 +826,7 @@ async def run_scan(
     confirm: bool = True,
 ) -> SQLiResult:
     """Executa o scan de SQL Injection contra a URL alvo."""
+    logger.info("SQLi scan iniciado para %s", url)
     parsed = urlparse(url)
     if not parsed.scheme:
         url = f"http://{url}"
@@ -1004,102 +1003,83 @@ banner_art = create_banner(
 )
 
 
-# ---------------------------------------------------------------------------
-# build_parser
-# ---------------------------------------------------------------------------
+class SqliscanScanner(BaseScanner):
+    """Scanner CLI de SQL Injection."""
 
+    prog = "mytools-sqli"
+    description = "SQL Injection Scanner — error, blind, union, bypass."
+    prompt = "sqli> "
+    module_name = "mytools.sqliscan"
+    module_type = "web"
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta parser CLI para mytools-sqli."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-sqli",
-        description="SQL Injection Scanner — error, blind, union, bypass.",
-    )
-    parser.add_argument("url", nargs="?", help="URL alvo para teste")
-    parser.add_argument(
-        "-c",
-        "--category",
-        choices=["error", "blind", "union", "bypass", "all"],
-        default="all",
-        help="Categoria de testes (default: all)",
-    )
-    parser.add_argument(
-        "--param",
-        help="Param name para forcar (override auto-detect)",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Requisicoes simultaneas (default: 5)",
-    )
-    parser.add_argument(
-        "--time-threshold",
-        type=float,
-        default=1.5,
-        help="Threshold em segundos para time-based blind (default: 1.5)",
-    )
-    add_common_args(parser, "web")
-    return parser
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", nargs="?", help="URL alvo para teste")
+        parser.add_argument(
+            "-c",
+            "--category",
+            choices=["error", "blind", "union", "bypass", "all"],
+            default="all",
+            help="Categoria de testes (default: all)",
+        )
+        parser.add_argument(
+            "--param",
+            help="Param name para forcar (override auto-detect)",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Requisicoes simultaneas (default: 5)",
+        )
+        parser.add_argument(
+            "--time-threshold",
+            type=float,
+            default=1.5,
+            help="Threshold em segundos para time-based blind (default: 1.5)",
+        )
 
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-# ---------------------------------------------------------------------------
-# run_once
-# ---------------------------------------------------------------------------
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "url": self._get_target(args),
+            "category": getattr(args, "category", "all"),
+            "timeout": getattr(args, "timeout", 10.0),
+            "concurrency": getattr(args, "concurrency", 5),
+            "time_threshold": getattr(args, "time_threshold", 1.5),
+            "output_file": getattr(args, "output", None),
+            "json_output": getattr(args, "json_output", False),
+            "confirm": getattr(args, "confirm", True),
+        }
 
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan SQLi a partir de argumentos parseados."""
-    init_scanner(args)
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
-    if getattr(args, "dry_run", False) is True:
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _get_return_code(self, result: object) -> int:
+        return 0 if getattr(result, "overall_status", "error") != "error" else 1
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-sqli \u2014 nenhuma requisi\u00e7\u00e3o executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("SQLi scan iniciado para %s", args.url)
 
-    result = safe_asyncio_run(
-        run_scan(
-            url=args.url,
-            category=getattr(args, "category", "all"),
-            timeout=getattr(args, "timeout", 10.0),
-            concurrency=getattr(args, "concurrency", 5),
-            time_threshold=getattr(args, "time_threshold", 1.5),
-            output_file=getattr(args, "output", None),
-            json_output=getattr(args, "json_output", False),
-            confirm=getattr(args, "confirm", True),
-        ),
-    )
+    def _example(self) -> str:
+        return "https://target.com/search?q=test"
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
-    else:
-        print_results(result)
-
-    if getattr(args, "output", None):
-        write_output(args.output, asdict(result))
-
-    return 0 if result.overall_status != "error" else 1
-
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-
-def main() -> int:
-    """Ponto de entrada principal."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(getattr(a, "url", None)),
-        prompt="sqli> ",
-        description="SQL Injection Scanner interativo.",
-        example="https://target.com/search?q=test",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com/search?q=test\n"
@@ -1107,8 +1087,13 @@ def main() -> int:
             "  https://target.com/search?q=test -c blind\n"
             "  https://target.com/search?q=test --time-threshold 2.0\n"
             "  https://target.com/search?q=test --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = SqliscanScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

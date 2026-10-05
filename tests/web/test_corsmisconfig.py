@@ -655,9 +655,7 @@ class TestMain:
     def test_main(self) -> None:
         from mytools.web.corsmisconfig import main
 
-        with patch(
-            "mytools.web.corsmisconfig.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert result == 0
             mock_loop.assert_called_once()
@@ -669,7 +667,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-cors", "https://test.com"]),
             pytest.raises(SystemExit) as exc_info,
         ):

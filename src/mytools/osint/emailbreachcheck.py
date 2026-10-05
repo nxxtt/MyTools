@@ -19,18 +19,20 @@ import json
 import logging
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
 import httpx
 from tqdm import tqdm
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
     RateLimiter,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
@@ -40,8 +42,6 @@ from mytools.core.utils import (
     print_exploit_info,
     print_json,
     print_table,
-    run_main_loop,
-    safe_asyncio_run,
     write_output,
 )
 
@@ -424,37 +424,6 @@ def print_results(breaches: list[EmailBreach]) -> None:
         print_exploit_info(b.exploit, b.tool)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="Verificacao de vazamentos de emails (Email Breach Check).",
-    )
-    add_common_args(parser, "osint")
-    parser.add_argument("emails", nargs="*", help="Email(s) para consultar.")
-    parser.add_argument(
-        "-f", "--file", dest="email_file", help="Arquivo com emails (um por linha)."
-    )
-    parser.add_argument(
-        "--source",
-        action="append",
-        choices=["xposedornot", "leakcheck", "hibp"],
-        dest="sources",
-        help="Fonte para consulta (pode repetir). Padrao: xposedornot,leakcheck.",
-    )
-    parser.add_argument(
-        "--hibp-api-key",
-        dest="hibp_api_key",
-        help="API key do HaveIBeenPwned (obrigatoria para --source hibp).",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Concorrencia assincrona. Padrao: 5",
-    )
-    return parser
-
-
 def _load_emails(args: argparse.Namespace) -> list[str]:
     """Carrega emails de args.emails + arquivo."""
     emails = list(args.emails) if args.emails else []
@@ -473,8 +442,8 @@ def _load_emails(args: argparse.Namespace) -> list[str]:
     return list(dict.fromkeys(emails))
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
+async def run_scan(args: argparse.Namespace) -> int:
+    """Executa um unico scan (Grupo A — output interno)."""
     quiet = init_scanner(args)
     emails = _load_emails(args)
 
@@ -550,31 +519,93 @@ async def _async_run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
+class EmailbreachcheckScanner(BaseScanner):
+    """Email Breach Check — dispatcher BaseScanner (Grupo A)."""
 
+    prog = "mytools-breach"
+    description = "Verificacao de vazamentos de emails (Email Breach Check)."
+    prompt = "breach> "
+    module_name = "mytools.emailbreachcheck"
+    module_type = "osint"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-def main() -> int:
-    """Ponto de entrada principal do Email Breach Check."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.emails or getattr(a, "email_file", None)),
-        prompt="breach> ",
-        description="Email Breach Check interativo.",
-        example="user@example.com --source xposedornot",
-        contextual_help=(
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        emails = getattr(args, "emails", None)
+        if emails:
+            return " ".join(emails)
+        return getattr(args, "email_file", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("emails", nargs="*", help="Email(s) para consultar.")
+        parser.add_argument(
+            "-f",
+            "--file",
+            dest="email_file",
+            help="Arquivo com emails (um por linha).",
+        )
+        parser.add_argument(
+            "--source",
+            action="append",
+            choices=["xposedornot", "leakcheck", "hibp"],
+            dest="sources",
+            help="Fonte para consulta (pode repetir). Padrao: xposedornot,leakcheck.",
+        )
+        parser.add_argument(
+            "--hibp-api-key",
+            dest="hibp_api_key",
+            help="API key do HaveIBeenPwned (obrigatoria para --source hibp).",
+        )
+        parser.add_argument(
+            "--concurrency",
+            type=int,
+            default=5,
+            help="Concorrencia assincrona. Padrao: 5",
+        )
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        emails = _load_emails(args)
+        if not emails:
+            logger.error(
+                "Nenhum email informado. Use: mytools-breach email1@example.com email2@example.com"
+            )
+            return 1
+        logger.warning("Nenhuma requisicao HTTP sera enviada.")
+        for email in emails:
+            logger.info("Email: %s", email)
+        return 0
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _example(self) -> str:
+        return "user@example.com --source xposedornot"
+
+    def _help(self) -> str:
+        return (
             "Uso: <emails...> [opcoes]\n"
             "Exemplos:\n"
             "  user@example.com\n"
             "  user1@test.com user2@test.com\n"
             "  user@example.com --source hibp --hibp-api-key KEY\n"
             "  -f emails.txt -o results.json"
-        ),
-    )
+        )
 
+
+scanner = EmailbreachcheckScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

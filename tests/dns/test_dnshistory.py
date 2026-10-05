@@ -623,7 +623,7 @@ class TestConstants:
 
 class TestMain:
     def test_no_domain_shells_interactive(self):
-        with patch("mytools.dns.dnshistory.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             from mytools.dns.dnshistory import main
 
             with patch("sys.argv", ["mytools-dnshistory"]):
@@ -632,7 +632,7 @@ class TestMain:
             mock_loop.assert_called_once()
 
     def test_valid_domain_calls_run_main_loop(self):
-        with patch("mytools.dns.dnshistory.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             with patch("mytools.dns.dnshistory.run_once", return_value=0) as mock_run:
                 from mytools.dns.dnshistory import main
 
@@ -644,7 +644,7 @@ class TestMain:
 
     def test_main_guard(self):
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-dnshistory"]),
             pytest.raises(SystemExit) as exc_info,
         ):

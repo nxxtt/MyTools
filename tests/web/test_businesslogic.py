@@ -730,9 +730,7 @@ class TestBannerArt:
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.web.businesslogic.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert result == 0
             mock_loop.assert_called_once()
@@ -763,6 +761,8 @@ class TestRunOnce:
             category="integer_overflow",
             timeout=10,
             output=None,
+            verbose=0,
+            log_file=None,
         )
         with patch(
             "mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0
@@ -776,6 +776,8 @@ class TestRunOnce:
             category="all",
             timeout=10,
             output=None,
+            verbose=0,
+            log_file=None,
         )
         with patch(
             "mytools.web.businesslogic.run_scan", new_callable=AsyncMock, return_value=0

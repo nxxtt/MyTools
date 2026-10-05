@@ -36,19 +36,16 @@ import argparse
 import contextlib
 import logging
 import smtplib
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.smtpdowngrade")
@@ -600,109 +597,97 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-
-    parser = argparse.ArgumentParser(
-        description="SMTP Downgrade Attack — testa forcar downgrade de STARTTLS.",
-        epilog="Verifica se o servidor SMTP pode ser forcado a operar em plaintext.",
-    )
-
-    add_base_args(parser)
-
-    parser.add_argument(
-        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
-    )
-
-    parser.add_argument(
-        "--port",
-        "-p",
-        type=int,
-        default=587,
-        help="Porta SMTP. Padrao: 587",
-    )
-
-    parser.add_argument(
-        "--from-addr",
-        default="test@example.com",
-        help="Endereco FROM para os testes. Padrao: test@example.com",
-    )
-
-    parser.add_argument(
-        "--to-addr",
-        default="test@example.com",
-        help="Endereco TO para os testes. Padrao: test@example.com",
-    )
-
-    return parser
-
-
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-
-    quiet = init_scanner(args)
-
-    target = getattr(args, "target", None)
-
-    if not target:
-        logger.error("Informe um host SMTP.")
-
-        return 1
-
-    if getattr(args, "dry_run", False) is True:
-        logger.warning("Nenhuma conexao SMTP sera feita.")
-
-        logger.info("Target: %s:%d", target, args.port)
-
-        return 0
-
-    result = scan_smtp_downgrade(
+async def run_scan(
+    target: str,
+    port: int,
+    from_addr: str,
+    to_addr: str,
+    timeout: float,
+) -> DowngradeResult:
+    """Roda o scan de SMTP Downgrade (envolve a funcao sync)."""
+    return scan_smtp_downgrade(
         target=target,
-        port=args.port,
-        from_addr=args.from_addr,
-        to_addr=args.to_addr,
-        timeout=args.timeout,
+        port=port,
+        from_addr=from_addr,
+        to_addr=to_addr,
+        timeout=timeout,
     )
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
 
-    elif not quiet:
-        print_results(result)
+class SmtpdowngradeScanner(BaseScanner):
+    """SMTP Downgrade Attack — dispatcher BaseScanner (Grupo B)."""
 
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            ["target", "port", "overall_status", "issues"],
-            quiet=quiet,
+    prog = "mytools-smtpdown"
+    description = "SMTP Downgrade Attack — testa forcar downgrade de STARTTLS."
+    prompt = "smtpdown> "
+    module_name = "mytools.smtpdowngrade"
+    module_type = "core"
+    epilog = "Verifica se o servidor SMTP pode ser forcado a operar em plaintext."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+        )
+        parser.add_argument(
+            "--port",
+            "-p",
+            type=int,
+            default=587,
+            help="Porta SMTP. Padrao: 587",
+        )
+        parser.add_argument(
+            "--from-addr",
+            default="test@example.com",
+            help="Endereco FROM para os testes. Padrao: test@example.com",
+        )
+        parser.add_argument(
+            "--to-addr",
+            default="test@example.com",
+            help="Endereco TO para os testes. Padrao: test@example.com",
         )
 
-    return 0 if result.overall_status == "secure" else 1
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if not getattr(args, "target", None):
+            logger.error("Informe um host SMTP.")
+            return 1
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        logger.warning("Nenhuma conexao SMTP sera feita.")
+        logger.info("Target: %s:%d", self._get_target(args), args.port)
+        return 0
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "port": args.port,
+            "from_addr": args.from_addr,
+            "to_addr": args.to_addr,
+            "timeout": args.timeout,
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _example(self) -> str:
+        return "mail.example.com --port 587"
+
+    def _help(self) -> str:
+        return "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do SMTP Downgrade."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.target),
-        prompt="smtpdown> ",
-        description="SMTP Downgrade — testa forcar downgrade de STARTTLS.",
-        example="mail.example.com --port 587",
-        contextual_help=(
-            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25\n  mail.example.com --from-addr admin@test.com"
-        ),
-    )
-
+scanner = SmtpdowngradeScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

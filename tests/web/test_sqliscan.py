@@ -1197,7 +1197,7 @@ class TestRunOnce:
 class TestMainGuard:
     def test_guard_runs(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit),
         ):
             runpy.run_module("mytools.web.sqliscan", run_name="__main__")

@@ -484,9 +484,7 @@ class TestBannerArt:
 # ─── Main ────────────────────────────────────────────────────────────────────
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.web.loginjection.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert result == 0
             mock_loop.assert_called_once()

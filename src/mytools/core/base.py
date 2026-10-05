@@ -1,17 +1,24 @@
-"""BaseScanner — elimina boilerplate comum em 85+ modulos.
+"""BaseScanner — elimina boilerplate comum em modulos.
 
 Fornece:
 - ``ScanGroup`` enum para select do dispatch de ``run_once``
 - ``BaseScanner`` ABC com template de ``build_parser``, ``main``, ``run_once``
 - Hooks sobrescreviveis: ``_add_arguments``, ``_build_run_once_kwargs``,
-  ``_get_return_code``, ``_example``, ``_help``
+  ``_get_return_code``, ``_describe_plan``, ``_example``, ``_help``
+- ``scan_fn`` (attr opcional): funcao module-level alvo da delegacao —
+  permite filtrar kwargs default pela assinatura real do scan
 
 Logger fica module-level em cada arquivo (compativel com codigo existente).
+
+Adocao: todos os 97 modulos-ferramenta usam este template. Excecao unica:
+``core/reconall.py`` (orquestrador que chama ``run_once`` dos modulos — nao e
+CLI individual, fica de fora por design).
 """
 
 from __future__ import annotations
 
 import argparse
+import inspect
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -64,8 +71,13 @@ class BaseScanner(ABC):
     module_name: str = ""
     banner_text: str = ""
     banner_fn: Callable[[], None] | None = None
+    epilog: str = ""
     group: ScanGroup = ScanGroup.B
     module_type: str = "core"
+
+    # Funcao module-level de scan (ex.: staticmethod(scan_caa)). Quando
+    # definida, os kwargs default sao filtrados pela assinatura dela.
+    scan_fn: Callable[..., Any] | None = None
 
     # ------------------------------------------------------------------
     # Parser
@@ -76,6 +88,7 @@ class BaseScanner(ABC):
         parser = argparse.ArgumentParser(
             prog=self.prog,
             description=self.description,
+            epilog=self.epilog or None,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         self._add_arguments(parser)
@@ -123,30 +136,20 @@ class BaseScanner(ABC):
     def _run_once_a(self, args: argparse.Namespace) -> int:
         """Grupo A: run_scan retorna int, output gerenciado internamente."""
         init_scanner(args)
+        early = self._pre_scan(args)
+        if early is not None:
+            return early
         if get_dry_run():
             return self._describe_plan(args)
-        target = self._get_target(args)
-        output_file = getattr(args, "output", None)
-        if not output_file:
-            output_dir = getattr(args, "output_dir", None)
-            if output_dir and target:
-                output_file = str(workspace_path(output_dir, target))
-                ensure_output_dir(str(Path(output_file).parent))
-        return safe_asyncio_run(
-            self.run_scan(
-                target=target,
-                categories=self._get_categories(args),
-                timeout=getattr(args, "timeout", 10),
-                output_file=output_file,
-                json_output=getattr(args, "json_output", False),
-                proxy=getattr(args, "proxy", None),
-                headless=getattr(args, "headless", False),
-            )
-        )
+        kwargs = self._build_run_once_kwargs(args)
+        return safe_asyncio_run(self.run_scan(**kwargs))
 
     def _run_once_b(self, args: argparse.Namespace) -> int:
         """Grupo B: scan retorna Result, output gerenciado em run_once."""
         quiet = init_scanner(args)
+        early = self._pre_scan(args)
+        if early is not None:
+            return early
         if get_dry_run():
             return self._describe_plan(args)
         kwargs = self._build_run_once_kwargs(args)
@@ -173,19 +176,69 @@ class BaseScanner(ABC):
     # Hooks sobrescreviveis
     # ------------------------------------------------------------------
 
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        """Hook opcional executado antes do dry-run/scan (Grupos A e B).
+
+        Retorne um int para abortar com esse codigo de saida (validacoes
+        de argumentos como nameserver invalido). Retorne ``None`` para
+        continuar normalmente (padrao)."""
+        return None
+
     def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
-        """Kwargs passados ao scan no Grupo B. Sobrescrever para modulos
-        que usam parametros diferentes (domain, wordlist, etc)."""
-        return {
-            "url": self._get_target(args),
-            "timeout": getattr(args, "timeout", 10.0),
-            "user_agent": getattr(args, "user_agent", None),
-            "proxy": getattr(args, "proxy", None),
-            "verify": getattr(args, "verify", False),
-            "confirm": getattr(args, "confirm", True),
-            "category": getattr(args, "category", None),
-            "concurrency": getattr(args, "concurrency", 5),
-        }
+        """Kwargs passados ao scan. Grupo A: target/categories/timeout/...;
+        Grupo B: url/timeout/user_agent/.... Sobrescrever para modulos que
+        usam parametros diferentes (domain, wordlist, etc).
+
+        Quando ``scan_fn`` esta definida, os kwargs default sao filtrados
+        pela assinatura da funcao de scan (evita TypeError em scans que nao
+        aceitam proxy/headless/json_output/etc)."""
+        if self.group == ScanGroup.A:
+            target = self._get_target(args)
+            output_file = getattr(args, "output", None)
+            if not output_file:
+                output_dir = getattr(args, "output_dir", None)
+                if output_dir and target:
+                    output_file = str(workspace_path(output_dir, target))
+                    ensure_output_dir(str(Path(output_file).parent))
+            kwargs: dict[str, Any] = {
+                "target": target,
+                "categories": self._get_categories(args),
+                "timeout": getattr(args, "timeout", 10),
+                "output_file": output_file,
+                "json_output": getattr(args, "json_output", False),
+                "proxy": getattr(args, "proxy", None),
+                "headless": getattr(args, "headless", False),
+            }
+        else:
+            kwargs = {
+                "url": self._get_target(args),
+                "timeout": getattr(args, "timeout", 10.0),
+                "user_agent": getattr(args, "user_agent", None),
+                "proxy": getattr(args, "proxy", None),
+                "verify": getattr(args, "verify", False),
+                "confirm": getattr(args, "confirm", True),
+                "category": getattr(args, "category", None),
+                "concurrency": getattr(args, "concurrency", 5),
+            }
+        if self.scan_fn is not None:
+            kwargs = self._filter_kwargs(self.scan_fn, kwargs)
+        return kwargs
+
+    @staticmethod
+    def _filter_kwargs(
+        fn: Callable[..., Any], kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Mantem apenas kwargs aceitos pela assinatura de ``fn``.
+
+        Se ``fn`` declara ``**kwargs`` (ou a assinatura e inacessivel),
+        devolve ``kwargs`` intactos."""
+        try:
+            params = inspect.signature(fn).parameters
+        except TypeError, ValueError:
+            return kwargs
+        if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+            return kwargs
+        return {k: v for k, v in kwargs.items() if k in params}
 
     def _get_categories(self, args: argparse.Namespace) -> list[str]:
         """Extrai lista de categorias de args.category."""

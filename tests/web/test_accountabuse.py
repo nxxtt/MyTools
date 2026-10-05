@@ -541,6 +541,12 @@ def test_run_once_returns_1_when_vulnerable() -> None:
     args.timeout = 10
     args.output = None
     args.dry_run = False
+    args.verbose = False
+    args.log_file = None
+    args.theme = None
+    args.color = None
+    args.output_dir = None
+    args.json_output = False
     result = _result(vulnerable_techniques=["enumeration"])
     with patch(
         "mytools.web.accountabuse.run_scan", new=AsyncMock(return_value=result)
@@ -555,6 +561,12 @@ def test_run_once_returns_0_when_secure() -> None:
     args.category = "all"
     args.timeout = 10
     args.output = None
+    args.verbose = False
+    args.log_file = None
+    args.theme = None
+    args.color = None
+    args.output_dir = None
+    args.json_output = False
     with patch(
         "mytools.web.accountabuse.run_scan", new=AsyncMock(return_value=_result())
     ) as mock_scan:
@@ -568,6 +580,12 @@ def test_run_once_category_none_uses_empty_list() -> None:
     args.category = None
     args.timeout = 10
     args.output = None
+    args.verbose = False
+    args.log_file = None
+    args.theme = None
+    args.color = None
+    args.output_dir = None
+    args.json_output = False
     with patch(
         "mytools.web.accountabuse.run_scan", new=AsyncMock(return_value=_result())
     ) as mock_scan:
@@ -578,7 +596,7 @@ def test_run_once_category_none_uses_empty_list() -> None:
 def test_main_returns_zero() -> None:
     with (
         patch("sys.argv", ["mytools-accountabuse", _TARGET]),
-        patch("mytools.web.accountabuse.run_main_loop", return_value=0) as mock_loop,
+        patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop,
     ):
         assert main() == 0
         mock_loop.assert_called_once()
@@ -586,7 +604,7 @@ def test_main_returns_zero() -> None:
 
 def test_main_guard() -> None:
     with (
-        patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+        patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
         patch("sys.argv", ["mytools-accountabuse", _TARGET]),
         pytest.raises(SystemExit) as exc_info,
     ):

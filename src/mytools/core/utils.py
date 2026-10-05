@@ -531,6 +531,7 @@ class StealthContext:
     user_agent_rotate: bool = False
     impersonate: str | None = None
     tor: bool = False
+    proxy: str | None = None
     waf_evasion: bool = False
     pad_headers: int = 0
     fragment: int = 0
@@ -549,6 +550,9 @@ class StealthContext:
             "user_agent_rotate": getattr(args, "user_agent_rotate", False),
             "impersonate": getattr(args, "impersonate", None),
             "tor": getattr(args, "tor", False),
+            "proxy": (
+                p if isinstance(p := getattr(args, "proxy", None), str) else None
+            ),
             "waf_evasion": getattr(args, "waf_evasion", False),
             "pad_headers": getattr(args, "pad_headers", 0),
             "fragment": getattr(args, "fragment", 0),
@@ -736,6 +740,14 @@ def create_async_client(
             effective_impersonate = ctx.impersonate
         if ctx.user_agent_rotate:
             effective_ua = random_user_agent()
+        proxy_from_ctx = getattr(ctx, "proxy", None)
+        if (
+            isinstance(proxy_from_ctx, str)
+            and proxy_from_ctx
+            and effective_proxy is None
+        ):
+            effective_proxy = proxy_from_ctx
+            logger.debug("stealth: proxy=%s", effective_proxy)
         if ctx.tor:
             tor = TorManager()
             effective_proxy = tor.proxy_url

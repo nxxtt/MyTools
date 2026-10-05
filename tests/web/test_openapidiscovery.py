@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 import json
 import runpy
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,7 +12,6 @@ from mytools.web.openapidiscovery import (
     DEFAULT_PATHS,
     ApiSpecInfo,
     EndpointInfo,
-    _async_run_once,
     _load_paths_from_args,
     _parse_openapi_v2,
     _parse_openapi_v3,
@@ -438,7 +436,7 @@ class TestJsonOutput:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         decoder = json.JSONDecoder()
         data, _ = decoder.raw_decode(capsys.readouterr().out)
@@ -457,7 +455,7 @@ class TestJsonOutput:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert capsys.readouterr().out.count('"title"') == 1
 
@@ -473,7 +471,7 @@ class TestJsonOutput:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert capsys.readouterr().out == ""
 
@@ -491,7 +489,7 @@ class TestJsonOutput:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         decoder = json.JSONDecoder()
         data, _ = decoder.raw_decode(capsys.readouterr().out)
@@ -825,7 +823,7 @@ class TestPrintApiEndpoints:
 class TestAsyncRunOnceExtra:
     def test_dry_run(self, capsys):
         args = build_parser().parse_args(["--dry-run", "http://x.com"])
-        result = asyncio.run(_async_run_once(args))
+        result = run_once(args)
         assert result == 0
         assert "DRY-RUN" in capsys.readouterr().out
 
@@ -846,7 +844,7 @@ class TestAsyncRunOnceExtra:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert (out_dir / "x.com.json").exists()
 
@@ -864,7 +862,7 @@ class TestAsyncRunOnceExtra:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         out = capsys.readouterr().out
         assert "Endpoints:" in out
@@ -882,7 +880,7 @@ class TestAsyncRunOnceExtra:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert capsys.readouterr().out == ""
 
@@ -900,7 +898,7 @@ class TestAsyncRunOnceExtra:
             "mytools.web.openapidiscovery.scan_specs",
             new=AsyncMock(return_value=[spec]),
         ):
-            result = asyncio.run(_async_run_once(args))
+            result = run_once(args)
         assert result == 0
         assert out.exists()
 
@@ -909,20 +907,22 @@ class TestRunOnce:
     def test_run_once(self):
         args = build_parser().parse_args(["http://x.com"])
         with patch(
-            "mytools.web.openapidiscovery._async_run_once",
-            new=AsyncMock(return_value=0),
-        ):
+            "mytools.web.openapidiscovery.run_scan",
+            new_callable=AsyncMock,
+            return_value=0,
+        ) as mock_scan:
             assert run_once(args) == 0
+        mock_scan.assert_called_once_with(args=args)
 
 
 class TestMainEntry:
     def test_main(self):
-        with patch("mytools.web.openapidiscovery.run_main_loop", return_value=0):
+        with patch("mytools.core.base.run_main_loop", return_value=0):
             assert main() == 0
 
     def test_main_guard(self):
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit) as exc_info,
         ):
             runpy.run_module("mytools.web.openapidiscovery", run_name="__main__")

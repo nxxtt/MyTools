@@ -548,7 +548,14 @@ class TestBuildParser:
 
 class TestRunOnce:
     def test_all_category_passes_empty_list(self) -> None:
-        args = argparse.Namespace(url=_TARGET, category="all", timeout=10, output=None)
+        args = argparse.Namespace(
+            url=_TARGET,
+            category="all",
+            timeout=10,
+            output=None,
+            verbose=False,
+            log_file=None,
+        )
         with patch(
             "mytools.web.oauth.run_scan", new_callable=AsyncMock, return_value=0
         ) as mock_scan:
@@ -558,7 +565,12 @@ class TestRunOnce:
 
     def test_specific_category(self) -> None:
         args = argparse.Namespace(
-            url=_TARGET, category="pkce_bypass", timeout=5, output=None
+            url=_TARGET,
+            category="pkce_bypass",
+            timeout=5,
+            output=None,
+            verbose=False,
+            log_file=None,
         )
         with patch(
             "mytools.web.oauth.run_scan", new_callable=AsyncMock, return_value=1
@@ -570,7 +582,7 @@ class TestRunOnce:
 
 class TestMain:
     def test_main_returns_int(self) -> None:
-        with patch("mytools.web.oauth.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             result = main()
             assert result == 0
             mock_loop.assert_called_once()

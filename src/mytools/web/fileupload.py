@@ -44,16 +44,15 @@ from urllib.parse import urljoin
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
     fetch,
     print_exploit_info,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -1170,6 +1169,8 @@ async def run_scan(
 ) -> int:
     """Executa o scan de File Upload Attacks."""
 
+    logger.info("File Upload scan iniciado para %s", target)
+
     logger.info("File Upload scan para %s", target)
 
     tls = target.startswith("https://")
@@ -1279,88 +1280,69 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
+class FileuploadScanner(BaseScanner):
+    """Scanner CLI de File Upload Attacks."""
 
-    parser = argparse.ArgumentParser(
-        prog="mytools-fileupload",
-        description="File Upload Attacks â€” detecta polyglots, XXE, ImageMagick, ZIP Slip, filename injection.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-fileupload https://target.com/upload\n"
-            "  mytools-fileupload https://target.com -c polyglot\n"
-            "  mytools-fileupload https://target.com -c svg_xxe\n"
-            "  mytools-fileupload https://target.com -c zip_slip\n"
-            "  mytools-fileupload https://target.com --proxy http://127.0.0.1:8080"
-        ),
+    prog = "mytools-fileupload"
+    description = "File Upload Attacks â€” detecta polyglots, XXE, ImageMagick, ZIP Slip, filename injection."
+    prompt = "fileupload> "
+    module_name = "mytools.fileupload"
+    module_type = "web"
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-fileupload https://target.com/upload\n"
+        "  mytools-fileupload https://target.com -c polyglot\n"
+        "  mytools-fileupload https://target.com -c svg_xxe\n"
+        "  mytools-fileupload https://target.com -c zip_slip\n"
+        "  mytools-fileupload https://target.com --proxy http://127.0.0.1:8080"
     )
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
-    parser.add_argument("url", help="URL alvo para o scan")
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "polyglot",
+                "svg_xxe",
+                "image_magic",
+                "zip_slip",
+                "filename_inject",
+                "content_type",
+                "multipart_boundary",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
 
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "polyglot",
-            "svg_xxe",
-            "image_magic",
-            "zip_slip",
-            "filename_inject",
-            "content_type",
-            "multipart_boundary",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        set_dry_run(bool(getattr(args, "dry_run", False)))
+        return None
 
-    add_common_args(parser, "web")
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
 
-    return parser
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
 
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan File Upload a partir de argumentos parseados."""
-
-    if getattr(args, "dry_run", False) is True:
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print("[DRY-RUN] mytools-fileupload — nenhuma requisição executada.")
         print(
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
 
-    logger.info("File Upload scan iniciado para %s", args.url)
+    def _example(self) -> str:
+        return "https://target.com/upload -c polyglot"
 
-    categories: list[str] = []
-
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-        ),
-    )
-
-
-def main() -> int:
-    """Entry point do modulo File Upload Attacks."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="fileupload> ",
-        description="File Upload Attacks interativo.",
-        example="https://target.com/upload -c polyglot",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com/upload\n"
@@ -1368,8 +1350,13 @@ def main() -> int:
             "  https://target.com -c svg_xxe\n"
             "  https://target.com -c zip_slip\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = FileuploadScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

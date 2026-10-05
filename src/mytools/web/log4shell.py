@@ -25,17 +25,15 @@ from dataclasses import asdict, dataclass
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_common_args,
     color,
     create_async_client,
     create_banner,
-    init_scanner,
     print_exploit_info,
     print_json,
-    run_main_loop,
-    safe_asyncio_run,
+    set_dry_run,
     write_output,
 )
 
@@ -582,6 +580,7 @@ async def run_scan(
     json_output: bool = False,
 ) -> int:
     """Executa o scan de Log4Shell."""
+    logger.info("Log4Shell scan iniciado para %s", target)
     logger.info("Log4Shell scan para %s", target)
 
     tls = target.startswith("https://")
@@ -659,44 +658,58 @@ def banner_art() -> None:
     )()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construtor do parser de argumentos."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-log4shell",
-        description="Log4Shell — testa JNDI injection em headers HTTP (CVE-2021-44228).",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Exemplos:\n"
-            "  mytools-log4shell https://target.com\n"
-            "  mytools-log4shell https://target.com -c jndi_basic\n"
-            "  mytools-log4shell https://target.com -c header_injection\n"
-            "  mytools-log4shell https://target.com --proxy http://127.0.0.1:8080"
-        ),
+class Log4shellScanner(BaseScanner):
+    """Scanner CLI do Log4Shell."""
+
+    prog = "mytools-log4shell"
+    description = "Log4Shell — testa JNDI injection em headers HTTP (CVE-2021-44228)."
+    epilog = (
+        "Exemplos:\n"
+        "  mytools-log4shell https://target.com\n"
+        "  mytools-log4shell https://target.com -c jndi_basic\n"
+        "  mytools-log4shell https://target.com -c header_injection\n"
+        "  mytools-log4shell https://target.com --proxy http://127.0.0.1:8080"
     )
-    parser.add_argument("url", help="URL alvo para o scan")
-    parser.add_argument(
-        "-c",
-        "--category",
-        default="all",
-        choices=[
-            "all",
-            "jndi_basic",
-            "jndi_obfuscated",
-            "header_injection",
-            "data_exfil",
-            "bypass",
-        ],
-        help="Categoria de testes (default: todas)",
-    )
-    add_common_args(parser, "web")
-    return parser
+    prompt = "log4shell> "
+    module_name = "mytools.log4shell"
+    module_type = "web"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
 
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("url", help="URL alvo para o scan")
+        parser.add_argument(
+            "-c",
+            "--category",
+            default="all",
+            choices=[
+                "all",
+                "jndi_basic",
+                "jndi_obfuscated",
+                "header_injection",
+                "data_exfil",
+                "bypass",
+            ],
+            help="Categoria de testes (default: todas)",
+        )
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um scan Log4Shell a partir de argumentos parseados."""
-    init_scanner(args)
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        # O fluxo original lia args.dry_run diretamente ("is True"); sincroniza
+        # o flag para o branch dry-run da base ver o mesmo valor quando
+        # init_scanner nao e quem o defineu (testes que o mockam).
+        set_dry_run(getattr(args, "dry_run", False) is True)
+        return None
 
-    if getattr(args, "dry_run", False) is True:
+    async def run_scan(self, **kwargs):  # type: ignore[override]
+        return await run_scan(**kwargs)
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self):  # type: ignore[override]
+        return banner_art
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         print(
             "[DRY-RUN] mytools-log4shell \u2014 nenhuma requisi\u00e7\u00e3o executada."
         )
@@ -704,35 +717,12 @@ def run_once(args: argparse.Namespace) -> int:
             f"[DRY-RUN] Alvo: {getattr(args, 'url', None) or getattr(args, 'target', None) or getattr(args, 'domain', None) or '(nenhum alvo)'}"
         )
         return 0
-    logger.info("Log4Shell scan iniciado para %s", args.url)
-    categories: list[str] = []
-    if getattr(args, "category", None) and args.category != "all":
-        categories = [args.category]
-    return safe_asyncio_run(
-        run_scan(
-            target=args.url,
-            categories=categories,
-            timeout=getattr(args, "timeout", 10),
-            output_file=getattr(args, "output", None),
-            proxy=getattr(args, "proxy", None),
-            json_output=getattr(args, "json_output", False),
-        ),
-    )
 
+    def _example(self) -> str:
+        return "https://target.com -c jndi_basic"
 
-def main() -> int:
-    """Entry point do modulo Log4Shell."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(
-            getattr(a, "url", None) or getattr(a, "target", None)
-        ),
-        prompt="log4shell> ",
-        description="Log4Shell interativo.",
-        example="https://target.com -c jndi_basic",
-        contextual_help=(
+    def _help(self) -> str:
+        return (
             "Uso: <url> [opcoes]\n"
             "Exemplos:\n"
             "  https://target.com\n"
@@ -740,8 +730,13 @@ def main() -> int:
             "  https://target.com -c header_injection\n"
             "  https://target.com -c bypass\n"
             "  https://target.com --proxy http://127.0.0.1:8080"
-        ),
-    )
+        )
+
+
+scanner = Log4shellScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 
 if __name__ == "__main__":

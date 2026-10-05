@@ -25,8 +25,8 @@ import argparse
 import logging
 import random
 import string
-from collections.abc import Iterator
-from dataclasses import asdict, dataclass
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from typing import Any
 
 import dns.exception
@@ -38,18 +38,13 @@ import dns.rdatatype
 import dns.resolver
 import dns.rrset
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    ensure_output_dir,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
+    set_dry_run,
 )
 
 logger = logging.getLogger("mytools.nsecwalking")
@@ -342,123 +337,112 @@ def banner() -> None:
     create_banner(art, "   nsec walking: enumeracao de zonas via NSEC records")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Construi o parser de argumentos da linha de comandos."""
-    parser = argparse.ArgumentParser(
-        description="NSEC Walking — enumera zona via NSEC records em DNSSEC.",
-        epilog="ATENCAO: Use apenas em zonas com autorizacao para enumerar.",
+async def run_scan(
+    domain: str,
+    nameserver: str,
+    max_hops: int,
+    timeout: float,
+) -> NsecResult:
+    """Roda a enumeracao NSEC (envolve a funcao sync)."""
+    logger.error("ATENCAO: Enumeracao NSEC — ferramenta ofensiva")
+    logger.error("Alvo: %s", domain)
+    return scan_nsec(
+        domain=domain,
+        nameserver=nameserver,
+        max_hops=max_hops,
+        timeout=timeout,
     )
-    add_base_args(parser)
-    parser.add_argument("domain", nargs="?", help="Dominio alvo para enumeracao.")
-    parser.add_argument(
-        "--nameserver",
-        "-s",
-        default="8.8.8.8",
-        help="Nameserver para queries. Padrao: 8.8.8.8",
-    )
-    parser.add_argument(
-        "--max-hops",
-        "-m",
-        type=int,
-        default=DEFAULT_MAX_HOPS,
-        help=f"Numero maximo de hops. Padrao: {DEFAULT_MAX_HOPS}",
-    )
-    parser.add_argument(
-        "--query-timeout",
-        type=float,
-        default=DEFAULT_TIMEOUT,
-        help="Timeout por query em segundos. Padrao: 3",
-    )
-    return parser
 
 
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-    quiet = init_scanner(args)
+class NsecwalkingScanner(BaseScanner):
+    """NSEC Walking — dispatcher BaseScanner (Grupo B)."""
 
-    domain = getattr(args, "domain", None)
-    if not domain:
-        logger.error("Informe um dominio.")
-        return 1
+    prog = "mytools-nsec"
+    description = "NSEC Walking — enumera zona via NSEC records em DNSSEC."
+    prompt = "nsec> "
+    module_name = "mytools.dns.nsecwalking"
+    module_type = "core"
+    epilog = "ATENCAO: Use apenas em zonas com autorizacao para enumerar."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
 
-    if getattr(args, "dry_run", False) is True:
+    @staticmethod
+    def _get_target(args: argparse.Namespace) -> str | None:
+        return getattr(args, "domain", None)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("domain", nargs="?", help="Dominio alvo para enumeracao.")
+        parser.add_argument(
+            "--nameserver",
+            "-s",
+            default="8.8.8.8",
+            help="Nameserver para queries. Padrao: 8.8.8.8",
+        )
+        parser.add_argument(
+            "--max-hops",
+            "-m",
+            type=int,
+            default=DEFAULT_MAX_HOPS,
+            help=f"Numero maximo de hops. Padrao: {DEFAULT_MAX_HOPS}",
+        )
+        parser.add_argument(
+            "--query-timeout",
+            type=float,
+            default=DEFAULT_TIMEOUT,
+            help="Timeout por query em segundos. Padrao: 3",
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        # O fluxo original lia args.dry_run diretamente; sincroniza o flag
+        # para que o branch dry-run da base veja o mesmo valor (init_scanner
+        # pode nao ter sido o responsavel por define-lo).
+        set_dry_run(bool(getattr(args, "dry_run", False)))
+        return None
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "domain": self._get_target(args),
+            "nameserver": args.nameserver,
+            "max_hops": args.max_hops,
+            "timeout": args.query_timeout,
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
         logger.warning("Nenhuma query DNS sera enviada.")
-        logger.info("Dominio: %s", domain)
+        logger.info("Dominio: %s", self._get_target(args))
         logger.info("Nameserver: %s", args.nameserver)
         return 0
 
-    logger.error("ATENCAO: Enumeracao NSEC — ferramenta ofensiva")
-    logger.error("Alvo: %s", domain)
+    def _get_return_code(self, result: object) -> int:
+        # Zona enumeravel via NSEC e uma exposicao de informacao.
+        return 1 if getattr(result, "zone_enumerated", False) else 0
 
-    result = scan_nsec(
-        domain=domain,
-        nameserver=args.nameserver,
-        max_hops=args.max_hops,
-        timeout=args.query_timeout,
-    )
+    def _example(self) -> str:
+        return "example.com --max-hops 500"
 
-    if not quiet:
-        print_results(result)
-
-    if getattr(args, "json_output", False):
-        print_json([asdict(result)])
-
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            [
-                "domain",
-                "total_names",
-                "has_nsec3",
-                "zone_enumerated",
-                "max_hops",
-                "hops_used",
-            ],
-            quiet=quiet,
+    def _help(self) -> str:
+        return (
+            "Uso: <dominio> [opcoes]\n"
+            "Exemplos:\n"
+            "  example.com\n"
+            "  example.com --max-hops 500\n"
+            "  example.com --nameserver 1.1.1.1"
         )
 
-    output_dir = getattr(args, "output_dir", None)
-    if output_dir:
-        ensure_output_dir(output_dir)
-        write_output(
-            f"{output_dir}/{domain}.json",
-            [asdict(result)],
-            [
-                "domain",
-                "total_names",
-                "has_nsec3",
-                "zone_enumerated",
-                "max_hops",
-                "hops_used",
-            ],
-            quiet=quiet,
-        )
 
-    # Zona enumeravel via NSEC e uma exposicao de informacao.
-    return 1 if result.zone_enumerated else 0
-
-
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do NSEC Walking."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.domain),
-        prompt="nsec> ",
-        description="NSEC Walking interativo.",
-        example="example.com --max-hops 500",
-        contextual_help=(
-            "Uso: <dominio> [opcoes]\nExemplos:\n  example.com\n  example.com --max-hops 500\n  example.com --nameserver 1.1.1.1"
-        ),
-    )
-
+scanner = NsecwalkingScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

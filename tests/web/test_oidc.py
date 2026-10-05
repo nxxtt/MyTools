@@ -615,11 +615,14 @@ class TestRunOnce:
         args.category = "discovery"
         args.timeout = 10
         args.output = None
-        with patch(
-            "mytools.web.oidc.run_scan",
-            new_callable=AsyncMock,
-            return_value=0,
-        ) as mock_scan:
+        with (
+            patch("mytools.core.base.init_scanner"),
+            patch(
+                "mytools.web.oidc.run_scan",
+                new_callable=AsyncMock,
+                return_value=0,
+            ) as mock_scan,
+        ):
             assert run_once(args) == 0
             mock_scan.assert_called_once()
 
@@ -629,10 +632,13 @@ class TestRunOnce:
         args.category = "all"
         args.timeout = 10
         args.output = None
-        with patch(
-            "mytools.web.oidc.run_scan",
-            new_callable=AsyncMock,
-            return_value=0,
+        with (
+            patch("mytools.core.base.init_scanner"),
+            patch(
+                "mytools.web.oidc.run_scan",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
         ):
             assert run_once(args) == 0
 
@@ -643,7 +649,7 @@ class TestMain:
     def test_main_returns_loop_result(self) -> None:
         with (
             patch("sys.argv", ["mytools-oidc", _TARGET]),
-            patch("mytools.web.oidc.run_main_loop", return_value=0) as mock_loop,
+            patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop,
         ):
             assert main() == 0
             mock_loop.assert_called_once()
@@ -655,7 +661,7 @@ class TestMainGuard:
     def test_guard_raises_system_exit(self) -> None:
         with (
             patch("sys.argv", ["mytools-oidc", _TARGET]),
-            patch("mytools.core.utils.run_main_loop", return_value=0),
+            patch("mytools.core.base.run_main_loop", return_value=0),
             pytest.raises(SystemExit) as exc_info,
         ):
             runpy.run_module("mytools.web.oidc", run_name="__main__")

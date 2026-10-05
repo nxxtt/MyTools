@@ -803,8 +803,9 @@ class TestRunOnce:
     def test_vulnerable_returns_1(self) -> None:
         args = argparse.Namespace(url="https://target.com", output=None)
         with (
+            patch("mytools.core.base.init_scanner", MagicMock(return_value=False)),
             patch(
-                "mytools.web.timingattack.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: asyncio.run(coro),
             ),
             patch(
@@ -819,8 +820,9 @@ class TestRunOnce:
     def test_secure_returns_0(self) -> None:
         args = argparse.Namespace(url="https://target.com", output=None)
         with (
+            patch("mytools.core.base.init_scanner", MagicMock(return_value=False)),
             patch(
-                "mytools.web.timingattack.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: asyncio.run(coro),
             ),
             patch(
@@ -835,8 +837,9 @@ class TestRunOnce:
     def test_output_writes(self) -> None:
         args = argparse.Namespace(url="https://target.com", output="out.json")
         with (
+            patch("mytools.core.base.init_scanner", MagicMock(return_value=False)),
             patch(
-                "mytools.web.timingattack.safe_asyncio_run",
+                "mytools.core.base.safe_asyncio_run",
                 side_effect=lambda coro: asyncio.run(coro),
             ),
             patch(
@@ -845,7 +848,7 @@ class TestRunOnce:
                 return_value=self._result("secure"),
             ),
             patch("mytools.web.timingattack.print_results"),
-            patch("mytools.web.timingattack.write_output") as mock_write,
+            patch("mytools.core.base.write_output") as mock_write,
         ):
             assert run_once(args) == 0
         mock_write.assert_called_once()
@@ -856,9 +859,7 @@ class TestRunOnce:
 
 class TestMain:
     def test_main(self) -> None:
-        with patch(
-            "mytools.web.timingattack.run_main_loop", return_value=0
-        ) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
@@ -868,7 +869,7 @@ class TestMainGuard:
         import runpy
 
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             patch("sys.argv", ["mytools-timing", "https://target.com"]),
             pytest.raises(SystemExit) as exc_info,
         ):

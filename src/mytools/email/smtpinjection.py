@@ -34,19 +34,16 @@ import argparse
 import contextlib
 import logging
 import smtplib
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
-    add_base_args,
     color,
     create_banner,
-    init_scanner,
     print_exploit_info,
-    print_json,
-    run_main_loop,
-    safe_asyncio_run,
-    write_output,
 )
 
 logger = logging.getLogger("mytools.smtpinjection")
@@ -464,125 +461,113 @@ def banner_art() -> None:
     create_banner(art, "   smtp injection: testa injecao de headers CRLF em SMTP")()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Constrói o parser de argumentos da linha de comandos."""
-
-    parser = argparse.ArgumentParser(
-        description="SMTP Header Injection — testa injecao CRLF em campos de email.",
-        epilog="Verifica se o servidor SMTP permite injetar headers extras.",
-    )
-
-    add_base_args(parser)
-
-    parser.add_argument(
-        "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
-    )
-
-    parser.add_argument(
-        "--port",
-        "-p",
-        type=int,
-        default=587,
-        help="Porta SMTP. Padrao: 587",
-    )
-
-    parser.add_argument(
-        "--from-addr",
-        default="test@example.com",
-        help="Endereco FROM para os testes. Padrao: test@example.com",
-    )
-
-    parser.add_argument(
-        "--to-addr",
-        default="test@example.com",
-        help="Endereco TO para os testes. Padrao: test@example.com",
-    )
-
-    parser.add_argument(
-        "--no-tls",
-        action="store_true",
-        help="Nao usar STARTTLS",
-    )
-
-    parser.add_argument(
-        "--fields",
-        default=",".join(_INJECTION_FIELDS),
-        help=f"Campos a testar (separados por virgula). Padrao: {','.join(_INJECTION_FIELDS)}",
-    )
-
-    return parser
-
-
-async def _async_run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan (async)."""
-
-    quiet = init_scanner(args)
-
-    target = getattr(args, "target", None)
-
-    if not target:
-        logger.error("Informe um host SMTP.")
-
-        return 1
-
-    if getattr(args, "dry_run", False) is True:
-        logger.warning("Nenhuma conexao SMTP sera feita.")
-
-        logger.info("Target: %s:%d", target, args.port)
-
-        return 0
-
-    fields = [f.strip() for f in args.fields.split(",") if f.strip()]
-
-    result = scan_smtp_injection(
+async def run_scan(
+    target: str,
+    port: int,
+    from_addr: str,
+    to_addr: str,
+    timeout: float,
+    use_tls: bool,
+    fields: list[str],
+) -> InjectionResult:
+    """Roda o scan de SMTP Header Injection (envolve a funcao sync)."""
+    return scan_smtp_injection(
         target=target,
-        port=args.port,
-        from_addr=args.from_addr,
-        to_addr=args.to_addr,
-        timeout=args.timeout,
-        use_tls=not args.no_tls,
+        port=port,
+        from_addr=from_addr,
+        to_addr=to_addr,
+        timeout=timeout,
+        use_tls=use_tls,
         fields=fields,
     )
 
-    if getattr(args, "json_output", False):
-        print_json(asdict(result))
 
-    elif not quiet:
-        print_results(result)
+class SmtpinjectionScanner(BaseScanner):
+    """SMTP Header Injection — dispatcher BaseScanner (Grupo B)."""
 
-    if args.output:
-        write_output(
-            args.output,
-            [asdict(result)],
-            ["target", "port", "overall_status", "tls", "vulnerable_fields", "issues"],
-            quiet=quiet,
+    prog = "mytools-smtpinject"
+    description = "SMTP Header Injection — testa injecao CRLF em campos de email."
+    prompt = "smtpinject> "
+    module_name = "mytools.smtpinjection"
+    module_type = "core"
+    epilog = "Verifica se o servidor SMTP permite injetar headers extras."
+    group = ScanGroup.B
+    scan_fn = staticmethod(run_scan)
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "target", nargs="?", help="Host SMTP alvo (ex: mail.example.com)."
+        )
+        parser.add_argument(
+            "--port",
+            "-p",
+            type=int,
+            default=587,
+            help="Porta SMTP. Padrao: 587",
+        )
+        parser.add_argument(
+            "--from-addr",
+            default="test@example.com",
+            help="Endereco FROM para os testes. Padrao: test@example.com",
+        )
+        parser.add_argument(
+            "--to-addr",
+            default="test@example.com",
+            help="Endereco TO para os testes. Padrao: test@example.com",
+        )
+        parser.add_argument(
+            "--no-tls",
+            action="store_true",
+            help="Nao usar STARTTLS",
+        )
+        parser.add_argument(
+            "--fields",
+            default=",".join(_INJECTION_FIELDS),
+            help=f"Campos a testar (separados por virgula). Padrao: {','.join(_INJECTION_FIELDS)}",
         )
 
-    return 0 if result.overall_status == "secure" else 1
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if not getattr(args, "target", None):
+            logger.error("Informe um host SMTP.")
+            return 1
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        logger.warning("Nenhuma conexao SMTP sera feita.")
+        logger.info("Target: %s:%d", self._get_target(args), args.port)
+        return 0
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {
+            "target": self._get_target(args),
+            "port": args.port,
+            "from_addr": args.from_addr,
+            "to_addr": args.to_addr,
+            "timeout": args.timeout,
+            "use_tls": not args.no_tls,
+            "fields": [f.strip() for f in args.fields.split(",") if f.strip()],
+        }
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return banner_art
+
+    def _example(self) -> str:
+        return "mail.example.com --port 587 --from-addr admin@test.com"
+
+    def _help(self) -> str:
+        return "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25 --no-tls\n  mail.example.com --fields To,Subject"
 
 
-def run_once(args: argparse.Namespace) -> int:
-    """Executa um unico scan com os argumentos fornecidos."""
-
-    return safe_asyncio_run(_async_run_once(args))
-
-
-def main() -> int:
-    """Ponto de entrada principal do SMTP Injection."""
-
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=banner_art,
-        run_fn=run_once,
-        has_target=lambda a: bool(a.target),
-        prompt="smtpinject> ",
-        description="SMTP Injection — testa injecao CRLF em campos de email.",
-        example="mail.example.com --port 587 --from-addr admin@test.com",
-        contextual_help=(
-            "Uso: <host> [opcoes]\nExemplos:\n  mail.example.com\n  mail.example.com --port 25 --no-tls\n  mail.example.com --fields To,Subject"
-        ),
-    )
-
+scanner = SmtpinjectionScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

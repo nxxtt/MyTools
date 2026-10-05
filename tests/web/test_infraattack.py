@@ -884,7 +884,8 @@ class TestRunOnce:
             timeout=0.1,
             output=str(tmp_path / "out.json"),
         )
-        assert run_once(args) == 1
+        with patch("mytools.core.base.init_scanner", return_value=False):
+            assert run_once(args) == 1
 
     @respx.mock
     def test_secure_returns_0(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -896,11 +897,12 @@ class TestRunOnce:
             timeout=0.1,
             output=None,
         )
-        assert run_once(args) == 0
+        with patch("mytools.core.base.init_scanner", return_value=False):
+            assert run_once(args) == 0
 
 
 class TestMain:
-    @patch("mytools.web.infraattack.run_main_loop", return_value=0)
+    @patch("mytools.core.base.run_main_loop", return_value=0)
     def test_main(self, mock_run_main_loop: MagicMock) -> None:
         assert main() == 0
         mock_run_main_loop.assert_called_once()

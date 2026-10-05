@@ -17,15 +17,17 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 import httpx
 
+from mytools.core.base import BaseScanner, ScanGroup
 from mytools.core.utils import (
     Cyber,
     FetchError,
-    add_base_args,
     color,
     create_async_client,
     create_banner,
@@ -285,25 +287,6 @@ def lookup_ip_asn(
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Monta o parser de argumentos CLI."""
-    parser = argparse.ArgumentParser(
-        prog="mytools-ipasn",
-        description="Enriquece IPs com dados BGP (ASN, organizacao, pais).",
-    )
-    parser.add_argument(
-        "ips", nargs="*", help="IP(s) para consultar (ex: 8.8.8.8 1.1.1.1)."
-    )
-    parser.add_argument(
-        "-f", "--file", dest="ip_file", help="Arquivo com IPs (um por linha)."
-    )
-    parser.add_argument(
-        "--batch", action="store_true", help="Forca modo batch via ip-api.com."
-    )
-    add_base_args(parser, timeout_default=DEFAULT_TIMEOUT)
-    return parser
-
-
 def _print_results(results: list[IpAsnInfo]) -> None:
     """Imprime tabela de resultados."""
     if not results:
@@ -367,7 +350,7 @@ def _load_ips_from_args(args: argparse.Namespace) -> list[str]:
     return list(dict.fromkeys(ips))
 
 
-def run_once(args: argparse.Namespace) -> int:
+async def run_scan(args: argparse.Namespace) -> int:
     """Executa consulta ASN para IPs."""
     init_scanner(args)
 
@@ -431,17 +414,89 @@ def run_once(args: argparse.Namespace) -> int:
     return 0
 
 
-def main() -> int:
-    """Entry point CLI."""
-    return run_main_loop(
-        parser=build_parser(),
-        banner_fn=create_banner(BANNER_ART, "IP ASN Info"),
-        run_fn=run_once,
-        has_target=lambda a: bool(a.ips) or bool(getattr(a, "ip_file", None)),
-        prompt="ip-asn> ",
-        description="Enriquece IPs com dados BGP (ASN, organizacao, pais).",
-        example="8.8.8.8 1.1.1.1",
-        contextual_help=(
+class IpAsnInfoScanner(BaseScanner):
+    """Enriquece IPs com dados BGP — dispatcher BaseScanner (Grupo A)."""
+
+    prog = "mytools-ipasn"
+    description = "Enriquece IPs com dados BGP (ASN, organizacao, pais)."
+    prompt = "ip-asn> "
+    module_name = "mytools.ipasninfo"
+    module_type = "core"
+    group = ScanGroup.A
+    scan_fn = staticmethod(run_scan)
+
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Parser do modulo — igual ao template, com timeout default do modulo."""
+        parser = super().build_parser()
+        parser.set_defaults(timeout=DEFAULT_TIMEOUT)
+        return parser
+
+    def _add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "ips", nargs="*", help="IP(s) para consultar (ex: 8.8.8.8 1.1.1.1)."
+        )
+        parser.add_argument(
+            "-f", "--file", dest="ip_file", help="Arquivo com IPs (um por linha)."
+        )
+        parser.add_argument(
+            "--batch", action="store_true", help="Forca modo batch via ip-api.com."
+        )
+
+    def _pre_scan(self, args: argparse.Namespace) -> int | None:
+        if not _load_ips_from_args(args):
+            print(
+                color("[!]", Cyber.RED, Cyber.BOLD),
+                "Nenhum IP especificado. Use posicao ou --file.",
+            )
+            return 1
+        return None
+
+    def _describe_plan(self, args: argparse.Namespace) -> int:
+        ips = _load_ips_from_args(args)
+        print(
+            color("[DRY-RUN]", Cyber.YELLOW, Cyber.BOLD),
+            "Nenhuma consulta sera realizada.",
+        )
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"IPs: {color(str(len(ips)), Cyber.WHITE, Cyber.BOLD)}",
+        )
+        print(
+            color("[*]", Cyber.CYAN, Cyber.BOLD),
+            f"Modo: {'batch' if getattr(args, 'batch', False) or len(ips) >= 5 else 'individual'}",
+        )
+        return 0
+
+    def _build_run_once_kwargs(self, args: argparse.Namespace) -> dict[str, Any]:
+        return {"args": args}
+
+    async def run_scan(self, **kwargs: Any) -> Any:
+        return await run_scan(**kwargs)  # type: ignore[override]
+
+    def print_results(self, result: object) -> None:
+        _print_results(result)  # type: ignore[arg-type]
+
+    def _make_banner(self) -> Callable[[], None]:
+        return create_banner(BANNER_ART, "IP ASN Info")
+
+    def main(self) -> int:
+        """Entry point — ``run_fn`` resolve o global ``run_once`` (patchavel)."""
+        return run_main_loop(
+            parser=self.build_parser(),
+            banner_fn=self._make_banner(),
+            run_fn=run_once,
+            has_target=lambda a: bool(a.ips) or bool(getattr(a, "ip_file", None)),
+            prompt=self.prompt,
+            description=f"{self.description.strip()} interativo.",
+            example=self._example(),
+            contextual_help=self._help(),
+        )
+
+    def _example(self) -> str:
+        return "8.8.8.8 1.1.1.1"
+
+    def _help(self) -> str:
+        return (
             "Uso: <ips...> [opcoes]\n"
             "Exemplos:\n"
             "  8.8.8.8\n"
@@ -449,9 +504,13 @@ def main() -> int:
             "  -f ips.txt\n"
             "  -f ips.txt --batch\n"
             "  -f ips.txt -o results.json"
-        ),
-    )
+        )
 
+
+scanner = IpAsnInfoScanner()
+main = scanner.main
+run_once = scanner.run_once
+build_parser = scanner.build_parser
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import runpy
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -954,39 +953,71 @@ async def test_run_scan_baseline_error_and_unknown_cats() -> None:
 
 class TestRunOnce:
     def test_vulnerable_returns_1(self) -> None:
-        mock_result = MagicMock()
-        mock_result.overall_status = "vulnerable"
-        args = argparse.Namespace(
-            url="https://example.com", categories=None, timeout=5.0, output=None
+        mock_result = SmuggleResult(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[],
+            vulnerable_techniques=["clte_basic"],
+            blocked_techniques=[],
+            issues=["1 techniques vulnerable"],
+            overall_status="vulnerable",
         )
-        with (
-            patch("mytools.web.httsmuggle.safe_asyncio_run", return_value=mock_result),
-            patch("mytools.web.httsmuggle.run_scan", new_callable=MagicMock),
-        ):
+        args = build_parser().parse_args(["https://example.com"])
+        with patch(
+            "mytools.web.httsmuggle.run_scan",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_scan:
             assert run_once(args) == 1
+        mock_scan.assert_called_once_with(
+            target="https://example.com",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
     def test_secure_returns_0(self) -> None:
-        mock_result = MagicMock()
-        mock_result.overall_status = "secure"
-        args = argparse.Namespace(
-            url="https://example.com", categories=None, timeout=5.0, output=None
+        mock_result = SmuggleResult(
+            target="https://example.com",
+            host="example.com",
+            port=443,
+            tls=True,
+            baseline_status=200,
+            baseline_size=1000,
+            attempts=[],
+            vulnerable_techniques=[],
+            blocked_techniques=[],
+            issues=[],
+            overall_status="secure",
         )
-        with (
-            patch("mytools.web.httsmuggle.safe_asyncio_run", return_value=mock_result),
-            patch("mytools.web.httsmuggle.run_scan", new_callable=MagicMock),
-        ):
+        args = build_parser().parse_args(["https://example.com"])
+        with patch(
+            "mytools.web.httsmuggle.run_scan",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_scan:
             assert run_once(args) == 0
+        mock_scan.assert_called_once_with(
+            target="https://example.com",
+            categories=None,
+            timeout=5.0,
+            output_file=None,
+        )
 
 
 class TestMain:
     def test_main_calls_loop(self) -> None:
-        with patch("mytools.web.httsmuggle.run_main_loop", return_value=0) as mock_loop:
+        with patch("mytools.core.base.run_main_loop", return_value=0) as mock_loop:
             assert main() == 0
         mock_loop.assert_called_once()
 
     def test_main_guard(self) -> None:
         with (
-            patch("mytools.core.utils.run_main_loop", side_effect=SystemExit(0)),
+            patch("mytools.core.base.run_main_loop", side_effect=SystemExit(0)),
             pytest.raises(SystemExit) as exc_info,
         ):
             runpy.run_module("mytools.web.httsmuggle", run_name="__main__")
