@@ -171,7 +171,7 @@ mytools-report = "mytools.core.report:main"
 required-version = ">=0.12.22"
 
 [build-system]
-requires = ["uv_build>=0.12.22,<0.13"]
+requires = ["uv_build>=0.12.23,<0.13"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
